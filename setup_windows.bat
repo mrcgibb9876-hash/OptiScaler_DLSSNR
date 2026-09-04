@@ -187,7 +187,18 @@ if "%filenameChoice%"=="" (
 
 if exist %selectedFilename% (
     echo.
-    echo WARNING: %selectedFilename% already exists in the current folder.
+    set "existingIsOpti=0"
+    for /f "tokens=*" %%P in ('powershell -NoProfile -Command "(Get-Item %selectedFilename%).VersionInfo.OriginalFilename"') do (
+        if /i "%%P"=="OptiScaler.dll" set "existingIsOpti=1"
+    )
+    if "!existingIsOpti!"=="1" (
+        echo Found a previous OptiScaler install as %selectedFilename% - it will be replaced.
+    ) else (
+        echo WARNING: %selectedFilename% already exists in the current folder.
+        echo It does not look like a previous OptiScaler install, so it will be
+        echo backed up before OptiScaler takes its place, and restored automatically
+        echo if you run the uninstaller later.
+    )
     echo.
 	echo Do you want to overwrite %selectedFilename%?
 	echo.
@@ -196,7 +207,7 @@ if exist %selectedFilename% (
     echo.
 	set /p overwriteChoice="Waiting - "
     set overwriteChoice=!overwriteChoice: =!
-    
+
     echo.
     if "!overwriteChoice!"=="1" (
         goto checkWine
@@ -377,8 +388,15 @@ goto completeSetup
 REM Rename OptiScaler file
 echo.
 if "!overwriteChoice!"=="1" (
-    echo Removing previous %selectedFilename%...
-    del /F %selectedFilename% 
+    if "!existingIsOpti!"=="1" (
+        echo Removing previous %selectedFilename%...
+        del /F %selectedFilename%
+    ) else (
+        set "bareName=!selectedFilename:"=!"
+        echo Backing up existing %selectedFilename% as !bareName!.optiscaler_original_backup...
+        del /F "!bareName!.optiscaler_original_backup" 2>nul
+        ren %selectedFilename% "!bareName!.optiscaler_original_backup"
+    )
 )
 
 echo Renaming OptiScaler file to %selectedFilename%...
@@ -512,7 +530,19 @@ echo if "%%removeChoice%%"=="1" ^(
 echo     del OptiScaler.log
 echo     del OptiScaler.ini
 echo     del OptiScaler.asi
-echo     for %%%%F in ^(!OPTI_DLL_LIST!^) do ^(del "%%%%F"^)
+echo     del nvngx.dll_dlssnr.dll
+echo     del nvngx.dll_dlssnr.exp
+echo     del nvngx.dll_dlssnr.lib
+echo     del nvngx.dll_dlssnr.pdb
+echo     for %%%%F in ^(!OPTI_DLL_LIST!^) do ^(
+echo         if exist "%%%%F.optiscaler_original_backup" ^(
+echo             del "%%%%F"
+echo             ren "%%%%F.optiscaler_original_backup" "%%%%F"
+echo             echo Restored original %%%%F
+echo         ^) else ^(
+echo             del "%%%%F"
+echo         ^)
+echo     ^)
 echo     del /Q Licenses\*
 echo     rd Licenses
 echo     del /Q OptiScaler\D3D12_Optiscaler\*
