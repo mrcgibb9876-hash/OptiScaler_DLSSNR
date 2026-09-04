@@ -48,9 +48,11 @@ static void HelpMarker(const char* tip)
     ImGui::SameLine();
     ImGui::TextColored(kTextDim, "(?)");
 
-    if (ImGui::IsItemHovered())
+    // BeginItemTooltip is IsItemHovered + BeginTooltip in one, and it returns false when the tooltip
+    // window was not begun at all. EndTooltip must only follow a true: calling it regardless pops
+    // whatever window is current instead, which is this panel.
+    if (ImGui::BeginItemTooltip())
     {
-        ImGui::BeginTooltip();
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0f);
         ImGui::TextUnformatted(tip);
         ImGui::PopTextWrapPos();
