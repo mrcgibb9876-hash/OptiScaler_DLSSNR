@@ -11,4 +11,8 @@ jobs:
       with:
         clang-format-version: '20'
         check-path: 'OptiScaler'
-        exclude-regex: 'external/|OptiScaler/include/'
+        # precompile/ holds generated shader bytecode as C arrays. Formatting it achieves nothing --
+        # nobody reads it -- and it guarantees a conflict on every upstream sync, because upstream
+        # regenerates those files unformatted and the reformat touches every line. Excluded so the
+        # generated files can be taken from upstream verbatim.
+        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/'

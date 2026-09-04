@@ -25,8 +25,12 @@ jobs:
 
       - name: Format the OptiScaler tree
         run: |
+          # Same exclusions as the check in clang-format.yml, or this workflow would reformat files
+          # the check ignores -- including the generated shader arrays under precompile/, which must
+          # stay byte-identical to upstream's so a sync does not conflict on whitespace.
           find OptiScaler -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) \
-            -not -path 'OptiScaler/include/*' -print0 |
+            -not -path 'OptiScaler/include/*' \
+            -not -path 'OptiScaler/shaders/dlssnr/precompile/*' -print0 |
             xargs -0 clang-format -i --style=file
 
       - name: Commit and push whatever changed

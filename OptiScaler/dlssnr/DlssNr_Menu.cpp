@@ -1,4 +1,4 @@
-#include "pch.h"
+﻿#include "pch.h"
 
 #include "DlssNr.h"
 #include "DlssNrFeature_Vk.h"
@@ -13,7 +13,7 @@
 #include <cctype>
 #include <cfloat>
 #include <cmath>
-#include <string>
+#include <cstdio>
 #include <string>
 
 namespace DlssNr
@@ -791,23 +791,40 @@ void RenderMenu(Config* config, float menuResScale)
                                      "the upscaler's linear output is mapped into something it recognises.");
         ImGui::PopTextWrapPos();
 
-        // Exposure is how a renderer makes a cave and a field comparable, which is exactly why one
-        // fixed paper white cannot serve both: the game's own number is decided upstream and cannot
-        // be moved by anything this pass does.
-        bool fromExposure = config->DlssNrWhitePointFromExposure.value_or_default();
-        if (NrCheckbox("Take the white point from the game", &fromExposure))
+        // Where the number that divides the frame comes from. This used to be a checkbox on
+        // DlssNrWhitePointFromExposure; upstream replaced that flag with a three-way source, and the
+        // engine no longer reads the old one -- the checkbox would have kept setting a value nothing
+        // consults. The scan asks the source whether it is wanted, so choosing it here is the whole
+        // of switching it on: there is no second flag to keep in step, and so no way for two to
+        // disagree.
+        static const char* const kSourceNames[] = { "Paper white only", "The game's own exposure",
+                                                    "A buffer the scan found" };
+
+        int wpSource = (int) config->DlssNrWhitePointSource.value_or_default();
+
+        if (wpSource < 0 || wpSource > 2)
+            wpSource = 0;
+
+        if (NrCombo("White point from", &wpSource, kSourceNames, 3, rowWidth))
         {
-            config->DlssNrWhitePointFromExposure = fromExposure;
+            config->DlssNrWhitePointSource = (uint32_t) wpSource;
             anyChanged = true;
         }
-        HelpMarker("Uses the exposure the game hands DLSS instead of measuring or guessing."
-                   "\n\nNot every game supplies one, and some supply it only on some frames -- the last"
-                   "\ngood value is held across the gaps. Paper white below stays a multiplier on top."
-                   "\n\nA game that supplies nothing is unaffected: nothing is read and Paper white is"
-                   "\nused exactly as it would be with this off.");
+        HelpMarker("Paper white only -- the slider below and nothing else. Right for a game whose"
+                   "\nexposure never moves, wrong the moment it does: one constant cannot serve a"
+                   "\ncave and a field."
+                   "\n\nThe game's own exposure -- read from the texture the game hands the upscaler."
+                   "\nThe best source there is, because it is decided upstream and nothing this pass"
+                   "\ndoes can move it. Not every game supplies one."
+                   "\n\nA buffer the scan found -- for games that compute an exposure and never pass"
+                   "\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels"
+                   "\nthe scale. Needs anchoring once, in the Experimental section, and checking after.");
+
+        const bool fromExposure = wpSource == 1;
 
         // Whether this game supplies one at all, shown either way -- without it, a game that offers
         // nothing looks identical to the option working quietly.
+        if (fromExposure)
         {
             const auto ex = DlssNr::GameExposureStatus();
 
@@ -822,16 +839,25 @@ void RenderMenu(Config* config, float menuResScale)
             else if (!ex.everOffered)
                 ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.25f, 1.0f),
                                    "This game supplies no exposure. Paper white below is in use.");
-            else if (!fromExposure)
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
-                                   "This game supplies an exposure. Tick above to use it.");
             else if (ex.exposure > 1e-6f)
+            {
+                const float trim = std::clamp(config->DlssNrWhitePointTrim.value_or_default(), 0.25f, 4.0f);
                 ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), "Game exposure %.4f  ->  white point %.2f%s",
-                                   ex.exposure,
-                                   ex.preExposure / ex.exposure * config->DlssNrWhitePointScale.value_or_default(),
+                                   ex.exposure, ex.preExposure / ex.exposure * trim,
                                    ex.offeredNow ? "" : "  (held: absent this frame)");
+            }
             else
                 ImGui::TextColored(kTextDim, "Reading the exposure...");
+
+            // 1.0 is the identity -- the game's exposure exactly as given -- so the safe value is
+            // safe by construction rather than by being written down somewhere.
+            float wpTrim = config->DlssNrWhitePointTrim.value_or_default();
+            auto rTrim = NrSlider("Trim", &wpTrim, 0.25f, 4.0f, "%.2fx", rowWidth);
+            if (rTrim.changed)
+                config->DlssNrWhitePointTrim = std::clamp(wpTrim, 0.25f, 4.0f);
+            if (rTrim.released)
+                anyChanged = true;
+            HelpMarker("Nudges the game's own exposure up or down. 1.00 takes it exactly as given.");
         }
 
         // 0.25 to 240, logarithmic. The old 4.0 ceiling could not reach the values games need --
