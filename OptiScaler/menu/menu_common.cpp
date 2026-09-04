@@ -30,6 +30,7 @@
 #include <imgui/imgui_impl_win32.h>
 #include <imgui/imgui_impl_uwp.h>
 
+#include <map>
 #include <mutex>
 #include <cstdarg>
 
@@ -55,6 +56,7 @@ static bool inputMenu = false;
 static bool inputFG = false;
 static bool inputFps = false;
 static bool inputFpsCycle = false;
+static bool inputDlssNrPanel = false;
 static uint64_t lastInputTick = 0;
 constexpr uint64_t debounceThreshold = 1000;
 
@@ -280,6 +282,8 @@ void MenuCommon::UpdateManualInput(HWND targetHwnd)
                       "Menu key pressed, will be switching FPS mode");
         CheckShortcut(config->DlssNrToggleKey.value_or_default(), inputDlssNr,
                       "Neural Rendering key pressed, will be toggling the pass");
+        CheckShortcut(config->DlssNrPanelKey.value_or_default(), inputDlssNrPanel,
+                      "DLSS 5 panel key pressed, will be switching the panel");
     }
     else if (capturingKey)
     {
@@ -1272,7 +1276,7 @@ void MenuCommon::UpdateMenuInputMode(RenderMenuContext& ctx)
     auto& io = ctx.io;
 
     // Moved here to prevent gamepad key replay
-    if (_isVisible)
+    if (AnyMenuVisible())
     {
         if (hasGamepad)
             io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
@@ -1333,6 +1337,35 @@ void MenuCommon::HandleMenuShortcuts(RenderMenuContext& ctx)
         if (inputFpsCycle && config->ShowFps.value_or_default())
             config->FpsOverlayType = (FpsOverlay) ((config->FpsOverlayType.value_or_default() + 1) % FpsOverlay_COUNT);
 
+        if (inputDlssNrPanel)
+        {
+            inputDlssNrPanel = false;
+            _dlssNrVisible = !_dlssNrVisible;
+
+            LOG_DEBUG("DLSS 5 panel key pressed, {0}", _dlssNrVisible ? "opening" : "closing");
+
+            // Opening the panel alone still has to claim input, and the shared menu's own open path
+            // does this for itself.
+            if (_dlssNrVisible && !_isVisible)
+            {
+                io.ClearEventsQueue();
+                io.ClearInputKeys();
+                io.ClearInputMouse();
+                OptiInput::ResetMenuInputTransientState();
+                ApplyThemeStyle();
+            }
+            else if (!_dlssNrVisible)
+            {
+                // A combo left open inside the panel would otherwise outlive the panel itself.
+                ImGui::CloseCurrentPopup();
+            }
+
+            // Only drop the cursor and input capture if the shared menu is not still up.
+            io.MouseDrawCursor = AnyMenuVisible();
+            io.WantCaptureKeyboard = AnyMenuVisible();
+            io.WantCaptureMouse = AnyMenuVisible();
+        }
+
         if (inputMenu)
         {
             inputMenu = false;
@@ -1372,9 +1405,9 @@ void MenuCommon::HandleMenuShortcuts(RenderMenuContext& ctx)
                 _showHudlessWindow = false;
             }
 
-            io.MouseDrawCursor = _isVisible;
-            io.WantCaptureKeyboard = _isVisible;
-            io.WantCaptureMouse = _isVisible;
+            io.MouseDrawCursor = AnyMenuVisible();
+            io.WantCaptureKeyboard = AnyMenuVisible();
+            io.WantCaptureMouse = AnyMenuVisible();
         }
 
         inputFpsCycle = false;
@@ -1477,7 +1510,7 @@ void MenuCommon::BeginMenuFrameIfNeeded(RenderMenuContext& ctx)
                                DlssNr::ExposureScan::Where() != DlssNr::ExposureScan::Verdict::Off;
 
     if ((!config->DisableSplash.value_or_default() && now > splashStart && now < splashLimit) ||
-        config->ShowFps.value_or_default() || _isVisible || ImGui::notifications.size() > 0 || scanIndicator ||
+        config->ShowFps.value_or_default() || AnyMenuVisible() || ImGui::notifications.size() > 0 || scanIndicator ||
         (config->DlssNrCompare.value_or_default() != 0 && config->DlssNrCompareTags.value_or_default()))
     {
         if (!_isUWP)
@@ -1490,7 +1523,7 @@ void MenuCommon::BeginMenuFrameIfNeeded(RenderMenuContext& ctx)
             ImGui_ImplUwp_NewFrame(displaySize);
         }
 
-        OptiInput::FeedImGui(_isVisible);
+        OptiInput::FeedImGui(AnyMenuVisible());
 
         MenuHdrCheck(io);
         ImGui::NewFrame();
@@ -1624,7 +1657,7 @@ void MenuCommon::UpdateFrameTimeAverages(RenderMenuContext& ctx)
     averageFrameTime = 0.0f;
     averageUpscalerFT = 0.0f;
 
-    if (config->ShowFps.value_or_default() || _isVisible)
+    if (config->ShowFps.value_or_default() || AnyMenuVisible())
     {
         float frameCnt = 0;
         frameTime = 0;
@@ -1673,8 +1706,7 @@ void MenuCommon::RenderNrCompareTags()
         return;
 
     const bool swap = config->DlssNrCompareSwap.value_or_default();
-    const float split = mode == 1 ? 0.5f
-                                  : std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f);
+    const float split = mode == 1 ? 0.5f : std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f);
     const float splitX = split * screen.x;
 
     const float scale = std::clamp(config->DlssNrTagScale.value_or_default(), 0.5f, 5.0f);
@@ -1718,7 +1750,6 @@ void MenuCommon::RenderNrCompareTags()
 void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
 {
     RenderNrCompareTags();
-
 
     auto& state = ctx.state;
     auto config = ctx.config;
@@ -6959,6 +6990,20 @@ void MenuCommon::RenderApiAndTextureSettings(RenderMenuContext& ctx)
     }
 }
 
+void MenuCommon::RenderKeybindRow(const char* label, int id, CustomOptional<int>& configKey)
+{
+    // Keyed by id so each row keeps its own "waiting for a key" state across frames, the same way
+    // the statics in RenderKeybindSettings do.
+    static std::map<int, Keybind> rows;
+
+    auto it = rows.find(id);
+
+    if (it == rows.end())
+        it = rows.try_emplace(id, label, id).first;
+
+    it->second.Render(configKey);
+}
+
 void MenuCommon::RenderKeybindSettings(RenderMenuContext& ctx)
 {
     auto config = ctx.config;
@@ -6978,12 +7023,14 @@ void MenuCommon::RenderKeybindSettings(RenderMenuContext& ctx)
         static auto fpsOverlayCycle = Keybind("FPS Overlay Cycle", 12);
         static auto fgEnable = Keybind("Frame Generation", 13);
         static auto dlssNrToggle = Keybind("Neural Rendering", 14);
+        static auto dlssNrPanel = Keybind("DLSS 5 Developer Controls", 15);
 
         menu.Render(config->ShortcutKey);
         fpsOverlay.Render(config->FpsShortcutKey);
         fpsOverlayCycle.Render(config->FpsCycleShortcutKey);
         fgEnable.Render(config->FGShortcutKey);
         dlssNrToggle.Render(config->DlssNrToggleKey);
+        dlssNrPanel.Render(config->DlssNrPanelKey);
     }
 }
 
@@ -6993,7 +7040,7 @@ void MenuCommon::RenderMainMenuTable(RenderMenuContext& ctx)
     {
         ImGui::TableNextColumn();
 
-        // Left column: active upscaler state, frame generation, FSR common, latency and fakenvapi controls.
+        // Left column: active upscaler state, frame generation, FSR common, latency and fakenvapi.
         RenderActiveUpscalerSettings(ctx);
         RenderFrameGenerationSelection(ctx);
         RenderFrameGenerationRuntimeSettings(ctx);
@@ -7007,9 +7054,12 @@ void MenuCommon::RenderMainMenuTable(RenderMenuContext& ctx)
 
         ImGui::TableNextColumn();
 
-        // Right column: image quality, initialization, advanced options, appearance, overlay and input settings.
+        // Right column: image quality, initialization, advanced options, appearance, overlay, input.
+        //
+        // DlssNr::RenderMenu is deliberately absent: the DLSS 5 panel is its own window on its own
+        // key now, so it can be open alongside this menu, instead of it, or neither. Drawing it here
+        // as well would put two of it on screen.
         RenderActiveImageSettings(ctx);
-        DlssNr::RenderMenu(ctx.config, ctx.menuResScale);
         RenderMagnifierSettings(ctx);
         RenderQuirksSettings(ctx);
         RenderAdvancedSettings(ctx);
@@ -7194,15 +7244,23 @@ void MenuCommon::RenderMainMenuBottomBar(RenderMenuContext& ctx)
     if (ImGui::Button("Close"))
     {
         _isVisible = false;
-        hasGamepad = (io.BackendFlags | ImGuiBackendFlags_HasGamepad) > 0;
-        io.BackendFlags &= 30;
-        io.ConfigFlags = ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_NoKeyboard;
 
         _showMipmapCalcWindow = false;
         _showHudlessWindow = false;
-        io.MouseDrawCursor = false;
-        io.WantCaptureKeyboard = false;
-        io.WantCaptureMouse = false;
+
+        // Closing this window must not tear input down if the DLSS 5 panel is still on screen --
+        // it is a separate window with its own hotkey and needs the mouse and keyboard to stay live.
+        if (!AnyMenuVisible())
+        {
+            hasGamepad = (io.BackendFlags | ImGuiBackendFlags_HasGamepad) > 0;
+            io.BackendFlags &= 30;
+            io.ConfigFlags =
+                ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_NoKeyboard;
+        }
+
+        io.MouseDrawCursor = AnyMenuVisible();
+        io.WantCaptureKeyboard = AnyMenuVisible();
+        io.WantCaptureMouse = AnyMenuVisible();
     }
 
     auto winSize = ImGui::GetWindowSize();
@@ -7515,7 +7573,7 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
     auto& frameTimesCalculated = ctx.frameTimesCalculated;
     auto& menuResScale = ctx.menuResScale;
 
-    if (!_isVisible)
+    if (!AnyMenuVisible())
         return;
 
     // Check for GPU support once and reuse the result in all menu sections.
@@ -7568,31 +7626,38 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
         style.MouseCursorScale = 1.0f;
         CopyMemory(style.Colors, styleold.Colors, sizeof(style.Colors)); // Restore colors
 
-        ImGui::SetNextWindowSize({ 1.0f, 1.0f });
+        // Guarded: this applies to whichever window opens next, and with the panel now a separate
+        // window it would otherwise collapse that one to 1x1 for a frame when the panel is up alone.
+        if (_isVisible)
+            ImGui::SetNextWindowSize({ 1.0f, 1.0f });
     }
 
-    // Main menu window
-    if (windowTitle.empty())
+    // The shared window is back, and the DLSS 5 panel no longer replaces it -- the two are
+    // independent windows on independent keys.
+    if (_isVisible)
     {
-        windowTitle = StrFmt("%s - %s %s %s %s", VER_PRODUCT_NAME, state.gameExe.c_str(),
-                             state.gameName.empty() ? "" : StrFmt("- %s", state.gameName.c_str()).c_str(),
-                             (state.detectedQuirks.size() > 0) ? "(Q)" : "", state.isOptiPatcherSucceed ? "(OP)" : "");
+        if (windowTitle.empty())
+        {
+            windowTitle =
+                StrFmt("%s - %s %s %s %s", VER_PRODUCT_NAME, state.gameExe.c_str(),
+                       state.gameName.empty() ? "" : StrFmt("- %s", state.gameName.c_str()).c_str(),
+                       (state.detectedQuirks.size() > 0) ? "(Q)" : "", state.isOptiPatcherSucceed ? "(OP)" : "");
+        }
+
+        if (ImGui::Begin(windowTitle.c_str(), NULL, flags))
+        {
+            RenderMainMenuHeaderMessages(ctx);
+            RenderMainMenuTable(ctx);
+            RenderMainMenuGraphs(ctx);
+            RenderMainMenuBottomBar(ctx);
+
+            ImGui::End();
+        }
     }
 
-    if (ImGui::Begin(windowTitle.c_str(), NULL, flags))
-    {
-        // Header/status messages shown above the two-column settings table.
-        RenderMainMenuHeaderMessages(ctx);
-
-        // Main two-column settings content.
-        RenderMainMenuTable(ctx);
-
-        // Diagnostics and footer actions below the settings table.
-        RenderMainMenuGraphs(ctx);
-        RenderMainMenuBottomBar(ctx);
-
-        ImGui::End();
-    }
+    // Its own window, drawn whether or not the shared menu is up.
+    if (_dlssNrVisible)
+        DlssNr::RenderMenu(ctx.config, ctx.menuResScale);
 
     // Detached utility windows owned by the main menu.
     RenderMipmapBiasWindow(ctx, flags);
@@ -7608,6 +7673,7 @@ void KeyUp(UINT vKey)
     inputFps = vKey == Config::Instance()->FpsShortcutKey.value_or_default();
     inputFG = vKey == Config::Instance()->FGShortcutKey.value_or_default();
     inputFpsCycle = vKey == Config::Instance()->FpsCycleShortcutKey.value_or_default();
+    inputDlssNrPanel = vKey == Config::Instance()->DlssNrPanelKey.value_or_default();
 }
 
 // The lamp, and only the lamp.
@@ -7670,8 +7736,8 @@ void RenderExposureScanIndicator(float alpha)
     }
 
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f, vp->WorkPos.y + 12.0f),
-                            ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12.0f, vp->WorkPos.y + 12.0f), ImGuiCond_Always,
+                            ImVec2(1.0f, 0.0f));
     ImGui::SetNextWindowBgAlpha(alpha);
 
     if (ImGui::Begin("DlssNrExposureScan", nullptr,
@@ -7716,7 +7782,7 @@ bool MenuCommon::RenderMenu()
     // 2) Prepare one-shot notifications and start a new ImGui frame only when needed.
     UpdateVersionAndStartupNotifications(ctx);
     BeginMenuFrameIfNeeded(ctx);
-    OptiInput::EndFrame(_isVisible);
+    OptiInput::EndFrame(AnyMenuVisible());
 
     // 3) Draw lightweight overlay windows first, preserving the original order.
     ctx.menuResScale = MenuResolutionScale(ctx.io);
@@ -7751,6 +7817,7 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
 
     _handle = InHwnd;
     _isVisible = false;
+    _dlssNrVisible = false;
     _isUWP = isUWP;
     lastPosition = { -1000.0f, -1000.0f };
 
@@ -7866,14 +7933,18 @@ void MenuCommon::Shutdown()
     _handle = nullptr;
     _isInited = false;
     _isVisible = false;
+    _dlssNrVisible = false;
 }
 
 void MenuCommon::HideMenu()
 {
-    if (!_isVisible)
+    // Called when the overlay cannot be drawn at all, so it takes down both windows, not just
+    // the shared menu.
+    if (!AnyMenuVisible())
         return;
 
     _isVisible = false;
+    _dlssNrVisible = false;
 
     ImGuiIO& io = ImGui::GetIO();
     (void) io;
@@ -7881,7 +7952,7 @@ void MenuCommon::HideMenu()
     _showMipmapCalcWindow = false;
     _showHudlessWindow = false;
 
-    io.MouseDrawCursor = _isVisible;
-    io.WantCaptureKeyboard = _isVisible;
-    io.WantCaptureMouse = _isVisible;
+    io.MouseDrawCursor = false;
+    io.WantCaptureKeyboard = false;
+    io.WantCaptureMouse = false;
 }
