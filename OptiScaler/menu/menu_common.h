@@ -82,6 +82,14 @@ class MenuCommon
     inline static HWND _handle = nullptr;
     // inline static WNDPROC _oWndProc = nullptr;
     inline static bool _isVisible = false;
+
+    // The DLSS 5 panel is its own window on its own key, so it can be open with the shared menu,
+    // instead of the shared menu, or neither.
+    inline static bool _dlssNrVisible = false;
+
+    // Anything that gates on "a menu is up" -- cursor, input capture, whether a frame is drawn --
+    // has to mean either of them, or opening the panel alone would draw a window nothing can click.
+    static bool AnyMenuVisible() { return _isVisible || _dlssNrVisible; }
     inline static bool _isInited = false;
     inline static bool _isUWP = false;
 
@@ -190,7 +198,16 @@ class MenuCommon
     static void Dx12Inited() { _dx12Ready = true; }
     static void VulkanInited() { _vulkanReady = true; }
     static bool IsInited() { return _isInited; }
-    static bool IsVisible() { return _isVisible; }
+
+    // "An overlay window is on screen" -- what every caller outside this file actually wants, and
+    // now true for the DLSS 5 panel as well as the shared menu. The Vulkan DLSS-G suppression and
+    // the magnifier both key off this, and both need to react to either window.
+    static bool IsVisible() { return AnyMenuVisible(); }
+
+    // The shared menu specifically. Only the DLSS 5 panel needs this, to know whether it may take
+    // keyboard focus for itself.
+    static bool IsSharedMenuVisible() { return _isVisible; }
+
     static HWND Handle() { return _handle; }
 
     // Renders one keybind row: a button that captures the next key, the current binding, and a

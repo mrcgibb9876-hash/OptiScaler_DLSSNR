@@ -404,9 +404,10 @@ void RenderMenu(Config* config, float menuResScale)
 
     if (ImGui::Begin("##DlssNrOverlay", nullptr, flags))
     {
-        // Matches the old shared window's behaviour: claim focus so keyboard/mouse routes here
-        // rather than being left with whatever last had it.
-        if (!ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
+        // Claim focus so keyboard/mouse routes here rather than being left with whatever last had
+        // it -- but only when this panel is on its own. With OptiScaler's own menu also open,
+        // grabbing focus every frame would make that menu impossible to type into.
+        if (!MenuCommon::IsSharedMenuVisible() && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
             ImGui::SetWindowFocus();
 
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
@@ -430,12 +431,15 @@ void RenderMenu(Config* config, float menuResScale)
                    "\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package"
                    "\nUndocumented and driven directly, so none of this is officially supported.");
 
-        // This used to read "bind it under Keybinds" -- but this build renders only this panel, so
-        // that section is unreachable and the instruction pointed nowhere. The row itself lives
-        // here now.
+        // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
+        // panel is usable on its own, without going looking for the other window.
         MenuCommon::RenderKeybindRow("Toggle key", 14, config->DlssNrToggleKey);
         HelpMarker("Toggles Neural Rendering without opening this panel. Press the button, then the"
                    "\nkey you want. Escape cancels, Backspace unbinds, R resets it.");
+
+        MenuCommon::RenderKeybindRow("Panel key", 15, config->DlssNrPanelKey);
+        HelpMarker("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
+                   "\ntwo can be up together or on their own.");
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably

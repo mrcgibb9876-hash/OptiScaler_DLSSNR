@@ -343,6 +343,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrLocalTone.set_from_config(readFloat("DlssNr", "LocalTone"));
             DlssNrSkinStructure.set_from_config(readFloat("DlssNr", "SkinStructure"));
             DlssNrAutoMask.set_from_config(readBool("DlssNr", "AutoMask"));
+            DlssNrPanelKey.set_from_config(readInt("DlssNr", "PanelKey"));
             DlssNrDepthConvention.set_from_config(readUInt("DlssNr", "DepthConvention"));
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
             UseGenericAppIdWithDlss.set_from_config(readBool("DLSS", "UseGenericAppIdWithDlss"));
@@ -1178,6 +1179,8 @@ bool Config::SaveIni()
         {
             auto toggle = Instance()->DlssNrToggleKey.value_for_config();
             ini.SetValue("DlssNr", "ToggleKey", GetIntValue(toggle, toggle > 0).c_str());
+            auto panelKey = Instance()->DlssNrPanelKey.value_for_config();
+            ini.SetValue("DlssNr", "PanelKey", GetIntValue(panelKey, panelKey > 0).c_str());
         }
         ini.SetValue("DlssNr", "TransferStrength",
                      GetFloatValue(Instance()->DlssNrTransferStrength.value_for_config()).c_str());
