@@ -13,13 +13,23 @@
 
 ## DLSS 5 Developer Controls UI (this fork)
 
-This fork replaces OptiScaler's in-game menu with a standalone overlay for DLSS Neural
-Rendering, styled after NVIDIA's own DLSS 5 Developer Controls panel — its own window (no
-title bar, no graphs, no bottom bar), custom filled-track sliders, filled-square checkboxes,
-and controls renamed to NVIDIA's real terminology wherever there's a genuine match (Structure
-Intensity, Tone Intensity, Model Automask, Models A/B/C). Everything else about OptiScaler —
-the actual upscaler/frame-gen hooking — is untouched; only the settings UI is cut down to this
-one panel.
+This fork adds a standalone overlay for DLSS Neural Rendering, styled after NVIDIA's own DLSS 5
+Developer Controls panel — its own window (no title bar, no graphs, no bottom bar), custom
+filled-track sliders, filled-square checkboxes, and controls renamed to NVIDIA's real terminology
+wherever there's a genuine match (Structure Intensity, Tone Intensity, Model Automask, Models
+A/B/C).
+
+It sits **alongside** OptiScaler's own menu rather than replacing it — two windows on two keys,
+and both can be open at once:
+
+| Key | Opens |
+|---|---|
+| `Insert` | OptiScaler's own overlay, with everything it normally has |
+| `Home` | the DLSS 5 Developer Controls panel |
+
+Both are rebindable under **Keybinds** in the overlay, or in `OptiScaler.ini`
+(`ShortcutKey=` and `DlssNrPanelKey=`). Everything else about OptiScaler — the actual
+upscaler/frame-gen hooking — is untouched.
 
 <div align="center">
   <img src="images/dlss5ui/dlss5-developer-controls-ui.png" width="420" alt="DLSS 5 Developer Controls overlay" />
@@ -33,25 +43,35 @@ A small desktop app that installs/updates this build into any number of games wi
 copying files each time.
 
 1. Download `OptiScaler Manager Setup.exe` (or the portable `.exe`, no install needed) from the
-   [latest release](https://github.com/mrcgibb9876-hash/OptiScaler_DLSSNR/releases/tag/dlss5-ui-v1).
+   [latest release](https://github.com/mrcgibb9876-hash/OptiScaler_DLSSNR/releases/latest).
 2. Run it, open **Settings → Check for Updates** to pull this fork's build automatically.
-3. Add a game and click **Install**.
+3. Click **Scan for Games** — it reads your Steam, Epic and GOG libraries and works out which
+   `.exe` in each game folder is the one that actually renders. Or add a game by hand.
 4. Supply your own `nvngx_dlssnr.dll` (from an NVIDIA driver package — see below, this can't be
-   redistributed) into the same game folder.
+   redistributed) in **Settings**, then click **Install** on a game.
 
 **Option B — Manual**
 
-1. Download `OptiScaler-DLSS5UI-Package.zip` from the same
-   [release page](https://github.com/mrcgibb9876-hash/OptiScaler_DLSSNR/releases/tag/dlss5-ui-v1)
+1. Download `OptiScaler_v1.0.0.zip` from the same
+   [release page](https://github.com/mrcgibb9876-hash/OptiScaler_DLSSNR/releases/latest)
    and extract every file into your game's folder (the one with the game's `.exe`).
 2. Run `setup_windows.bat` and answer its questions.
 3. Supply `nvngx_dlssnr.dll` as in step 4 above.
 
 **Requirements:** an NVIDIA RTX 50-series GPU and driver 616.56+ for DLSS Neural Rendering
-specifically (older/other GPUs can still use the rest of OptiScaler); a game that already uses
-DLSS on DirectX 12 (DirectX 11 works through the D3D11-on-D3D12 bridge; Vulkan is not wired up
-yet). Once installed, launch the game, load a save (OptiScaler doesn't run in menus), press
-**Insert** to open the overlay, and turn **DLSS ON**.
+specifically (older/other GPUs can still use the rest of OptiScaler); and a game that already uses
+DLSS. **DirectX 12** is the native path, **Vulkan** works (natively and through the D3D12 bridge),
+and **DirectX 11** works through the D3D11-on-D3D12 bridge. There is no DirectX 9 or 10 support and
+there won't be — those APIs have no upscaler call to intercept.
+
+Once installed, launch the game, load a save (OptiScaler doesn't run in menus), press **Insert** to
+open OptiScaler's overlay, turn **DLSS ON**, then press **Home** for the DLSS 5 panel. Neural
+Rendering is **off by default** even after installing — turn it on in that panel, or set
+`Enabled=true` under `[DlssNr]` in `OptiScaler.ini`.
+
+> [!CAUTION]
+> Don't run this alongside a DLSS 5 ReShade add-on (`renodx-dlss5.addon64`, `dlss5-feed.addon64`)
+> in the same game. Both would apply the model to the same frame. Pick one per game.
 
 ## Table of Contents
 
