@@ -1,0 +1,96 @@
+# Build the branch and publish it as a release.
+#
+# The nightly workflow only ever writes to the "nightly" tag, so cutting a versioned release meant
+# building locally and uploading by hand. This does the same build CI already does -- the whole
+# solution, both projects -- and attaches the result to a tag.
+#
+# What is NOT in the zip, deliberately: nvngx_dlssnr.dll. It is NVIDIA's, it comes out of a driver,
+# and it is not ours to redistribute. Only the small forwarder ships; users supply their own copy.
+# See package_release.ps1, which makes the same choice for local packaging.
+
+name: Publish a release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to create or update (e.g. v1.0.1)"
+        required: true
+        default: "v1.0.1"
+      title:
+        description: "Release title"
+        required: true
+        default: "OptiScaler DLSS-NR v1.0.1"
+      prerelease:
+        description: "Mark as a pre-release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  BUILD_CONFIGURATION: Release
+  SOLUTION_FILE_PATH: .
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: 'true'
+
+    - name: Add MSBuild to PATH
+      uses: microsoft/setup-msbuild@v2
+
+    - name: Build
+      run: msbuild /m /p:Configuration=${{ env.BUILD_CONFIGURATION }} ${{ env.SOLUTION_FILE_PATH }} /verbosity:minimal
+
+    # x64\Release\a is what the post-build event assembles: the DLL, the forwarder, the ini, the
+    # setup scripts and the licences. It is the release, and nothing else in x64\Release is.
+    - name: Check the payload looks like a release
+      shell: powershell
+      run: |
+        $payload = "${{ github.workspace }}\x64\Release\a"
+
+        if (-Not (Test-Path $payload)) {
+          Write-Error "No payload at $payload -- the post-build event did not run."
+          exit 1
+        }
+
+        # A zip that is missing the DLL still zips fine and still uploads fine, and the first anyone
+        # hears of it is a user whose game does nothing.
+        foreach ($required in @("OptiScaler.dll", "OptiScaler.ini", "setup_windows.bat")) {
+          if (-Not (Test-Path "$payload\$required")) {
+            Write-Error "$required is missing from the release payload."
+            exit 1
+          }
+        }
+
+        # The one file that must never ship. Belt and braces: the post-build event does not copy it,
+        # but a leftover from a local build in the same tree would be published without this.
+        if (Test-Path "$payload\nvngx_dlssnr.dll") {
+          Write-Error "nvngx_dlssnr.dll is in the payload. That is NVIDIA's and must not be published."
+          exit 1
+        }
+
+        Get-ChildItem -Recurse $payload | Select-Object -ExpandProperty FullName
+
+    - name: Package
+      shell: powershell
+      run: |
+        $zip = "${{ github.workspace }}\OptiScaler_${{ inputs.tag }}.zip"
+        Compress-Archive -Path "${{ github.workspace }}\x64\Release\a\*" -DestinationPath $zip -CompressionLevel Optimal
+        Write-Output "Wrote $zip ($([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB)"
+
+    - name: Publish
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ inputs.tag }}
+        name: ${{ inputs.title }}
+        prerelease: ${{ inputs.prerelease }}
+        files: ${{ github.workspace }}/OptiScaler_${{ inputs.tag }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
