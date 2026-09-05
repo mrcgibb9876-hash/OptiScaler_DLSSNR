@@ -1,0 +1,187 @@
+diff --git a/OptiScaler/dlssnr/DlssNr_Api.cpp b/OptiScaler/dlssnr/DlssNr_Api.cpp
+index fee0f29c..db01129a 100644
+--- a/OptiScaler/dlssnr/DlssNr_Api.cpp
++++ b/OptiScaler/dlssnr/DlssNr_Api.cpp
+@@ -127,9 +127,9 @@ template <class T> const Entry<T>* Find(const Entry<T>* table, size_t count, con
+ extern "C"
+ {
+ 
+-    __declspec(dllexport) int32_t OptiNr_AbiVersion(void) { return OPTINR_ABI_VERSION; }
++    OPTINR_API int32_t OptiNr_AbiVersion(void) { return OPTINR_ABI_VERSION; }
+ 
+-    __declspec(dllexport) int32_t OptiNr_GetStatus(OptiNr_Status* out)
++    OPTINR_API int32_t OptiNr_GetStatus(OptiNr_Status* out)
+     {
+         // structSize lets this grow later without breaking consumers, but only if the direction is
+         // right, and the obvious guard has it backwards.
+@@ -187,7 +187,7 @@ extern "C"
+         return OPTINR_OK;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_GetFloat(const char* key, float* out)
++    OPTINR_API int32_t OptiNr_GetFloat(const char* key, float* out)
+     {
+         if (key == nullptr || out == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -201,7 +201,7 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_SetFloat(const char* key, float value)
++    OPTINR_API int32_t OptiNr_SetFloat(const char* key, float value)
+     {
+         if (key == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -215,7 +215,7 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_GetInt(const char* key, int32_t* out)
++    OPTINR_API int32_t OptiNr_GetInt(const char* key, int32_t* out)
+     {
+         if (key == nullptr || out == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -241,7 +241,7 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_SetInt(const char* key, int32_t value)
++    OPTINR_API int32_t OptiNr_SetInt(const char* key, int32_t value)
+     {
+         if (key == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -275,7 +275,7 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_GetBool(const char* key, int32_t* out)
++    OPTINR_API int32_t OptiNr_GetBool(const char* key, int32_t* out)
+     {
+         if (key == nullptr || out == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -289,7 +289,7 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_SetBool(const char* key, int32_t value)
++    OPTINR_API int32_t OptiNr_SetBool(const char* key, int32_t value)
+     {
+         if (key == nullptr)
+             return OPTINR_BAD_ARGUMENT;
+@@ -303,20 +303,20 @@ extern "C"
+         return OPTINR_UNKNOWN_KEY;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_Save(void)
++    OPTINR_API int32_t OptiNr_Save(void)
+     {
+         // SaveIni answers whether it actually wrote, and a consumer that has just taken a user's
+         // settings deserves to know they did not land rather than being told OK regardless.
+         return Config::Instance()->SaveIni() ? OPTINR_OK : OPTINR_BAD_ARGUMENT;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_RetryAfterFailure(void)
++    OPTINR_API int32_t OptiNr_RetryAfterFailure(void)
+     {
+         DlssNr::RetryAfterFailure();
+         return OPTINR_OK;
+     }
+ 
+-    __declspec(dllexport) int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType)
++    OPTINR_API int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType)
+     {
+         if (outKey == nullptr || outType == nullptr || index < 0)
+             return OPTINR_BAD_ARGUMENT;
+diff --git a/OptiScaler/dlssnr/DlssNr_Api.h b/OptiScaler/dlssnr/DlssNr_Api.h
+index 65b6ce8a..712d6e92 100644
+--- a/OptiScaler/dlssnr/DlssNr_Api.h
++++ b/OptiScaler/dlssnr/DlssNr_Api.h
+@@ -37,6 +37,18 @@ extern "C"
+ // meaning of a return value. Adding a key is not a change to the shape and does not bump it.
+ #define OPTINR_ABI_VERSION 1
+ 
++// Every declaration below and every definition in DlssNr_Api.cpp must carry this. MSVC rejects a
++// definition that adds __declspec(dllexport) to a function already declared without it -- C2375,
++// "redefinition; different linkage" -- so the two cannot disagree even harmlessly.
++//
++// A consumer building against this header defines OPTINR_CONSUMER first and gets dllimport, which
++// is what an add-on linking to OptiScaler wants.
++#ifdef OPTINR_CONSUMER
++#define OPTINR_API __declspec(dllimport)
++#else
++#define OPTINR_API __declspec(dllexport)
++#endif
++
+ // Every function returns one of these.
+ #define OPTINR_OK 1            // did what was asked
+ #define OPTINR_UNKNOWN_KEY 0   // no such setting; nothing was read or written
+@@ -73,7 +85,7 @@ extern "C"
+ 
+     // The version of THIS interface in the OptiScaler that answered. Call it first: if it returns
+     // something other than OPTINR_ABI_VERSION, do not call anything else.
+-    int32_t OptiNr_AbiVersion(void);
++    OPTINR_API int32_t OptiNr_AbiVersion(void);
+ 
+     // Set structSize to sizeof(OptiNr_Status) before calling.
+     //
+@@ -81,27 +93,27 @@ extern "C"
+     // struct ends. One built against a NEWER version than the OptiScaler it found is refused, since
+     // there is no honest way to fill fields that OptiScaler has never heard of -- check
+     // OptiNr_AbiVersion first and that case does not arise.
+-    int32_t OptiNr_GetStatus(OptiNr_Status* out);
++    OPTINR_API int32_t OptiNr_GetStatus(OptiNr_Status* out);
+ 
+     // Reading a key that exists but has never been set returns its default, which is what the pass
+     // is actually using -- so a consumer never has to know whether a value came from the ini.
+-    int32_t OptiNr_GetFloat(const char* key, float* out);
+-    int32_t OptiNr_SetFloat(const char* key, float value);
++    OPTINR_API int32_t OptiNr_GetFloat(const char* key, float* out);
++    OPTINR_API int32_t OptiNr_SetFloat(const char* key, float value);
+ 
+     // Signed and unsigned settings both go through these; an unsigned setting rejects a negative.
+-    int32_t OptiNr_GetInt(const char* key, int32_t* out);
+-    int32_t OptiNr_SetInt(const char* key, int32_t value);
++    OPTINR_API int32_t OptiNr_GetInt(const char* key, int32_t* out);
++    OPTINR_API int32_t OptiNr_SetInt(const char* key, int32_t value);
+ 
+-    int32_t OptiNr_GetBool(const char* key, int32_t* out);
+-    int32_t OptiNr_SetBool(const char* key, int32_t value);
++    OPTINR_API int32_t OptiNr_GetBool(const char* key, int32_t* out);
++    OPTINR_API int32_t OptiNr_SetBool(const char* key, int32_t value);
+ 
+     // Writes the ini. The overlay saves as you go; a consumer that changes settings should call this
+     // when the user is done rather than on every frame of a drag.
+-    int32_t OptiNr_Save(void);
++    OPTINR_API int32_t OptiNr_Save(void);
+ 
+     // Clears the session failure latch, so a failure caused by transient thrash does not cost a
+     // restart. The same thing the overlay's Retry button does.
+-    int32_t OptiNr_RetryAfterFailure(void);
++    OPTINR_API int32_t OptiNr_RetryAfterFailure(void);
+ 
+     // Walks the keys, so a consumer can discover what this OptiScaler supports rather than assuming.
+     // index counts from 0; returns OPTINR_UNKNOWN_KEY once it runs off the end.
+@@ -112,7 +124,7 @@ extern "C"
+ #define OPTINR_TYPE_INT 2
+ #define OPTINR_TYPE_BOOL 3
+ 
+-    int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType);
++    OPTINR_API int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType);
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/OptiScaler/dlssnr/reshade_addon/dlssnr_reshade.cpp b/OptiScaler/dlssnr/reshade_addon/dlssnr_reshade.cpp
+index 9b729972..ae3d52c2 100644
+--- a/OptiScaler/dlssnr/reshade_addon/dlssnr_reshade.cpp
++++ b/OptiScaler/dlssnr/reshade_addon/dlssnr_reshade.cpp
+@@ -34,6 +34,10 @@
+ // instance ReShade created, so this add-on draws into ReShade's context rather than one of its own.
+ #include <reshade.hpp>
+ 
++// Everything below is resolved by name at runtime, so this only needs the declarations for their
++// types. OPTINR_CONSUMER keeps the header from marking them dllexport here, which would otherwise
++// re-export OptiScaler's names from this add-on.
++#define OPTINR_CONSUMER
+ #include "../DlssNr_Api.h"
+ 
+ #include <windows.h>
