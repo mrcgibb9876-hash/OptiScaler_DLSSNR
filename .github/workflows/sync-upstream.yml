@@ -54,7 +54,10 @@ jobs:
       # on a schedule -- so it is opt-in, and it prints what it is about to throw away first.
       - name: Reset the mirror to upstream (only when asked)
         if: inputs.reset_mirror
+        env:
+          GIT_TOKEN: ${{ secrets.MIRROR_RESET_TOKEN || github.token }}
         run: |
+          git remote set-url origin "https://x-access-token:$GIT_TOKEN@github.com/${{ github.repository }}.git"
           git checkout -B "$MIRROR_BRANCH" "origin/$MIRROR_BRANCH"
 
           EXTRA=$(git log --oneline "upstream/$UPSTREAM_BRANCH..HEAD")
@@ -70,6 +73,14 @@ jobs:
           echo "They stay reachable from the reflog and from any branch that already contains them."
 
           git reset --hard "upstream/$UPSTREAM_BRANCH"
+
+          # This push needs a token with the "workflow" scope whenever the reset adds, removes or
+          # changes anything under .github/workflows -- and it does, because the extra commits on
+          # the mirror are the ones that put the workflows there. GITHUB_TOKEN cannot do it and the
+          # push comes back "refusing to allow a GitHub App to create or update workflow".
+          #
+          # Set MIRROR_RESET_TOKEN to a PAT with that scope to use this, or do it by hand over SSH:
+          #   git push origin +upstream/dlss-neural-rendering:refs/heads/dlss-neural-rendering
           git push --force-with-lease origin "$MIRROR_BRANCH"
 
           echo "$MIRROR_BRANCH now matches upstream at $(git rev-parse --short HEAD)."
@@ -80,7 +91,21 @@ jobs:
           git checkout -B "$MIRROR_BRANCH" "origin/$MIRROR_BRANCH"
 
           BEFORE=$(git rev-parse HEAD)
-          git merge --ff-only "upstream/$UPSTREAM_BRANCH"
+
+          # Fast-forward is the shape this is supposed to have, and while it works the mirror stays
+          # byte-identical to upstream. But it stops being possible the moment the mirror has any
+          # commit of its own AND upstream moves, and then this job fails every night for a reason
+          # that has nothing to do with the sync itself.
+          #
+          # Falling back to a merge keeps the mirror current, which is all the downstream merge into
+          # the UI branch actually needs. It is not as tidy, and the run says so.
+          if git merge --ff-only "upstream/$UPSTREAM_BRANCH"; then
+            :
+          else
+            echo "::warning::The mirror has commits upstream does not, so this could not fast-forward. Merging instead. Dispatch this workflow with reset_mirror to make it a clean mirror again."
+            git merge --no-edit "upstream/$UPSTREAM_BRANCH"
+          fi
+
           AFTER=$(git rev-parse HEAD)
 
           echo "changed=$([ "$BEFORE" != "$AFTER" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
