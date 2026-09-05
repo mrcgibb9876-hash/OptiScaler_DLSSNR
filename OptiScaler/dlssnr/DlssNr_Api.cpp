@@ -127,9 +127,9 @@ template <class T> const Entry<T>* Find(const Entry<T>* table, size_t count, con
 extern "C"
 {
 
-    __declspec(dllexport) int32_t OptiNr_AbiVersion(void) { return OPTINR_ABI_VERSION; }
+    OPTINR_API int32_t OptiNr_AbiVersion(void) { return OPTINR_ABI_VERSION; }
 
-    __declspec(dllexport) int32_t OptiNr_GetStatus(OptiNr_Status* out)
+    OPTINR_API int32_t OptiNr_GetStatus(OptiNr_Status* out)
     {
         // structSize lets this grow later without breaking consumers, but only if the direction is
         // right, and the obvious guard has it backwards.
@@ -187,7 +187,7 @@ extern "C"
         return OPTINR_OK;
     }
 
-    __declspec(dllexport) int32_t OptiNr_GetFloat(const char* key, float* out)
+    OPTINR_API int32_t OptiNr_GetFloat(const char* key, float* out)
     {
         if (key == nullptr || out == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -201,7 +201,7 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_SetFloat(const char* key, float value)
+    OPTINR_API int32_t OptiNr_SetFloat(const char* key, float value)
     {
         if (key == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -215,7 +215,7 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_GetInt(const char* key, int32_t* out)
+    OPTINR_API int32_t OptiNr_GetInt(const char* key, int32_t* out)
     {
         if (key == nullptr || out == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -241,7 +241,7 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_SetInt(const char* key, int32_t value)
+    OPTINR_API int32_t OptiNr_SetInt(const char* key, int32_t value)
     {
         if (key == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -275,7 +275,7 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_GetBool(const char* key, int32_t* out)
+    OPTINR_API int32_t OptiNr_GetBool(const char* key, int32_t* out)
     {
         if (key == nullptr || out == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -289,7 +289,7 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_SetBool(const char* key, int32_t value)
+    OPTINR_API int32_t OptiNr_SetBool(const char* key, int32_t value)
     {
         if (key == nullptr)
             return OPTINR_BAD_ARGUMENT;
@@ -303,20 +303,20 @@ extern "C"
         return OPTINR_UNKNOWN_KEY;
     }
 
-    __declspec(dllexport) int32_t OptiNr_Save(void)
+    OPTINR_API int32_t OptiNr_Save(void)
     {
         // SaveIni answers whether it actually wrote, and a consumer that has just taken a user's
         // settings deserves to know they did not land rather than being told OK regardless.
         return Config::Instance()->SaveIni() ? OPTINR_OK : OPTINR_BAD_ARGUMENT;
     }
 
-    __declspec(dllexport) int32_t OptiNr_RetryAfterFailure(void)
+    OPTINR_API int32_t OptiNr_RetryAfterFailure(void)
     {
         DlssNr::RetryAfterFailure();
         return OPTINR_OK;
     }
 
-    __declspec(dllexport) int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType)
+    OPTINR_API int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType)
     {
         if (outKey == nullptr || outType == nullptr || index < 0)
             return OPTINR_BAD_ARGUMENT;

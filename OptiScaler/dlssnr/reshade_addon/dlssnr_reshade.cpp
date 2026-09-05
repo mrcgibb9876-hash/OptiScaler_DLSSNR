@@ -34,6 +34,10 @@
 // instance ReShade created, so this add-on draws into ReShade's context rather than one of its own.
 #include <reshade.hpp>
 
+// Everything below is resolved by name at runtime, so this only needs the declarations for their
+// types. OPTINR_CONSUMER keeps the header from marking them dllexport here, which would otherwise
+// re-export OptiScaler's names from this add-on.
+#define OPTINR_CONSUMER
 #include "../DlssNr_Api.h"
 
 #include <windows.h>

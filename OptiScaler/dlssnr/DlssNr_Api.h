@@ -37,6 +37,18 @@ extern "C"
 // meaning of a return value. Adding a key is not a change to the shape and does not bump it.
 #define OPTINR_ABI_VERSION 1
 
+// Every declaration below and every definition in DlssNr_Api.cpp must carry this. MSVC rejects a
+// definition that adds __declspec(dllexport) to a function already declared without it -- C2375,
+// "redefinition; different linkage" -- so the two cannot disagree even harmlessly.
+//
+// A consumer building against this header defines OPTINR_CONSUMER first and gets dllimport, which
+// is what an add-on linking to OptiScaler wants.
+#ifdef OPTINR_CONSUMER
+#define OPTINR_API __declspec(dllimport)
+#else
+#define OPTINR_API __declspec(dllexport)
+#endif
+
 // Every function returns one of these.
 #define OPTINR_OK 1            // did what was asked
 #define OPTINR_UNKNOWN_KEY 0   // no such setting; nothing was read or written
@@ -73,7 +85,7 @@ extern "C"
 
     // The version of THIS interface in the OptiScaler that answered. Call it first: if it returns
     // something other than OPTINR_ABI_VERSION, do not call anything else.
-    int32_t OptiNr_AbiVersion(void);
+    OPTINR_API int32_t OptiNr_AbiVersion(void);
 
     // Set structSize to sizeof(OptiNr_Status) before calling.
     //
@@ -81,27 +93,27 @@ extern "C"
     // struct ends. One built against a NEWER version than the OptiScaler it found is refused, since
     // there is no honest way to fill fields that OptiScaler has never heard of -- check
     // OptiNr_AbiVersion first and that case does not arise.
-    int32_t OptiNr_GetStatus(OptiNr_Status* out);
+    OPTINR_API int32_t OptiNr_GetStatus(OptiNr_Status* out);
 
     // Reading a key that exists but has never been set returns its default, which is what the pass
     // is actually using -- so a consumer never has to know whether a value came from the ini.
-    int32_t OptiNr_GetFloat(const char* key, float* out);
-    int32_t OptiNr_SetFloat(const char* key, float value);
+    OPTINR_API int32_t OptiNr_GetFloat(const char* key, float* out);
+    OPTINR_API int32_t OptiNr_SetFloat(const char* key, float value);
 
     // Signed and unsigned settings both go through these; an unsigned setting rejects a negative.
-    int32_t OptiNr_GetInt(const char* key, int32_t* out);
-    int32_t OptiNr_SetInt(const char* key, int32_t value);
+    OPTINR_API int32_t OptiNr_GetInt(const char* key, int32_t* out);
+    OPTINR_API int32_t OptiNr_SetInt(const char* key, int32_t value);
 
-    int32_t OptiNr_GetBool(const char* key, int32_t* out);
-    int32_t OptiNr_SetBool(const char* key, int32_t value);
+    OPTINR_API int32_t OptiNr_GetBool(const char* key, int32_t* out);
+    OPTINR_API int32_t OptiNr_SetBool(const char* key, int32_t value);
 
     // Writes the ini. The overlay saves as you go; a consumer that changes settings should call this
     // when the user is done rather than on every frame of a drag.
-    int32_t OptiNr_Save(void);
+    OPTINR_API int32_t OptiNr_Save(void);
 
     // Clears the session failure latch, so a failure caused by transient thrash does not cost a
     // restart. The same thing the overlay's Retry button does.
-    int32_t OptiNr_RetryAfterFailure(void);
+    OPTINR_API int32_t OptiNr_RetryAfterFailure(void);
 
     // Walks the keys, so a consumer can discover what this OptiScaler supports rather than assuming.
     // index counts from 0; returns OPTINR_UNKNOWN_KEY once it runs off the end.
@@ -112,7 +124,7 @@ extern "C"
 #define OPTINR_TYPE_INT 2
 #define OPTINR_TYPE_BOOL 3
 
-    int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType);
+    OPTINR_API int32_t OptiNr_EnumKey(int32_t index, const char** outKey, int32_t* outType);
 
 #ifdef __cplusplus
 }
