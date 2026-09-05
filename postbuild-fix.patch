@@ -1,0 +1,17 @@
+diff --git a/OptiScaler/OptiScaler.vcxproj b/OptiScaler/OptiScaler.vcxproj
+index 1748becd..303ebfc5 100644
+--- a/OptiScaler/OptiScaler.vcxproj
++++ b/OptiScaler/OptiScaler.vcxproj
+@@ -250,10 +250,11 @@ move $(SolutionDir)x64\Release\$(TargetFileName) $(SolutionDir)x64\Release\a\
+ md $(SolutionDir)x64\Release\a\Licenses
+ del /Q $(SolutionDir)x64\Release\a\Licenses\*.*
+ copy $(SolutionDir)external\xess\LICENSE.txt $(SolutionDir)x64\Release\a\Licenses\XeSS_LICENSE.txt /Y
+-copy "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" $(SolutionDir)x64\Release\a\ /Y
++if exist "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" copy "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" $(SolutionDir)x64\Release\a\ /Y
+ copy "$(SolutionDir)Licenses\RenoDX_ATTRIBUTION.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
+ md $(SolutionDir)x64\Release\a\OptiScaler
+ copy $(SolutionDir)external\xess\bin\*.dll $(SolutionDir)x64\Release\a\OptiScaler\ /Y
++md $(SolutionDir)x64\Release\a\OptiScaler\Licenses
+ copy $(SolutionDir)external\FidelityFX-SDK\docs\license.md $(SolutionDir)x64\Release\a\OptiScaler\Licenses\FidelityFX_v1_LICENSE.md /Y
+ copy $(SolutionDir)external\FidelityFX-SDK\PrebuiltSignedDLL\amd_fidelityfx_vk.dll $(SolutionDir)x64\Release\a\OptiScaler\ /Y
+ copy $(SolutionDir)external\FidelityFX-SDK-v2\Kits\FidelityFX\signedbin\amd_fidelityfx_loader_dx12.dll $(SolutionDir)x64\Release\a\OptiScaler\ /Y
