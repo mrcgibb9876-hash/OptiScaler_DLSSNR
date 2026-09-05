@@ -4,7 +4,14 @@ name: Sync upstream DLSS Neural Rendering
 on:
   schedule:
     - cron: "0 6 * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      reset_mirror:
+        description: >-
+          Discard anything committed onto the mirror branch and make it match upstream exactly.
+          Only needed once, after someone has committed to the mirror by mistake.
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,6 +44,35 @@ jobs:
 
           git remote add upstream "$UPSTREAM_URL"
           git fetch upstream "$UPSTREAM_BRANCH"
+
+      # The mirror is meant to be a copy of upstream and nothing else. Commit onto it and the
+      # scheduled fast-forward below stops working the moment upstream next moves: the branch is
+      # then both ahead and behind, which is not a fast-forward, and the sync fails every night
+      # until someone intervenes.
+      #
+      # Recovering from that is a force-push, which is exactly the operation you do not want running
+      # on a schedule -- so it is opt-in, and it prints what it is about to throw away first.
+      - name: Reset the mirror to upstream (only when asked)
+        if: inputs.reset_mirror
+        run: |
+          git checkout -B "$MIRROR_BRANCH" "origin/$MIRROR_BRANCH"
+
+          EXTRA=$(git log --oneline "upstream/$UPSTREAM_BRANCH..HEAD")
+
+          if [ -z "$EXTRA" ]; then
+            echo "The mirror has nothing upstream does not. Nothing to reset."
+            exit 0
+          fi
+
+          echo "About to discard these commits from $MIRROR_BRANCH:"
+          echo "$EXTRA"
+          echo
+          echo "They stay reachable from the reflog and from any branch that already contains them."
+
+          git reset --hard "upstream/$UPSTREAM_BRANCH"
+          git push --force-with-lease origin "$MIRROR_BRANCH"
+
+          echo "$MIRROR_BRANCH now matches upstream at $(git rev-parse --short HEAD)."
 
       - name: Fast-forward the mirror branch to upstream
         id: ff
