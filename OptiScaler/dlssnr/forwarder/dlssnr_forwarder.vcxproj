@@ -51,7 +51,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>d3d12.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <!-- OutDir is the release packaging folder ("a\") -- keep the import lib/exp and pdb out of it. -->
+      <!-- OutDir is the release packaging folder ("a\"), so keep the import lib/exp and pdb out of it. -->
       <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
       <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
     </Link>
