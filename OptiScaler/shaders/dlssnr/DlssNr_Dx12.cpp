@@ -459,6 +459,41 @@ float WhitePointForMean(float meanLuma)
 
 std::filesystem::path g_dllDir;
 
+// Another add-on already running this same model in this process, or nullptr.
+//
+// Checked by module name because that is what ReShade gives us: it LoadLibrary's its add-ons, so
+// they are ordinary loaded modules. Both of these apply DLSS 5 Neural Rendering at the ReShade
+// stage, downstream of this pass.
+//
+// Only worth checking at create time. ReShade loads its add-ons during device creation, long before
+// a game has rendered enough for this pass to be built, so one appearing later is not a case worth
+// carrying complexity for.
+const char* ConflictingNrAddon()
+{
+    struct Addon
+    {
+        const wchar_t* module;
+        const char* name;
+    };
+
+    // The 32-bit variants are listed for completeness: OptiScaler is x64, so it will never share a
+    // process with them, but naming them costs nothing and stops the list looking half-finished.
+    static constexpr Addon kAddons[] = {
+        { L"renodx-dlss5.addon64", "renodx-dlss5.addon64" },
+        { L"renodx-dlss5.addon32", "renodx-dlss5.addon32" },
+        { L"dlss5-feed.addon64", "dlss5-feed.addon64" },
+        { L"dlss5-feed.addon32", "dlss5-feed.addon32" },
+    };
+
+    for (const auto& addon : kAddons)
+    {
+        if (GetModuleHandleW(addon.module) != nullptr)
+            return addon.name;
+    }
+
+    return nullptr;
+}
+
 // Loads the forwarder that owns the calls into the snippet.
 bool EnsureForwarder()
 {
@@ -1660,6 +1695,34 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     if (cfg.DlssNrProxyProbe.value_or_default())
         ProbeProxyDispatch(cmdList);
+
+    // Refuse to be the second thing applying this model to the same frame.
+    //
+    // ReShade loads its add-ons with LoadLibrary, so they are ordinary modules and can be found by
+    // name. Both of the ones below run DLSS 5 Neural Rendering at the ReShade stage, which is AFTER
+    // this pass -- so with both active the frame is denoised twice, the second working on a picture
+    // the first already rewrote. That does not read as more detail; it reads as smeared and
+    // over-sharpened, and neither tool would say a word about why.
+    //
+    // Refused rather than warned. This pass exists to decide what the frame looks like, and two
+    // things cannot both be that. The message names the file so it is obvious which to remove.
+    if (const char* other = ConflictingNrAddon())
+    {
+        // Static, because g_nr.reason is a borrowed pointer that has to outlive this frame. Kept
+        // short because the panel prints it on one unwrapped line; the log carries the rest.
+        static std::string conflict;
+        conflict = std::string(other) + " is already doing this -- remove it, or turn this off";
+
+        LOG_ERROR("DLSS-NR unavailable: {} is loaded and applies Neural Rendering at the ReShade stage, "
+                  "downstream of this pass. Running both denoises every frame twice, the second working "
+                  "on a picture the first already rewrote.",
+                  other);
+
+        g_nr.failed = true;
+        g_nr.reason = conflict.c_str();
+        device->Release();
+        return;
+    }
 
     if (!EnsureForwarder() || !EnsureCapabilityParams(device))
     {

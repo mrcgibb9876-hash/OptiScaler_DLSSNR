@@ -146,6 +146,17 @@ template <class T, HasDefaultValue defaultState = WithDefault> class CustomOptio
 };
 
 constexpr inline int UnboundKey = -1;
+
+// A keybind is a virtual-key code in the low byte with modifier flags in the bits above it.
+//
+// Packed into the one int rather than given a second setting, because every bind saved before
+// modifiers existed is a bare 0-255 vkey: it reads back with no modifier bits set and keeps working
+// untouched. That is also why the flags start at 0x100 -- anything at or below 0xFF is a key.
+constexpr inline int KeyVkMask = 0x00FF;
+constexpr inline int KeyModAlt = 0x0100;
+constexpr inline int KeyModCtrl = 0x0200;
+constexpr inline int KeyModShift = 0x0400;
+constexpr inline int KeyModMask = KeyModAlt | KeyModCtrl | KeyModShift;
 constexpr uint32_t NV_PRESET_LATEST = 0x00FFFFFF;
 
 enum FpsOverlayPos : uint32_t
@@ -263,8 +274,10 @@ class Config
 
     // Opens the DLSS 5 Developer Controls panel. Separate from the shared menu's own key, and from
     // DlssNrToggleKey, which turns the feature itself on and off rather than showing the panel.
-    // Home: next to Insert, which opens the shared menu, and unused by OptiScaler otherwise.
-    CustomOptional<int> DlssNrPanelKey { VK_HOME };
+    //
+    // Alt+Home rather than bare Home: Home is a common in-game binding, and the panel can be open
+    // at the same time as the shared menu, so it needs a chord of its own that no game will claim.
+    CustomOptional<int> DlssNrPanelKey { VK_HOME | KeyModAlt };
     CustomOptional<uint32_t> DlssNrPreset { 0 };
     CustomOptional<float> DlssNrIntensity { 1.0f };
     // 0 default (standard), 1 natural, 2 cinematic -- the model's own processing profiles.

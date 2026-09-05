@@ -466,7 +466,12 @@ void RenderMenu(Config* config, float menuResScale)
 
             if (reason[0] != 0)
             {
+                // Wrapped: some reasons name a file and what to do about it, which does not fit on
+                // one line at this panel's width.
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
                 ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s.", reason);
+                ImGui::PopTextWrapPos();
+
                 ImGui::SameLine();
 
                 if (ImGui::SmallButton("Retry"))

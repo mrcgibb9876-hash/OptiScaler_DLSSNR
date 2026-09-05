@@ -253,21 +253,49 @@ void MenuCommon::UpdateManualInput(HWND targetHwnd)
 
     const auto config = Config::Instance();
 
-    auto CheckShortcut = [&](int vk, bool& inputFlag, const char* logMessage)
+    auto CheckShortcut = [&](int bind, bool& inputFlag, const char* logMessage)
     {
-        if (inputFlag)
+        if (inputFlag || bind == UnboundKey)
             return;
+
+        const int vk = bind & KeyVkMask;
+        const int mods = bind & KeyModMask;
 
         if (vk <= 0 || vk >= 256)
             return;
 
-        if (OptiInput::IsKeyReleased(vk))
+        if (!OptiInput::IsKeyReleased(vk))
+            return;
+
+        // A bind that names no modifier ignores them entirely, exactly as it always did. That
+        // matters more than it looks: Shift is held for most of a game, so requiring an exact match
+        // on every bind would stop Insert opening the menu while the player happened to be
+        // sprinting -- a regression for everyone who never asked for a chord.
+        //
+        // A bind that DOES name modifiers requires an exact match, which is what stops Alt+Home
+        // also firing on bare Home.
+        //
+        // The cost of the asymmetry: bind Home plainly AND Alt+Home elsewhere and Alt+Home fires
+        // both. That needs someone to deliberately bind the same key twice, and is a far better
+        // trade than breaking every unchorded bind.
+        if (mods != 0)
         {
-            lastKey = vk;
-            // receivingWmInputs = false;
-            inputFlag = true;
-            LOG_DEBUG("{}", logMessage);
+            // Read at release rather than latched on press: the key completes the chord, so the
+            // modifier only has to still be held at that moment -- which it is, for the natural
+            // hold-Alt-and-tap-Home motion.
+            const bool alt = OptiInput::IsKeyDown(VK_MENU);
+            const bool ctrl = OptiInput::IsKeyDown(VK_CONTROL);
+            const bool shift = OptiInput::IsKeyDown(VK_SHIFT);
+
+            if (alt != ((mods & KeyModAlt) != 0) || ctrl != ((mods & KeyModCtrl) != 0) ||
+                shift != ((mods & KeyModShift) != 0))
+                return;
         }
+
+        lastKey = vk;
+        // receivingWmInputs = false;
+        inputFlag = true;
+        LOG_DEBUG("{}", logMessage);
     };
 
     const auto currentTick = GetTickCount64();
@@ -355,6 +383,28 @@ class Keybind
   public:
     Keybind(std::string name, int id) : name(name), id(id) {}
 
+    // The whole bind, modifiers and all, as something readable: "Alt+Home".
+    static std::string BindName(int bind)
+    {
+        // Modifiers with no key is not a bind. Only reachable by hand-editing the ini to something
+        // like 256, but CheckShortcut rejects that, so the label must not claim it is bound.
+        if (bind == UnboundKey || (bind & KeyVkMask) == 0)
+            return "Unbound";
+
+        std::string out;
+
+        // Ctrl, Alt, Shift -- the order Windows itself writes them in, so it reads the way people
+        // expect rather than the order the bits happen to sit in.
+        if (bind & KeyModCtrl)
+            out += "Ctrl+";
+        if (bind & KeyModAlt)
+            out += "Alt+";
+        if (bind & KeyModShift)
+            out += "Shift+";
+
+        return out + KeyNameFromVirtualKeyCode((USHORT) (bind & KeyVkMask));
+    }
+
     static std::string KeyNameFromVirtualKeyCode(USHORT virtualKey)
     {
         if (virtualKey == (USHORT) UnboundKey)
@@ -413,6 +463,23 @@ class Keybind
             if (lastKey == 0 || lastKey == VK_LBUTTON || lastKey == VK_RBUTTON || lastKey == VK_MBUTTON)
                 return;
 
+            // A modifier pressed on its own is never the bind: it is what you are holding while you
+            // reach for the real key. Swallow it and keep waiting, or Alt+Home could only ever be
+            // captured as "Alt".
+            switch (lastKey)
+            {
+            case VK_SHIFT:
+            case VK_LSHIFT:
+            case VK_RSHIFT:
+            case VK_CONTROL:
+            case VK_LCONTROL:
+            case VK_RCONTROL:
+            case VK_MENU:
+            case VK_LMENU:
+            case VK_RMENU:
+                return;
+            }
+
             if (lastKey == VK_ESCAPE)
             {
                 waitingForKey = false;
@@ -421,16 +488,32 @@ class Keybind
             }
 
             if (lastKey == VK_BACK)
-                lastKey = UnboundKey;
+            {
+                configKey = UnboundKey;
+            }
+            else
+            {
+                int bind = lastKey & KeyVkMask;
 
-            configKey = lastKey;
+                if (OptiInput::IsKeyDown(VK_MENU))
+                    bind |= KeyModAlt;
+                if (OptiInput::IsKeyDown(VK_CONTROL))
+                    bind |= KeyModCtrl;
+                if (OptiInput::IsKeyDown(VK_SHIFT))
+                    bind |= KeyModShift;
+
+                configKey = bind;
+            }
+
             waitingForKey = false;
             capturingKey = false;
             return;
         }
 
         ImGui::SameLine();
-        ImGui::Text(KeyNameFromVirtualKeyCode(configKey.value_or_default()).c_str());
+        // "%s" rather than passing the name as the format itself -- a key whose name contains a
+        // percent sign would otherwise be read as a format specifier.
+        ImGui::Text("%s", BindName(configKey.value_or_default()).c_str());
 
         ImGui::SameLine();
         ImGui::PushID(id);
@@ -1446,9 +1529,8 @@ void MenuCommon::UpdateVersionAndStartupNotifications(RenderMenuContext& ctx)
             {
                 ImGuiToast updateNotification { ImGuiToastType::Error, updateNoticeTime };
                 updateNotification.setTitle("OptiScaler Update available");
-                updateNotification.setContent(
-                    "Press %s for more info",
-                    Keybind::KeyNameFromVirtualKeyCode(config->ShortcutKey.value_or_default()).c_str());
+                updateNotification.setContent("Press %s for more info",
+                                              Keybind::BindName(config->ShortcutKey.value_or_default()).c_str());
                 ImGui::InsertNotification(updateNotification);
                 return true;
             };
@@ -1584,7 +1666,7 @@ void MenuCommon::RenderSplashWindow(RenderMenuContext& ctx)
                     ImGui::SetWindowFontScale(splashScale);
 
                 ImGui::Text("OptiScaler - %s for menu",
-                            Keybind::KeyNameFromVirtualKeyCode(config->ShortcutKey.value_or_default()).c_str());
+                            Keybind::BindName(config->ShortcutKey.value_or_default()).c_str());
                 ImGui::TextColored(toneMapColor(ImVec4(1.0f, 1.0f, 1.0f, 0.7f)), splashMessage.c_str());
 
                 splashSize = ImGui::GetWindowSize();
@@ -7014,7 +7096,7 @@ void MenuCommon::RenderKeybindSettings(RenderMenuContext& ctx)
         ScopedIndent indent {};
         ImGui::Spacing();
 
-        ImGui::Text("Key combinations are currently NOT supported!");
+        ImGui::Text("Hold Ctrl, Alt or Shift while pressing the key to bind a combination.");
         ImGui::Text("Escape to cancel, Backspace to unbind");
         ImGui::Spacing();
 
@@ -7667,13 +7749,39 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
         ImGui::PopFontSize();
 }
 
+// The UWP CoreWindow::KeyUp path (bound via ImGui_BindUwpKeyUp below), which delivers a bare
+// virtual-key. The bind's modifier bits have to be checked against live state here too, or a
+// chorded bind would never match on this path at all.
+//
+// Same asymmetry as CheckShortcut, and for the same reason: no modifiers named means modifiers are
+// ignored, so unchorded binds keep working while any of them is held.
+static bool BindMatches(UINT vKey, int bind)
+{
+    if (bind == UnboundKey)
+        return false;
+
+    if (vKey != (UINT) (bind & KeyVkMask))
+        return false;
+
+    const int mods = bind & KeyModMask;
+
+    if (mods == 0)
+        return true;
+
+    return OptiInput::IsKeyDown(VK_MENU) == ((mods & KeyModAlt) != 0) &&
+           OptiInput::IsKeyDown(VK_CONTROL) == ((mods & KeyModCtrl) != 0) &&
+           OptiInput::IsKeyDown(VK_SHIFT) == ((mods & KeyModShift) != 0);
+}
+
 void KeyUp(UINT vKey)
 {
-    inputMenu = vKey == Config::Instance()->ShortcutKey.value_or_default();
-    inputFps = vKey == Config::Instance()->FpsShortcutKey.value_or_default();
-    inputFG = vKey == Config::Instance()->FGShortcutKey.value_or_default();
-    inputFpsCycle = vKey == Config::Instance()->FpsCycleShortcutKey.value_or_default();
-    inputDlssNrPanel = vKey == Config::Instance()->DlssNrPanelKey.value_or_default();
+    auto* config = Config::Instance();
+
+    inputMenu = BindMatches(vKey, config->ShortcutKey.value_or_default());
+    inputFps = BindMatches(vKey, config->FpsShortcutKey.value_or_default());
+    inputFG = BindMatches(vKey, config->FGShortcutKey.value_or_default());
+    inputFpsCycle = BindMatches(vKey, config->FpsCycleShortcutKey.value_or_default());
+    inputDlssNrPanel = BindMatches(vKey, config->DlssNrPanelKey.value_or_default());
 }
 
 // The lamp, and only the lamp.

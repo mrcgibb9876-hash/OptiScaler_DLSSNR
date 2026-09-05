@@ -159,6 +159,9 @@ echo  [6] wininet.dll
 echo  [7] winhttp.dll
 echo  [8] OptiScaler.asi
 echo.
+REM Cleared first: set /p leaves the variable untouched on a bare Enter, so coming back round the
+REM retry loop and pressing Enter would silently re-pick the previous answer instead of the default.
+set "filenameChoice="
 set /p filenameChoice="Enter 1-8 (or press Enter for default): "
 
 if "%filenameChoice%"=="" (
@@ -185,14 +188,47 @@ if "%filenameChoice%"=="" (
     goto selectFilename
 )
 
+REM selectedFilename carries its own quotes ("dxgi.dll"), which is right for `if exist` and `ren`
+REM but wrong inside a quoted PowerShell -Command string. Keep an unquoted copy for that, and for
+REM building the backup name below.
+set "bareName=%selectedFilename:"=%"
+
 if exist %selectedFilename% (
     echo.
     set "existingIsOpti=0"
-    for /f "tokens=*" %%P in ('powershell -NoProfile -Command "(Get-Item %selectedFilename%).VersionInfo.OriginalFilename"') do (
+    set "existingIsReShade=0"
+    for /f "tokens=*" %%P in ('powershell -NoProfile -Command "(Get-Item '!bareName!').VersionInfo.OriginalFilename"') do (
         if /i "%%P"=="OptiScaler.dll" set "existingIsOpti=1"
+    )
+    REM ReShade wants the same filename OptiScaler does, and only one of them can have it. Rather
+    REM than treat it as a stranger to be shoved aside, recognise it: OptiScaler can load ReShade
+    REM itself once ReShade is renamed, so both end up working instead of one silently losing.
+    REM
+    REM Read into a variable and test with substring replacement rather than piping into findstr.
+    REM A pipe hands the left side to a child cmd as text, so a ProductName containing ^& or ^| would
+    REM be re-parsed as commands -- and a set on the far side of a pipe may not reach this process
+    REM at all, which would leave ReShade quietly treated as a stranger and disabled.
+    set "existingProduct="
+    for /f "tokens=*" %%P in ('powershell -NoProfile -Command "(Get-Item '!bareName!').VersionInfo.ProductName"') do (
+        set "existingProduct=%%P"
+    )
+    if defined existingProduct if not "!existingProduct:ReShade=!"=="!existingProduct!" set "existingIsReShade=1"
+
+    REM Someone already has a ReShade64.dll. Setup must not touch it -- it is very likely a working
+    REM hand-made pairing, and taking the rename path would delete it. Fall back to the ordinary
+    REM backup, which is reversible.
+    if "!existingIsReShade!"=="1" if exist "ReShade64.dll" (
+        set "existingIsReShade=0"
+        echo Note: ReShade64.dll already exists, so it is left alone.
     )
     if "!existingIsOpti!"=="1" (
         echo Found a previous OptiScaler install as %selectedFilename% - it will be replaced.
+    ) else if "!existingIsReShade!"=="1" (
+        echo Found ReShade installed as %selectedFilename%.
+        echo.
+        echo Both want that filename, so ReShade will be renamed to ReShade64.dll and
+        echo OptiScaler set to load it on startup. You keep ReShade, and its overlay
+        echo opens exactly as it does now.
     ) else (
         echo WARNING: %selectedFilename% already exists in the current folder.
         echo It does not look like a previous OptiScaler install, so it will be
@@ -391,8 +427,33 @@ if "!overwriteChoice!"=="1" (
     if "!existingIsOpti!"=="1" (
         echo Removing previous %selectedFilename%...
         del /F %selectedFilename%
+    ) else if "!existingIsReShade!"=="1" (
+        echo Renaming ReShade to ReShade64.dll and setting OptiScaler to load it...
+
+        REM No del of an existing ReShade64.dll here: the detection above refuses this path when one
+        REM exists, precisely so nothing of the user's is destroyed.
+        ren %selectedFilename% "ReShade64.dll"
+
+        if errorlevel 1 (
+            echo ERROR: could not rename %selectedFilename% to ReShade64.dll.
+            echo Is the game still running, or the file read-only?
+            goto end
+        )
+
+        REM A marker saying THIS script did the rename. Without it the uninstaller would have to go
+        REM on the mere existence of ReShade64.dll, and would then hijack the hand-made setups the
+        REM ini has been telling people to build for years.
+        >"ReShade64.dll.optiscaler_renamed" echo !bareName!
+
+        REM Rewrite the setting rather than appending one: the key already exists in the shipped
+        REM ini, and a second copy lower down would be the one that wins. Guarded on the file being
+        REM there, because Get-Content on a missing file yields null and Set-Content would then
+        REM write an EMPTY ini -- which reads as LoadReshade=false, leaving ReShade renamed away and
+        REM never loaded.
+        if exist "OptiScaler.ini" (
+            powershell -NoProfile -Command "(Get-Content 'OptiScaler.ini') -replace '^\s*LoadReshade\s*=.*', 'LoadReshade=true' | Set-Content 'OptiScaler.ini'"
+        )
     ) else (
-        set "bareName=!selectedFilename:"=!"
         echo Backing up existing %selectedFilename% as !bareName!.optiscaler_original_backup...
         del /F "!bareName!.optiscaler_original_backup" 2>nul
         ren %selectedFilename% "!bareName!.optiscaler_original_backup"
@@ -529,7 +590,13 @@ echo echo.
 echo if "%%removeChoice%%"=="1" ^(
 echo     del OptiScaler.log
 echo     del OptiScaler.ini
-echo     del OptiScaler.asi
+echo     if exist "OptiScaler.asi.optiscaler_original_backup" ^(
+echo         del OptiScaler.asi
+echo         ren "OptiScaler.asi.optiscaler_original_backup" "OptiScaler.asi"
+echo         echo Restored original OptiScaler.asi
+echo     ^) else ^(
+echo         del OptiScaler.asi
+echo     ^)
 echo     del nvngx.dll_dlssnr.dll
 echo     del nvngx.dll_dlssnr.exp
 echo     del nvngx.dll_dlssnr.lib
@@ -539,6 +606,15 @@ echo         if exist "%%%%F.optiscaler_original_backup" ^(
 echo             del "%%%%F"
 echo             ren "%%%%F.optiscaler_original_backup" "%%%%F"
 echo             echo Restored original %%%%F
+echo         ^) else if exist "ReShade64.dll.optiscaler_renamed" ^(
+echo             REM Setup renamed ReShade so OptiScaler could take the filename and load it.
+echo             REM With OptiScaler going, ReShade needs that name back or nothing loads it.
+echo             REM Keyed on the marker setup left, not on ReShade64.dll existing: plenty of people
+echo             REM built that pairing by hand, and theirs must not be hijacked.
+echo             del "%%%%F"
+echo             if exist "ReShade64.dll" ren "ReShade64.dll" "%%%%F"
+echo             del "ReShade64.dll.optiscaler_renamed"
+echo             echo Restored ReShade as %%%%F
 echo         ^) else ^(
 echo             del "%%%%F"
 echo         ^)
