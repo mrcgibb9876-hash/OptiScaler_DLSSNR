@@ -2,13 +2,13 @@
 
 // The DLSS Neural Rendering control ABI.
 //
-// A flat C interface exported from OptiScaler.dll so something outside it -- the ReShade add-on in
-// reshade_addon/, and anything else that wants to -- can read and drive the pass without linking
-// against OptiScaler or knowing anything about Config, ImGui or NGX.
+// A flat C interface exported from OptiScaler.dll so something outside it can read and drive the
+// pass without linking against OptiScaler or knowing anything about Config, ImGui or NGX. (A
+// ReShade add-on consumer was tried and dropped -- see git history -- but the ABI itself is
+// general-purpose and stays.)
 //
 // This header is deliberately standalone: it includes nothing from the rest of the project and uses
-// nothing but fixed-width integers, so a consumer can copy this one file and be done. The add-on
-// does exactly that.
+// nothing but fixed-width integers, so a consumer can copy this one file and be done.
 //
 // Why string keys rather than a struct or one function per setting.
 //
