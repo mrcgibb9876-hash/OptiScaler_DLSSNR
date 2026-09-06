@@ -2,25 +2,27 @@
 //
 // What this is, and what it deliberately is not.
 //
-// It is NOT a port of the pass. The model needs the game's depth, motion vectors, MV scale, jitter
-// reset and pre-exposure, and it needs them labelled and at the right moment in the frame. OptiScaler
-// has all of that because it IS the upscaler interceptor -- the game hands it the NGX parameter block
-// with every input named. ReShade's add-on API hands an add-on draw calls, resources and a swapchain;
-// it has no idea which resource is motion vectors, and for depth it offers a per-game heuristic that
-// is wrong often enough to need a UI of its own. Reimplementing the pass here would mean feeding the
-// model guesses and calling the result Neural Rendering.
+// It is NOT a port of the pass. Whichever engine is actually driving DLSS 5 Neural Rendering --
+// OptiScaler or RenoDX (the DLSS5-Feeder toolchain's own neural consumer) -- keeps doing so; this
+// add-on is a FRONT END that reaches across and drives whichever one it finds running, drawing one
+// identical set of controls either inside ReShade's own overlay (its own overlay key, alongside
+// RenoDX's own tab) or in a standalone window toggled with Alt+Home, independent of whether
+// ReShade's own overlay is open -- so it works the same way whichever route a game was set up with.
 //
-// So this is a FRONT END. The pass stays in OptiScaler, where the inputs are; this reaches across and
-// drives it, drawing the controls inside ReShade's own overlay so a ReShade user gets them on the
-// overlay key they already use, in one ImGui context, with no second window and no hotkey to learn.
+// Two backends, chosen live every frame (not once at load, since either engine can finish loading
+// after this add-on does):
 //
-// It talks to OptiScaler through the flat C ABI in ../DlssNr_Api.h, resolved by name at runtime. That
-// means:
-//   - This add-on does not link against OptiScaler and cannot crash it by being out of date.
-//   - An OptiScaler without the ABI (upstream, or an older build) is detected and reported, not
-//     crashed into.
-//   - Settings added to OptiScaler later appear to this add-on as keys it does not happen to draw.
-//     Nothing breaks; the add-on simply shows what it knows.
+//  - OptiScaler: through the flat C ABI in ../DlssNr_Api.h, resolved by name at runtime. This
+//    add-on does not link against OptiScaler and cannot crash it by being out of date; an
+//    OptiScaler without the ABI is detected and reported, not crashed into.
+//  - RenoDX: through ReShade's own config API (get_config_value/set_config_value) on the
+//    RenoDX.DLSS5 section -- the exact same store RenoDX itself reads and writes, so there is no
+//    cache/writeback race. RenoDX has no in-process control ABI of its own to link against, so this
+//    is the only way in; presence is detected by module name, the same way OptiScaler's is.
+//
+// Both backends draw from the same data-driven field table (fields.h) and the same styling, matched
+// to the OptiScalerManager desktop app's own "Tune DLSS-NR" panel, so the desktop panel and both
+// in-game routes present one identical product.
 //
 // Build: see the vcxproj beside this file. It needs ReShade's addon SDK headers (reshade.hpp) and
 // Dear ImGui 1.92.2b-docking headers -- ImGui is NOT compiled in, ReShade supplies the instance.
@@ -40,9 +42,14 @@
 #define OPTINR_CONSUMER
 #include "../DlssNr_Api.h"
 
+#include "fields.h"
+
 #include <windows.h>
 
 #include <cstdio>
+#include <cstring>
+
+using namespace dlssnr_tune;
 
 namespace
 {
@@ -145,101 +152,208 @@ void TryResolve()
         return;
     }
 
-    g_link.problem = "OptiScaler is not loaded in this game. Its DLSS 5 controls need it running.";
+    g_link.problem = "OptiScaler is not loaded in this game.";
 }
 
 // ---------------------------------------------------------------------------------------------
-// Small wrappers, so the drawing code below reads like ordinary settings code.
-//
-// Every one of them fails soft. A key this OptiScaler does not have returns the fallback and the
-// control still draws -- it just does nothing, which is the right behaviour for an add-on that may
-// be talking to a newer or older build than it was written against.
+// Presence of RenoDX -- the DLSS5-Feeder toolchain's own neural consumer, and the other engine
+// this add-on can drive. Checked by module name, the same way OptiScaler's presence is: ReShade
+// loads every add-on as a real DLL into the process under its own file name.
 // ---------------------------------------------------------------------------------------------
 
-float GetF(const char* key, float fallback)
+bool g_renodx_present = false;
+
+void TryResolveRenoDx()
 {
-    float v = fallback;
-    return g_link.GetFloat(key, &v) == OPTINR_OK ? v : fallback;
+    if (g_renodx_present)
+        return;
+
+    g_renodx_present = GetModuleHandleW(L"renodx-dlss5.addon64") != nullptr;
 }
 
-int GetI(const char* key, int fallback)
+enum class Backend
 {
-    int32_t v = fallback;
-    return g_link.GetInt(key, &v) == OPTINR_OK ? (int) v : fallback;
-}
+    None,
+    OptiScaler,
+    RenoDx
+};
 
-bool GetB(const char* key, bool fallback)
+Backend ResolveBackend()
 {
-    int32_t v = fallback ? 1 : 0;
-    return g_link.GetBool(key, &v) == OPTINR_OK ? v != 0 : fallback;
-}
+    TryResolve();
+    if (g_link.ready)
+        return Backend::OptiScaler;
 
-// Returns true when the key exists at all, so a control can grey itself out rather than lying.
-bool HasF(const char* key)
-{
-    float v = 0.0f;
-    return g_link.GetFloat(key, &v) == OPTINR_OK;
+    TryResolveRenoDx();
+    if (g_renodx_present)
+        return Backend::RenoDx;
+
+    return Backend::None;
 }
 
 // ---------------------------------------------------------------------------------------------
-// Controls.
-//
-// Each returns whether the user let go of it, which is when the ini is written -- writing on every
-// frame of a drag would rewrite the file dozens of times a second.
+// Backend-agnostic field access. Every value is read and written by key -- see fields.h's own
+// comment on why -- so a field this build of either engine does not have simply keeps whatever
+// the control shows without erroring.
 // ---------------------------------------------------------------------------------------------
 
-bool SliderF(const char* label, const char* key, float mn, float mx, const char* fmt = "%.2f",
-             ImGuiSliderFlags flags = 0)
+double opti_get(const field& f)
 {
-    const bool present = HasF(key);
-
-    ImGui::BeginDisabled(!present);
-
-    float v = GetF(key, mn);
-
-    if (ImGui::SliderFloat(label, &v, mn, mx, fmt, flags) && present)
-        g_link.SetFloat(key, v);
-
-    const bool done = ImGui::IsItemDeactivatedAfterEdit();
-
-    ImGui::EndDisabled();
-
-    if (!present)
+    switch (f.type)
     {
-        ImGui::SameLine();
-        ImGui::TextDisabled("(not in this OptiScaler)");
+    case field_type::boolean:
+    {
+        int32_t v = f.default_value != 0;
+        return g_link.GetBool(f.key, &v) == OPTINR_OK ? (v != 0 ? 1.0 : 0.0) : f.default_value;
     }
-
-    return done && present;
+    case field_type::integer:
+    case field_type::enumeration:
+    {
+        int32_t v = static_cast<int32_t>(f.default_value);
+        return g_link.GetInt(f.key, &v) == OPTINR_OK ? static_cast<double>(v) : f.default_value;
+    }
+    case field_type::floating:
+    default:
+    {
+        float v = static_cast<float>(f.default_value);
+        return g_link.GetFloat(f.key, &v) == OPTINR_OK ? static_cast<double>(v) : f.default_value;
+    }
+    }
 }
 
-bool CheckB(const char* label, const char* key)
+void opti_set(const field& f, double value)
 {
-    bool v = GetB(key, false);
-
-    if (ImGui::Checkbox(label, &v))
+    switch (f.type)
     {
-        g_link.SetBool(key, v ? 1 : 0);
+    case field_type::boolean: g_link.SetBool(f.key, value != 0 ? 1 : 0); break;
+    case field_type::integer:
+    case field_type::enumeration: g_link.SetInt(f.key, static_cast<int32_t>(value)); break;
+    case field_type::floating:
+    default: g_link.SetFloat(f.key, static_cast<float>(value)); break;
+    }
+}
+
+double reshade_get(reshade::api::effect_runtime* runtime, const char* section, const field& f)
+{
+    switch (f.type)
+    {
+    case field_type::boolean:
+    {
+        bool v = f.default_value != 0;
+        reshade::get_config_value(runtime, section, f.key, v);
+        return v ? 1.0 : 0.0;
+    }
+    case field_type::integer:
+    case field_type::enumeration:
+    {
+        int v = static_cast<int>(f.default_value);
+        reshade::get_config_value(runtime, section, f.key, v);
+        if (f.type == field_type::enumeration && (v < 0 || v >= f.option_count))
+            v = static_cast<int>(f.default_value);
+        return v;
+    }
+    case field_type::floating:
+    default:
+    {
+        float v = static_cast<float>(f.default_value);
+        reshade::get_config_value(runtime, section, f.key, v);
+        return v;
+    }
+    }
+}
+
+void reshade_set(reshade::api::effect_runtime* runtime, const char* section, const field& f, double value)
+{
+    switch (f.type)
+    {
+    case field_type::boolean: reshade::set_config_value(runtime, section, f.key, value != 0); break;
+    case field_type::integer:
+    case field_type::enumeration: reshade::set_config_value(runtime, section, f.key, static_cast<int>(value)); break;
+    case field_type::floating:
+    default: reshade::set_config_value(runtime, section, f.key, static_cast<float>(value)); break;
+    }
+}
+
+double get_value(reshade::api::effect_runtime* runtime, Backend backend, const field_table* table, const field& f)
+{
+    return backend == Backend::OptiScaler ? opti_get(f) : reshade_get(runtime, table->section, f);
+}
+
+void set_value(reshade::api::effect_runtime* runtime, Backend backend, const field_table* table, const field& f,
+               double value)
+{
+    if (backend == Backend::OptiScaler)
+        opti_set(f, value);
+    else
+        reshade_set(runtime, table->section, f, value);
+}
+
+const field* find_field(const field_table* table, const char* key)
+{
+    for (int i = 0; i < table->count; ++i)
+        if (strcmp(table->fields[i].key, key) == 0)
+            return &table->fields[i];
+    return nullptr;
+}
+
+bool condition_met(reshade::api::effect_runtime* runtime, Backend backend, const field_table* table,
+                    const condition& c)
+{
+    if (!c.active())
         return true;
-    }
-
+    const field* dep = find_field(table, c.key);
+    if (!dep)
+        return true;
+    const int v = static_cast<int>(get_value(runtime, backend, table, *dep));
+    for (int i = 0; i < c.value_count; ++i)
+        if (c.values[i] == v)
+            return true;
     return false;
 }
 
-bool ComboI(const char* label, const char* key, const char* const* items, int count)
+// ---------------------------------------------------------------------------------------------
+// Styling, matched to the OptiScalerManager desktop app's own "Tune DLSS-NR" panel (its
+// src/renderer/style.css .tune-* rules), so the in-game panel -- either route -- and the
+// out-of-game one read as the same product.
+// ---------------------------------------------------------------------------------------------
+
+void push_style()
 {
-    int v = GetI(key, 0);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0x12 / 255.f, 0x17 / 255.f, 0x1f / 255.f, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0x12 / 255.f, 0x17 / 255.f, 0x1f / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0x12 / 255.f, 0x17 / 255.f, 0x1f / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0x1b / 255.f, 0x22 / 255.f, 0x2c / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0x22 / 255.f, 0x2b / 255.f, 0x37 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0x22 / 255.f, 0x2b / 255.f, 0x37 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0xf0 / 255.f, 0xf4 / 255.f, 0xf9 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TextDisabled, ImVec4(0x62 / 255.f, 0x6e / 255.f, 0x7c / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrab, ImVec4(0x6c / 255.f, 0xc1 / 255.f, 0x0a / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_SliderGrabActive, ImVec4(0x4d / 255.f, 0x92 / 255.f, 0x00 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_CheckMark, ImVec4(0x6c / 255.f, 0xc1 / 255.f, 0x0a / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0x1b / 255.f, 0x22 / 255.f, 0x2c / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0x22 / 255.f, 0x2b / 255.f, 0x37 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0x22 / 255.f, 0x2b / 255.f, 0x37 / 255.f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Separator, ImVec4(1.f, 1.f, 1.f, 0.055f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.f, 1.f, 1.f, 0.075f));
+    ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0x1b / 255.f, 0x22 / 255.f, 0x2c / 255.f, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 9.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_GrabRounding, 9.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(22.0f, 22.0f));
+}
 
-    if (v < 0 || v >= count)
-        v = 0;
+void pop_style()
+{
+    ImGui::PopStyleVar(4);
+    ImGui::PopStyleColor(16);
+}
 
-    if (ImGui::Combo(label, &v, items, count))
-    {
-        g_link.SetInt(key, v);
-        return true;
-    }
-
-    return false;
+void group_heading(const char* group)
+{
+    ImGui::Spacing();
+    ImGui::TextDisabled("%s", group_title(group));
+    ImGui::Separator();
+    ImGui::Spacing();
 }
 
 void Help(const char* tip)
@@ -247,9 +361,6 @@ void Help(const char* tip)
     ImGui::SameLine();
     ImGui::TextDisabled("(?)");
 
-    // BeginItemTooltip is IsItemHovered + BeginTooltip in one, and it returns false when the
-    // tooltip window was not begun. EndTooltip must only follow a true -- calling it regardless pops
-    // whatever window IS current, which is ReShade's own.
     if (ImGui::BeginItemTooltip())
     {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * 40.0f);
@@ -259,175 +370,197 @@ void Help(const char* tip)
     }
 }
 
-// ---------------------------------------------------------------------------------------------
-// The overlay.
-// ---------------------------------------------------------------------------------------------
-
-void DrawOverlay(reshade::api::effect_runtime*)
+bool draw_field(reshade::api::effect_runtime* runtime, Backend backend, const field_table* table, const field& f)
 {
-    TryResolve();
+    if (!condition_met(runtime, backend, table, f.show_if))
+        return false;
 
-    if (!g_link.ready)
+    const bool enabled = condition_met(runtime, backend, table, f.disable_if);
+    ImGui::BeginDisabled(!enabled);
+    ImGui::PushID(f.key);
+    ImGui::PushItemWidth(-160.0f);
+
+    bool changed = false;
+    double value = get_value(runtime, backend, table, f);
+
+    switch (f.type)
     {
-        ImGui::TextWrapped("%s", g_link.problem);
+    case field_type::boolean:
+    {
+        bool b = value != 0;
+        if (ImGui::Checkbox(f.label, &b))
+        {
+            set_value(runtime, backend, table, f, b ? 1.0 : 0.0);
+            changed = true;
+        }
+        break;
+    }
+    case field_type::enumeration:
+    {
+        int idx = static_cast<int>(value);
+        if (ImGui::Combo(f.label, &idx, f.options, f.option_count))
+        {
+            set_value(runtime, backend, table, f, idx);
+            changed = true;
+        }
+        break;
+    }
+    case field_type::integer:
+    {
+        int v = static_cast<int>(value);
+        if (ImGui::InputInt(f.label, &v))
+        {
+            set_value(runtime, backend, table, f, v);
+            changed = true;
+        }
+        break;
+    }
+    case field_type::floating:
+    default:
+    {
+        float v = static_cast<float>(value);
+        const char* fmt = f.percent ? "%.0f%%" : "%.2f";
+        float shown = f.percent ? v * 100.0f : v;
+        const float mn = f.percent ? static_cast<float>(f.min * 100.0) : static_cast<float>(f.min);
+        const float mx = f.percent ? static_cast<float>(f.max * 100.0) : static_cast<float>(f.max);
+        if (ImGui::SliderFloat(f.label, &shown, mn, mx, fmt))
+        {
+            set_value(runtime, backend, table, f, f.percent ? shown / 100.0f : shown);
+            changed = true;
+        }
+        break;
+    }
+    }
 
+    if (f.help != nullptr && ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", f.help);
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+    ImGui::EndDisabled();
+
+    return changed;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The shared panel content -- drawn identically whether it is hosted in ReShade's own overlay
+// (register_overlay, below) or in the standalone Alt+Home window (on_reshade_overlay, below).
+// ---------------------------------------------------------------------------------------------
+
+void DrawControls(reshade::api::effect_runtime* runtime)
+{
+    const Backend backend = ResolveBackend();
+
+    if (backend == Backend::None)
+    {
+        ImGui::TextWrapped("Neither OptiScaler nor RenoDX (the DLSS5-Feeder toolchain's neural consumer) were "
+                           "detected driving DLSS 5 Neural Rendering in this game.");
         ImGui::Spacing();
-        ImGui::TextDisabled("DLSS 5 Neural Rendering runs inside OptiScaler, which is where the game's "
-                            "depth, motion vectors and exposure arrive labelled. This add-on only draws "
-                            "its controls -- it cannot run the pass on its own.");
+        ImGui::TextDisabled("This add-on draws controls for whichever one is actually running the pass -- it "
+                            "does not run it itself. If OptiScaler should be here: %s", g_link.problem);
         return;
     }
 
-    OptiNr_Status status {};
-    status.structSize = sizeof(status);
-
-    const bool haveStatus = g_link.GetStatus(&status) == OPTINR_OK;
-
-    // Anything the user changed this frame. The ini is written once at the end rather than per
-    // control, so a drag across three sliders is one write.
+    const field_table* table = backend == Backend::OptiScaler ? &optiscaler_table : &feeder_table;
     bool changed = false;
 
-    changed |= CheckB("Enable Neural Rendering", "Enabled");
-    Help("Synthesises detail in the upscaler's output, before frame generation sees it.\n\n"
-         "Needs nvngx_dlssnr.dll beside OptiScaler, plus the forwarder that ships with it.");
-
-    if (haveStatus)
+    if (backend == Backend::OptiScaler)
     {
-        if (status.failureReason != nullptr && status.failureReason[0] != 0)
-        {
-            ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s", status.failureReason);
-            ImGui::SameLine();
+        OptiNr_Status status {};
+        status.structSize = sizeof(status);
 
-            if (ImGui::SmallButton("Retry"))
-                g_link.RetryAfterFailure();
-        }
-        else if (status.running || status.runningVulkan)
-        {
-            const char* where = status.runningVulkan ? " natively on Vulkan" : "";
+        const bool haveStatus = g_link.GetStatus(&status) == OPTINR_OK;
 
-            // Negative means nothing has been measured yet, which is not the same as free.
-            if (status.gpuMs >= 0.0)
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s - %.2f ms per frame", where,
-                                   status.gpuMs);
-            else
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s", where);
-        }
-        else if (status.enabled)
+        if (haveStatus)
         {
-            ImGui::TextDisabled("Waiting for the upscaler to run. Needs DLSS or XeSS selected in the "
-                                "game's own video settings, and a save loaded.");
+            if (status.failureReason != nullptr && status.failureReason[0] != 0)
+            {
+                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s", status.failureReason);
+                ImGui::SameLine();
+
+                if (ImGui::SmallButton("Retry"))
+                    g_link.RetryAfterFailure();
+            }
+            else if (status.running || status.runningVulkan)
+            {
+                const char* where = status.runningVulkan ? " natively on Vulkan" : "";
+
+                if (status.gpuMs >= 0.0)
+                    ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s - %.2f ms per frame", where,
+                                       status.gpuMs);
+                else
+                    ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.5f, 1.0f), "Running%s", where);
+            }
+            else if (status.enabled)
+            {
+                ImGui::TextDisabled("Waiting for the upscaler to run. Needs DLSS or XeSS selected in the "
+                                    "game's own video settings, and a save loaded.");
+            }
         }
+    }
+    else
+    {
+        ImGui::TextDisabled("Driving RenoDX's own DLSS 5 Neural Rendering config -- the same store its own "
+                            "\"RenoDX\" ReShade tab reads and writes.");
     }
 
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::Spacing();
 
-    if (ImGui::CollapsingHeader("Strength", ImGuiTreeNodeFlags_DefaultOpen))
+    const char* current_group = nullptr;
+    for (int i = 0; i < table->count; ++i)
     {
-        changed |= SliderF("Detail strength", "TransferStrength", 0.0f, 2.0f);
-        Help("How far the frame moves toward the model's picture. 0 gives back exactly what the "
-             "upscaler produced, 1 is the model's picture, above 1 carries on past it.");
-
-        changed |= SliderF("Colour strength", "ColourStrength", 0.0f, 4.0f);
-        Help("Whether the model's colour arrives with its light. 0 keeps the game's own hue exactly. "
-             "Above 1 over-saturates, keeping hue but growing more vivid.");
-
-        changed |= SliderF("Structure intensity", "LocalStructure", 0.0f, 2.0f);
-        changed |= SliderF("Tone intensity", "LocalTone", 0.0f, 2.0f);
-    }
-
-    if (ImGui::CollapsingHeader("Colour", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        static const char* const kSources[] = { "Paper white only", "The game's own exposure",
-                                                "A buffer the scan found" };
-        changed |= ComboI("White point from", "WhitePointSource", kSources, 3);
-        Help("Where the number that divides the frame comes from. The game's own exposure is the best "
-             "source there is, because it is decided upstream and nothing this pass does can move it "
-             "-- but not every game supplies one.");
-
-        const int source = GetI("WhitePointSource", 0);
-
-        if (source == 1)
+        const field& f = table->fields[i];
+        if (f.advanced)
+            continue;
+        if (current_group == nullptr || strcmp(current_group, f.group) != 0)
         {
-            changed |= SliderF("Trim (x the game's exposure)", "WhitePointTrim", 0.25f, 4.0f, "%.2fx",
-                               ImGuiSliderFlags_Logarithmic);
-            Help("A multiplier on the exposure the game supplied. 1.00x takes its number exactly, and "
-                 "that is the right answer here. Needing it far from 1 is evidence the exposure being "
-                 "read is wrong for that game, not that the game wants trimming.");
+            current_group = f.group;
+            group_heading(current_group);
         }
-        else
-        {
-            changed |= SliderF("Paper white", "WhitePointScale", 0.25f, 2000.0f, "%.2fx", ImGuiSliderFlags_Logarithmic);
-            Help("What the frame is divided by before the model sees it. Raise it until the picture "
-                 "stops improving -- past that point it does not plateau, it gets worse the other way.");
-        }
-
-        changed |= SliderF("Highlight guard", "MaxRatio", 1.0f, 8.0f, "%.1fx");
-        Help("The most the pass may move any pixel, as a multiple of what it already was. Raise it "
-             "only if bright areas look clipped.");
-
-        static const char* const kReversible[] = { "Off (soft knee)", "Neutwo proxy + composed",
-                                                   "Neutwo proxy + replace", "Hybrid proxy + composed",
-                                                   "Hybrid proxy + replace" };
-        changed |= ComboI("Reversible proxy", "ReversibleMode", kReversible, 5);
-        Help("What the model is shown, and how its answer comes back. Hybrid composed is the one to "
-             "use: identity in the midtones, unclipped roll only in the highlights. Off is the "
-             "original behaviour.");
+        changed |= draw_field(runtime, backend, table, f);
     }
 
-    if (ImGui::CollapsingHeader("Cost"))
-    {
-        // 25..200: above 100 the model runs above native and is filtered back down.
-        changed |= SliderF("Model resolution", "WorkingScale", 0.25f, 2.0f, "%.2fx");
-        Help("What fraction of the frame the model works at. Cost falls with the square of this. "
-             "Above 1.00x it supersamples -- experimental, and time grows with the area.");
-    }
-
-    if (ImGui::CollapsingHeader("Compare"))
-    {
-        changed |= CheckB("Apply the model", "ApplyModel");
-        Help("Whether the model's edit is applied. Off shows the clean upscaler frame while the pass "
-             "keeps running, so with Hold frame you can freeze one frame and toggle this to see it "
-             "with and without.");
-
-        changed |= CheckB("Hold frame", "HoldFrame");
-        Help("Freezes the frame the model works on, so a setting change re-renders it in place. The "
-             "only clean way to A/B settings, since a moving scene confounds everything else.");
-
-        static const char* const kCompare[] = { "Off", "Side by side", "Wipe" };
-        changed |= ComboI("Compare", "Compare", kCompare, 3);
-
-        if (GetI("Compare", 0) != 0)
-        {
-            changed |= CheckB("Swap sides", "CompareSwap");
-            changed |= SliderF("Split", "CompareSplit", 0.0f, 1.0f);
-        }
-
-        static const char* const kDebug[] = { "Off", "What the model sees", "Its raw answer", "What it changed, x20" };
-        changed |= ComboI("Debug view", "DebugView", kDebug, 4);
-    }
-
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
-
-    // The full panel has a good deal more than this -- the exposure-scan anchoring workflow, the
-    // model presets and styles, frame generation. Saying so is better than letting someone conclude
-    // this is all there is.
-    ImGui::TextDisabled("OptiScaler's own DLSS 5 panel has the rest: model presets, frame generation, "
-                        "and the exposure-scan anchoring. Open it with its own key (Alt+Home by default).");
-
-    if (changed)
+    if (backend == Backend::OptiScaler && changed)
         g_link.Save();
+}
+
+void DrawOverlay(reshade::api::effect_runtime* runtime)
+{
+    DrawControls(runtime);
+}
+
+// Alt+Home toggles a standalone window with the same content, independent of ReShade's own
+// overlay-open state -- mirrors how RenoDX implements its own "NR toggle" hotkey (per-frame
+// is_key_down/is_key_pressed poll), so this works whether or not ReShade's overlay is open.
+void OnReshadeOverlayStandalone(reshade::api::effect_runtime* runtime)
+{
+    static bool visible = false;
+
+    if (runtime->is_key_down(VK_MENU) && runtime->is_key_pressed(VK_HOME))
+        visible = !visible;
+
+    if (!visible)
+        return;
+
+    // Without this, ReShade never routes mouse/keyboard input to this window unless its own
+    // overlay is separately open -- clicks fall straight through to the game.
+    runtime->block_input_next_frame();
+
+    push_style();
+    ImGui::SetNextWindowSize(ImVec2(480.0f, 620.0f), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("DLSS 5 Neural Rendering##dlssnr_alt_home", &visible, ImGuiWindowFlags_NoCollapse))
+        DrawControls(runtime);
+    ImGui::End();
+    pop_style();
 }
 
 } // namespace
 
-extern "C" __declspec(dllexport) const char* NAME = "DLSS 5 Neural Rendering";
+extern "C" __declspec(dllexport) const char* NAME = "OptiScaler DLSS 5 Neural Rendering";
 extern "C" __declspec(dllexport) const char* DESCRIPTION =
-    "Controls OptiScaler's DLSS 5 Neural Rendering from ReShade's overlay. Needs OptiScaler loaded in "
-    "the same game -- this add-on drives the pass, it does not run it.";
+    "Controls DLSS 5 Neural Rendering from ReShade's own overlay or its own Alt+Home window -- drives "
+    "OptiScaler's pass when present, or RenoDX's (the DLSS5-Feeder toolchain) otherwise.";
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
 {
@@ -440,9 +573,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID)
         // Registered under a title, so it gets its own window in ReShade's overlay rather than
         // being buried in the add-on settings list.
         reshade::register_overlay("DLSS 5", &DrawOverlay);
+        reshade::register_event<reshade::addon_event::reshade_overlay>(OnReshadeOverlayStandalone);
         break;
 
     case DLL_PROCESS_DETACH:
+        reshade::unregister_event<reshade::addon_event::reshade_overlay>(OnReshadeOverlayStandalone);
         reshade::unregister_addon(hinstDLL);
         break;
     }
