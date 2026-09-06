@@ -25,3 +25,9 @@
 [submodule "external/nvapi"]
 	path = external/nvapi
 	url = https://github.com/NVIDIA/nvapi.git
+[submodule "external/reshade"]
+	path = external/reshade
+	url = https://github.com/crosire/reshade
+[submodule "external/imgui-docking"]
+	path = external/imgui-docking
+	url = https://github.com/ocornut/imgui
