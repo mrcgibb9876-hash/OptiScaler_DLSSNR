@@ -71,19 +71,19 @@ static const Palette& Dark()
     return p;
 }
 
-// Panel #B3B3B3 -- mid grey, darker than the near-white #CDCED0 this used before. Contrast
-// against it, in order: 4.60, --, 9.96, 9.20, 7.70, 5.80, 4.60 -- same tiers as the near-white
-// panel, recomputed (hue preserved, luminance rescaled) so every one still clears its original
-// bar against the darker background. Title clamps to pure black: a mid-grey background leaves
-// less headroom above it than #CDCED0 did, so the two darkest tiers (title, caption) sit closer
-// together than before.
+// Panel #999999 -- true mid grey, darker than the near-white #CDCED0 this used before (an earlier
+// pass tried #B3B3B3, which still read as glaring against a dark game scene). Contrast against it,
+// in order: 4.60, --, 7.37, 7.37, 7.37, 5.80, 4.60. Title, caption and text converge on pure black
+// at this level -- #999999 doesn't leave enough headroom above it to keep them as separate tiers
+// the way the near-white panel could -- so all three render in the same near-black; only value and
+// textDim stay visibly distinct from it.
 static const Palette& Light()
 {
-    static const Palette p = { ImVec4(0.217f, 0.291f, 0.088f, 1.0f), ImVec4(0.475f, 0.631f, 0.207f, 1.0f),
-                               ImVec4(0.000f, 0.000f, 0.000f, 1.0f), ImVec4(0.048f, 0.052f, 0.060f, 1.0f),
-                               ImVec4(0.122f, 0.127f, 0.137f, 1.0f), ImVec4(0.203f, 0.209f, 0.221f, 1.0f),
-                               ImVec4(0.262f, 0.268f, 0.283f, 1.0f), ImVec4(0.611f, 0.614f, 0.625f, 1.0f),
-                               ImVec4(0.700f, 0.700f, 0.700f, 1.0f), ImVec4(0.751f, 0.751f, 0.751f, 0.98f),
+    static const Palette p = { ImVec4(0.152f, 0.208f, 0.054f, 1.0f), ImVec4(0.475f, 0.631f, 0.207f, 1.0f),
+                               ImVec4(0.000f, 0.000f, 0.000f, 1.0f), ImVec4(0.000f, 0.000f, 0.000f, 1.0f),
+                               ImVec4(0.000f, 0.000f, 0.000f, 1.0f), ImVec4(0.117f, 0.121f, 0.129f, 1.0f),
+                               ImVec4(0.185f, 0.190f, 0.201f, 1.0f), ImVec4(0.523f, 0.526f, 0.535f, 1.0f),
+                               ImVec4(0.600f, 0.600f, 0.600f, 1.0f), ImVec4(0.650f, 0.650f, 0.650f, 0.98f),
                                ImVec4(1.000f, 1.000f, 1.000f, 1.0f), 0.0f };
     return p;
 }
