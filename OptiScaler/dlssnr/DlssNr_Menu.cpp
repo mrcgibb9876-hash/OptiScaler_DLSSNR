@@ -71,14 +71,19 @@ static const Palette& Dark()
     return p;
 }
 
-// Panel #CDCED0. Contrast against it, in order: 4.51, --, 11.28, 9.13, 7.69, 5.74, 4.53.
+// Panel #B3B3B3 -- mid grey, darker than the near-white #CDCED0 this used before. Contrast
+// against it, in order: 4.60, --, 9.96, 9.20, 7.70, 5.80, 4.60 -- same tiers as the near-white
+// panel, recomputed (hue preserved, luminance rescaled) so every one still clears its original
+// bar against the darker background. Title clamps to pure black: a mid-grey background leaves
+// less headroom above it than #CDCED0 did, so the two darkest tiers (title, caption) sit closer
+// together than before.
 static const Palette& Light()
 {
-    static const Palette p = { ImVec4(0.283f, 0.375f, 0.123f, 1.0f), ImVec4(0.475f, 0.631f, 0.207f, 1.0f),
-                               ImVec4(0.090f, 0.094f, 0.106f, 1.0f), ImVec4(0.157f, 0.165f, 0.180f, 1.0f),
-                               ImVec4(0.204f, 0.212f, 0.227f, 1.0f), ImVec4(0.278f, 0.286f, 0.302f, 1.0f),
-                               ImVec4(0.337f, 0.345f, 0.363f, 1.0f), ImVec4(0.706f, 0.710f, 0.722f, 1.0f),
-                               ImVec4(0.804f, 0.808f, 0.816f, 1.0f), ImVec4(0.855f, 0.859f, 0.867f, 0.98f),
+    static const Palette p = { ImVec4(0.217f, 0.291f, 0.088f, 1.0f), ImVec4(0.475f, 0.631f, 0.207f, 1.0f),
+                               ImVec4(0.000f, 0.000f, 0.000f, 1.0f), ImVec4(0.048f, 0.052f, 0.060f, 1.0f),
+                               ImVec4(0.122f, 0.127f, 0.137f, 1.0f), ImVec4(0.203f, 0.209f, 0.221f, 1.0f),
+                               ImVec4(0.262f, 0.268f, 0.283f, 1.0f), ImVec4(0.611f, 0.614f, 0.625f, 1.0f),
+                               ImVec4(0.700f, 0.700f, 0.700f, 1.0f), ImVec4(0.751f, 0.751f, 0.751f, 0.98f),
                                ImVec4(1.000f, 1.000f, 1.000f, 1.0f), 0.0f };
     return p;
 }
@@ -498,8 +503,15 @@ void RenderMenu(Config* config, float menuResScale)
         //
         // Clamped because row widths are computed from the font size, so a large enough scale walks
         // labels into their values.
+        //
+        // PushFontSize, not SetWindowFontScale: the latter stretches the already-rasterized glyph
+        // bitmap, which is why this panel's text used to look soft at anything but 1.0x. PushFontSize
+        // re-rasterizes at the requested size instead, the same mechanism the shared menu's own
+        // UseHQFont path uses -- and since that path already pushed its own size before this panel
+        // draws, GetFontSize() here is that size, not the atlas default.
         float fontScale = config->DlssNrFontScale.value_or_default();
-        ImGui::SetWindowFontScale(fontScale < 0.75f ? 0.75f : (fontScale > 2.0f ? 2.0f : fontScale));
+        fontScale = fontScale < 0.75f ? 0.75f : (fontScale > 2.0f ? 2.0f : fontScale);
+        ImGui::PushFontSize(std::round(fontScale * ImGui::GetFontSize()));
 
         // Claim focus so keyboard/mouse routes here rather than being left with whatever last had
         // it -- but only when this panel is on its own. With OptiScaler's own menu also open,
@@ -1705,6 +1717,10 @@ void RenderMenu(Config* config, float menuResScale)
         HelpMarker("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
                    "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
                    "\nrunning into their values.");
+
+        // Must be popped before End(), and on every path out of this block -- it is a stack, not a
+        // per-window property like the SetWindowFontScale it replaced.
+        ImGui::PopFontSize();
     }
 
     // Outside the if, not inside it. Begin returns false whenever the window is clipped out, and
