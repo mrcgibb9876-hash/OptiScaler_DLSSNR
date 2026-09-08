@@ -13,6 +13,10 @@
 
 ## DLSS 5 Developer Controls UI (this fork)
 
+Support for the DLSS-NR / DLSS 5 work in this fork specifically:
+
+[![Buy Me a Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://buymeacoffee.com/ripplingsnake)
+
 This fork adds a standalone overlay for DLSS Neural Rendering, styled after NVIDIA's own DLSS 5
 Developer Controls panel — its own window (no title bar, no graphs, no bottom bar), custom
 filled-track sliders, filled-square checkboxes, and controls renamed to NVIDIA's real terminology
