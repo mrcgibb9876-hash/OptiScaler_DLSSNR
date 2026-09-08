@@ -32,14 +32,70 @@ namespace DlssNr
 //   title text     #E7E7E7   caption text #C6C7CB
 //   row label      #A2A2A0   value text   #8A8A8C  (labels sit dimmer than captions)
 //   disabled       caption #605E5F, label #4D4C4A, track #41413F, handle #424242
-static const ImVec4 kAccent(0.549f, 0.729f, 0.239f, 1.0f);
-static const ImVec4 kTitle(0.906f, 0.906f, 0.906f, 1.0f);
-static const ImVec4 kCaption(0.776f, 0.780f, 0.796f, 1.0f);
-static const ImVec4 kText(0.635f, 0.635f, 0.627f, 1.0f);
-static const ImVec4 kValue(0.541f, 0.541f, 0.549f, 1.0f);
-static const ImVec4 kTextDim(0.376f, 0.369f, 0.373f, 1.0f);
-static const ImVec4 kTrack(0.157f, 0.157f, 0.157f, 1.0f);
-static const ImVec4 kPanelBg(0.110f, 0.110f, 0.114f, 1.0f);
+// Two palettes rather than one set of constants, because a value that reads well on a near-black
+// panel is invisible on a light one and the reverse. The old dark set is kept verbatim as Dark().
+//
+// Every ratio below is measured against that palette's own panel background, and every text colour
+// clears 4.5:1. The dark set did not: its dimmed text sat at 2.65:1, which is where "hard to read"
+// came from -- and an overlay is read at a glance, over a moving picture, so it has less margin
+// than a web page, not more.
+struct Palette
+{
+    ImVec4 accent;     // accent used as TEXT -- darkened on light so it still reads
+    ImVec4 accentFill; // accent used as a FILL, where brand colour matters more than contrast
+    ImVec4 title;
+    ImVec4 caption;
+    ImVec4 text;
+    ImVec4 value;
+    ImVec4 textDim;
+    ImVec4 track;
+    ImVec4 panelBg;
+    ImVec4 popupBg;
+    ImVec4 onAccent;    // text drawn ON the accent fill
+    float overlayLevel; // 1 = lighten with white, 0 = darken with black
+
+    // The panel shades things by laying translucent white over a dark background. On a light panel
+    // that does nothing at all -- the eight places doing it would simply vanish -- so the shade
+    // colour flips with the theme and every one of them goes through here.
+    ImVec4 overlay(float alpha) const { return ImVec4(overlayLevel, overlayLevel, overlayLevel, alpha); }
+};
+
+static const Palette& Dark()
+{
+    static const Palette p = { ImVec4(0.549f, 0.729f, 0.239f, 1.0f), ImVec4(0.549f, 0.729f, 0.239f, 1.0f),
+                               ImVec4(0.906f, 0.906f, 0.906f, 1.0f), ImVec4(0.776f, 0.780f, 0.796f, 1.0f),
+                               ImVec4(0.635f, 0.635f, 0.627f, 1.0f), ImVec4(0.541f, 0.541f, 0.549f, 1.0f),
+                               ImVec4(0.376f, 0.369f, 0.373f, 1.0f), ImVec4(0.157f, 0.157f, 0.157f, 1.0f),
+                               ImVec4(0.110f, 0.110f, 0.114f, 1.0f), ImVec4(0.086f, 0.086f, 0.090f, 0.98f),
+                               ImVec4(0.060f, 0.090f, 0.050f, 1.0f), 1.0f };
+    return p;
+}
+
+// Panel #CDCED0. Contrast against it, in order: 4.51, --, 11.28, 9.13, 7.69, 5.74, 4.53.
+static const Palette& Light()
+{
+    static const Palette p = { ImVec4(0.283f, 0.375f, 0.123f, 1.0f), ImVec4(0.475f, 0.631f, 0.207f, 1.0f),
+                               ImVec4(0.090f, 0.094f, 0.106f, 1.0f), ImVec4(0.157f, 0.165f, 0.180f, 1.0f),
+                               ImVec4(0.204f, 0.212f, 0.227f, 1.0f), ImVec4(0.278f, 0.286f, 0.302f, 1.0f),
+                               ImVec4(0.337f, 0.345f, 0.363f, 1.0f), ImVec4(0.706f, 0.710f, 0.722f, 1.0f),
+                               ImVec4(0.804f, 0.808f, 0.816f, 1.0f), ImVec4(0.855f, 0.859f, 0.867f, 0.98f),
+                               ImVec4(1.000f, 1.000f, 1.000f, 1.0f), 0.0f };
+    return p;
+}
+
+// Chosen once per frame in RenderMenu so a mid-frame config change cannot split a single draw
+// across two palettes.
+static const Palette* g_pal = &Light();
+
+#define kAccent (g_pal->accent)
+#define kAccentFill (g_pal->accentFill)
+#define kTitle (g_pal->title)
+#define kCaption (g_pal->caption)
+#define kText (g_pal->text)
+#define kValue (g_pal->value)
+#define kTextDim (g_pal->textDim)
+#define kTrack (g_pal->track)
+#define kPanelBg (g_pal->panelBg)
 
 static float PanelWidth(float scale) { return 460.0f * scale; }
 
@@ -128,8 +184,8 @@ static void SectionCaption(const char* text, float rowWidth)
     ImGui::PopStyleColor();
 
     ImVec2 p0 = ImGui::GetCursorScreenPos();
-    ImGui::GetWindowDrawList()->AddLine(p0, ImVec2(p0.x + rowWidth, p0.y),
-                                        ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.14f)), 1.0f);
+    ImGui::GetWindowDrawList()->AddLine(p0, ImVec2(p0.x + rowWidth, p0.y), ImGui::GetColorU32(g_pal->overlay(0.14f)),
+                                        1.0f);
     ImGui::Dummy(ImVec2(rowWidth, sp.y * 0.30f));
 
     ImGui::PopStyleVar();
@@ -206,7 +262,8 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     ImVec4 hCol = (hovered || active) ? kAccent : ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.88f);
     ImVec2 hCenter(handleX, tMin.y + trackH * 0.5f);
     dl->AddCircleFilled(hCenter, radius, ImGui::GetColorU32(hCol), 18);
-    dl->AddCircle(hCenter, radius, ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, 0.45f)), 18, 1.4f);
+    dl->AddCircle(hCenter, radius,
+                  ImGui::GetColorU32(ImVec4(0.0f, 0.0f, 0.0f, g_pal->overlayLevel > 0.5f ? 0.45f : 0.22f)), 18, 1.4f);
 
     ImGui::SameLine(labelWidth + trackWidth + style.ItemSpacing.x);
     ImGui::PushStyleColor(ImGuiCol_Text, kValue);
@@ -239,19 +296,19 @@ static bool ModelButton(const char* label, bool active, float width)
     // border and green label; the unselected ones are flat neutral grey (#3A3A3A, text #8C8C8C).
     if (active)
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.208f, 0.239f, 0.114f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.247f, 0.286f, 0.137f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.278f, 0.322f, 0.153f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(kAccentFill.x, kAccentFill.y, kAccentFill.z, 0.28f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(kAccentFill.x, kAccentFill.y, kAccentFill.z, 0.38f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(kAccentFill.x, kAccentFill.y, kAccentFill.z, 0.46f));
         ImGui::PushStyleColor(ImGuiCol_Text, kAccent);
         ImGui::PushStyleColor(ImGuiCol_Border, kAccent);
     }
     else
     {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.227f, 0.227f, 0.227f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.267f, 0.267f, 0.267f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.298f, 0.298f, 0.298f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.549f, 0.549f, 0.549f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 0.10f));
+        ImGui::PushStyleColor(ImGuiCol_Button, g_pal->overlay(0.14f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, g_pal->overlay(0.20f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, g_pal->overlay(0.26f));
+        ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+        ImGui::PushStyleColor(ImGuiCol_Border, g_pal->overlay(0.10f));
     }
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
@@ -297,7 +354,7 @@ static bool NrRightCheckbox(const char* label, bool* v, float rowWidth)
     {
         dl->AddRectFilled(c0, c1, ImGui::GetColorU32(kAccent), 2.0f);
 
-        ImU32 dark = ImGui::GetColorU32(ImVec4(0.06f, 0.09f, 0.05f, 1.0f));
+        ImU32 dark = ImGui::GetColorU32(g_pal->onAccent);
         ImVec2 a(pos.x + boxSize * 0.22f, pos.y + boxSize * 0.55f);
         ImVec2 b(pos.x + boxSize * 0.42f, pos.y + boxSize * 0.76f);
         ImVec2 cpt(pos.x + boxSize * 0.80f, pos.y + boxSize * 0.26f);
@@ -306,8 +363,8 @@ static bool NrRightCheckbox(const char* label, bool* v, float rowWidth)
     }
     else
     {
-        dl->AddRectFilled(c0, c1, ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.10f : 0.05f)), 2.0f);
-        dl->AddRect(c0, c1, ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.20f)), 2.0f, 0, 1.0f);
+        dl->AddRectFilled(c0, c1, ImGui::GetColorU32(g_pal->overlay(hovered ? 0.10f : 0.05f)), 2.0f);
+        dl->AddRect(c0, c1, ImGui::GetColorU32(g_pal->overlay(0.20f)), 2.0f, 0, 1.0f);
     }
 
     ImGui::PopID();
@@ -339,7 +396,7 @@ static bool NrCheckbox(const char* label, bool* v, bool caps = false)
                               : kAccent;
         dl->AddRectFilled(c0, c1, ImGui::GetColorU32(fill), 3.0f);
 
-        ImU32 dark = ImGui::GetColorU32(ImVec4(0.06f, 0.09f, 0.05f, 1.0f));
+        ImU32 dark = ImGui::GetColorU32(g_pal->onAccent);
         ImVec2 a(pos.x + boxSize * 0.22f, pos.y + boxSize * 0.55f);
         ImVec2 b(pos.x + boxSize * 0.42f, pos.y + boxSize * 0.76f);
         ImVec2 cpt(pos.x + boxSize * 0.80f, pos.y + boxSize * 0.26f);
@@ -348,8 +405,8 @@ static bool NrCheckbox(const char* label, bool* v, bool caps = false)
     }
     else
     {
-        dl->AddRectFilled(c0, c1, ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, hovered ? 0.10f : 0.06f)), 3.0f);
-        dl->AddRect(c0, c1, ImGui::GetColorU32(ImVec4(1.0f, 1.0f, 1.0f, 0.24f)), 3.0f, 0, 1.2f);
+        dl->AddRectFilled(c0, c1, ImGui::GetColorU32(g_pal->overlay(hovered ? 0.10f : 0.06f)), 3.0f);
+        dl->AddRect(c0, c1, ImGui::GetColorU32(g_pal->overlay(0.24f)), 3.0f, 0, 1.2f);
     }
 
     ImGui::SameLine();
@@ -366,10 +423,35 @@ static bool NrCheckbox(const char* label, bool* v, bool caps = false)
     return clicked;
 }
 
+// An absent later-pass setting inherits pass 1. The first combo item represents that absence; the
+// remaining items map directly to the model's zero-based profile values.
+static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, NoDefault>* opt,
+                                  const char* const* names, int nameCount, float rowWidth)
+{
+    int selected = 0;
+
+    if (opt->has_value())
+        selected = std::clamp((int) opt->value(), 0, nameCount - 2) + 1;
+
+    if (!NrCombo(label, &selected, names, nameCount, rowWidth))
+        return false;
+
+    if (selected == 0)
+        *opt = std::optional<uint32_t> {};
+    else
+        *opt = (uint32_t) (selected - 1);
+
+    return true;
+}
+
 void RenderMenu(Config* config, float menuResScale)
 {
     ImGuiIO& io = ImGui::GetIO();
     auto& state = State::Instance();
+
+    // Picked once, here, so a config change mid-frame cannot draw half the panel in each palette.
+    g_pal = config->DlssNrLightTheme.value_or_default() ? &Light() : &Dark();
+
     float rowWidth = PanelWidth(menuResScale);
 
     // Pinned to the left edge, vertically centred -- the position NVIDIA's own overlay uses.
@@ -379,19 +461,19 @@ void RenderMenu(Config* config, float menuResScale)
     ImGui::SetNextWindowPos(ImVec2(margin, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.0f, 0.5f));
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kPanelBg);
-    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.0f, 1.0f, 1.0f, 0.10f));
+    ImGui::PushStyleColor(ImGuiCol_Border, g_pal->overlay(0.10f));
     ImGui::PushStyleColor(ImGuiCol_Text, kText);
     ImGui::PushStyleColor(ImGuiCol_CheckMark, kAccent);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.157f, 0.157f, 0.157f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.196f, 0.196f, 0.196f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.227f, 0.227f, 0.227f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, kTrack);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, g_pal->overlay(0.18f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, g_pal->overlay(0.24f));
     ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.25f));
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.35f));
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.45f));
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 1.0f, 1.0f, 0.07f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 1.0f, 1.0f, 0.12f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 1.0f, 1.0f, 0.16f));
-    ImGui::PushStyleColor(ImGuiCol_PopupBg, ImVec4(0.086f, 0.086f, 0.090f, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Button, g_pal->overlay(0.07f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, g_pal->overlay(0.12f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, g_pal->overlay(0.16f));
+    ImGui::PushStyleColor(ImGuiCol_PopupBg, g_pal->popupBg);
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
@@ -407,6 +489,18 @@ void RenderMenu(Config* config, float menuResScale)
 
     if (ImGui::Begin("##DlssNrOverlay", nullptr, flags))
     {
+        // Scales this window's text only; the shared menu keeps whatever FontSize says.
+        //
+        // SetWindowFontScale is marked [OBSOLETE] in this ImGui, and the header points at reloading
+        // the font and rebuilding the atlas instead. That is the right answer for scaling the whole
+        // UI and the wrong one here: rebuilding the atlas would resize OptiScaler's menu too, and
+        // this panel is meant to be the only thing that changes. It is obsolete, not removed.
+        //
+        // Clamped because row widths are computed from the font size, so a large enough scale walks
+        // labels into their values.
+        float fontScale = config->DlssNrFontScale.value_or_default();
+        ImGui::SetWindowFontScale(fontScale < 0.75f ? 0.75f : (fontScale > 2.0f ? 2.0f : fontScale));
+
         // Claim focus so keyboard/mouse routes here rather than being left with whatever last had
         // it -- but only when this panel is on its own. With OptiScaler's own menu also open,
         // grabbing focus every frame would make that menu impossible to type into.
@@ -428,7 +522,7 @@ void RenderMenu(Config* config, float menuResScale)
             anyChanged = true;
         }
 
-        HelpMarker("Synthesises detail in the upscaler's output, before frame generation sees it."
+        HelpMarker("Synthesises detail in the upscaler's frame, before frame generation sees it."
                    "\n\nNeeds two similarly named files beside OptiScaler, one character apart:"
                    "\n  nvngx_dlssnr.dll       NVIDIA's model (~165 MB) -- you supply it"
                    "\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package"
@@ -454,6 +548,20 @@ void RenderMenu(Config* config, float menuResScale)
                    "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
                    "\nand toggle this to see the same frozen frame with and without Neural Rendering."
                    "\nLeave it on for normal use.");
+
+        bool beforeSr = config->DlssNrRunBeforeSr.value_or_default();
+        if (NrCheckbox("Before Super Resolution", &beforeSr))
+        {
+            config->DlssNrRunBeforeSr = beforeSr;
+            anyChanged = true;
+        }
+        HelpMarker("Where the pass sits. Off is the original placement: the model runs on the finished"
+                   "\nupscaled frame. On runs it at render resolution on the colour SR is about to"
+                   "\nconsume, so SR then accumulates and upscales an already-enhanced picture."
+                   "\n\nRay Reconstruction always stays on the post-upscale path -- its inputs are a"
+                   "\ndifferent contract. Padded or offset dynamic-resolution inputs quietly fall back"
+                   "\nthere too, rather than being run on dimensions that aren't what they look like."
+                   "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement.");
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
@@ -750,6 +858,73 @@ void RenderMenu(Config* config, float menuResScale)
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
         SectionCaption("Cost", rowWidth);
+
+        // Sequential model layers between one encode and one final composition. Deferred on release
+        // for the same reason Model resolution below is: each layer owns a persistent feature and
+        // history, so every distinct value tears those down and rebuilds them.
+        static int pendingPasses = -1;
+        float passes = pendingPasses >= 0
+                           ? (float) pendingPasses
+                           : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
+
+        auto rPasses = NrSlider("Model passes", &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
+        if (rPasses.changed)
+            pendingPasses = (int) std::lroundf(passes);
+
+        if (rPasses.released && pendingPasses >= 0)
+        {
+            config->DlssNrPasses = (uint32_t) std::clamp(pendingPasses, 1, (int) DlssNr::MaxPassCount);
+            pendingPasses = -1;
+            anyChanged = true;
+        }
+        HelpMarker("How many times the model runs before its answer is composed. Each extra layer is"
+                   "\nfed the previous layer's output and keeps its own temporal history."
+                   "\n\nThe base frame stays untouched and the composition happens once at the end, so"
+                   "\ncolour and transfer strength do not compound -- but the model is being asked to"
+                   "\nenhance its own output, which is outside what it was trained on."
+                   "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
+                   "\nand every layer pays it again. Three is the ceiling because later layers converge"
+                   "\nwhile still costing full price.");
+
+        {
+            const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
+            if (shownPasses > 1)
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+                ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
+                                                    : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
+                                   "%dx model cost. Two often reads as richer; three is usually visibly "
+                                   "over-processed.",
+                                   shownPasses);
+                ImGui::PopTextWrapPos();
+
+                static const char* const kInheritedPresetNames[] = { "Auto (inherit pass 1)", "Default", "Model A",
+                                                                    "Model B", "Model C" };
+                static const char* const kInheritedStyleNames[] = { "Auto (inherit pass 1)", "Default (standard)",
+                                                                    "Natural", "Cinematic" };
+
+                anyChanged |= InheritedProfileCombo("Pass 2 model", &config->DlssNrPass2Preset,
+                                                    kInheritedPresetNames, IM_ARRAYSIZE(kInheritedPresetNames),
+                                                    rowWidth);
+                anyChanged |= InheritedProfileCombo("Pass 2 style", &config->DlssNrPass2Style, kInheritedStyleNames,
+                                                    IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+
+                if (shownPasses > 2)
+                {
+                    anyChanged |= InheritedProfileCombo("Pass 3 model", &config->DlssNrPass3Preset,
+                                                        kInheritedPresetNames, IM_ARRAYSIZE(kInheritedPresetNames),
+                                                        rowWidth);
+                    anyChanged |= InheritedProfileCombo("Pass 3 style", &config->DlssNrPass3Style,
+                                                        kInheritedStyleNames, IM_ARRAYSIZE(kInheritedStyleNames),
+                                                        rowWidth);
+                }
+
+                HelpMarker("Which built-in profile each later layer runs. These select a different"
+                           "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
+                           "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
+                           "\nrebuilds only that layer's feature, and only while that layer is active.");
+            }
+        }
 
         static int pendingScale = -1;
         float scalePercent =
@@ -1499,6 +1674,42 @@ void RenderMenu(Config* config, float menuResScale)
                    "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
                    "\nunnecessary."
                    "\n\nCompare before trusting it: turn on Compare above and look for a difference.");
+
+        // Appearance last, because it is the section you touch once and then leave alone. Both of
+        // these could already be set in the ini; the point of putting them here is that legibility
+        // is the one thing you cannot judge from a config file -- you have to be looking at the
+        // panel, over the game, on your own monitor, to know whether it works.
+        SectionCaption("Appearance", rowWidth);
+
+        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox("Light panel", &light))
+        {
+            config->DlssNrLightTheme = light;
+            anyChanged = true;
+        }
+        HelpMarker("Light is the default. The dark palette this panel was originally styled after put"
+                   "
+its dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
+                   "
+comfortably -- and an overlay is read at a glance, over a moving picture."
+                   "
+
+Unticking restores NVIDIA's own colouring.");
+
+        float fontScale = config->DlssNrFontScale.value_or_default();
+        auto rFont = NrSlider("Font size", &fontScale, 0.75f, 2.0f, "%.2fx", rowWidth);
+
+        if (rFont.changed)
+            config->DlssNrFontScale = std::clamp(fontScale, 0.75f, 2.0f);
+
+        if (rFont.released)
+            anyChanged = true;
+
+        HelpMarker("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
+                   "
+
+Row widths are worked out from the font size, so far above 1.5x labels start"
+                   "
+running into their values.");
     }
 
     // Outside the if, not inside it. Begin returns false whenever the window is clipped out, and
