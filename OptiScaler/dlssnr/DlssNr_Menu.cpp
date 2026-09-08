@@ -1687,13 +1687,9 @@ void RenderMenu(Config* config, float menuResScale)
             anyChanged = true;
         }
         HelpMarker("Light is the default. The dark palette this panel was originally styled after put"
-                   "
-its dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
-                   "
-comfortably -- and an overlay is read at a glance, over a moving picture."
-                   "
-
-Unticking restores NVIDIA's own colouring.");
+                   "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
+                   "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
+                   "\n\nUnticking restores NVIDIA's own colouring.");
 
         float fontScale = config->DlssNrFontScale.value_or_default();
         auto rFont = NrSlider("Font size", &fontScale, 0.75f, 2.0f, "%.2fx", rowWidth);
@@ -1705,11 +1701,8 @@ Unticking restores NVIDIA's own colouring.");
             anyChanged = true;
 
         HelpMarker("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
-                   "
-
-Row widths are worked out from the font size, so far above 1.5x labels start"
-                   "
-running into their values.");
+                   "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
+                   "\nrunning into their values.");
     }
 
     // Outside the if, not inside it. Begin returns false whenever the window is clipped out, and
