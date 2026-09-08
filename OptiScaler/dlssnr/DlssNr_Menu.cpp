@@ -1691,11 +1691,13 @@ void RenderMenu(Config* config, float menuResScale)
                    "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
                    "\n\nUnticking restores NVIDIA's own colouring.");
 
-        float fontScale = config->DlssNrFontScale.value_or_default();
-        auto rFont = NrSlider("Font size", &fontScale, 0.75f, 2.0f, "%.2fx", rowWidth);
+        // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
+        // is applied to the window.
+        float fontScaleEdit = config->DlssNrFontScale.value_or_default();
+        auto rFont = NrSlider("Font size", &fontScaleEdit, 0.75f, 2.0f, "%.2fx", rowWidth);
 
         if (rFont.changed)
-            config->DlssNrFontScale = std::clamp(fontScale, 0.75f, 2.0f);
+            config->DlssNrFontScale = std::clamp(fontScaleEdit, 0.75f, 2.0f);
 
         if (rFont.released)
             anyChanged = true;
