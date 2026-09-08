@@ -268,6 +268,9 @@ class Config
     // DLSS Neural Rendering: a detail-synthesis pass over the upscaler's output. Off by default -- it is
     // an undocumented feature driven directly through its snippet, not something NVIDIA exposes.
     CustomOptional<bool> DlssNrEnabled { false };
+    // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
+    // Off preserves the v0.2.0 post-upscale placement.
+    CustomOptional<bool> DlssNrRunBeforeSr { false };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };
@@ -282,6 +285,13 @@ class Config
     CustomOptional<float> DlssNrIntensity { 1.0f };
     // 0 default (standard), 1 natural, 2 cinematic -- the model's own processing profiles.
     CustomOptional<uint32_t> DlssNrStyle { 0 };
+    // Optional per-pass model profiles. Pass 1 uses Preset/Style above; an absent override inherits
+    // pass 1. Keeping inheritance explicit preserves every existing configuration and lets changing
+    // the base profile update the whole stack unless a later pass was deliberately specialised.
+    CustomOptional<uint32_t, NoDefault> DlssNrPass2Preset;
+    CustomOptional<uint32_t, NoDefault> DlssNrPass2Style;
+    CustomOptional<uint32_t, NoDefault> DlssNrPass3Preset;
+    CustomOptional<uint32_t, NoDefault> DlssNrPass3Style;
     CustomOptional<float> DlssNrLocalStructure { 1.0f };
     CustomOptional<float> DlssNrLocalTone { 1.0f };
     // -1 means follow local structure, which is the model's own default. It is not a strength of zero.
@@ -474,15 +484,17 @@ class Config
     // picture that had been tuned came back wrong for a reason nothing on screen explained.
     CustomOptional<float> DlssNrScanTrim { 1.0f };
 
-    // How many times to run the model over the same frame, each pass fed the previous one's answer.
+    // How many sequential model layers to run between one encode and one final composition. Each extra
+    // layer consumes the preceding model output and owns a persistent feature/history. The implementation
+    // deliberately caps this at three and never evaluates a feature on the command list that created it.
     //
     // 1 is what the model was trained for and what every published number describes. Above that it
     // is being asked to enhance its own output, which is outside its training distribution: detail
-    // compounds, and so does anything it got wrong. Two often looks richer. Four usually looks
-    // synthetic. Eight is there because somebody will want to see it.
+    // compounds, and so does anything it got wrong. Two often looks richer; three is the guarded
+    // ceiling because further layers converge while still paying the full cost.
     //
     // The cost is exactly linear -- the model is 98% of the frame's expense and every pass pays it
-    // again -- so 8 costs eight times, near enough. There is no shortcut and no amortisation: the
+    // again -- so 3 costs three times, near enough. There is no shortcut and no amortisation: the
     // passes are sequential and each one needs the last one's output.
     CustomOptional<uint32_t> DlssNrPasses { 1 };
 
@@ -500,6 +512,16 @@ class Config
     // Whether the model corrects for a UI layer. Its own default is on, and on is right whenever a
     // UI resource is fed to it; off is worth having when the correction is itself the artifact.
     CustomOptional<bool> DlssNrUICorrection { true };
+
+    // The panel's look. Light by default: the dark palette it was originally styled after put hint
+    // text at 2.65:1 against the panel, which is under half the 4.5:1 needed to read comfortably,
+    // and an in-game overlay is read at a glance over a moving picture. Dark is still here for
+    // anyone who wants NVIDIA's own colouring back.
+    CustomOptional<bool> DlssNrLightTheme { true };
+
+    // Multiplies the panel's font size only -- the shared menu keeps whatever FontSize says. 1.0 is
+    // the old size.
+    CustomOptional<float> DlssNrFontScale { 1.15f };
 
     // Writes one set of matched before/after frames per session, without anyone having to ask. The
     // folder is cleared at the start of each run, so it holds one session's worth and never grows.

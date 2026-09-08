@@ -317,6 +317,7 @@ bool Config::Reload(std::filesystem::path iniPath)
 
             // --- DLSS 5 Neural Rendering (OptiScaler/dlssnr) ---
             DlssNrEnabled.set_from_config(readBool("DlssNr", "Enabled"));
+            DlssNrRunBeforeSr.set_from_config(readBool("DlssNr", "RunBeforeSR"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));
@@ -361,6 +362,10 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrPreset.set_from_config(readUInt("DlssNr", "Preset"));
             DlssNrIntensity.set_from_config(readFloat("DlssNr", "Intensity"));
             DlssNrStyle.set_from_config(readUInt("DlssNr", "Style"));
+            DlssNrPass2Preset.set_from_config(readUInt("DlssNr", "Pass2Preset"));
+            DlssNrPass2Style.set_from_config(readUInt("DlssNr", "Pass2Style"));
+            DlssNrPass3Preset.set_from_config(readUInt("DlssNr", "Pass3Preset"));
+            DlssNrPass3Style.set_from_config(readUInt("DlssNr", "Pass3Style"));
             DlssNrLocalStructure.set_from_config(readFloat("DlssNr", "LocalStructure"));
             DlssNrLocalTone.set_from_config(readFloat("DlssNr", "LocalTone"));
             DlssNrSkinStructure.set_from_config(readFloat("DlssNr", "SkinStructure"));
@@ -368,6 +373,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrPanelKey.set_from_config(readInt("DlssNr", "PanelKey"));
             DlssNrDepthConvention.set_from_config(readUInt("DlssNr", "DepthConvention"));
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
+            DlssNrLightTheme.set_from_config(readBool("DlssNr", "LightTheme"));
+            DlssNrFontScale.set_from_config(readFloat("DlssNr", "FontScale"));
             DlssNrReversibleMode.set_from_config(readUInt("DlssNr", "ReversibleMode"));
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
             DlssNrHoldFrame.set_from_config(readBool("DlssNr", "HoldFrame"));
@@ -1201,6 +1208,8 @@ bool Config::SaveIni()
 
         // --- DLSS 5 Neural Rendering (OptiScaler/dlssnr) ---
         ini.SetValue("DlssNr", "Enabled", GetBoolValue(Instance()->DlssNrEnabled.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "RunBeforeSR",
+                     GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
         {
             auto toggle = Instance()->DlssNrToggleKey.value_for_config();
             ini.SetValue("DlssNr", "ToggleKey", GetIntValue(toggle, toggle > 0).c_str());
@@ -1255,6 +1264,10 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "Preset", GetIntValue(Instance()->DlssNrPreset.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Intensity", GetFloatValue(Instance()->DlssNrIntensity.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Style", GetIntValue(Instance()->DlssNrStyle.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "Pass2Preset", GetIntValue(Instance()->DlssNrPass2Preset.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "Pass2Style", GetIntValue(Instance()->DlssNrPass2Style.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "Pass3Preset", GetIntValue(Instance()->DlssNrPass3Preset.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "Pass3Style", GetIntValue(Instance()->DlssNrPass3Style.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LocalStructure",
                      GetFloatValue(Instance()->DlssNrLocalStructure.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LocalTone", GetFloatValue(Instance()->DlssNrLocalTone.value_for_config()).c_str());
@@ -1264,6 +1277,8 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "DepthConvention",
                      GetIntValue(Instance()->DlssNrDepthConvention.value_for_config()).c_str());
         ini.SetValue("DlssNr", "UICorrection", GetBoolValue(Instance()->DlssNrUICorrection.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "LightTheme", GetBoolValue(Instance()->DlssNrLightTheme.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "FontScale", GetFloatValue(Instance()->DlssNrFontScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ReversibleMode",
                      GetIntValue(Instance()->DlssNrReversibleMode.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ApplyModel", GetBoolValue(Instance()->DlssNrApplyModel.value_for_config()).c_str());
