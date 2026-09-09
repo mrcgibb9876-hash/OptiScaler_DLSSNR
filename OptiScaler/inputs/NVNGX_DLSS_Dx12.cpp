@@ -215,6 +215,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
 
     D3D12Device = InDevice;
     State::Instance().currentD3D12Device = InDevice;
+    if (State::Instance().primaryD3D12Device == nullptr)
+        State::Instance().primaryD3D12Device = InDevice;
     D3D12Hooks::HookDevice(InDevice);
 
     State::Instance().nvngxDx12Inited = true;
@@ -370,6 +372,28 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_with_ProjectID(
 
 #pragma region DLSS Shutdown Calls
 
+// A crash on a real game (Bodycam, 2026-09-09, symbolicated via a WER minidump) traced back to
+// the real _nvngx.dll null-derefing inside its own internals when Shutdown1 was called for a
+// device whose NGX state it considered already-corrupted -- the DLSS5 Feeder's own last-resort
+// recovery (jlrouzies-fr/DLSS5-Feeder's ReinitNgx(), called after 2 consecutive CreateFeature
+// failures) does exactly that for its own private device. That's NVIDIA's own closed-source code
+// faulting, not something we can fix directly -- isolate it so it can't take the whole process
+// down with it. Kept as a leaf helper (no C++ objects in scope) since __try/__except can't mix
+// with object unwinding in the same function.
+static NVSDK_NGX_Result CallRealD3D12Shutdown1Safe(PFN_D3D12_Shutdown1 fn, ID3D12Device* InDevice)
+{
+    __try
+    {
+        return fn(InDevice);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        LOG_ERROR("Real _nvngx.dll faulted inside its own NVSDK_NGX_D3D12_Shutdown1 -- caught, not "
+                  "propagating.");
+        return NVSDK_NGX_Result_FAIL_PlatformError;
+    }
+}
+
 NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown(void)
 {
     shutdown = true;
@@ -421,6 +445,27 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown(void)
 
 NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown1(ID3D12Device* InDevice)
 {
+    // A Shutdown1 call for a device that isn't the game's own real device -- the DLSS5 Feeder's
+    // own private D3D12 device, in practice -- must not wipe OUR OWN feature/FrameGen state for
+    // the game's real session. Forward it to the real _nvngx.dll (that device's own NGX session
+    // genuinely does need tearing down for the Feeder's recovery to have a chance), SEH-guarded
+    // since that's exactly the call that faulted on the real crash, but stop there: skip every
+    // State::Instance() mutation below, all of which describes the game's session, not this one.
+    const auto& state = State::Instance();
+    const bool isForeignDevice =
+        state.primaryD3D12Device != nullptr && InDevice != nullptr && InDevice != state.primaryD3D12Device;
+
+    if (isForeignDevice)
+    {
+        LOG_WARN("NVSDK_NGX_D3D12_Shutdown1 called for a device that isn't the game's own (likely "
+                 "the DLSS5 Feeder's private session) -- forwarding without touching our own state.");
+
+        if (NVNGXProxy::D3D12_Shutdown1() != nullptr)
+            return CallRealD3D12Shutdown1Safe(NVNGXProxy::D3D12_Shutdown1(), InDevice);
+
+        return NVSDK_NGX_Result_Success;
+    }
+
     shutdown = true;
     State::Instance().nvngxDx12Inited = false;
 
@@ -433,7 +478,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown1(ID3D12Device* InDevice)
     if (Config::Instance()->DLSSEnabled.value_or_default() && NVNGXProxy::IsDx12Inited() &&
         NVNGXProxy::D3D12_Shutdown1() != nullptr && !State::Instance().isShuttingDown)
     {
-        auto result = NVNGXProxy::D3D12_Shutdown1()(InDevice);
+        CallRealD3D12Shutdown1Safe(NVNGXProxy::D3D12_Shutdown1(), InDevice);
         NVNGXProxy::SetDx12Inited(false);
     }
 

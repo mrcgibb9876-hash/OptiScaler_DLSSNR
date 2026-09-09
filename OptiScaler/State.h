@@ -327,6 +327,12 @@ class State
     IDXGISwapChain* currentRealSwapchain = nullptr;
     IDXGISwapChain* currentFGSwapchain = nullptr;
     ID3D12Device* currentD3D12Device = nullptr;
+    // Sticky, first-wins: the device our own real feature/FG state belongs to. currentD3D12Device
+    // above gets overwritten by whichever device inited most recently -- once the DLSS5 Feeder's
+    // own private D3D12 device shows up, that clobbers currentD3D12Device with a device that isn't
+    // the game's. This field never changes after the first Init, so NVSDK_NGX_D3D12_Shutdown1 can
+    // tell a foreign (Feeder) device's Shutdown call apart from the game's own real one.
+    ID3D12Device* primaryD3D12Device = nullptr;
     ID3D11Device* currentD3D11Device = nullptr;
     ID3D12CommandQueue* currentCommandQueue = nullptr;
     VkDevice currentVkDevice = nullptr;
