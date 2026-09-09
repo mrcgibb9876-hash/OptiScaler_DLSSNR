@@ -3,6 +3,8 @@
 
 #include <tlhelp32.h>
 #include <filesystem>
+#include <thread>
+#include <chrono>
 
 static DWORD FindProcessId(const wchar_t* exeName)
 {
@@ -99,5 +101,36 @@ bool LosslessScaling::Close()
 
     CloseContext ctx { pid, false };
     EnumWindows(CloseWindowsForPid, reinterpret_cast<LPARAM>(&ctx));
-    return ctx.closedAny;
+
+    // WM_CLOSE alone isn't enough -- confirmed live (Batman: Arkham Knight, 2026-09-10): it closes
+    // the window (a real, visible effect -- MainWindowHandle goes to 0), but Lossless Scaling keeps
+    // running in the background regardless (same PID, same CPU/memory use, no MinimizeToTray or
+    // CloseToTray setting needed for this -- it does it either way), so Frame Generation never
+    // actually stops. The checkbox has to guarantee "off" means off. Give it a moment to exit
+    // cleanly on its own first (WM_CLOSE did close its window, so something is happening), then
+    // force it if it's still there. Runs on its own thread, detached, so a slow/stuck Lossless
+    // Scaling can't stall the game's own render thread while this waits.
+    std::thread([pid]()
+    {
+        for (int i = 0; i < 20; i++) // up to ~2s in 100ms steps
+        {
+            HANDLE probe = OpenProcess(SYNCHRONIZE, FALSE, pid);
+            if (probe == nullptr)
+                return; // already gone
+            DWORD waitResult = WaitForSingleObject(probe, 0);
+            CloseHandle(probe);
+            if (waitResult == WAIT_OBJECT_0)
+                return; // exited on its own
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        HANDLE proc = OpenProcess(PROCESS_TERMINATE, FALSE, pid);
+        if (proc != nullptr)
+        {
+            TerminateProcess(proc, 0);
+            CloseHandle(proc);
+        }
+    }).detach();
+
+    return true;
 }

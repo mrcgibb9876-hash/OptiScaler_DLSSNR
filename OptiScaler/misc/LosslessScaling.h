@@ -20,8 +20,12 @@ class LosslessScaling
     // the process to finish starting.
     static bool Launch(const std::wstring& exePath);
 
-    // Finds LosslessScaling.exe's own top-level window(s) and posts WM_CLOSE -- the same as the
-    // user clicking its own close button, so it saves its state normally. Returns false if the
-    // process isn't running or has no window to close (nothing to do, not a failure to report).
+    // Posts WM_CLOSE to LosslessScaling.exe's own top-level window(s) first, same as the user
+    // clicking its own close button, so it gets a chance to save state normally -- then guarantees
+    // it's actually gone: confirmed live that closing its window alone leaves it running in the
+    // background (Frame Generation keeps going), so this falls back to terminating it if it's
+    // still alive after a short grace period. That wait runs on its own detached thread, not the
+    // caller's, so a slow/stuck Lossless Scaling can't stall the game's own render thread. Returns
+    // false only if the process wasn't running at all (nothing to do, not a failure to report).
     static bool Close();
 };
