@@ -45,11 +45,13 @@ bool LosslessScaling::Launch(const std::wstring& exePath)
     std::filesystem::path path(exePath);
     STARTUPINFOW si {};
     si.cb = sizeof(si);
-    // Its own window would otherwise open directly over the game -- start minimized so AutoScale
-    // (set in its per-game profile by OptiDLSS5-UI) gets a chance to pick up the game's window on
-    // its own instead. Still reachable from the taskbar if the user needs to open it.
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_SHOWMINNOACTIVE;
+    // Tried starting this minimized so AutoScale (set on its per-game profile by OptiDLSS5-UI)
+    // could pick up the game's window on its own -- confirmed live (Batman: Arkham Knight,
+    // 2026-09-10) that AutoScale doesn't reliably engage that way even with a correctly configured
+    // profile (tried launching before and after the game, neither auto-attached). The one thing
+    // proven to actually work is the user manually picking the Frame Generation amount and clicking
+    // Scale in its own window, so show it normally instead of hiding a step that still has to
+    // happen. Revisit if a real AutoScale trigger condition is ever found.
     PROCESS_INFORMATION pi {};
 
     // CreateProcessW may write into its lpCommandLine argument, so it needs a mutable buffer even
