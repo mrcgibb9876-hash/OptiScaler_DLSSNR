@@ -5,6 +5,7 @@
 #include "DlssNr_ExposureScan.h"
 
 #include <Config.h>
+#include <misc/LosslessScaling.h>
 
 #include <menu/menu_common.h>
 
@@ -554,6 +555,35 @@ void RenderMenu(Config* config, float menuResScale)
                        "\n\nEstimated motion vectors are rougher than a game's real ones -- expect "
                        "more ghosting in fast motion and softer thin geometry than a native-DLSS "
                        "game gets from the same model.");
+
+            // OptiScaler's own Frame Generation crashes with the Feeder (a bug in the Feeder's own
+            // per-frame state, confirmed on a real game -- see FGHooks::CheckForFGStatus). Lossless
+            // Scaling works instead: a separate process, so it never touches this game's own
+            // rendering. This is launch/close only -- the frame-gen amount and the rest of its
+            // per-game setup live in OptiDLSS5-UI, which is what writes ExePath below in the first
+            // place; duplicating that here would mean a second, less safe way to edit its settings.
+            auto losslessExePath = config->LosslessScalingExePath.value_or_default();
+            if (losslessExePath.empty())
+            {
+                ImGui::TextColored(kTextDim, "Lossless Scaling: not configured yet.");
+                HelpMarker("Configure it once for this game in OptiDLSS5-UI (Edit Game -> Lossless "
+                           "Scaling section) -- that sets it up as this game's Frame Generation "
+                           "source and tells this panel where to find it. This checkbox only "
+                           "launches and closes it; the frame-gen amount is set there too.");
+            }
+            else
+            {
+                bool lsRunning = LosslessScaling::IsRunning();
+                if (NrCheckbox("Lossless Scaling Frame Generation", &lsRunning))
+                {
+                    if (lsRunning)
+                        LosslessScaling::Launch(losslessExePath);
+                    else
+                        LosslessScaling::Close();
+                }
+                HelpMarker("Launches or closes Lossless Scaling. It picks up this game's window on "
+                           "its own once running -- no need to switch to its own window first.");
+            }
         }
 
         // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the

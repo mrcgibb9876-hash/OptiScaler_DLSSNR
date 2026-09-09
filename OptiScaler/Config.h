@@ -531,6 +531,14 @@ class Config
     // Higher means highlights sit lower on the curve and the model treats them as less extreme.
     CustomOptional<float> DlssNrWhitePointScale { 1.0f };
 
+    // OptiScaler's own Frame Generation crashes with the DLSS5 Feeder (see FGHooks::CheckForFGStatus)
+    // -- a bug in the Feeder's own per-frame state, not fixable here. Lossless Scaling sidesteps it
+    // entirely (a separate process, never touches this game's swapchain), so the panel offers it as
+    // a launch/close toggle when the Feeder is loaded. Written by OptiDLSS5-UI after it configures
+    // the game's Lossless Scaling profile -- empty means "not configured yet", not "not installed";
+    // this process never guesses a path or touches Lossless Scaling's own settings itself.
+    CustomOptional<std::wstring> LosslessScalingExePath { std::wstring() };
+
     // --- end DLSS 5 Neural Rendering -------------------------------------------------------------
 
     // DLSS
