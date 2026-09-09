@@ -43,6 +43,11 @@ bool LosslessScaling::Launch(const std::wstring& exePath)
     std::filesystem::path path(exePath);
     STARTUPINFOW si {};
     si.cb = sizeof(si);
+    // Its own window would otherwise open directly over the game -- start minimized so AutoScale
+    // (set in its per-game profile by OptiDLSS5-UI) gets a chance to pick up the game's window on
+    // its own instead. Still reachable from the taskbar if the user needs to open it.
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_SHOWMINNOACTIVE;
     PROCESS_INFORMATION pi {};
 
     // CreateProcessW may write into its lpCommandLine argument, so it needs a mutable buffer even
