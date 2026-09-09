@@ -490,13 +490,18 @@ const char* ConflictingNrAddon()
         const char* name;
     };
 
-    // The 32-bit variants are listed for completeness: OptiScaler is x64, so it will never share a
-    // process with them, but naming them costs nothing and stops the list looking half-finished.
+    // Only NR *consumers* belong here -- add-ons that apply Neural Rendering themselves. Two
+    // consumers denoise the same frame twice. The DLSS5 Feeder (dlss5-feed.addon64) is NOT one:
+    // it is a *producer* -- on a game with no native DLSS it synthesises a DLSS DLAA evaluate from
+    // ReShade depth + motion vectors for a consumer to hook, and this pass is that consumer. So the
+    // feeder is deliberately absent from this list; refusing it would refuse the one thing that
+    // feeds us on no-native-DLSS games. Do not add it back.
+    //
+    // The 32-bit variant is listed for completeness: OptiScaler is x64, so it will never share a
+    // process with it, but naming it costs nothing.
     static constexpr Addon kAddons[] = {
         { L"renodx-dlss5.addon64", "renodx-dlss5.addon64" },
         { L"renodx-dlss5.addon32", "renodx-dlss5.addon32" },
-        { L"dlss5-feed.addon64", "dlss5-feed.addon64" },
-        { L"dlss5-feed.addon32", "dlss5-feed.addon32" },
     };
 
     for (const auto& addon : kAddons)
@@ -1769,10 +1774,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Refuse to be the second thing applying this model to the same frame.
     //
     // ReShade loads its add-ons with LoadLibrary, so they are ordinary modules and can be found by
-    // name. Both of the ones below run DLSS 5 Neural Rendering at the ReShade stage, which is AFTER
-    // this pass -- so with both active the frame is denoised twice, the second working on a picture
-    // the first already rewrote. That does not read as more detail; it reads as smeared and
-    // over-sharpened, and neither tool would say a word about why.
+    // name. A DLSS 5 Neural Rendering *consumer* add-on (RenoDX's) runs NR at the ReShade stage,
+    // AFTER this pass -- so with both active the frame is denoised twice, the second working on a
+    // picture the first already rewrote. That does not read as more detail; it reads as smeared and
+    // over-sharpened, and neither tool would say a word about why. (The DLSS5 Feeder is not a
+    // consumer and is intentionally not refused -- see ConflictingNrAddon.)
     //
     // Refused rather than warned. This pass exists to decide what the frame looks like, and two
     // things cannot both be that. The message names the file so it is obvious which to remove.
