@@ -249,12 +249,32 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         {
             std::optional<double> upscalerTimeOpt {};
 
-            if (cq != nullptr && currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12())
+            // A standalone DX12 feature's ReadUpscalerTime (IFeature_Dx12) genuinely requires a real
+            // ID3D12CommandQueue* -- it is not safe to call with a D3D11 device context, even though
+            // both overloads take a bare void*. IFeature_Dx11wDx12's own override is fine either way
+            // (it ignores whatever is passed and uses its own tracked D3D12 queue internally), so only
+            // a *standalone* DX12 feature (Api()==DX12 && !IsWithDx12()) needs excluding here.
+            //
+            // This used to be unreachable: currentFeature could only be DX12-standalone when the
+            // swapchain itself was also DX12, so cq was always non-null and this whole else-branch
+            // never ran for that feature type. The DLSS5-Feeder changes that: it opens its own private
+            // D3D12 NGX session independent of the host game's swapchain, so on a D3D11 game (cq
+            // always null) currentFeature can now be a standalone-DX12 feature the Feeder created,
+            // while this code still runs the D3D11 branch below -- passing a real
+            // ID3D11DeviceContext* into IFeature_Dx12::ReadUpscalerTime, which reinterprets it as an
+            // ID3D12CommandQueue* and calls a vtable slot that resolves to something else entirely on
+            // the real D3D11 interface. Confirmed via a real crash (Batman: Arkham Knight + DLSS5-
+            // Feeder, 2026-09-09): symbolicated minidump showed the fault landing inside real
+            // d3d11.dll's ID3D11DeviceContext::SetConstantBuffers, called from GpuTime_Dx12::ReadGpuTime.
+            const bool featureNeedsRealDx12Queue =
+                currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12();
+
+            if (cq != nullptr && featureNeedsRealDx12Queue)
             {
                 if (upscalerTimeOpt = currentFeature->ReadUpscalerTime(cq); upscalerTimeOpt.has_value())
                     currentFeature->ReadDetailedGpuTimes(cq, State::Instance().detailedGpuTimes);
             }
-            else if (device != nullptr)
+            else if (device != nullptr && !featureNeedsRealDx12Queue)
             {
                 ID3D11DeviceContext* context = nullptr;
                 device->GetImmediateContext(&context);
@@ -264,7 +284,7 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
 
                 context->Release();
             }
-            if (State::Instance().swapchainInteropApi == SwapchainInteropApi::Dx11wDx12 &&
+            if (!featureNeedsRealDx12Queue && State::Instance().swapchainInteropApi == SwapchainInteropApi::Dx11wDx12 &&
                 State::Instance().currentD3D11Device != nullptr)
             {
                 ID3D11DeviceContext* context = nullptr;
