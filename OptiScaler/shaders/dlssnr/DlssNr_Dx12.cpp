@@ -3331,6 +3331,10 @@ bool IsRunning() { return g_nr.feature != nullptr && !g_nr.failed; }
 
 const char* FailureReason() { return g_nr.failed ? g_nr.reason : ""; }
 
+// Same GetModuleHandleW-by-name check ConflictingNrAddon() uses, just not refusing anything --
+// this is purely "what is this NR pass actually running on" for the overlay.
+bool IsFeederPresent() { return GetModuleHandleW(L"dlss5-feed.addon64") != nullptr; }
+
 // What the game offers by way of exposure, and what has been read from it. For the menu, so a user
 // can see whether this game supplies one at all without having to read a log.
 ExposureStatus GameExposureStatus()

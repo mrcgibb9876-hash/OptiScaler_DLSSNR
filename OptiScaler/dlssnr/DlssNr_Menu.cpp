@@ -540,6 +540,22 @@ void RenderMenu(Config* config, float menuResScale)
                    "\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package"
                    "\nUndocumented and driven directly, so none of this is officially supported.");
 
+        // Only shown for a Feeder game -- a native-DLSS game is the common case and needs no
+        // extra line here. Worth surfacing when it applies: a Feeder-fed evaluate runs on
+        // *estimated* motion vectors (ReShade depth + optical flow, not the game's real ones),
+        // so it ghosts more in fast motion and softens thin geometry more than a native-DLSS-fed
+        // one -- the same model, a rougher input.
+        if (DlssNr::IsFeederPresent())
+        {
+            ImGui::TextColored(kTextDim, "Source: DLSS5 Feeder (no native DLSS in this game)");
+            HelpMarker("This game has no DLSS of its own, so there is no evaluate call for Neural "
+                       "Rendering to attach to. The DLSS5 Feeder ReShade add-on builds one from "
+                       "ReShade's own depth and estimated motion vectors instead."
+                       "\n\nEstimated motion vectors are rougher than a game's real ones -- expect "
+                       "more ghosting in fast motion and softer thin geometry than a native-DLSS "
+                       "game gets from the same model.");
+        }
+
         // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
         // panel is usable on its own, without going looking for the other window.
         MenuCommon::RenderKeybindRow("Toggle key", 14, config->DlssNrToggleKey);
@@ -600,12 +616,21 @@ void RenderMenu(Config* config, float menuResScale)
             else if (enabled)
             {
                 ImGui::TextColored(kTextDim, "Waiting for the upscaler to run.");
-                // The one thing the old shared window told you here that this panel otherwise
-                // wouldn't: this needs the game's own upscaler active, not just this checkbox.
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(kTextDim, "Needs DLSS or XeSS selected as the upscaler in the game's own "
-                                             "video settings, and a save loaded -- this (and the rest of "
-                                             "OptiScaler) does not run in menus.");
+                if (DlssNr::IsFeederPresent())
+                    // The Feeder route: there is no native DLSS/XeSS setting to point at here --
+                    // the evaluate this pass is waiting for is the Feeder's own synthetic one, so
+                    // what is missing is the Feeder itself doing its job, not a game setting.
+                    ImGui::TextColored(kTextDim, "The DLSS5 Feeder add-on is loaded, but has not fed a DLSS "
+                                                 "evaluate yet -- check dlss5-feed.log in the game folder for "
+                                                 "\"technique MISSING\" if this does not clear once you are "
+                                                 "in-game.");
+                else
+                    // The one thing the old shared window told you here that this panel otherwise
+                    // wouldn't: this needs the game's own upscaler active, not just this checkbox.
+                    ImGui::TextColored(kTextDim, "Needs DLSS or XeSS selected as the upscaler in the game's own "
+                                                 "video settings, and a save loaded -- this (and the rest of "
+                                                 "OptiScaler) does not run in menus.");
                 ImGui::PopTextWrapPos();
             }
         }

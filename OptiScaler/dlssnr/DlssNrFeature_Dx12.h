@@ -93,6 +93,13 @@ bool IsRunning();
 // Why it is not, if it is not. Empty while it is running or has not been tried yet.
 const char* FailureReason();
 
+// Whether the DLSS5 Feeder (dlss5-feed.addon64) is loaded in this process -- for the overlay, so
+// it can say which evaluate call Neural Rendering is actually running on: the game's own native
+// DLSS, or a synthetic one the Feeder built from ReShade depth + motion vectors for a game that
+// has no DLSS of its own. A ReShade add-on is loaded with LoadLibrary, so it is an ordinary module
+// and can be found by name, the same way ConflictingNrAddon() finds a competing consumer.
+bool IsFeederPresent();
+
 // What the game offers by way of exposure. Observed every frame whether or not the setting is on, so
 // the menu can say whether turning it on would do anything here.
 struct ExposureStatus
