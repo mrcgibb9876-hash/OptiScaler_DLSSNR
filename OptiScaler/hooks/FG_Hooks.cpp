@@ -11,6 +11,7 @@
 
 #include <hudfix/Hudfix_Dx12.h>
 #include <resource_tracking/ResTrack_Dx12.h>
+#include <dlssnr/DlssNrFeature_Dx12.h>
 
 #include <misc/FrameLimit.h>
 
@@ -43,6 +44,27 @@ static bool CheckForFGStatus()
 
     if (State::Instance().activeFgInput == FGInput::NoFG || State::Instance().activeFgInput == FGInput::NvngxFG)
         return false;
+
+    // The DLSS5 Feeder's own per-frame state (its ReShade technique, DLSS5_Feed.fx, dispatching
+    // into its private D3D12 NGX session) doesn't expect ReShade's Present hook to fire twice per
+    // real frame, which is exactly what any FG output does by design (one real Present, one for
+    // the generated frame, both through the same swapchain ReShade hooked). Confirmed on a real
+    // game (Bodycam, 2026-09-10): with the Feeder's own technique disabled, FG + ReShade ran fine
+    // for 45+ seconds; with it enabled, it crashed within 15s every time, in ReShade64.dll itself,
+    // every time -- a bug in the Feeder's own frame-doubling handling, not something fixable from
+    // here. Block FG entirely while the Feeder is loaded, regardless of how it was requested (ini,
+    // in-game menu, or the manager app) until that's fixed upstream.
+    if (DlssNr::IsFeederPresent())
+    {
+        ImGui::InsertNotification({ ImGuiToastType::Error, 20000,
+                                    "Frame Generation isn't available with the DLSS5 Feeder yet\n"
+                                    "(crashes on a real test -- a bug in the Feeder itself)." });
+
+        LOG_WARN("DLSS5 Feeder is present, refusing to activate FrameGen -- confirmed crash on a real game");
+        Config::Instance()->FGOutput.set_volatile_value(FGOutput::NoFG);
+        State::Instance().activeFgOutput = Config::Instance()->FGOutput.value_or_default();
+        return false;
+    }
 
     // Disable FG if amd dll is not found
     if (State::Instance().activeFgOutput == FGOutput::FSRFG)
