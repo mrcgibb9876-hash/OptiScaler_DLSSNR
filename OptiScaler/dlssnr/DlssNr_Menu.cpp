@@ -595,11 +595,22 @@ void RenderMenu(Config* config, float menuResScale)
                 {
                     scalingBelieved = scalingRow;
                     LosslessScaling::TriggerScaleAsync(losslessGameTitle);
+
+                    // Two frame generators at once stack their generated frames -- stutter at best,
+                    // a crash at worst. OptiScaler's own FG is ours to switch off here; the game's
+                    // native DLSS Frame Generation is a game setting, so that gets a reminder below.
+                    if (scalingRow && config->FGEnabled.value_or_default())
+                    {
+                        config->FGEnabled = false;
+                        state.fgChanged = true;
+                        anyChanged = true;
+                    }
                 }
                 ImGui::SameLine();
                 HelpMarker("Toggles its Frame Generation (same as its own Ctrl+Alt+S). Its window "
                            "briefly flashes each time -- unavoidable. Shows what was last requested, "
-                           "not a confirmed live state.");
+                           "not a confirmed live state.\n\nTurning this on switches OptiScaler's own "
+                           "Frame Generation off: two frame generators at once stack.");
                 if (losslessAdaptive)
                 {
                     // Adaptive mode has no multiplier to step -- Lossless Scaling decides per frame
@@ -636,6 +647,8 @@ void RenderMenu(Config* config, float menuResScale)
                                "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
                                "fine either way).");
                 }
+                if (lsRunning)
+                    ImGui::TextColored(kTextDim, "Keep the game's own DLSS Frame Generation off while this runs.");
             }
         }
 
@@ -910,6 +923,10 @@ void RenderMenu(Config* config, float menuResScale)
                 config->FGEnabled = fgActive;
                 state.fgChanged = true;
                 anyChanged = true;
+
+                // The other half of the Lossless Scaling row's rule: only one frame generator at a time.
+                if (fgActive && LosslessScaling::IsRunning())
+                    LosslessScaling::Close();
             }
             HelpMarker("NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG.");
 
