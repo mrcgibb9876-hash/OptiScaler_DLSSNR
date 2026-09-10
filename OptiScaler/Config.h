@@ -539,6 +539,15 @@ class Config
     // this process never guesses a path or touches Lossless Scaling's own settings itself.
     CustomOptional<std::wstring> LosslessScalingExePath { std::wstring() };
 
+    // The exact <Title> OptiDLSS5-UI wrote into this game's Lossless Scaling profile -- needed so
+    // this process can find and select the right entry in Lossless Scaling's own profile list via
+    // UI Automation (its own AutoScale/foreground-watch mechanism does not reliably trigger on its
+    // own, confirmed live: it only fires on a genuine, user-driven foreground-change event, and a
+    // programmatic SetForegroundWindow from an unrelated process is silently blocked by Windows'
+    // own foreground-lock protection). Matched by exact profile Title text, not by path, since that
+    // is the only way to identify a specific entry in Lossless Scaling's own UI tree.
+    CustomOptional<std::wstring> LosslessScalingGameTitle { std::wstring() };
+
     // --- end DLSS 5 Neural Rendering -------------------------------------------------------------
 
     // DLSS

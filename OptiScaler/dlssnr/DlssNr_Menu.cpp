@@ -559,30 +559,72 @@ void RenderMenu(Config* config, float menuResScale)
             // OptiScaler's own Frame Generation crashes with the Feeder (a bug in the Feeder's own
             // per-frame state, confirmed on a real game -- see FGHooks::CheckForFGStatus). Lossless
             // Scaling works instead: a separate process, so it never touches this game's own
-            // rendering. This is launch/close only -- the frame-gen amount and the rest of its
-            // per-game setup live in OptiDLSS5-UI, which is what writes ExePath below in the first
-            // place; duplicating that here would mean a second, less safe way to edit its settings.
+            // rendering. Per-game profile setup (which exe, which title, the multiplier's default)
+            // lives in OptiDLSS5-UI, which writes ExePath/GameTitle below -- everything here either
+            // launches/closes the process or drives its already-configured profile via UI Automation
+            // (see LosslessScaling.h for exactly what that does and does not do, and why -- it does
+            // not touch Lossless Scaling's own settings file itself).
             auto losslessExePath = config->LosslessScalingExePath.value_or_default();
-            if (losslessExePath.empty())
+            auto losslessGameTitle = config->LosslessScalingGameTitle.value_or_default();
+            if (losslessExePath.empty() || losslessGameTitle.empty())
             {
                 ImGui::TextColored(kTextDim, "Lossless Scaling: not configured yet.");
                 HelpMarker("Configure it once for this game in OptiDLSS5-UI (Edit Game -> Lossless "
                            "Scaling section) -- that sets it up as this game's Frame Generation "
-                           "source and tells this panel where to find it. This checkbox only "
-                           "launches and closes it; the frame-gen amount is set there too.");
+                           "source and tells this panel where to find it.");
             }
             else
             {
                 bool lsRunning = LosslessScaling::IsRunning();
-                if (NrCheckbox("Lossless Scaling Frame Generation", &lsRunning))
+                if (NrCheckbox("Lossless Scaling", &lsRunning))
                 {
                     if (lsRunning)
                         LosslessScaling::Launch(losslessExePath);
                     else
                         LosslessScaling::Close();
                 }
-                HelpMarker("Launches or closes Lossless Scaling. It picks up this game's window on "
-                           "its own once running -- no need to switch to its own window first.");
+                HelpMarker("Launches or closes Lossless Scaling in the background. Needs to run "
+                           "(and briefly show itself once, unavoidably) before the controls below do "
+                           "anything.");
+
+                static bool scalingBelieved = false;
+                bool scalingRow = scalingBelieved;
+                ImGui::BeginDisabled(!lsRunning);
+                if (NrCheckbox("Frame Generation active", &scalingRow))
+                {
+                    scalingBelieved = scalingRow;
+                    LosslessScaling::TriggerScaleAsync(losslessGameTitle);
+                }
+                ImGui::EndDisabled();
+                HelpMarker("Turns its Frame Generation on or off for this game -- the same toggle as "
+                           "its own Ctrl+Alt+S hotkey. Its own window briefly appears and then hides "
+                           "itself again each time this is used; that flash is unavoidable given how "
+                           "it works. This checkbox shows what was last requested, not a live read of "
+                           "its actual state -- if it drifts, use it again to correct it.");
+
+                ImGui::BeginDisabled(!lsRunning);
+                ImGui::TextUnformatted("Amount:");
+                static int multiplierBelieved = 2;
+                for (int m : { 2, 3, 4 })
+                {
+                    ImGui::SameLine();
+                    bool selected = (multiplierBelieved == m);
+                    char label[8];
+                    snprintf(label, sizeof(label), "%dx", m);
+                    if (NrCheckbox(label, &selected) && selected)
+                    {
+                        multiplierBelieved = m;
+                        LosslessScaling::SetMultiplierAsync(losslessGameTitle, m);
+                    }
+                }
+                ImGui::EndDisabled();
+                HelpMarker("How many frames it generates per real one. Applies live if Frame "
+                           "Generation is already active, same as changing it in its own window.");
+
+                ImGui::TextColored(kTextDim, "Needs this game running Borderless or Windowed, not "
+                                             "exclusive Fullscreen -- it cannot capture an exclusive "
+                                             "fullscreen window at all. A DX12 game is usually fine "
+                                             "either way, since DX12 has no true exclusive fullscreen.");
             }
         }
 

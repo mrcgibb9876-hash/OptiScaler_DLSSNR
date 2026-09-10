@@ -5,6 +5,10 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include <wrl/client.h>
+#include <UIAutomationClient.h>
+
+using Microsoft::WRL::ComPtr;
 
 static DWORD FindProcessId(const wchar_t* exeName)
 {
@@ -45,13 +49,10 @@ bool LosslessScaling::Launch(const std::wstring& exePath)
     std::filesystem::path path(exePath);
     STARTUPINFOW si {};
     si.cb = sizeof(si);
-    // Tried starting this minimized so AutoScale (set on its per-game profile by OptiDLSS5-UI)
-    // could pick up the game's window on its own -- confirmed live (Batman: Arkham Knight,
-    // 2026-09-10) that AutoScale doesn't reliably engage that way even with a correctly configured
-    // profile (tried launching before and after the game, neither auto-attached). The one thing
-    // proven to actually work is the user manually picking the Frame Generation amount and clicking
-    // Scale in its own window, so show it normally instead of hiding a step that still has to
-    // happen. Revisit if a real AutoScale trigger condition is ever found.
+    // Shows normally (no show-state override) rather than minimized: confirmed live that UI
+    // Automation driving its Scale button only takes real effect once the window has actually been
+    // shown at least once since launch -- see LosslessScaling.h for the full story. TriggerScale/
+    // SetMultiplier minimize it again once they're done with it, so this first show is brief.
     PROCESS_INFORMATION pi {};
 
     // CreateProcessW may write into its lpCommandLine argument, so it needs a mutable buffer even
@@ -135,4 +136,209 @@ bool LosslessScaling::Close()
     }).detach();
 
     return true;
+}
+
+namespace
+{
+// EnumWindows finds a window by title regardless of show state (confirmed live it still finds a
+// minimized or even SW_HIDE'd window) -- AutomationElement/IUIAutomation's own top-level traversal
+// (RootElement's Children, or Process.MainWindowHandle on the .NET side) does not reliably see a
+// non-normal-state window, but wrapping an HWND found this way with ElementFromHandle works fine
+// regardless of its show state. Confirmed live, 2026-09-10.
+HWND FindLosslessWindow(DWORD pid)
+{
+    struct Ctx
+    {
+        DWORD pid;
+        HWND result;
+    } ctx { pid, nullptr };
+
+    EnumWindows(
+        [](HWND hwnd, LPARAM lParam) -> BOOL
+        {
+            auto* ctx = reinterpret_cast<Ctx*>(lParam);
+            DWORD windowPid = 0;
+            GetWindowThreadProcessId(hwnd, &windowPid);
+            if (windowPid == ctx->pid)
+            {
+                wchar_t title[256] = {};
+                GetWindowTextW(hwnd, title, 256);
+                if (wcscmp(title, L"Lossless Scaling") == 0)
+                {
+                    ctx->result = hwnd;
+                    return FALSE;
+                }
+            }
+            return TRUE;
+        },
+        reinterpret_cast<LPARAM>(&ctx));
+
+    return ctx.result;
+}
+
+ComPtr<IUIAutomationElement> FindByAutomationId(IUIAutomation* automation, IUIAutomationElement* root, const wchar_t* id)
+{
+    VARIANT v {};
+    v.vt = VT_BSTR;
+    v.bstrVal = SysAllocString(id);
+    ComPtr<IUIAutomationCondition> cond;
+    automation->CreatePropertyCondition(UIA_AutomationIdPropertyId, v, &cond);
+    VariantClear(&v);
+
+    ComPtr<IUIAutomationElement> found;
+    if (cond)
+        root->FindFirst(TreeScope_Descendants, cond.Get(), &found);
+    return found;
+}
+
+// Selects the ProfileList entry whose own descendant text exactly matches gameTitle (the list
+// items themselves carry no AutomationId, only their child Text elements show the profile's real
+// title -- confirmed against the real control tree, 2026-09-10). Returns true if a match was
+// found and selected.
+bool SelectProfileByTitle(IUIAutomation* automation, IUIAutomationElement* window, const std::wstring& gameTitle)
+{
+    auto profileList = FindByAutomationId(automation, window, L"ProfileList");
+    if (!profileList)
+        return false;
+
+    ComPtr<IUIAutomationCondition> trueCond;
+    automation->CreateTrueCondition(&trueCond);
+
+    ComPtr<IUIAutomationElementArray> items;
+    profileList->FindAll(TreeScope_Children, trueCond.Get(), &items);
+    if (!items)
+        return false;
+
+    int count = 0;
+    items->get_Length(&count);
+
+    for (int i = 0; i < count; i++)
+    {
+        ComPtr<IUIAutomationElement> item;
+        items->GetElement(i, &item);
+        if (!item)
+            continue;
+
+        ComPtr<IUIAutomationElementArray> texts;
+        item->FindAll(TreeScope_Descendants, trueCond.Get(), &texts);
+        if (!texts)
+            continue;
+
+        int textCount = 0;
+        texts->get_Length(&textCount);
+        bool matched = false;
+        for (int j = 0; j < textCount && !matched; j++)
+        {
+            ComPtr<IUIAutomationElement> textEl;
+            texts->GetElement(j, &textEl);
+            if (!textEl)
+                continue;
+            BSTR name = nullptr;
+            textEl->get_CurrentName(&name);
+            if (name != nullptr)
+            {
+                if (gameTitle == name)
+                    matched = true;
+                SysFreeString(name);
+            }
+        }
+
+        if (matched)
+        {
+            ComPtr<IUIAutomationSelectionItemPattern> selectPattern;
+            if (SUCCEEDED(item->GetCurrentPatternAs(UIA_SelectionItemPatternId, IID_PPV_ARGS(&selectPattern))) && selectPattern)
+            {
+                selectPattern->Select();
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Runs the whole "briefly show -> select profile -> (optionally set multiplier) -> (optionally
+// click Scale) -> minimize again" sequence on its own thread with a fresh COM apartment, so this
+// never touches whatever COM state the game itself may already have on its own threads, and never
+// blocks the caller (the game's own render thread, if called from the in-game panel). Runs both
+// actions in one pass when both are requested, rather than two separate show/hide cycles.
+void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int multiplierOrZero)
+{
+    std::thread(
+        [gameTitle, clickScale, multiplierOrZero]()
+        {
+            HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+            if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+                return;
+
+            {
+                DWORD pid = FindProcessId(L"LosslessScaling.exe");
+                HWND hwnd = pid ? FindLosslessWindow(pid) : nullptr;
+                if (hwnd != nullptr)
+                {
+                    ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+                    // Give WPF a moment to actually render at least one frame -- confirmed live
+                    // that acting on it too soon after showing behaves the same as never showing.
+                    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+
+                    ComPtr<IUIAutomation> automation;
+                    if (SUCCEEDED(CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation))) &&
+                        automation)
+                    {
+                        ComPtr<IUIAutomationElement> window;
+                        if (SUCCEEDED(automation->ElementFromHandle(hwnd, &window)) && window)
+                        {
+                            if (SelectProfileByTitle(automation.Get(), window.Get(), gameTitle))
+                            {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+                                if (multiplierOrZero > 0)
+                                {
+                                    auto multEl = FindByAutomationId(automation.Get(), window.Get(), L"LSFG3Multiplier");
+                                    if (multEl)
+                                    {
+                                        ComPtr<IUIAutomationValuePattern> valuePattern;
+                                        if (SUCCEEDED(multEl->GetCurrentPatternAs(UIA_ValuePatternId, IID_PPV_ARGS(&valuePattern))) &&
+                                            valuePattern)
+                                        {
+                                            BSTR val = SysAllocString(std::to_wstring(multiplierOrZero).c_str());
+                                            valuePattern->SetValue(val);
+                                            SysFreeString(val);
+                                        }
+                                    }
+                                }
+
+                                if (clickScale)
+                                {
+                                    auto scaleBtn = FindByAutomationId(automation.Get(), window.Get(), L"ScaleButton");
+                                    if (scaleBtn)
+                                    {
+                                        ComPtr<IUIAutomationInvokePattern> invokePattern;
+                                        if (SUCCEEDED(scaleBtn->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&invokePattern))) &&
+                                            invokePattern)
+                                        {
+                                            invokePattern->Invoke();
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                    ShowWindow(hwnd, SW_MINIMIZE);
+                }
+            }
+
+            CoUninitialize();
+        })
+        .detach();
+}
+} // namespace
+
+void LosslessScaling::TriggerScaleAsync(const std::wstring& gameTitle) { RunAutomationAsync(gameTitle, true, 0); }
+
+void LosslessScaling::SetMultiplierAsync(const std::wstring& gameTitle, int multiplier)
+{
+    RunAutomationAsync(gameTitle, false, multiplier);
 }
