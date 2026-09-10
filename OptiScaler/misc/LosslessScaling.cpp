@@ -268,16 +268,19 @@ bool SelectProfileByTitle(IUIAutomation* automation, IUIAutomationElement* windo
 // searched for within multEl specifically, not the whole window).
 //
 // Does not try to read the current value first and compute a delta -- GetCurrentValue() on this
-// same custom control is likely exactly as unreliable as SetValue() was (confirmed live that the
-// read-then-delta version silently did nothing, consistent with a delta of 0 every time). Instead,
-// unconditionally decrements enough times to guarantee hitting the floor (2, the lowest of the
-// 2x/3x/4x range this app offers) regardless of the real starting value, then increments exactly
-// (target - floor) times -- reaching the exact target without needing to successfully read
-// anything.
+// same custom control is likely exactly as unreliable as SetValue() was; not fully confirmed
+// either way (the whole control tree was unfindable in the same debugging session that later
+// confirmed Invoke genuinely works, on a freshly-restarted Lossless Scaling instance -- the long-
+// running one already open had accumulated corrupted UI Automation state after being shown/hidden
+// many times over one session, unrelated to this function). Sidesteps needing to know either way:
+// unconditionally decrements enough times to guarantee hitting the real floor (confirmed live to
+// be 1, not 2 -- the first version of this got that wrong, which alone accounted for every result
+// landing one step short of the intended target) regardless of the real starting value, then
+// increments exactly (target - floor) times.
 void SetMultiplierViaSteppers(IUIAutomation* automation, IUIAutomationElement* window, int target)
 {
-    constexpr int kFloor = 2;
-    constexpr int kDecrementsToGuaranteeFloor = 5; // more than (any plausible max) - kFloor
+    constexpr int kFloor = 1;
+    constexpr int kDecrementsToGuaranteeFloor = 10; // comfortably more than (any plausible max) - kFloor
 
     auto multEl = FindByAutomationId(automation, window, L"LSFG3Multiplier");
     if (!multEl)
