@@ -555,17 +555,24 @@ void RenderMenu(Config* config, float menuResScale)
                        "\n\nEstimated motion vectors are rougher than a game's real ones -- expect "
                        "more ghosting in fast motion and softer thin geometry than a native-DLSS "
                        "game gets from the same model.");
+        }
 
-            // OptiScaler's own Frame Generation crashes with the Feeder -- see
-            // FGHooks::CheckForFGStatus. Lossless Scaling works instead (a separate process, never
-            // touches this game's own rendering); per-game setup lives in OptiDLSS5-UI, which writes
-            // ExePath/GameTitle below. See LosslessScaling.h for what these controls actually do.
-            // Kept deliberately compact -- this row grew too tall/text-heavy on the first pass.
+        // Lossless Scaling is offered for every game, not just Feeder ones: it runs as a separate
+        // process and never touches this game's own rendering, so nothing about the game rules it
+        // out -- and OptiScaler's own Frame Generation crashes with the Feeder anyway (see
+        // FGHooks::CheckForFGStatus). Per-game setup lives in OptiDLSS5-UI, which writes the
+        // ExePath/GameTitle/Mode keys below. See LosslessScaling.h for what these controls do.
+        // Kept deliberately compact -- this row grew too tall/text-heavy on the first pass.
+        {
             auto losslessExePath = config->LosslessScalingExePath.value_or_default();
             auto losslessGameTitle = config->LosslessScalingGameTitle.value_or_default();
-            if (losslessExePath.empty() || losslessGameTitle.empty())
+            const bool losslessConfigured = !losslessExePath.empty() && !losslessGameTitle.empty();
+            const bool losslessAdaptive = config->LosslessScalingMode.value_or_default() == L"ADAPTIVE";
+            if (!losslessConfigured)
             {
-                ImGui::TextColored(kTextDim, "Lossless Scaling: not configured (OptiDLSS5-UI).");
+                // Only worth a line where it is the only Frame Generation route there is.
+                if (DlssNr::IsFeederPresent())
+                    ImGui::TextColored(kTextDim, "Lossless Scaling: not configured (OptiDLSS5-UI).");
             }
             else
             {
@@ -593,24 +600,42 @@ void RenderMenu(Config* config, float menuResScale)
                 HelpMarker("Toggles its Frame Generation (same as its own Ctrl+Alt+S). Its window "
                            "briefly flashes each time -- unavoidable. Shows what was last requested, "
                            "not a confirmed live state.");
-                for (int m : { 2, 3, 4 })
+                if (losslessAdaptive)
                 {
-                    static int multiplierBelieved = 2;
+                    // Adaptive mode has no multiplier to step -- Lossless Scaling decides per frame
+                    // how many to generate to hold the target. The target itself is set in
+                    // OptiDLSS5-UI (it lives in the profile, not here).
+                    ImGui::EndDisabled();
                     ImGui::SameLine();
-                    bool selected = (multiplierBelieved == m);
-                    char label[8];
-                    snprintf(label, sizeof(label), "%dx", m);
-                    if (NrCheckbox(label, &selected) && selected)
-                    {
-                        multiplierBelieved = m;
-                        LosslessScaling::SetMultiplierAsync(losslessGameTitle, m);
-                    }
+                    ImGui::TextColored(kTextDim, "Adaptive: holds %d fps",
+                                       config->LosslessScalingTarget.value_or_default());
+                    ImGui::SameLine();
+                    HelpMarker("Adaptive Frame Generation: Lossless Scaling generates only as many frames "
+                               "as it takes to hold this target. Change the target (or switch to a fixed "
+                               "multiplier) in OptiDLSS5-UI. Needs this game running Borderless or "
+                               "Windowed, not exclusive Fullscreen (DX12 games are usually fine either way).");
                 }
-                ImGui::EndDisabled();
-                ImGui::SameLine();
-                HelpMarker("Frames generated per real one -- applies live. Needs this game running "
-                           "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
-                           "fine either way).");
+                else
+                {
+                    static int multiplierBelieved = config->LosslessScalingMultiplier.value_or_default();
+                    for (int m : { 2, 3, 4 })
+                    {
+                        ImGui::SameLine();
+                        bool selected = (multiplierBelieved == m);
+                        char label[8];
+                        snprintf(label, sizeof(label), "%dx", m);
+                        if (NrCheckbox(label, &selected) && selected)
+                        {
+                            multiplierBelieved = m;
+                            LosslessScaling::SetMultiplierAsync(losslessGameTitle, m);
+                        }
+                    }
+                    ImGui::EndDisabled();
+                    ImGui::SameLine();
+                    HelpMarker("Frames generated per real one -- applies live. Needs this game running "
+                               "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
+                               "fine either way).");
+                }
             }
         }
 

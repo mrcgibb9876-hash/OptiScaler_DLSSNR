@@ -361,6 +361,9 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrWhitePointScale.set_from_config(readFloat("DlssNr", "WhitePointScale"));
             LosslessScalingExePath.set_from_config(readWString("DlssNr", "LosslessScalingExePath"));
             LosslessScalingGameTitle.set_from_config(readWString("DlssNr", "LosslessScalingGameTitle"));
+            LosslessScalingMode.set_from_config(readWString("DlssNr", "LosslessScalingMode"));
+            LosslessScalingMultiplier.set_from_config(readInt("DlssNr", "LosslessScalingMultiplier"));
+            LosslessScalingTarget.set_from_config(readInt("DlssNr", "LosslessScalingTarget"));
             DlssNrPreset.set_from_config(readUInt("DlssNr", "Preset"));
             DlssNrIntensity.set_from_config(readFloat("DlssNr", "Intensity"));
             DlssNrStyle.set_from_config(readUInt("DlssNr", "Style"));
@@ -1267,6 +1270,12 @@ bool Config::SaveIni()
                      wstring_to_string(Instance()->LosslessScalingExePath.value_for_config_or(L"")).c_str());
         ini.SetValue("DlssNr", "LosslessScalingGameTitle",
                      wstring_to_string(Instance()->LosslessScalingGameTitle.value_for_config_or(L"")).c_str());
+        ini.SetValue("DlssNr", "LosslessScalingMode",
+                     wstring_to_string(Instance()->LosslessScalingMode.value_for_config_or(L"FIXED")).c_str());
+        ini.SetValue("DlssNr", "LosslessScalingMultiplier",
+                     GetIntValue(Instance()->LosslessScalingMultiplier.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "LosslessScalingTarget",
+                     GetIntValue(Instance()->LosslessScalingTarget.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Preset", GetIntValue(Instance()->DlssNrPreset.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Intensity", GetFloatValue(Instance()->DlssNrIntensity.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Style", GetIntValue(Instance()->DlssNrStyle.value_for_config()).c_str());

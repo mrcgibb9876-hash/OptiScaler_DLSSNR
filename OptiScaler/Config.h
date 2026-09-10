@@ -548,6 +548,15 @@ class Config
     // is the only way to identify a specific entry in Lossless Scaling's own UI tree.
     CustomOptional<std::wstring> LosslessScalingGameTitle { std::wstring() };
 
+    // How OptiDLSS5-UI configured that profile: FIXED (every frame multiplied by
+    // LosslessScalingMultiplier) or ADAPTIVE (Lossless Scaling generates only what it takes to hold
+    // LosslessScalingTarget fps, so a multiplier means nothing). Display only -- the profile in
+    // Lossless Scaling's own Settings.xml stays the source of truth; this just tells the panel
+    // which controls make sense to show.
+    CustomOptional<std::wstring> LosslessScalingMode { std::wstring(L"FIXED") };
+    CustomOptional<int> LosslessScalingMultiplier { 2 };
+    CustomOptional<int> LosslessScalingTarget { 120 };
+
     // --- end DLSS 5 Neural Rendering -------------------------------------------------------------
 
     // DLSS
