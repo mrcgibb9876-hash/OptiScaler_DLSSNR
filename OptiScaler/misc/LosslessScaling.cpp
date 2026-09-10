@@ -49,10 +49,12 @@ bool LosslessScaling::Launch(const std::wstring& exePath)
     std::filesystem::path path(exePath);
     STARTUPINFOW si {};
     si.cb = sizeof(si);
-    // Shows normally (no show-state override) rather than minimized: confirmed live that UI
-    // Automation driving its Scale button only takes real effect once the window has actually been
-    // shown at least once since launch -- see LosslessScaling.h for the full story. TriggerScale/
-    // SetMultiplier minimize it again once they're done with it, so this first show is brief.
+    // Starts minimized -- TriggerScaleAsync/SetMultiplierAsync do their own real SW_SHOW +
+    // SetForegroundWindow before touching anything, so this process being launched doesn't itself
+    // need to ever show its window; confirmed live that showing it here just meant an extra,
+    // pointless window popping up over the game as soon as this checkbox was checked.
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_SHOWMINNOACTIVE;
     PROCESS_INFORMATION pi {};
 
     // CreateProcessW may write into its lpCommandLine argument, so it needs a mutable buffer even
@@ -257,6 +259,60 @@ bool SelectProfileByTitle(IUIAutomation* automation, IUIAutomationElement* windo
     return false;
 }
 
+// LSFG3Multiplier is a custom WPF NumberBox (Wpf.Ui.Controls), not a stock control -- confirmed
+// live, 2026-09-10, that driving it via ValuePattern::SetValue() silently does nothing (no error,
+// no effect, still showed its old value after). Its +/- spinner buttons are real InvokePattern
+// targets though (PART_InlineIncrementButton/PART_InlineDecrementButton, children of the
+// LSFG3Multiplier element itself -- the same AutomationIds also exist on several *other* NumberBox
+// fields in the same window, e.g. QueueTarget, MaxFrameLatency, the Crop fields, so these must be
+// searched for within multEl specifically, not the whole window). Reads the current value via
+// ValuePattern::GetCurrentValue() (which does work), then clicks the right button the needed
+// number of times to reach the target.
+void SetMultiplierViaSteppers(IUIAutomation* automation, IUIAutomationElement* window, int target)
+{
+    auto multEl = FindByAutomationId(automation, window, L"LSFG3Multiplier");
+    if (!multEl)
+        return;
+
+    int current = target; // if reading fails, assume already correct rather than guess a direction
+    ComPtr<IUIAutomationValuePattern> valuePattern;
+    if (SUCCEEDED(multEl->GetCurrentPatternAs(UIA_ValuePatternId, IID_PPV_ARGS(&valuePattern))) && valuePattern)
+    {
+        BSTR currentVal = nullptr;
+        if (SUCCEEDED(valuePattern->get_CurrentValue(&currentVal)) && currentVal != nullptr)
+        {
+            try
+            {
+                current = std::stoi(std::wstring(currentVal));
+            }
+            catch (...)
+            {
+            }
+            SysFreeString(currentVal);
+        }
+    }
+
+    int delta = target - current;
+    if (delta == 0)
+        return;
+
+    const wchar_t* buttonId = (delta > 0) ? L"PART_InlineIncrementButton" : L"PART_InlineDecrementButton";
+    auto stepButton = FindByAutomationId(automation, multEl.Get(), buttonId);
+    if (!stepButton)
+        return;
+
+    ComPtr<IUIAutomationInvokePattern> stepInvoke;
+    if (FAILED(stepButton->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&stepInvoke))) || !stepInvoke)
+        return;
+
+    int steps = (delta > 0) ? delta : -delta;
+    for (int i = 0; i < steps; i++)
+    {
+        stepInvoke->Invoke();
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
+    }
+}
+
 // Runs the whole "briefly show -> select profile -> (optionally set multiplier) -> (optionally
 // click Scale) -> minimize again" sequence on its own thread with a fresh COM apartment, so this
 // never touches whatever COM state the game itself may already have on its own threads, and never
@@ -308,20 +364,7 @@ void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int mult
                                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
                                 if (multiplierOrZero > 0)
-                                {
-                                    auto multEl = FindByAutomationId(automation.Get(), window.Get(), L"LSFG3Multiplier");
-                                    if (multEl)
-                                    {
-                                        ComPtr<IUIAutomationValuePattern> valuePattern;
-                                        if (SUCCEEDED(multEl->GetCurrentPatternAs(UIA_ValuePatternId, IID_PPV_ARGS(&valuePattern))) &&
-                                            valuePattern)
-                                        {
-                                            BSTR val = SysAllocString(std::to_wstring(multiplierOrZero).c_str());
-                                            valuePattern->SetValue(val);
-                                            SysFreeString(val);
-                                        }
-                                    }
-                                }
+                                    SetMultiplierViaSteppers(automation.Get(), window.Get(), multiplierOrZero);
 
                                 if (clickScale)
                                 {
