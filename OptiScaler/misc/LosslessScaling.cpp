@@ -272,14 +272,29 @@ void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int mult
                 return;
 
             {
+                // Restored at the end -- SetForegroundWindow below genuinely takes focus from the
+                // game for the duration of this sequence, unlike the earlier SW_SHOWNOACTIVATE
+                // attempt, which didn't.
+                HWND previousForeground = GetForegroundWindow();
+
                 DWORD pid = FindProcessId(L"LosslessScaling.exe");
                 HWND hwnd = pid ? FindLosslessWindow(pid) : nullptr;
                 if (hwnd != nullptr)
                 {
-                    ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-                    // Give WPF a moment to actually render at least one frame -- confirmed live
-                    // that acting on it too soon after showing behaves the same as never showing.
-                    std::this_thread::sleep_for(std::chrono::milliseconds(400));
+                    // SW_SHOWNOACTIVATE alone wasn't enough -- confirmed live that a click driven
+                    // through UI Automation while the window was only ever non-activated silently
+                    // did nothing, and worked as soon as the window got a real activation (the user
+                    // cycling the Launch/Close checkbox, whose Launch() uses a normal activating
+                    // show, fixed it). SetForegroundWindow from an unrelated external process was
+                    // already confirmed blocked by Windows' foreground-lock protection -- but this
+                    // code runs inside the game's own process, which already holds the foreground,
+                    // so the "calling process is the foreground process" exception to that
+                    // protection should apply here even though it didn't in that external test.
+                    ShowWindow(hwnd, SW_SHOW);
+                    SetForegroundWindow(hwnd);
+                    // Give WPF a moment to actually render/activate at least one frame -- confirmed
+                    // live that acting on it too soon after showing behaves the same as never shown.
+                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
                     ComPtr<IUIAutomation> automation;
                     if (SUCCEEDED(CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation))) &&
@@ -328,6 +343,9 @@ void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int mult
                     std::this_thread::sleep_for(std::chrono::milliseconds(300));
                     ShowWindow(hwnd, SW_MINIMIZE);
                 }
+
+                if (previousForeground != nullptr && previousForeground != hwnd)
+                    SetForegroundWindow(previousForeground);
             }
 
             CoUninitialize();
