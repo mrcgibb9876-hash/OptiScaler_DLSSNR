@@ -265,52 +265,41 @@ bool SelectProfileByTitle(IUIAutomation* automation, IUIAutomationElement* windo
 // targets though (PART_InlineIncrementButton/PART_InlineDecrementButton, children of the
 // LSFG3Multiplier element itself -- the same AutomationIds also exist on several *other* NumberBox
 // fields in the same window, e.g. QueueTarget, MaxFrameLatency, the Crop fields, so these must be
-// searched for within multEl specifically, not the whole window). Reads the current value via
-// ValuePattern::GetCurrentValue() (which does work), then clicks the right button the needed
-// number of times to reach the target.
+// searched for within multEl specifically, not the whole window).
+//
+// Does not try to read the current value first and compute a delta -- GetCurrentValue() on this
+// same custom control is likely exactly as unreliable as SetValue() was (confirmed live that the
+// read-then-delta version silently did nothing, consistent with a delta of 0 every time). Instead,
+// unconditionally decrements enough times to guarantee hitting the floor (2, the lowest of the
+// 2x/3x/4x range this app offers) regardless of the real starting value, then increments exactly
+// (target - floor) times -- reaching the exact target without needing to successfully read
+// anything.
 void SetMultiplierViaSteppers(IUIAutomation* automation, IUIAutomationElement* window, int target)
 {
+    constexpr int kFloor = 2;
+    constexpr int kDecrementsToGuaranteeFloor = 5; // more than (any plausible max) - kFloor
+
     auto multEl = FindByAutomationId(automation, window, L"LSFG3Multiplier");
     if (!multEl)
         return;
 
-    int current = target; // if reading fails, assume already correct rather than guess a direction
-    ComPtr<IUIAutomationValuePattern> valuePattern;
-    if (SUCCEEDED(multEl->GetCurrentPatternAs(UIA_ValuePatternId, IID_PPV_ARGS(&valuePattern))) && valuePattern)
+    auto clickButton = [&](const wchar_t* buttonId, int times)
     {
-        BSTR currentVal = nullptr;
-        if (SUCCEEDED(valuePattern->get_CurrentValue(&currentVal)) && currentVal != nullptr)
+        auto stepButton = FindByAutomationId(automation, multEl.Get(), buttonId);
+        if (!stepButton)
+            return;
+        ComPtr<IUIAutomationInvokePattern> stepInvoke;
+        if (FAILED(stepButton->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&stepInvoke))) || !stepInvoke)
+            return;
+        for (int i = 0; i < times; i++)
         {
-            try
-            {
-                current = std::stoi(std::wstring(currentVal));
-            }
-            catch (...)
-            {
-            }
-            SysFreeString(currentVal);
+            stepInvoke->Invoke();
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
-    }
+    };
 
-    int delta = target - current;
-    if (delta == 0)
-        return;
-
-    const wchar_t* buttonId = (delta > 0) ? L"PART_InlineIncrementButton" : L"PART_InlineDecrementButton";
-    auto stepButton = FindByAutomationId(automation, multEl.Get(), buttonId);
-    if (!stepButton)
-        return;
-
-    ComPtr<IUIAutomationInvokePattern> stepInvoke;
-    if (FAILED(stepButton->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&stepInvoke))) || !stepInvoke)
-        return;
-
-    int steps = (delta > 0) ? delta : -delta;
-    for (int i = 0; i < steps; i++)
-    {
-        stepInvoke->Invoke();
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-    }
+    clickButton(L"PART_InlineDecrementButton", kDecrementsToGuaranteeFloor);
+    clickButton(L"PART_InlineIncrementButton", target - kFloor);
 }
 
 // Runs the whole "briefly show -> select profile -> (optionally set multiplier) -> (optionally
@@ -328,11 +317,6 @@ void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int mult
                 return;
 
             {
-                // Restored at the end -- SetForegroundWindow below genuinely takes focus from the
-                // game for the duration of this sequence, unlike the earlier SW_SHOWNOACTIVATE
-                // attempt, which didn't.
-                HWND previousForeground = GetForegroundWindow();
-
                 DWORD pid = FindProcessId(L"LosslessScaling.exe");
                 HWND hwnd = pid ? FindLosslessWindow(pid) : nullptr;
                 if (hwnd != nullptr)
@@ -384,11 +368,15 @@ void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int mult
                     }
 
                     std::this_thread::sleep_for(std::chrono::milliseconds(300));
+                    // Deliberately no explicit SetForegroundWindow back to the game here --
+                    // confirmed live that it was the actual cause of a real bug: it generates its
+                    // own genuine foreground-change event, which Lossless Scaling's AutoScale (on
+                    // for our profile, by design) reacts to immediately -- turning Frame Generation
+                    // back on right after a click had just turned it off, every time. Minimizing
+                    // this window already naturally hands focus back to the game on its own,
+                    // without generating that same event, so this only needs the minimize.
                     ShowWindow(hwnd, SW_MINIMIZE);
                 }
-
-                if (previousForeground != nullptr && previousForeground != hwnd)
-                    SetForegroundWindow(previousForeground);
             }
 
             CoUninitialize();
