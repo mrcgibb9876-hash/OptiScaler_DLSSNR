@@ -523,6 +523,11 @@ class Config
     // dark palette have a red variant). Off keeps the green everywhere.
     CustomOptional<bool> DlssNrVendorColours { true };
 
+    // What the DLSS 5 panel speaks: auto (the Windows display language) or one of the codes the
+    // manager ships -- en, pt-br, ru, ko, zh-cn, es, de. The panel only; the shared menu stays
+    // English. OptiDLSS5-UI writes this key when its own Language setting is pinned.
+    CustomOptional<std::string> DlssNrLanguage { std::string("auto") };
+
     // Multiplies the panel's font size only -- the shared menu keeps whatever FontSize says. 1.0 is
     // the old size.
     CustomOptional<float> DlssNrFontScale { 1.15f };
