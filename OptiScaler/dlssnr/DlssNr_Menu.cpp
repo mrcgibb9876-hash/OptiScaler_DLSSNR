@@ -5,6 +5,7 @@
 #include "DlssNr_ExposureScan.h"
 
 #include <Config.h>
+#include <misc/IdentifyGpu.h>
 #include <misc/LosslessScaling.h>
 
 #include <menu/menu_common.h>
@@ -87,6 +88,46 @@ static const Palette& Light()
                                ImVec4(0.600f, 0.600f, 0.600f, 1.0f), ImVec4(0.650f, 0.650f, 0.650f, 0.98f),
                                ImVec4(1.000f, 1.000f, 1.000f, 1.0f), 0.0f };
     return p;
+}
+
+// The same two palettes with AMD's red in place of NVIDIA's green, for a panel drawn over a game
+// running on an AMD card. Only the three accent slots change; every neutral stays as measured
+// above, so the contrast figures there still hold for everything but the accent. The accent-as-
+// text tints were picked for the same 4.5:1 floor against each panel background: #FF6B70 on the
+// dark panel (6.2:1 -- AMD's #ED1C24 itself only manages 3.9:1 there, so it is kept for fills),
+// #5E0609 on the light one (4.9:1). Text on the red fill is white, as AMD's own branding has it.
+static const Palette& DarkAmd()
+{
+    static const Palette p = []
+    {
+        Palette q = Dark();
+        q.accent = ImVec4(1.000f, 0.420f, 0.439f, 1.0f);     // #FF6B70
+        q.accentFill = ImVec4(0.929f, 0.110f, 0.141f, 1.0f); // #ED1C24
+        q.onAccent = ImVec4(1.000f, 1.000f, 1.000f, 1.0f);
+        return q;
+    }();
+    return p;
+}
+
+static const Palette& LightAmd()
+{
+    static const Palette p = []
+    {
+        Palette q = Light();
+        q.accent = ImVec4(0.369f, 0.024f, 0.035f, 1.0f);     // #5E0609
+        q.accentFill = ImVec4(0.831f, 0.078f, 0.106f, 1.0f); // #D4141B
+        q.onAccent = ImVec4(1.000f, 1.000f, 1.000f, 1.0f);
+        return q;
+    }();
+    return p;
+}
+
+// Whether the game is running on an AMD card. Asked once: the answer cannot change mid-process,
+// and IdentifyGpu enumerates adapters through DXGI, which is not a per-frame cost to pay.
+static bool OnAmdGpu()
+{
+    static const bool amd = IdentifyGpu::getPrimaryGpu().vendorId == VendorId::AMD;
+    return amd;
 }
 
 // Chosen once per frame in RenderMenu so a mid-frame config change cannot split a single draw
@@ -456,7 +497,13 @@ void RenderMenu(Config* config, float menuResScale)
     auto& state = State::Instance();
 
     // Picked once, here, so a config change mid-frame cannot draw half the panel in each palette.
-    g_pal = config->DlssNrLightTheme.value_or_default() ? &Light() : &Dark();
+    // Vendor colours: NVIDIA green is the panel's native look; on an AMD card it wears AMD red
+    // unless [DlssNr] VendorColours says otherwise.
+    {
+        const bool light = config->DlssNrLightTheme.value_or_default();
+        const bool amd = config->DlssNrVendorColours.value_or_default() && OnAmdGpu();
+        g_pal = light ? (amd ? &LightAmd() : &Light()) : (amd ? &DarkAmd() : &Dark());
+    }
 
     float rowWidth = PanelWidth(menuResScale);
 
@@ -1827,6 +1874,19 @@ void RenderMenu(Config* config, float menuResScale)
                    "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
                    "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
                    "\n\nUnticking restores NVIDIA's own colouring.");
+
+        if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox("Vendor colours", &vendor))
+        {
+            config->DlssNrVendorColours = vendor;
+            anyChanged = true;
+        }
+        {
+            std::string tip = "The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,"
+                              "\nAMD red on an AMD one. Untick to keep the green everywhere.";
+            tip += OnAmdGpu() ? "\n\nThis game is running on an AMD card."
+                              : "\n\nThis game is not running on an AMD card, so this changes nothing here.";
+            HelpMarker(tip.c_str());
+        }
 
         // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
         // is applied to the window.
