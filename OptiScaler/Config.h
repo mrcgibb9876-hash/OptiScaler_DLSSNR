@@ -519,6 +519,10 @@ class Config
     // anyone who wants NVIDIA's own colouring back.
     CustomOptional<bool> DlssNrLightTheme { true };
 
+    // Accent follows the GPU vendor: NVIDIA green on NVIDIA, AMD red on AMD (both the light and the
+    // dark palette have a red variant). Off keeps the green everywhere.
+    CustomOptional<bool> DlssNrVendorColours { true };
+
     // Multiplies the panel's font size only -- the shared menu keeps whatever FontSize says. 1.0 is
     // the old size.
     CustomOptional<float> DlssNrFontScale { 1.15f };

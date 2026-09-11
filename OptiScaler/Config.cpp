@@ -379,6 +379,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrDepthConvention.set_from_config(readUInt("DlssNr", "DepthConvention"));
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
             DlssNrLightTheme.set_from_config(readBool("DlssNr", "LightTheme"));
+            DlssNrVendorColours.set_from_config(readBool("DlssNr", "VendorColours"));
             DlssNrFontScale.set_from_config(readFloat("DlssNr", "FontScale"));
             DlssNrReversibleMode.set_from_config(readUInt("DlssNr", "ReversibleMode"));
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
@@ -1293,6 +1294,8 @@ bool Config::SaveIni()
                      GetIntValue(Instance()->DlssNrDepthConvention.value_for_config()).c_str());
         ini.SetValue("DlssNr", "UICorrection", GetBoolValue(Instance()->DlssNrUICorrection.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LightTheme", GetBoolValue(Instance()->DlssNrLightTheme.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "VendorColours",
+                     GetBoolValue(Instance()->DlssNrVendorColours.value_for_config()).c_str());
         ini.SetValue("DlssNr", "FontScale", GetFloatValue(Instance()->DlssNrFontScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ReversibleMode",
                      GetIntValue(Instance()->DlssNrReversibleMode.value_for_config()).c_str());
