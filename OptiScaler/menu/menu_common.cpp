@@ -6,6 +6,7 @@
 #include <cfloat>
 
 #include <dlssnr/DlssNr.h>
+#include <dlssnr/DlssNr_I18n.h>
 
 #include "input/input_system.h"
 
@@ -1608,6 +1609,11 @@ void MenuCommon::BeginMenuFrameIfNeeded(RenderMenuContext& ctx)
         OptiInput::FeedImGui(AnyMenuVisible());
 
         MenuHdrCheck(io);
+
+        // A language picked in the panel mid-session may need a font that is not loaded yet; fonts
+        // can only be added between frames, so this is the place.
+        DlssNr::I18n::EnsureFonts(io.Fonts, Config::Instance()->FontSize.value_or_default());
+
         ImGui::NewFrame();
 
         newFrame = true;
@@ -7993,6 +7999,11 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
                                                                          fontSize, &fontConfig);
         }
     }
+
+    // The DLSS 5 panel's language may need glyphs the base font lacks (Chinese, Korean); those are
+    // merged in from Windows' own fonts, behind whichever base font was chosen above.
+    DlssNr::I18n::Refresh(Config::Instance()->DlssNrLanguage.value_or_default());
+    DlssNr::I18n::EnsureFonts(io.Fonts, Config::Instance()->FontSize.value_or_default());
 
     if (!Config::Instance()->OverlayMenu.value_or_default())
     {

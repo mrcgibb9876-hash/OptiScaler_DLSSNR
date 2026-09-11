@@ -3,6 +3,7 @@
 #include "DlssNr.h"
 #include "DlssNrFeature_Vk.h"
 #include "DlssNr_ExposureScan.h"
+#include "DlssNr_I18n.h"
 
 #include <Config.h>
 #include <misc/IdentifyGpu.h>
@@ -21,6 +22,8 @@
 
 namespace DlssNr
 {
+
+using I18n::Tr;
 
 // A whole standalone overlay -- its own window, its own colours, independent of the rest of
 // OptiScaler's shared menu chrome (title bar, graphs, bottom bar) and its user-configurable theme.
@@ -163,13 +166,58 @@ static void HelpMarker(const char* tip)
     }
 }
 
-// Upper-cased captions, matching NVIDIA's own panel ("GLOBAL CONTROLS", ...).
+// Byte length of the UTF-8 sequence that starts with this lead byte. A stray continuation byte
+// counts as one, so a malformed string still advances rather than looping.
+static int Utf8Len(unsigned char lead)
+{
+    if (lead < 0x80)
+        return 1;
+    if ((lead & 0xE0) == 0xC0)
+        return 2;
+    if ((lead & 0xF0) == 0xE0)
+        return 3;
+    if ((lead & 0xF8) == 0xF0)
+        return 4;
+    return 1;
+}
+
+// Upper-cased captions, matching NVIDIA's own panel ("GLOBAL CONTROLS", ...). Works on code
+// points, not bytes: toupper on a byte of a multi-byte character corrupts it. Covers ASCII, the
+// Latin-1 letters the Portuguese/Spanish/German files use, and Cyrillic; anything else (CJK has
+// no case) passes through unchanged.
 static std::string Caps(const char* text)
 {
     std::string out;
 
-    for (const char* p = text; *p; ++p)
-        out += (char) std::toupper((unsigned char) *p);
+    for (const char* p = text; *p;)
+    {
+        const int len = Utf8Len((unsigned char) *p);
+
+        if (len == 1)
+        {
+            out += (char) std::toupper((unsigned char) *p);
+            p += 1;
+            continue;
+        }
+
+        if (len == 2 && (p[1] & 0xC0) == 0x80)
+        {
+            unsigned int cp = ((unsigned char) p[0] & 0x1F) << 6 | ((unsigned char) p[1] & 0x3F);
+
+            if ((cp >= 0x00E0 && cp <= 0x00FE && cp != 0x00F7) || (cp >= 0x0430 && cp <= 0x044F))
+                cp -= 0x20;
+            else if (cp >= 0x0450 && cp <= 0x045F)
+                cp -= 0x50;
+
+            out += (char) (0xC0 | (cp >> 6));
+            out += (char) (0x80 | (cp & 0x3F));
+            p += 2;
+            continue;
+        }
+
+        out.append(p, len);
+        p += len;
+    }
 
     return out;
 }
@@ -199,13 +247,15 @@ static void TrackedText(const char* text)
 
     float x = 0.0f;
 
-    for (const char* p = text; *p; ++p)
+    // One code point at a time, not one byte: a byte of a multi-byte character is not a glyph.
+    for (const char* p = text; *p;)
     {
         const char* begin = p;
-        const char* end = p + 1;
+        const char* end = p + Utf8Len((unsigned char) *p);
 
         dl->AddText(font, fontSize, ImVec2(origin.x + x, origin.y), col, begin, end);
         x += font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, begin, end).x + tracking;
+        p = end;
     }
 
     // The tracking belongs between letters, so the last one does not carry it.
@@ -472,8 +522,8 @@ static bool NrCheckbox(const char* label, bool* v, bool caps = false)
 
 // An absent later-pass setting inherits pass 1. The first combo item represents that absence; the
 // remaining items map directly to the model's zero-based profile values.
-static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, NoDefault>* opt,
-                                  const char* const* names, int nameCount, float rowWidth)
+static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, NoDefault>* opt, const char* const* names,
+                                  int nameCount, float rowWidth)
 {
     int selected = 0;
 
@@ -495,6 +545,9 @@ void RenderMenu(Config* config, float menuResScale)
 {
     ImGuiIO& io = ImGui::GetIO();
     auto& state = State::Instance();
+
+    // Same for the language: resolved once per frame from the config, so every string below agrees.
+    I18n::Refresh(config->DlssNrLanguage.value_or_default());
 
     // Picked once, here, so a config change mid-frame cannot draw half the panel in each palette.
     // Vendor colours: NVIDIA green is the panel's native look; on an AMD card it wears AMD red
@@ -570,23 +623,23 @@ void RenderMenu(Config* config, float menuResScale)
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
         ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
-        TrackedText(Caps("DLSS 5 Developer Controls").c_str());
+        TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
         ImGui::PopStyleColor();
 
         ImGui::Spacing();
 
         bool enabled = config->DlssNrEnabled.value_or_default();
-        if (NrCheckbox("DLSS ON", &enabled, true))
+        if (NrCheckbox(Tr("DLSS ON"), &enabled, true))
         {
             config->DlssNrEnabled = enabled;
             anyChanged = true;
         }
 
-        HelpMarker("Synthesises detail in the upscaler's frame, before frame generation sees it."
-                   "\n\nNeeds two similarly named files beside OptiScaler, one character apart:"
-                   "\n  nvngx_dlssnr.dll       NVIDIA's model (~165 MB) -- you supply it"
-                   "\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package"
-                   "\nUndocumented and driven directly, so none of this is officially supported.");
+        HelpMarker(Tr("Synthesises detail in the upscaler's frame, before frame generation sees it."
+                      "\n\nNeeds two similarly named files beside OptiScaler, one character apart:"
+                      "\n  nvngx_dlssnr.dll       NVIDIA's model (~165 MB) -- you supply it"
+                      "\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package"
+                      "\nUndocumented and driven directly, so none of this is officially supported."));
 
         // Only shown for a Feeder game -- a native-DLSS game is the common case and needs no
         // extra line here. Worth surfacing when it applies: a Feeder-fed evaluate runs on
@@ -595,13 +648,13 @@ void RenderMenu(Config* config, float menuResScale)
         // one -- the same model, a rougher input.
         if (DlssNr::IsFeederPresent())
         {
-            ImGui::TextColored(kTextDim, "Source: DLSS5 Feeder (no native DLSS in this game)");
-            HelpMarker("This game has no DLSS of its own, so there is no evaluate call for Neural "
-                       "Rendering to attach to. The DLSS5 Feeder ReShade add-on builds one from "
-                       "ReShade's own depth and estimated motion vectors instead."
-                       "\n\nEstimated motion vectors are rougher than a game's real ones -- expect "
-                       "more ghosting in fast motion and softer thin geometry than a native-DLSS "
-                       "game gets from the same model.");
+            ImGui::TextColored(kTextDim, "%s", Tr("Source: DLSS5 Feeder (no native DLSS in this game)"));
+            HelpMarker(Tr("This game has no DLSS of its own, so there is no evaluate call for Neural "
+                          "Rendering to attach to. The DLSS5 Feeder ReShade add-on builds one from "
+                          "ReShade's own depth and estimated motion vectors instead."
+                          "\n\nEstimated motion vectors are rougher than a game's real ones -- expect "
+                          "more ghosting in fast motion and softer thin geometry than a native-DLSS "
+                          "game gets from the same model."));
         }
 
         // Lossless Scaling is offered for every game, not just Feeder ones: it runs as a separate
@@ -619,12 +672,12 @@ void RenderMenu(Config* config, float menuResScale)
             {
                 // Only worth a line where it is the only Frame Generation route there is.
                 if (DlssNr::IsFeederPresent())
-                    ImGui::TextColored(kTextDim, "Lossless Scaling: not configured (OptiDLSS5-UI).");
+                    ImGui::TextColored(kTextDim, "%s", Tr("Lossless Scaling: not configured (OptiDLSS5-UI)."));
             }
             else
             {
                 bool lsRunning = LosslessScaling::IsRunning();
-                if (NrCheckbox("Lossless Scaling", &lsRunning))
+                if (NrCheckbox(Tr("Lossless Scaling"), &lsRunning))
                 {
                     if (lsRunning)
                         LosslessScaling::Launch(losslessExePath);
@@ -632,13 +685,13 @@ void RenderMenu(Config* config, float menuResScale)
                         LosslessScaling::Close();
                 }
                 ImGui::SameLine();
-                HelpMarker("Launches/closes Lossless Scaling in the background.");
+                HelpMarker(Tr("Launches/closes Lossless Scaling in the background."));
 
                 static bool scalingBelieved = false;
                 bool scalingRow = scalingBelieved;
                 ImGui::BeginDisabled(!lsRunning);
                 ImGui::SameLine();
-                if (NrCheckbox("Active", &scalingRow))
+                if (NrCheckbox(Tr("Active"), &scalingRow))
                 {
                     scalingBelieved = scalingRow;
                     LosslessScaling::TriggerScaleAsync(losslessGameTitle);
@@ -654,10 +707,10 @@ void RenderMenu(Config* config, float menuResScale)
                     }
                 }
                 ImGui::SameLine();
-                HelpMarker("Toggles its Frame Generation (same as its own Ctrl+Alt+S). Its window "
-                           "briefly flashes each time -- unavoidable. Shows what was last requested, "
-                           "not a confirmed live state.\n\nTurning this on switches OptiScaler's own "
-                           "Frame Generation off: two frame generators at once stack.");
+                HelpMarker(Tr("Toggles its Frame Generation (same as its own Ctrl+Alt+S). Its window "
+                              "briefly flashes each time -- unavoidable. Shows what was last requested, "
+                              "not a confirmed live state.\n\nTurning this on switches OptiScaler's own "
+                              "Frame Generation off: two frame generators at once stack."));
                 if (losslessAdaptive)
                 {
                     // Adaptive mode has no multiplier to step -- Lossless Scaling decides per frame
@@ -665,13 +718,13 @@ void RenderMenu(Config* config, float menuResScale)
                     // OptiDLSS5-UI (it lives in the profile, not here).
                     ImGui::EndDisabled();
                     ImGui::SameLine();
-                    ImGui::TextColored(kTextDim, "Adaptive: holds %d fps",
+                    ImGui::TextColored(kTextDim, Tr("Adaptive: holds %d fps"),
                                        config->LosslessScalingTarget.value_or_default());
                     ImGui::SameLine();
-                    HelpMarker("Adaptive Frame Generation: Lossless Scaling generates only as many frames "
-                               "as it takes to hold this target. Change the target (or switch to a fixed "
-                               "multiplier) in OptiDLSS5-UI. Needs this game running Borderless or "
-                               "Windowed, not exclusive Fullscreen (DX12 games are usually fine either way).");
+                    HelpMarker(Tr("Adaptive Frame Generation: Lossless Scaling generates only as many frames "
+                                  "as it takes to hold this target. Change the target (or switch to a fixed "
+                                  "multiplier) in OptiDLSS5-UI. Needs this game running Borderless or "
+                                  "Windowed, not exclusive Fullscreen (DX12 games are usually fine either way)."));
                 }
                 else
                 {
@@ -690,49 +743,50 @@ void RenderMenu(Config* config, float menuResScale)
                     }
                     ImGui::EndDisabled();
                     ImGui::SameLine();
-                    HelpMarker("Frames generated per real one -- applies live. Needs this game running "
-                               "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
-                               "fine either way).");
+                    HelpMarker(Tr("Frames generated per real one -- applies live. Needs this game running "
+                                  "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
+                                  "fine either way)."));
                 }
                 if (lsRunning)
-                    ImGui::TextColored(kTextDim, "Keep the game's own DLSS Frame Generation off while this runs.");
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Keep the game's own DLSS Frame Generation off while this runs."));
             }
         }
 
         // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
         // panel is usable on its own, without going looking for the other window.
-        MenuCommon::RenderKeybindRow("Toggle key", 14, config->DlssNrToggleKey);
-        HelpMarker("Toggles Neural Rendering without opening this panel. Press the button, then the"
-                   "\nkey you want. Escape cancels, Backspace unbinds, R resets it.");
+        MenuCommon::RenderKeybindRow(Tr("Toggle key"), 14, config->DlssNrToggleKey);
+        HelpMarker(Tr("Toggles Neural Rendering without opening this panel. Press the button, then the"
+                      "\nkey you want. Escape cancels, Backspace unbinds, R resets it."));
 
-        MenuCommon::RenderKeybindRow("Panel key", 15, config->DlssNrPanelKey);
-        HelpMarker("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
-                   "\ntwo can be up together or on their own.");
+        MenuCommon::RenderKeybindRow(Tr("Panel key"), 15, config->DlssNrPanelKey);
+        HelpMarker(Tr("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
+                      "\ntwo can be up together or on their own."));
 
         bool applyModel = config->DlssNrApplyModel.value_or_default();
-        if (NrCheckbox("Apply the model", &applyModel))
+        if (NrCheckbox(Tr("Apply the model"), &applyModel))
         {
             config->DlssNrApplyModel = applyModel;
             anyChanged = true;
         }
-        HelpMarker("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
-                   "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
-                   "\nand toggle this to see the same frozen frame with and without Neural Rendering."
-                   "\nLeave it on for normal use.");
+        HelpMarker(Tr("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
+                      "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
+                      "\nand toggle this to see the same frozen frame with and without Neural Rendering."
+                      "\nLeave it on for normal use."));
 
         bool beforeSr = config->DlssNrRunBeforeSr.value_or_default();
-        if (NrCheckbox("Before Super Resolution", &beforeSr))
+        if (NrCheckbox(Tr("Before Super Resolution"), &beforeSr))
         {
             config->DlssNrRunBeforeSr = beforeSr;
             anyChanged = true;
         }
-        HelpMarker("Where the pass sits. Off is the original placement: the model runs on the finished"
-                   "\nupscaled frame. On runs it at render resolution on the colour SR is about to"
-                   "\nconsume, so SR then accumulates and upscales an already-enhanced picture."
-                   "\n\nRay Reconstruction always stays on the post-upscale path -- its inputs are a"
-                   "\ndifferent contract. Padded or offset dynamic-resolution inputs quietly fall back"
-                   "\nthere too, rather than being run on dimensions that aren't what they look like."
-                   "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement.");
+        HelpMarker(Tr("Where the pass sits. Off is the original placement: the model runs on the finished"
+                      "\nupscaled frame. On runs it at render resolution on the colour SR is about to"
+                      "\nconsume, so SR then accumulates and upscales an already-enhanced picture."
+                      "\n\nRay Reconstruction always stays on the post-upscale path -- its inputs are a"
+                      "\ndifferent contract. Padded or offset dynamic-resolution inputs quietly fall back"
+                      "\nthere too, rather than being run on dimensions that aren't what they look like."
+                      "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement."));
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
@@ -748,32 +802,34 @@ void RenderMenu(Config* config, float menuResScale)
                 // Wrapped: some reasons name a file and what to do about it, which does not fit on
                 // one line at this panel's width.
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), "Off for this session: %s.", reason);
+                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), Tr("Off for this session: %s."), reason);
                 ImGui::PopTextWrapPos();
 
                 ImGui::SameLine();
 
-                if (ImGui::SmallButton("Retry"))
+                if (ImGui::SmallButton(Tr("Retry")))
                     DlssNr::RetryAfterFailure();
             }
             else if (enabled)
             {
-                ImGui::TextColored(kTextDim, "Waiting for the upscaler to run.");
+                ImGui::TextColored(kTextDim, "%s", Tr("Waiting for the upscaler to run."));
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
                 if (DlssNr::IsFeederPresent())
                     // The Feeder route: there is no native DLSS/XeSS setting to point at here --
                     // the evaluate this pass is waiting for is the Feeder's own synthetic one, so
                     // what is missing is the Feeder itself doing its job, not a game setting.
-                    ImGui::TextColored(kTextDim, "The DLSS5 Feeder add-on is loaded, but has not fed a DLSS "
-                                                 "evaluate yet -- check dlss5-feed.log in the game folder for "
-                                                 "\"technique MISSING\" if this does not clear once you are "
-                                                 "in-game.");
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("The DLSS5 Feeder add-on is loaded, but has not fed a DLSS "
+                                          "evaluate yet -- check dlss5-feed.log in the game folder for "
+                                          "\"technique MISSING\" if this does not clear once you are "
+                                          "in-game."));
                 else
                     // The one thing the old shared window told you here that this panel otherwise
                     // wouldn't: this needs the game's own upscaler active, not just this checkbox.
-                    ImGui::TextColored(kTextDim, "Needs DLSS or XeSS selected as the upscaler in the game's own "
-                                                 "video settings, and a save loaded -- this (and the rest of "
-                                                 "OptiScaler) does not run in menus.");
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Needs DLSS or XeSS selected as the upscaler in the game's own "
+                                          "video settings, and a save loaded -- this (and the rest of "
+                                          "OptiScaler) does not run in menus."));
                 ImGui::PopTextWrapPos();
             }
         }
@@ -787,89 +843,89 @@ void RenderMenu(Config* config, float menuResScale)
             // With "Apply the model" off the pass STILL RUNS -- it only outputs the clean frame. The
             // cost is real, and saying so stops the reading looking like a bug. Turning DLSS ON off
             // is what zeroes it.
-            const char* runSuffix = !applyModel ? "  (model running, edit hidden)" : "";
+            const char* runSuffix = !applyModel ? Tr("  (model running, edit hidden)") : "";
 
             if (ms.has_value())
-                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), "Running%s - %.2f ms per frame%s",
-                                   vulkan ? " natively on Vulkan" : "", ms.value(), runSuffix);
+                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running%s - %.2f ms per frame%s"),
+                                   vulkan ? Tr(" natively on Vulkan") : "", ms.value(), runSuffix);
             else if (vulkan)
                 // Measured but not yet read: the first few frames are still in the query ring.
-                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), "Running natively on Vulkan - %llu frames%s",
+                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running natively on Vulkan - %llu frames%s"),
                                    DlssNr::FramesVk(), runSuffix);
             else
-                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), "Running.%s", runSuffix);
+                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running.%s"), runSuffix);
 
             ImGui::SameLine();
             ImGui::TextColored(kTextDim, "(?)");
             if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                ImGui::SetTooltip("The whole pass: the staging copies and the resolve as well as the"
-                                  "\nmodel. Timing only the model would flatter the number."
-                                  "\n\nCompare it against the frame time at the bottom of this window to"
-                                  "\nsee what it is costing you.");
+                ImGui::SetTooltip("%s", Tr("The whole pass: the staging copies and the resolve as well as the"
+                                           "\nmodel. Timing only the model would flatter the number."
+                                           "\n\nCompare it against the frame time at the bottom of this window to"
+                                           "\nsee what it is costing you."));
         }
 
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
-        SectionCaption("Global Controls", rowWidth);
+        SectionCaption(Tr("Global Controls"), rowWidth);
 
         float localStructure = config->DlssNrLocalStructure.value_or_default();
-        auto rStruct = NrSlider("Structure Intensity", &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
+        auto rStruct = NrSlider(Tr("Structure Intensity"), &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
         if (rStruct.changed)
             config->DlssNrLocalStructure = localStructure;
         if (rStruct.released)
             anyChanged = true;
-        HelpMarker("The model's structure-synthesis strength across the whole frame.");
+        HelpMarker(Tr("The model's structure-synthesis strength across the whole frame."));
 
         float localTone = config->DlssNrLocalTone.value_or_default();
-        auto rTone = NrSlider("Tone Intensity", &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
+        auto rTone = NrSlider(Tr("Tone Intensity"), &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
         if (rTone.changed)
             config->DlssNrLocalTone = localTone;
         if (rTone.released)
             anyChanged = true;
-        HelpMarker("The model's tone-remapping strength across the whole frame.");
+        HelpMarker(Tr("The model's tone-remapping strength across the whole frame."));
         // Model Automask -- DlssNrAutoMask. In NVIDIA's panel this is a letter-tracked caps row
         // of its own with a "Show Mask" toggle on the right, not a section caption with a divider,
         // so it is drawn that way here.
         ImGui::Spacing();
 
         bool autoMask = config->DlssNrAutoMask.value_or_default();
-        if (NrCheckbox("Model Automask", &autoMask, true))
+        if (NrCheckbox(Tr("Model Automask"), &autoMask, true))
         {
             config->DlssNrAutoMask = autoMask;
             anyChanged = true;
         }
-        HelpMarker("Lets the model find skin itself rather than treating the frame uniformly.");
+        HelpMarker(Tr("Lets the model find skin itself rather than treating the frame uniformly."));
 
         // Greyed out, and not because a setting is off: the model keeps its mask to itself. It is
         // never handed back as a resource across the interface this fork drives, so there is
         // nothing for an overlay to draw.
         ImGui::BeginDisabled(true);
         bool showMask = false;
-        NrRightCheckbox("Show Mask", &showMask, rowWidth);
+        NrRightCheckbox(Tr("Show Mask"), &showMask, rowWidth);
         ImGui::EndDisabled();
 
         if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("NVIDIA's panel can draw the automask over the frame. The model does not hand"
-                              "\nits mask back through the interface this fork drives, so there is nothing"
-                              "\nhere to display.");
+            ImGui::SetTooltip("%s", Tr("NVIDIA's panel can draw the automask over the frame. The model does not hand"
+                                       "\nits mask back through the interface this fork drives, so there is nothing"
+                                       "\nhere to display."));
 
         // Matches NVIDIA's own panel: greyed out while Automask is off. The value underneath is
         // unchanged either way -- this only stops it being dragged while it has nothing to act on.
         ImGui::BeginDisabled(!autoMask);
         ImGui::PushID("Automask");
         float skin = config->DlssNrSkinStructure.value_or_default();
-        auto rSkin = NrSlider("Structure Intensity", &skin, -1.0f, 1.0f, "%.2f", rowWidth);
+        auto rSkin = NrSlider(Tr("Structure Intensity"), &skin, -1.0f, 1.0f, "%.2f", rowWidth);
         if (rSkin.changed)
             config->DlssNrSkinStructure = skin;
         if (rSkin.released)
             anyChanged = true;
         ImGui::PopID();
         ImGui::EndDisabled();
-        HelpMarker("-1 means follow the Global Controls Structure Intensity above, and is the"
-                   "\nmodel's own default. 0 and above set the masked region's structure"
-                   "\nindependently of the rest of the frame."
-                   "\n\nGreyed out while Model Automask is off -- there is no mask for it to"
-                   "\nshape without it.");
+        HelpMarker(Tr("-1 means follow the Global Controls Structure Intensity above, and is the"
+                      "\nmodel's own default. 0 and above set the masked region's structure"
+                      "\nindependently of the rest of the frame."
+                      "\n\nGreyed out while Model Automask is off -- there is no mask for it to"
+                      "\nshape without it."));
 
         // Developer Masking -- NVIDIA's per-object, engine-level masking. The game's own renderer
         // tags individual objects (the "Pitcher", "Grapes" and "Bottles" of NVIDIA's demo scene)
@@ -883,13 +939,14 @@ void RenderMenu(Config* config, float menuResScale)
         ImGui::BeginDisabled(true);
         bool devMasking = false;
         bool showMasks = false;
-        NrCheckbox("Developer Masking", &devMasking, true);
-        NrRightCheckbox("Show Masks", &showMasks, rowWidth);
+        NrCheckbox(Tr("Developer Masking"), &devMasking, true);
+        NrRightCheckbox(Tr("Show Masks"), &showMasks, rowWidth);
         ImGui::EndDisabled();
 
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "Per-object masks come from the game's own renderer, so this one stays "
-                                     "NVIDIA-only -- an injector has no object list to mask.");
+        ImGui::TextColored(kTextDim, "%s",
+                           Tr("Per-object masks come from the game's own renderer, so this one stays "
+                              "NVIDIA-only -- an injector has no object list to mask."));
         ImGui::PopTextWrapPos();
 
         // Models -- DlssNrPreset. NVIDIA ships no letters in the binary; "Model A/B/C" is this
@@ -897,9 +954,9 @@ void RenderMenu(Config* config, float menuResScale)
         // three NVIDIA describes publicly. Default (preset index 0) is kept as a fourth button
         // that NVIDIA's panel does not show, because it is a real, distinct state here: dropping
         // it to match the screenshot exactly would make that state unreachable from the UI.
-        SectionCaption("Models", rowWidth);
+        SectionCaption(Tr("Models"), rowWidth);
 
-        static const char* nrPresetNames[] = { "Default", "Model A", "Model B", "Model C" };
+        const char* nrPresetNames[] = { Tr("Default"), Tr("Model A"), Tr("Model B"), Tr("Model C") };
         int preset = (int) config->DlssNrPreset.value_or_default();
 
         {
@@ -921,35 +978,35 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::PopID();
             }
         }
-        HelpMarker("Not the same scale as the super resolution or ray reconstruction presets --"
-                   "\nthe same letter means something different here."
-                   "\n\nRead when the model is built, so a change rebuilds it after a moment.");
+        HelpMarker(Tr("Not the same scale as the super resolution or ray reconstruction presets --"
+                      "\nthe same letter means something different here."
+                      "\n\nRead when the model is built, so a change rebuilds it after a moment."));
 
-        static const char* nrStyleNames[] = { "Default (standard)", "Natural", "Cinematic" };
+        const char* nrStyleNames[] = { Tr("Default (standard)"), Tr("Natural"), Tr("Cinematic") };
         int style = (int) config->DlssNrStyle.value_or_default();
         if (style > 2)
             style = 2;
-        if (NrCombo("Style", &style, nrStyleNames, IM_ARRAYSIZE(nrStyleNames), rowWidth))
+        if (NrCombo(Tr("Style"), &style, nrStyleNames, IM_ARRAYSIZE(nrStyleNames), rowWidth))
         {
             config->DlssNrStyle = (uint32_t) style;
             anyChanged = true;
         }
-        HelpMarker("The model's own processing profiles."
-                   "\n\nDefault (standard): the strongest, and most likely to look 'stylised'."
-                   "\nNatural: the same detail work with a gentler hand."
-                   "\nCinematic: tones down the shine and over-processing for a film-like look."
-                   "\n\nThe names come from community testing, unlike the panel labels above --"
-                   "\nNVIDIA ships no names for this control in the binaries.");
+        HelpMarker(Tr("The model's own processing profiles."
+                      "\n\nDefault (standard): the strongest, and most likely to look 'stylised'."
+                      "\nNatural: the same detail work with a gentler hand."
+                      "\nCinematic: tones down the shine and over-processing for a film-like look."
+                      "\n\nThe names come from community testing, unlike the panel labels above --"
+                      "\nNVIDIA ships no names for this control in the binaries."));
 
         float intensity = config->DlssNrIntensity.value_or_default();
-        auto rIntensity = NrSlider("Intensity", &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
+        auto rIntensity = NrSlider(Tr("Intensity"), &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
         if (rIntensity.changed)
             config->DlssNrIntensity = intensity;
         if (rIntensity.released)
             anyChanged = true;
-        HelpMarker("The model's own strength control, applied inside it. Distinct from the Global"
-                   "\nControls above, and from Detail strength below, which scales the result"
-                   "\nafterwards.");
+        HelpMarker(Tr("The model's own strength control, applied inside it. Distinct from the Global"
+                      "\nControls above, and from Detail strength below, which scales the result"
+                      "\nafterwards."));
 
         // Frame Generation -- NVIDIA's own DLSS-G (Streamline), driven the same way the old
         // shared menu's "MFG" combo and "Force Dynamic MFG" checkbox did: straight through
@@ -958,14 +1015,14 @@ void RenderMenu(Config* config, float menuResScale)
         // touches OptiFG (the Nukem's FSR3-based fallback used when the game has no native
         // frame generation) -- that path is FGOutput::FSRFG/XeFG, not FGOutput::DLSSG, and is
         // deliberately left out of this panel.
-        SectionCaption("Frame Generation", rowWidth);
+        SectionCaption(Tr("Frame Generation"), rowWidth);
 
         if (state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr)
         {
             auto* fg = state.currentFG;
 
             bool fgActive = config->FGEnabled.value_or_default();
-            if (NrCheckbox("Frame Generation", &fgActive))
+            if (NrCheckbox(Tr("Frame Generation"), &fgActive))
             {
                 config->FGEnabled = fgActive;
                 state.fgChanged = true;
@@ -975,7 +1032,7 @@ void RenderMenu(Config* config, float menuResScale)
                 if (fgActive && LosslessScaling::IsRunning())
                     LosslessScaling::Close();
             }
-            HelpMarker("NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG.");
+            HelpMarker(Tr("NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG."));
 
             int maxCount = fg->GetMaxInterpolationCount();
             if (maxCount > 1)
@@ -1007,41 +1064,41 @@ void RenderMenu(Config* config, float menuResScale)
                     }
                 }
                 ImGui::EndDisabled();
-                HelpMarker("Sets Streamline's numFramesToGenerate directly -- how many extra frames"
-                           "\nDLSS-G inserts between real ones. 2X inserts one, 3X inserts two, and"
-                           "\nso on. Capped by what your GPU and driver report supporting."
-                           "\n\nGreyed out while Multi is on below -- the driver picks the count then.");
+                HelpMarker(Tr("Sets Streamline's numFramesToGenerate directly -- how many extra frames"
+                              "\nDLSS-G inserts between real ones. 2X inserts one, 3X inserts two, and"
+                              "\nso on. Capped by what your GPU and driver report supporting."
+                              "\n\nGreyed out while Multi is on below -- the driver picks the count then."));
 
                 if (fg->GetDMFGSupport())
                 {
-                    if (NrCheckbox("Multi (Dynamic Frame Generation)", &dmfgForced))
+                    if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dmfgForced))
                     {
                         config->FGDLSSGForceDMFG = dmfgForced;
                         anyChanged = true;
                     }
-                    HelpMarker("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
-                               "\nthe FPS target below -- instead of a fixed 2X/3X/4X.");
+                    HelpMarker(Tr("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
+                                  "\nthe FPS target below -- instead of a fixed 2X/3X/4X."));
 
                     ImGui::BeginDisabled(!dmfgForced);
                     float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
-                    auto rFps = NrSlider("DMFG FPS Target", &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
+                    auto rFps = NrSlider(Tr("DMFG FPS Target"), &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
                     if (rFps.changed)
                         config->FGDLSSGFramerateTargetDMFG = fpsTarget;
                     if (rFps.released)
                         anyChanged = true;
                     ImGui::EndDisabled();
-                    HelpMarker("0 auto-detects your display's refresh rate.");
+                    HelpMarker(Tr("0 auto-detects your display's refresh rate."));
                 }
             }
         }
         else
         {
-            ImGui::TextColored(kTextDim, "NVIDIA DLSS Frame Generation is not the active output right now.");
+            ImGui::TextColored(kTextDim, "%s", Tr("NVIDIA DLSS Frame Generation is not the active output right now."));
         }
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
-        SectionCaption("Cost", rowWidth);
+        SectionCaption(Tr("Cost"), rowWidth);
 
         // Sequential model layers between one encode and one final composition. Deferred on release
         // for the same reason Model resolution below is: each layer owns a persistent feature and
@@ -1051,7 +1108,7 @@ void RenderMenu(Config* config, float menuResScale)
                            ? (float) pendingPasses
                            : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
 
-        auto rPasses = NrSlider("Model passes", &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
+        auto rPasses = NrSlider(Tr("Model passes"), &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
         if (rPasses.changed)
             pendingPasses = (int) std::lroundf(passes);
 
@@ -1061,14 +1118,14 @@ void RenderMenu(Config* config, float menuResScale)
             pendingPasses = -1;
             anyChanged = true;
         }
-        HelpMarker("How many times the model runs before its answer is composed. Each extra layer is"
-                   "\nfed the previous layer's output and keeps its own temporal history."
-                   "\n\nThe base frame stays untouched and the composition happens once at the end, so"
-                   "\ncolour and transfer strength do not compound -- but the model is being asked to"
-                   "\nenhance its own output, which is outside what it was trained on."
-                   "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
-                   "\nand every layer pays it again. Three is the ceiling because later layers converge"
-                   "\nwhile still costing full price.");
+        HelpMarker(Tr("How many times the model runs before its answer is composed. Each extra layer is"
+                      "\nfed the previous layer's output and keeps its own temporal history."
+                      "\n\nThe base frame stays untouched and the composition happens once at the end, so"
+                      "\ncolour and transfer strength do not compound -- but the model is being asked to"
+                      "\nenhance its own output, which is outside what it was trained on."
+                      "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
+                      "\nand every layer pays it again. Three is the ceiling because later layers converge"
+                      "\nwhile still costing full price."));
 
         {
             const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
@@ -1077,36 +1134,36 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
                 ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
                                                     : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
-                                   "%dx model cost. Two often reads as richer; three is usually visibly "
-                                   "over-processed.",
+                                   Tr("%dx model cost. Two often reads as richer; three is usually visibly "
+                                      "over-processed."),
                                    shownPasses);
                 ImGui::PopTextWrapPos();
 
-                static const char* const kInheritedPresetNames[] = { "Auto (inherit pass 1)", "Default", "Model A",
-                                                                    "Model B", "Model C" };
-                static const char* const kInheritedStyleNames[] = { "Auto (inherit pass 1)", "Default (standard)",
-                                                                    "Natural", "Cinematic" };
+                const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"), Tr("Model A"),
+                                                              Tr("Model B"), Tr("Model C") };
+                const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),
+                                                             Tr("Natural"), Tr("Cinematic") };
 
-                anyChanged |= InheritedProfileCombo("Pass 2 model", &config->DlssNrPass2Preset,
-                                                    kInheritedPresetNames, IM_ARRAYSIZE(kInheritedPresetNames),
-                                                    rowWidth);
-                anyChanged |= InheritedProfileCombo("Pass 2 style", &config->DlssNrPass2Style, kInheritedStyleNames,
+                anyChanged |=
+                    InheritedProfileCombo(Tr("Pass 2 model"), &config->DlssNrPass2Preset, kInheritedPresetNames,
+                                          IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                anyChanged |= InheritedProfileCombo(Tr("Pass 2 style"), &config->DlssNrPass2Style, kInheritedStyleNames,
                                                     IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
 
                 if (shownPasses > 2)
                 {
-                    anyChanged |= InheritedProfileCombo("Pass 3 model", &config->DlssNrPass3Preset,
-                                                        kInheritedPresetNames, IM_ARRAYSIZE(kInheritedPresetNames),
-                                                        rowWidth);
-                    anyChanged |= InheritedProfileCombo("Pass 3 style", &config->DlssNrPass3Style,
-                                                        kInheritedStyleNames, IM_ARRAYSIZE(kInheritedStyleNames),
-                                                        rowWidth);
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 3 model"), &config->DlssNrPass3Preset, kInheritedPresetNames,
+                                              IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 3 style"), &config->DlssNrPass3Style, kInheritedStyleNames,
+                                              IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
                 }
 
-                HelpMarker("Which built-in profile each later layer runs. These select a different"
-                           "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
-                           "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
-                           "\nrebuilds only that layer's feature, and only while that layer is active.");
+                HelpMarker(Tr("Which built-in profile each later layer runs. These select a different"
+                              "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
+                              "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
+                              "\nrebuilds only that layer's feature, and only while that layer is active."));
             }
         }
 
@@ -1114,7 +1171,7 @@ void RenderMenu(Config* config, float menuResScale)
         float scalePercent =
             pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
 
-        auto rScale = NrSlider("Model resolution", &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
+        auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
         if (rScale.changed)
             pendingScale = (int) std::lroundf(scalePercent);
 
@@ -1124,10 +1181,10 @@ void RenderMenu(Config* config, float menuResScale)
             pendingScale = -1;
             anyChanged = true;
         }
-        HelpMarker("What fraction of the frame the model works at. Cost falls with the square of"
-                   "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
-                   "\nitself is never reduced -- only the model's own contribution is computed small"
-                   "\nand enlarged. Applied when the handle is let go, not while it is moving.");
+        HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
+                      "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
+                      "\nitself is never reduced -- only the model's own contribution is computed small"
+                      "\nand enlarged. Applied when the handle is let go, not while it is moving."));
 
         // Above native the model is run supersampled and filtered back down, so the filter is
         // the whole difference between supersampling meaning less noise and meaning more.
@@ -1137,8 +1194,8 @@ void RenderMenu(Config* config, float menuResScale)
         {
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
             ImGui::TextColored(kTextDim,
-                               "Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
-                               "down. Experimental, and costly -- time grows with the area.",
+                               Tr("Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
+                                  "down. Experimental, and costly -- time grows with the area."),
                                shownScale / 100.0f);
             ImGui::PopTextWrapPos();
 
@@ -1150,16 +1207,16 @@ void RenderMenu(Config* config, float menuResScale)
             if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
                 ds = (int) Scaler::Lanczos3;
 
-            if (NrCombo("Downscaler", &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
+            if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
             {
                 config->DlssNrScalingDownscaler = (Scaler) ds;
                 anyChanged = true;
             }
-            HelpMarker("The filter that averages the model's above-native answer back to display size --"
-                       "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
-                       "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
-                       "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
-                       "\ndownscaler, so the two can differ and run at the same time.");
+            HelpMarker(Tr("The filter that averages the model's above-native answer back to display size --"
+                          "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
+                          "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
+                          "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
+                          "\ndownscaler, so the two can differ and run at the same time."));
         }
 
         // How the model's work is brought back up when it ran below the frame's size. Classic
@@ -1168,24 +1225,24 @@ void RenderMenu(Config* config, float menuResScale)
         const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f;
 
         ImGui::BeginDisabled(!reduced);
-        static const char* enlargeNames[] = { "Classic", "Matched residual" };
+        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual") };
         int enlarge = config->DlssNrTransfer.value_or_default() == 1 ? 1 : 0;
-        if (NrCombo("Enlargement", &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
+        if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
         {
             config->DlssNrTransfer = (uint32_t) enlarge;
             anyChanged = true;
         }
         ImGui::EndDisabled();
-        HelpMarker("How the model's work is brought back up when it ran below the frame's size."
-                   "\n\nClassic composes the model's small picture directly against the full-size frame."
-                   "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
-                   "\ncomposition cannot tell them apart."
-                   "\n\nGreyed out at 100%, where there is nothing to enlarge.");
+        HelpMarker(Tr("How the model's work is brought back up when it ran below the frame's size."
+                      "\n\nClassic composes the model's small picture directly against the full-size frame."
+                      "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
+                      "\ncomposition cannot tell them apart."
+                      "\n\nGreyed out at 100%, where there is nothing to enlarge."));
 
-        SectionCaption("How much of it lands", rowWidth);
+        SectionCaption(Tr("How much of it lands"), rowWidth);
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
-        auto rTransfer = NrSlider("Detail strength", &transfer, 0.0f, 2.0f, "%.2f", rowWidth);
+        auto rTransfer = NrSlider(Tr("Detail strength"), &transfer, 0.0f, 2.0f, "%.2f", rowWidth);
         if (rTransfer.changed)
             config->DlssNrTransferStrength = transfer;
         if (rTransfer.released)
@@ -1193,17 +1250,17 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("Reset##detail"))
+        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##detail").c_str()))
         {
             config->DlssNrTransferStrength = 1.0f;
             anyChanged = true;
         }
-        HelpMarker("How far the frame moves toward the model's picture. 0 gives back exactly what"
-                   "\nthe upscaler produced. 1 is the model's picture. Above 1 carries on past"
-                   "\nit in the same direction.");
+        HelpMarker(Tr("How far the frame moves toward the model's picture. 0 gives back exactly what"
+                      "\nthe upscaler produced. 1 is the model's picture. Above 1 carries on past"
+                      "\nit in the same direction."));
 
         float colour = config->DlssNrColourStrength.value_or_default();
-        auto rColour = NrSlider("Colour strength", &colour, 0.0f, 4.0f, "%.2f", rowWidth);
+        auto rColour = NrSlider(Tr("Colour strength"), &colour, 0.0f, 4.0f, "%.2f", rowWidth);
         if (rColour.changed)
             config->DlssNrColourStrength = colour;
         if (rColour.released)
@@ -1211,60 +1268,61 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("Reset##colour"))
+        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##colour").c_str()))
         {
             config->DlssNrColourStrength = 1.0f;
             anyChanged = true;
         }
-        HelpMarker("Whether the model's colour arrives with its light. 0 keeps the game's own hue"
-                   "\nexactly -- every pixel the original colour, with only its brightness carrying"
-                   "\nthe model's verdict. 1 brings the model's colour as well, in its own hue,"
-                   "\nclamped into AP1 so nothing unreachable is asked for."
-                   "\n\nAbove 1 it over-saturates: the colour keeps its hue but grows more vivid, and"
-                   "\nrolls off at the edge of what the display can show rather than clipping into a"
-                   "\nflat blown patch. 1 is the model's own colour; push past it for punch.");
+        HelpMarker(Tr("Whether the model's colour arrives with its light. 0 keeps the game's own hue"
+                      "\nexactly -- every pixel the original colour, with only its brightness carrying"
+                      "\nthe model's verdict. 1 brings the model's colour as well, in its own hue,"
+                      "\nclamped into AP1 so nothing unreachable is asked for."
+                      "\n\nAbove 1 it over-saturates: the colour keeps its hue but grows more vivid, and"
+                      "\nrolls off at the edge of what the display can show rather than clipping into a"
+                      "\nflat blown patch. 1 is the model's own colour; push past it for punch."));
 
-        SectionCaption("Colour", rowWidth);
+        SectionCaption(Tr("Colour"), rowWidth);
 
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "The model was trained on finished, sRGB-encoded frames. These decide how "
-                                     "the upscaler's linear output is mapped into something it recognises.");
+        ImGui::TextColored(kTextDim, "%s",
+                           Tr("The model was trained on finished, sRGB-encoded frames. These decide how "
+                              "the upscaler's linear output is mapped into something it recognises."));
         ImGui::PopTextWrapPos();
 
         // 0 off (soft knee), 1 Neutwo + composition, 2 Neutwo + pure-inverse replace, 3 hybrid +
         // composed, 4 hybrid + replace. This decides what every control below is working on, so it
         // opens the section rather than trailing it.
-        static const char* const kReversibleNames[] = { "Off (soft knee)", "Neutwo proxy + composed",
-                                                        "Neutwo proxy + replace", "Hybrid proxy + composed",
-                                                        "Hybrid proxy + replace" };
+        const char* const kReversibleNames[] = { Tr("Off (soft knee)"), Tr("Neutwo proxy + composed"),
+                                                 Tr("Neutwo proxy + replace"), Tr("Hybrid proxy + composed"),
+                                                 Tr("Hybrid proxy + replace") };
 
         int reversible = (int) config->DlssNrReversibleMode.value_or_default();
 
         if (reversible < 0 || reversible > 4)
             reversible = 0;
 
-        if (NrCombo("Reversible proxy", &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames), rowWidth))
+        if (NrCombo(Tr("Reversible proxy"), &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames), rowWidth))
         {
             config->DlssNrReversibleMode = (uint32_t) reversible;
             anyChanged = true;
         }
-        HelpMarker("What the model is shown, and how its answer comes back. Experimental."
-                   "\n\nOff (soft knee): the default, and byte-identical to before. It rolls highlights"
-                   "\noff so hard the model cannot resolve detail in them -- fine in soft-lit scenes,"
-                   "\nweak in bright ones."
-                   "\n\nNeutwo composed: an unclipped curve, so the model sees highlight detail, then"
-                   "\neverything above it (strengths, highlight guard, palette). Wins in bright scenes,"
-                   "\nbut the curve compresses midtones too, so soft-lit content can be worse than Off."
-                   "\nIt also shifts paper white -- re-check that when you switch."
-                   "\n\nHybrid composed: the one to use. Identity in the midtones -- as good as Off"
-                   "\nthere -- with the unclipped roll only in the highlights, so it recovers the detail"
-                   "\nOff crushes without giving up the midtones Neutwo does. Barely shifts paper white."
-                   "\n\nReplace: the raw model straight back through the exact inverse, none of the"
-                   "\ncomposition -- no guard, no palette, no strengths. Gorgeous where there are no"
-                   "\nbright lights, but they FLASH in motion. A reference, not a daily setting."
-                   "\n\nHybrid replace: Replace's raw model on the hybrid curve, so the flashing is"
-                   "\nconfined to genuine highlights instead of everywhere. Most of Replace's detail,"
-                   "\nfar more stable.");
+        HelpMarker(Tr("What the model is shown, and how its answer comes back. Experimental."
+                      "\n\nOff (soft knee): the default, and byte-identical to before. It rolls highlights"
+                      "\noff so hard the model cannot resolve detail in them -- fine in soft-lit scenes,"
+                      "\nweak in bright ones."
+                      "\n\nNeutwo composed: an unclipped curve, so the model sees highlight detail, then"
+                      "\neverything above it (strengths, highlight guard, palette). Wins in bright scenes,"
+                      "\nbut the curve compresses midtones too, so soft-lit content can be worse than Off."
+                      "\nIt also shifts paper white -- re-check that when you switch."
+                      "\n\nHybrid composed: the one to use. Identity in the midtones -- as good as Off"
+                      "\nthere -- with the unclipped roll only in the highlights, so it recovers the detail"
+                      "\nOff crushes without giving up the midtones Neutwo does. Barely shifts paper white."
+                      "\n\nReplace: the raw model straight back through the exact inverse, none of the"
+                      "\ncomposition -- no guard, no palette, no strengths. Gorgeous where there are no"
+                      "\nbright lights, but they FLASH in motion. A reference, not a daily setting."
+                      "\n\nHybrid replace: Replace's raw model on the hybrid curve, so the flashing is"
+                      "\nconfined to genuine highlights instead of everywhere. Most of Replace's detail,"
+                      "\nfar more stable."));
 
         // Where the number that divides the frame comes from. This used to be a checkbox on
         // DlssNrWhitePointFromExposure; upstream replaced that flag with a three-way source, and the
@@ -1272,28 +1330,28 @@ void RenderMenu(Config* config, float menuResScale)
         // consults. The scan asks the source whether it is wanted, so choosing it here is the whole
         // of switching it on: there is no second flag to keep in step, and so no way for two to
         // disagree.
-        static const char* const kSourceNames[] = { "Paper white only", "The game's own exposure",
-                                                    "A buffer the scan found" };
+        const char* const kSourceNames[] = { Tr("Paper white only"), Tr("The game's own exposure"),
+                                             Tr("A buffer the scan found") };
 
         int wpSource = (int) config->DlssNrWhitePointSource.value_or_default();
 
         if (wpSource < 0 || wpSource > 2)
             wpSource = 0;
 
-        if (NrCombo("White point from", &wpSource, kSourceNames, 3, rowWidth))
+        if (NrCombo(Tr("White point from"), &wpSource, kSourceNames, 3, rowWidth))
         {
             config->DlssNrWhitePointSource = (uint32_t) wpSource;
             anyChanged = true;
         }
-        HelpMarker("Paper white only -- the slider below and nothing else. Right for a game whose"
-                   "\nexposure never moves, wrong the moment it does: one constant cannot serve a"
-                   "\ncave and a field."
-                   "\n\nThe game's own exposure -- read from the texture the game hands the upscaler."
-                   "\nThe best source there is, because it is decided upstream and nothing this pass"
-                   "\ndoes can move it. Not every game supplies one."
-                   "\n\nA buffer the scan found -- for games that compute an exposure and never pass"
-                   "\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels"
-                   "\nthe scale. Needs anchoring once, in the Experimental section, and checking after.");
+        HelpMarker(Tr("Paper white only -- the slider below and nothing else. Right for a game whose"
+                      "\nexposure never moves, wrong the moment it does: one constant cannot serve a"
+                      "\ncave and a field."
+                      "\n\nThe game's own exposure -- read from the texture the game hands the upscaler."
+                      "\nThe best source there is, because it is decided upstream and nothing this pass"
+                      "\ndoes can move it. Not every game supplies one."
+                      "\n\nA buffer the scan found -- for games that compute an exposure and never pass"
+                      "\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels"
+                      "\nthe scale. Needs anchoring once, in the Experimental section, and checking after."));
 
         // Which anchor row the paper-white slider edits, or -1 for the live unanchored point.
         // Menu-local and not persisted; the anchor table under Experimental sets it when a row is
@@ -1323,8 +1381,9 @@ void RenderMenu(Config* config, float menuResScale)
                         config->DlssNrScanTrim.value_or_default());
 
                     ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
-                                       "Scan %.5f  ->  white point %.2f   (%u point%s)", liveScan, w,
-                                       (unsigned) anchors.size(), anchors.size() == 1 ? "" : "s");
+                                       anchors.size() == 1 ? Tr("Scan %.5f  ->  white point %.2f   (1 point)")
+                                                           : Tr("Scan %.5f  ->  white point %.2f   (%u points)"),
+                                       liveScan, w, (unsigned) anchors.size());
                 }
             }
 
@@ -1339,9 +1398,9 @@ void RenderMenu(Config* config, float menuResScale)
                 char lbl[48];
 
                 if (editingRow)
-                    snprintf(lbl, sizeof(lbl), "Paper white (point %d)", selectedAnchor + 1);
+                    snprintf(lbl, sizeof(lbl), Tr("Paper white (point %d)"), selectedAnchor + 1);
                 else
-                    snprintf(lbl, sizeof(lbl), "Paper white");
+                    snprintf(lbl, sizeof(lbl), Tr("Paper white"));
 
                 auto rPw = NrSlider(lbl, &pw, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
 
@@ -1359,11 +1418,11 @@ void RenderMenu(Config* config, float menuResScale)
                 if (rPw.released)
                     anyChanged = true;
 
-                HelpMarker("The white point for the selected calibration point, or -- with no row"
-                           "\nselected -- the value the next Anchor press captures."
-                           "\n\nSet it until the picture looks right here, then Anchor. Move to very"
-                           "\ndifferent light and do it again: two points fix the buffer's real"
-                           "\nrelationship and the white point holds between them.");
+                HelpMarker(Tr("The white point for the selected calibration point, or -- with no row"
+                              "\nselected -- the value the next Anchor press captures."
+                              "\n\nSet it until the picture looks right here, then Anchor. Move to very"
+                              "\ndifferent light and do it again: two points fix the buffer's real"
+                              "\nrelationship and the white point holds between them."));
             }
 
             // In the steady state this is what stands in for paper white: adjust until the picture
@@ -1372,7 +1431,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (!anchors.empty())
             {
                 float trim = config->DlssNrScanTrim.value_or_default();
-                auto rTrim = NrSlider("Trim (x the scan)", &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+                auto rTrim = NrSlider(Tr("Trim (x the scan)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
 
                 if (rTrim.changed)
                     config->DlssNrScanTrim = std::clamp(trim, 0.25f, 4.0f);
@@ -1382,16 +1441,16 @@ void RenderMenu(Config* config, float menuResScale)
 
                 ImGui::SameLine();
 
-                if (ImGui::SmallButton("Reset##scantrim"))
+                if (ImGui::SmallButton((std::string(Tr("Reset")) + "##scantrim").c_str()))
                 {
                     config->DlssNrScanTrim = 1.0f;
                     anyChanged = true;
                 }
 
-                HelpMarker("A multiplier on the scan's white point, and the control to adjust between"
-                           "\nanchor points: dial it until the picture looks right in the current light,"
-                           "\nthen press Anchor under Experimental -- that captures the trimmed value as"
-                           "\na new point and resets this to 1.");
+                HelpMarker(Tr("A multiplier on the scan's white point, and the control to adjust between"
+                              "\nanchor points: dial it until the picture looks right in the current light,"
+                              "\nthen press Anchor under Experimental -- that captures the trimmed value as"
+                              "\na new point and resets this to 1."));
             }
         }
         else if (wpSource == 1)
@@ -1401,27 +1460,28 @@ void RenderMenu(Config* config, float menuResScale)
             // Whether this game supplies one at all, shown either way -- without it, a game that
             // offers nothing looks identical to the option working quietly.
             if (vulkan)
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), "%s",
                                    DlssNr::ExposureOfferedVk()
-                                       ? "This game supplies an exposure and it is being read."
-                                       : "This game supplies no exposure. Try the scan instead.");
+                                       ? Tr("This game supplies an exposure and it is being read.")
+                                       : Tr("This game supplies no exposure. Try the scan instead."));
             else if (ex.seenFrames == 0)
-                ImGui::TextColored(kTextDim, "Waiting for a frame...");
+                ImGui::TextColored(kTextDim, "%s", Tr("Waiting for a frame..."));
             else if (!ex.everOffered)
-                ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.25f, 1.0f),
-                                   "This game supplies no exposure. Try the scan instead.");
+                ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.25f, 1.0f), "%s",
+                                   Tr("This game supplies no exposure. Try the scan instead."));
             else if (ex.exposure > 1e-6f)
             {
                 const float trim = std::clamp(config->DlssNrWhitePointTrim.value_or_default(), 0.25f, 4.0f);
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), "Game exposure %.4f  ->  white point %.2f%s",
+                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), Tr("Game exposure %.4f  ->  white point %.2f%s"),
                                    ex.exposure, ex.preExposure / ex.exposure * trim,
-                                   ex.offeredNow ? "" : "  (held: absent this frame)");
+                                   ex.offeredNow ? "" : Tr("  (held: absent this frame)"));
             }
             else
-                ImGui::TextColored(kTextDim, "Reading the exposure...");
+                ImGui::TextColored(kTextDim, "%s", Tr("Reading the exposure..."));
 
             float trim = config->DlssNrWhitePointTrim.value_or_default();
-            auto rTrim = NrSlider("Trim (x the game's exposure)", &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+            auto rTrim =
+                NrSlider(Tr("Trim (x the game's exposure)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
 
             if (rTrim.changed)
                 config->DlssNrWhitePointTrim = std::clamp(trim, 0.25f, 4.0f);
@@ -1433,20 +1493,20 @@ void RenderMenu(Config* config, float menuResScale)
 
             // Always present rather than greyed at 1: the point is that the safe value is one click
             // away without having to know what the safe value is.
-            if (ImGui::SmallButton("Reset##wptrim"))
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##wptrim").c_str()))
             {
                 config->DlssNrWhitePointTrim = 1.0f;
                 anyChanged = true;
             }
 
-            HelpMarker("A multiplier on the exposure the game supplied. 1.00x takes its number exactly,"
-                       "\nand that is the right answer here."
-                       "\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look"
-                       "\nright is evidence the exposure being read is wrong for that game, not that the"
-                       "\ngame wants trimming. Roughly 0.8 to 1.25 is honest tuning; reaching for 4 means"
-                       "\nsomething upstream is broken and this is hiding it."
-                       "\n\nYour manual paper white is kept separately and comes back untouched if you"
-                       "\nswitch the source back.");
+            HelpMarker(Tr("A multiplier on the exposure the game supplied. 1.00x takes its number exactly,"
+                          "\nand that is the right answer here."
+                          "\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look"
+                          "\nright is evidence the exposure being read is wrong for that game, not that the"
+                          "\ngame wants trimming. Roughly 0.8 to 1.25 is honest tuning; reaching for 4 means"
+                          "\nsomething upstream is broken and this is hiding it."
+                          "\n\nYour manual paper white is kept separately and comes back untouched if you"
+                          "\nswitch the source back."));
         }
         else
         {
@@ -1455,7 +1515,7 @@ void RenderMenu(Config* config, float menuResScale)
             // principled ceiling -- this is a divisor on an open-ended linear buffer, and how far up
             // a game needs to go is a property of that game rather than anything boundable here.
             float wpScale = config->DlssNrWhitePointScale.value_or_default();
-            auto rWp = NrSlider("Paper white", &wpScale, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
+            auto rWp = NrSlider(Tr("Paper white"), &wpScale, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
 
             if (rWp.changed)
                 config->DlssNrWhitePointScale = wpScale;
@@ -1463,13 +1523,13 @@ void RenderMenu(Config* config, float menuResScale)
             if (rWp.released)
                 anyChanged = true;
 
-            HelpMarker("What the frame is divided by before the model sees it. There is no other white"
-                       "\npoint; this is the whole of it. Above 1 the picture handed over is darker, so"
-                       "\nhighlights sit lower on the curve.");
+            HelpMarker(Tr("What the frame is divided by before the model sees it. There is no other white"
+                          "\npoint; this is the whole of it. Above 1 the picture handed over is darker, so"
+                          "\nhighlights sit lower on the curve."));
         }
 
         float maxRatio = config->DlssNrMaxRatio.value_or_default();
-        auto rMax = NrSlider("Highlight guard", &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
+        auto rMax = NrSlider(Tr("Highlight guard"), &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
         if (rMax.changed)
             config->DlssNrMaxRatio = maxRatio;
         if (rMax.released)
@@ -1477,16 +1537,16 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::SameLine();
 
-        if (ImGui::SmallButton("Reset##guard"))
+        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##guard").c_str()))
         {
             config->DlssNrMaxRatio = 2.0f;
             anyChanged = true;
         }
-        HelpMarker("The most the pass may move any pixel, as a multiple of what it already was, in both"
-                   "\ndirections -- a pixel may not be brightened past this nor darkened past its"
-                   "\nreciprocal. Lights are where the model has least to say and rescaling its answer"
-                   "\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning"
-                   "\ninto a string of coloured cells. Raise it only if bright areas look clipped.");
+        HelpMarker(Tr("The most the pass may move any pixel, as a multiple of what it already was, in both"
+                      "\ndirections -- a pixel may not be brightened past this nor darkened past its"
+                      "\nreciprocal. Lights are where the model has least to say and rescaling its answer"
+                      "\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning"
+                      "\ninto a string of coloured cells. Raise it only if bright areas look clipped."));
 
         // Directly under the white point, because that is the number it moves and the number the
         // anchor captures. There is deliberately no on/off switch: the source dropdown above says
@@ -1501,7 +1561,7 @@ void RenderMenu(Config* config, float menuResScale)
         // accumulator, not an eye adaptation.
         if (DlssNr::ExposureScan::Scanning())
         {
-            SectionCaption("Exposure scan", rowWidth);
+            SectionCaption(Tr("Exposure scan"), rowWidth);
 
             const bool isSource = wpSource == 2;
 
@@ -1510,18 +1570,18 @@ void RenderMenu(Config* config, float menuResScale)
             if (isSource)
             {
                 if (bool meter = config->DlssNrScanMeter.value_or_default();
-                    NrCheckbox("Show the light meter on screen", &meter))
+                    NrCheckbox(Tr("Show the light meter on screen"), &meter))
                 {
                     config->DlssNrScanMeter = meter;
                     anyChanged = true;
                 }
-                HelpMarker("A lamp in the corner: red for dark, green for full light, and the shades"
-                           "\nbetween, with the reading beside it."
-                           "\n\nIt is how you see at a glance that the scan is TRACKING rather than"
-                           "\nmerely running. Walk into shade and it should slide toward red; step out"
-                           "\nand it should go green. If it moves the wrong way, that is what \"the number"
-                           "\nruns the other way\" below is for."
-                           "\n\nPurely a readout. It changes nothing.");
+                HelpMarker(Tr("A lamp in the corner: red for dark, green for full light, and the shades"
+                              "\nbetween, with the reading beside it."
+                              "\n\nIt is how you see at a glance that the scan is TRACKING rather than"
+                              "\nmerely running. Walk into shade and it should slide toward red; step out"
+                              "\nand it should go green. If it moves the wrong way, that is what \"the number"
+                              "\nruns the other way\" below is for."
+                              "\n\nPurely a readout. It changes nothing."));
             }
 
             // The absolute white point cannot come out of a buffer whose units are unknown. Every
@@ -1532,7 +1592,7 @@ void RenderMenu(Config* config, float menuResScale)
 
             ImGui::BeginDisabled(live <= 0.0f || !isSource);
 
-            if (ImGui::Button("Anchor here"))
+            if (ImGui::Button(Tr("Anchor here")))
             {
                 // Before the first point, the paper white above -- an absolute value with the wide
                 // range a fresh game needs. After that, the EFFECTIVE white point the picture is
@@ -1557,19 +1617,20 @@ void RenderMenu(Config* config, float menuResScale)
             }
 
             ImGui::EndDisabled();
-            HelpMarker("Make the picture look right, then press this -- it captures the current look as a"
-                       "\npoint. For the first point use the Paper white slider above; for every point"
-                       "\nafter, move to different light and use the Trim, which this then bakes in."
-                       "\n\nOne point calibrates a ratio and the white point follows the scan from there."
-                       "\nWalk into very different light and press it again: the second point pins down"
-                       "\nthe buffer's real curve, so everything between the two is right rather than"
-                       "\nonly the neighbourhood of one anchor. Up to eight."
-                       "\n\nThe table is per game and shareable -- one person calibrates a game and the"
-                       "\nnumbers are the same for everyone who takes the profile.");
+            HelpMarker(Tr("Make the picture look right, then press this -- it captures the current look as a"
+                          "\npoint. For the first point use the Paper white slider above; for every point"
+                          "\nafter, move to different light and use the Trim, which this then bakes in."
+                          "\n\nOne point calibrates a ratio and the white point follows the scan from there."
+                          "\nWalk into very different light and press it again: the second point pins down"
+                          "\nthe buffer's real curve, so everything between the two is right rather than"
+                          "\nonly the neighbourhood of one anchor. Up to eight."
+                          "\n\nThe table is per game and shareable -- one person calibrates a game and the"
+                          "\nnumbers are the same for everyone who takes the profile."));
 
             if (!isSource)
-                ImGui::TextColored(kTextDim, "(the scan is only watching -- the white point above comes from "
-                                             "somewhere else)");
+                ImGui::TextColored(kTextDim, "%s",
+                                   Tr("(the scan is only watching -- the white point above comes from "
+                                      "somewhere else)"));
 
             if (!anchors.empty())
             {
@@ -1614,9 +1675,9 @@ void RenderMenu(Config* config, float menuResScale)
 
                     const bool sel = (int) i == selectedAnchor;
                     char row[96];
-                    snprintf(row, sizeof(row), "%s scan %.4f  ->  white %.2f%s",
+                    snprintf(row, sizeof(row), Tr("%s scan %.4f  ->  white %.2f%s"),
                              ((int) i == active && isSource) ? ">" : "  ", anchors[i].scan, anchors[i].white,
-                             sel ? "   [editing]" : "");
+                             sel ? Tr("   [editing]") : "");
 
                     // Click selects the row, so the slider above edits it; click again to let go.
                     if (ImGui::Selectable(row, sel))
@@ -1626,8 +1687,9 @@ void RenderMenu(Config* config, float menuResScale)
                 }
 
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(kTextDim, "Click a row to edit it with the slider above; click it again to "
-                                             "control the live point. > is the point in use now.");
+                ImGui::TextColored(kTextDim, "%s",
+                                   Tr("Click a row to edit it with the slider above; click it again to "
+                                      "control the live point. > is the point in use now."));
                 ImGui::PopTextWrapPos();
             }
 
@@ -1636,28 +1698,29 @@ void RenderMenu(Config* config, float menuResScale)
             if (anchors.size() == 1)
             {
                 if (bool inverted = config->DlssNrScanInverted.value_or_default();
-                    NrCheckbox("The number runs the other way", &inverted))
+                    NrCheckbox(Tr("The number runs the other way"), &inverted))
                 {
                     config->DlssNrScanInverted = inverted;
                     anyChanged = true;
                 }
-                HelpMarker("Flip this if the picture gets worse in the direction it should be getting"
-                           "\nbetter. Most engines store an exposure that falls as the scene brightens;"
-                           "\nsome store its reciprocal, and a buffer found by shape does not say which."
-                           "\nAdd a second anchor point in different light and this is decided for you,"
-                           "\nso it disappears.");
+                HelpMarker(Tr("Flip this if the picture gets worse in the direction it should be getting"
+                              "\nbetter. Most engines store an exposure that falls as the scene brightens;"
+                              "\nsome store its reciprocal, and a buffer found by shape does not say which."
+                              "\nAdd a second anchor point in different light and this is decided for you,"
+                              "\nso it disappears."));
             }
 
             // Read-out rather than control: what the scan is looking at, and how to tell whether it
             // found the right thing. Folded away, because the two decisions that matter are above.
-            if (ImGui::TreeNode("Candidates"))
+            if (ImGui::TreeNode(Tr("Candidates")))
             {
                 const auto found = DlssNr::ExposureScan::Report();
                 const char* why = DlssNr::ExposureScan::Status();
 
                 if (found.empty())
                 {
-                    ImGui::TextColored(kTextDim, "%s", why != nullptr && why[0] != 0 ? why : "nothing matched yet.");
+                    ImGui::TextColored(kTextDim, "%s",
+                                       why != nullptr && why[0] != 0 ? why : Tr("nothing matched yet."));
                 }
                 else
                 {
@@ -1667,19 +1730,20 @@ void RenderMenu(Config* config, float menuResScale)
 
                         if (c.reads == 0)
                         {
-                            ImGui::TextColored(kTextDim, "%zu. %s -- not read yet", i + 1, c.shape.c_str());
+                            ImGui::TextColored(kTextDim, Tr("%zu. %s -- not read yet"), i + 1, c.shape.c_str());
                             continue;
                         }
 
                         // Moving is the whole signal, so it is the thing that is coloured.
                         ImGui::TextColored(c.moves ? ImVec4(0.45f, 0.8f, 0.45f, 1.0f) : kTextDim,
-                                           "%zu. %s = %.5f  (seen %.5f..%.5f) %s", i + 1, c.shape.c_str(), c.latest,
-                                           c.lowest, c.highest, c.moves ? "MOVES" : "flat so far");
+                                           Tr("%zu. %s = %.5f  (seen %.5f..%.5f) %s"), i + 1, c.shape.c_str(), c.latest,
+                                           c.lowest, c.highest, c.moves ? Tr("MOVES") : Tr("flat so far"));
                     }
 
                     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                    ImGui::TextColored(kTextDim, "Walk from shade into daylight. A real exposure moves. One that "
-                                                 "only ever climbs is a counter, not an exposure.");
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Walk from shade into daylight. A real exposure moves. One that "
+                                          "only ever climbs is a counter, not an exposure."));
                     ImGui::PopTextWrapPos();
                 }
 
@@ -1689,107 +1753,107 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Both of these describe the frame to the model rather than shaping its output, which is
         // why they sit together and away from the strength controls.
-        SectionCaption("Guide", rowWidth);
+        SectionCaption(Tr("Guide"), rowWidth);
 
-        static const char* depthNames[] = { "Follow the game", "Force normal", "Force inverted" };
+        const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
         int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
-        if (NrCombo("Depth", &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
+        if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
         {
             config->DlssNrDepthConvention = (uint32_t) depthMode;
             anyChanged = true;
         }
-        HelpMarker("Which way round the model is told depth runs. The game states this in the flags it"
-                   "\ncreated its own DLSS feature with, and following it is right almost always -- but"
-                   "\na game that states it wrongly needs correcting by hand."
-                   "\n\nIf the pass looks worst where geometry meets sky, try forcing the other one.");
+        HelpMarker(Tr("Which way round the model is told depth runs. The game states this in the flags it"
+                      "\ncreated its own DLSS feature with, and following it is right almost always -- but"
+                      "\na game that states it wrongly needs correcting by hand."
+                      "\n\nIf the pass looks worst where geometry meets sky, try forcing the other one."));
 
         if (bool uiCorrection = config->DlssNrUICorrection.value_or_default();
-            NrCheckbox("UI correction", &uiCorrection))
+            NrCheckbox(Tr("UI correction"), &uiCorrection))
         {
             config->DlssNrUICorrection = uiCorrection;
             anyChanged = true;
         }
-        HelpMarker("Lets the model account for a UI layer laid over the frame. On is its own default"
-                   "\nand right whenever a UI resource reaches it; turn it off if the correction is"
-                   "\nitself what looks wrong."
-                   "\n\nRead when the model is built.");
+        HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"
+                      "\nand right whenever a UI resource reaches it; turn it off if the correction is"
+                      "\nitself what looks wrong."
+                      "\n\nRead when the model is built."));
 
-        SectionCaption("Inspect", rowWidth);
+        SectionCaption(Tr("Inspect"), rowWidth);
 
         if (DlssNr::CaptureInProgress())
         {
-            ImGui::TextColored(kTextDim, "Capturing...");
+            ImGui::TextColored(kTextDim, "%s", Tr("Capturing..."));
         }
-        else if (ImGui::Button("Capture 8 frames"))
+        else if (ImGui::Button(Tr("Capture 8 frames")))
         {
             DlssNr::RequestCapture(8);
         }
-        HelpMarker("Writes eight consecutive frames twice: as the upscaler produced them, and again"
-                   "\nonce the model's edit was applied. Into a dlssnr-capture folder beside"
-                   "\nOptiScaler; each run overwrites the last.");
+        HelpMarker(Tr("Writes eight consecutive frames twice: as the upscaler produced them, and again"
+                      "\nonce the model's edit was applied. Into a dlssnr-capture folder beside"
+                      "\nOptiScaler; each run overwrites the last."));
 
         if (bool autoCapture = config->DlssNrAutoCapture.value_or_default();
-            NrCheckbox("Auto-capture once per session", &autoCapture))
+            NrCheckbox(Tr("Auto-capture once per session"), &autoCapture))
         {
             config->DlssNrAutoCapture = autoCapture;
             anyChanged = true;
         }
-        HelpMarker("Writes one matched before/after set automatically, without anyone asking. The"
-                   "\nfolder is cleared each run, so it holds a single session and never grows.");
+        HelpMarker(Tr("Writes one matched before/after set automatically, without anyone asking. The"
+                      "\nfolder is cleared each run, so it holds a single session and never grows."));
 
         // Freeze the frame the model works on, so a setting change re-renders it in place -- the
         // only clean way to A/B our own settings, since a moving scene confounds every other
         // comparison. See design/frame-hold.md.
-        if (bool held = config->DlssNrHoldFrame.value_or_default(); NrCheckbox("Hold frame", &held))
+        if (bool held = config->DlssNrHoldFrame.value_or_default(); NrCheckbox(Tr("Hold frame"), &held))
         {
             config->DlssNrHoldFrame = held;
             anyChanged = true;
         }
-        HelpMarker("Freezes the frame the model works on. While held, change paper white, the strengths,"
-                   "\nthe reversible mode, the model preset -- anything below the upscaler -- and only"
-                   "\nthat setting moves; the scene does not. Pairs with \"Apply the model\" at the top:"
-                   "\nfreeze a frame, then toggle that to see it with and without."
-                   "\n\nWhat it cannot show: upscaler presets or anything upstream of this pass (the"
-                   "\nupscaler is not re-run on a held frame), and the game's own HUD and"
-                   "\npost-processing, which run after this and keep updating. The white point stops"
-                   "\nbeing measured and holds its value, so it cannot drift and confound the"
-                   "\ncomparison."
-                   "\n\nClose the panel and it stays held. Untick to resume.");
+        HelpMarker(Tr("Freezes the frame the model works on. While held, change paper white, the strengths,"
+                      "\nthe reversible mode, the model preset -- anything below the upscaler -- and only"
+                      "\nthat setting moves; the scene does not. Pairs with \"Apply the model\" at the top:"
+                      "\nfreeze a frame, then toggle that to see it with and without."
+                      "\n\nWhat it cannot show: upscaler presets or anything upstream of this pass (the"
+                      "\nupscaler is not re-run on a held frame), and the game's own HUD and"
+                      "\npost-processing, which run after this and keep updating. The white point stops"
+                      "\nbeing measured and holds its value, so it cannot drift and confound the"
+                      "\ncomparison."
+                      "\n\nClose the panel and it stays held. Untick to resume."));
 
-        static const char* compareNames[] = { "Off", "Side by side", "Wipe" };
+        const char* compareNames[] = { Tr("Off"), Tr("Side by side"), Tr("Wipe") };
         int compare = (int) config->DlssNrCompare.value_or_default();
-        if (NrCombo("Compare", &compare, compareNames, IM_ARRAYSIZE(compareNames), rowWidth))
+        if (NrCombo(Tr("Compare"), &compare, compareNames, IM_ARRAYSIZE(compareNames), rowWidth))
         {
             config->DlssNrCompare = (uint32_t) compare;
             anyChanged = true;
         }
-        HelpMarker("Shows the pass against itself. Side by side puts the whole frame in each half;"
-                   "\nwipe cuts a single frame at the split and plays normally. Neither needs the"
-                   "\nmenu open to keep working.");
+        HelpMarker(Tr("Shows the pass against itself. Side by side puts the whole frame in each half;"
+                      "\nwipe cuts a single frame at the split and plays normally. Neither needs the"
+                      "\nmenu open to keep working."));
 
         if (compare != 0)
         {
             bool swap = config->DlssNrCompareSwap.value_or_default();
-            if (NrCheckbox("Swap sides", &swap))
+            if (NrCheckbox(Tr("Swap sides"), &swap))
             {
                 config->DlssNrCompareSwap = swap;
                 anyChanged = true;
             }
 
             bool tags = config->DlssNrCompareTags.value_or_default();
-            if (NrCheckbox("Labels", &tags))
+            if (NrCheckbox(Tr("Labels"), &tags))
             {
                 config->DlssNrCompareTags = tags;
                 anyChanged = true;
             }
-            HelpMarker("Draws which side is which into the frame's own plane, so a screenshot still"
-                       "\nsays it. Clipped per side, so the wipe reveals and hides them exactly as it"
-                       "\ndoes the images.");
+            HelpMarker(Tr("Draws which side is which into the frame's own plane, so a screenshot still"
+                          "\nsays it. Clipped per side, so the wipe reveals and hides them exactly as it"
+                          "\ndoes the images."));
 
             if (tags)
             {
                 float tagScale = config->DlssNrTagScale.value_or_default();
-                auto rTag = NrSlider("Label size", &tagScale, 0.5f, 5.0f, "%.1fx", rowWidth);
+                auto rTag = NrSlider(Tr("Label size"), &tagScale, 0.5f, 5.0f, "%.1fx", rowWidth);
                 if (rTag.changed)
                     config->DlssNrTagScale = std::clamp(tagScale, 0.5f, 5.0f);
                 if (rTag.released)
@@ -1800,7 +1864,7 @@ void RenderMenu(Config* config, float menuResScale)
         if (compare == 1)
         {
             float zoom = config->DlssNrCompareZoom.value_or_default();
-            auto rZoom = NrSlider("Zoom", &zoom, 1.0f, 2.0f, "%.2f", rowWidth);
+            auto rZoom = NrSlider(Tr("Zoom"), &zoom, 1.0f, 2.0f, "%.2f", rowWidth);
             if (rZoom.changed)
                 config->DlssNrCompareZoom = std::clamp(zoom, 1.0f, 2.0f);
             if (rZoom.released)
@@ -1810,88 +1874,110 @@ void RenderMenu(Config* config, float menuResScale)
         if (compare == 2)
         {
             float split = config->DlssNrCompareSplit.value_or_default();
-            auto rSplit = NrSlider("Split", &split, 0.0f, 1.0f, "%.2f", rowWidth);
+            auto rSplit = NrSlider(Tr("Split"), &split, 0.0f, 1.0f, "%.2f", rowWidth);
             if (rSplit.changed)
                 config->DlssNrCompareSplit = std::clamp(split, 0.0f, 1.0f);
             if (rSplit.released)
                 anyChanged = true;
         }
 
-        static const char* debugNames[] = { "Off", "Proxy (what the model sees)", "Model output (raw)",
-                                            "Difference (amplified)" };
+        const char* debugNames[] = { Tr("Off"), Tr("Proxy (what the model sees)"), Tr("Model output (raw)"),
+                                     Tr("Difference (amplified)") };
         int debugView = (int) config->DlssNrDebugView.value_or_default();
-        if (NrCombo("Debug view", &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
+        if (NrCombo(Tr("Debug view"), &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
         {
             config->DlssNrDebugView = (uint32_t) debugView;
             anyChanged = true;
         }
-        HelpMarker("Proxy is the picture handed to the model. Difference shows what the model"
-                   "\nactually changed, amplified twenty times and centred on grey.");
+        HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
+                      "\nactually changed, amplified twenty times and centred on grey."));
 
         // Both of these are experiments toward dropping the forwarder entirely, which is why they
         // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
         // "off until it is shown to produce the same picture" -- so they are labelled as such
         // rather than presented as ordinary settings.
-        SectionCaption("Experimental", rowWidth);
+        SectionCaption(Tr("Experimental"), rowWidth);
 
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "Both are unproven. They exist to test whether the driver's own "
-                                     "nvngx.dll can dispatch the model, which would remove the need for "
-                                     "the 165 MB copy beside OptiScaler.");
+        ImGui::TextColored(kTextDim, "%s",
+                           Tr("Both are unproven. They exist to test whether the driver's own "
+                              "nvngx.dll can dispatch the model, which would remove the need for "
+                              "the 165 MB copy beside OptiScaler."));
         ImGui::PopTextWrapPos();
 
-        if (bool probe = config->DlssNrProxyProbe.value_or_default(); NrCheckbox("Probe the driver", &probe))
+        if (bool probe = config->DlssNrProxyProbe.value_or_default(); NrCheckbox(Tr("Probe the driver"), &probe))
         {
             config->DlssNrProxyProbe = probe;
             anyChanged = true;
         }
-        HelpMarker("Asks the driver's nvngx.dll once per session whether it already knows the model."
-                   "\nWrites the answer to the log and changes nothing else."
-                   "\n\nRead when the model is built, so it applies from the next session.");
+        HelpMarker(Tr("Asks the driver's nvngx.dll once per session whether it already knows the model."
+                      "\nWrites the answer to the log and changes nothing else."
+                      "\n\nRead when the model is built, so it applies from the next session."));
 
-        if (bool useProxy = config->DlssNrUseProxy.value_or_default(); NrCheckbox("Run through the driver", &useProxy))
+        if (bool useProxy = config->DlssNrUseProxy.value_or_default();
+            NrCheckbox(Tr("Run through the driver"), &useProxy))
         {
             config->DlssNrUseProxy = useProxy;
             anyChanged = true;
         }
-        HelpMarker("Drives the model through the driver's own nvngx.dll instead of the forwarder --"
-                   "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
-                   "\nunnecessary."
-                   "\n\nCompare before trusting it: turn on Compare above and look for a difference.");
+        HelpMarker(Tr("Drives the model through the driver's own nvngx.dll instead of the forwarder --"
+                      "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
+                      "\nunnecessary."
+                      "\n\nCompare before trusting it: turn on Compare above and look for a difference."));
 
         // Appearance last, because it is the section you touch once and then leave alone. Both of
         // these could already be set in the ini; the point of putting them here is that legibility
         // is the one thing you cannot judge from a config file -- you have to be looking at the
         // panel, over the game, on your own monitor, to know whether it works.
-        SectionCaption("Appearance", rowWidth);
+        SectionCaption(Tr("Appearance"), rowWidth);
 
-        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox("Light panel", &light))
+        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
         {
             config->DlssNrLightTheme = light;
             anyChanged = true;
         }
-        HelpMarker("Light is the default. The dark palette this panel was originally styled after put"
-                   "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
-                   "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
-                   "\n\nUnticking restores NVIDIA's own colouring.");
+        HelpMarker(Tr("Light is the default. The dark palette this panel was originally styled after put"
+                      "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
+                      "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
+                      "\n\nUnticking restores NVIDIA's own colouring."));
 
-        if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox("Vendor colours", &vendor))
+        if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox(Tr("Vendor colours"), &vendor))
         {
             config->DlssNrVendorColours = vendor;
             anyChanged = true;
         }
         {
-            std::string tip = "The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,"
-                              "\nAMD red on an AMD one. Untick to keep the green everywhere.";
-            tip += OnAmdGpu() ? "\n\nThis game is running on an AMD card."
-                              : "\n\nThis game is not running on an AMD card, so this changes nothing here.";
+            std::string tip = Tr("The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,"
+                                 "\nAMD red on an AMD one. Untick to keep the green everywhere.");
+            tip += OnAmdGpu() ? Tr("\n\nThis game is running on an AMD card.")
+                              : Tr("\n\nThis game is not running on an AMD card, so this changes nothing here.");
             HelpMarker(tip.c_str());
+        }
+
+        // What the panel speaks. Auto follows the Windows display language; OptiDLSS5-UI writes the
+        // same [DlssNr] Language key when its own Language setting is pinned, so the two agree. The
+        // names are kept in Latin script on purpose: the font that draws a language's own name is
+        // only loaded once that language is chosen (see I18n::EnsureFonts).
+        {
+            const char* langNames[] = { Tr("Auto (Windows)"), Tr("English"), Tr("Portuguese (Brazil)"),
+                                        Tr("Russian"),        Tr("Korean"),  Tr("Chinese (Simplified)"),
+                                        Tr("Spanish"),        Tr("German") };
+            int lang = I18n::SelectorIndex(config->DlssNrLanguage.value_or_default().c_str());
+            if (NrCombo(Tr("Language"), &lang, langNames, IM_ARRAYSIZE(langNames), rowWidth))
+            {
+                config->DlssNrLanguage = std::string(I18n::CodeForSelectorIndex(lang));
+                I18n::Refresh(config->DlssNrLanguage.value_or_default());
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Auto follows the Windows display language. Pinning one here only changes this panel;"
+                          "\nOptiScaler's own menu stays English. A language that needs its own font (Chinese,"
+                          "\nKorean) loads it from Windows on the next frame."));
         }
 
         // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
         // is applied to the window.
         float fontScaleEdit = config->DlssNrFontScale.value_or_default();
-        auto rFont = NrSlider("Font size", &fontScaleEdit, 0.75f, 2.0f, "%.2fx", rowWidth);
+        auto rFont = NrSlider(Tr("Font size"), &fontScaleEdit, 0.75f, 2.0f, "%.2fx", rowWidth);
 
         if (rFont.changed)
             config->DlssNrFontScale = std::clamp(fontScaleEdit, 0.75f, 2.0f);
@@ -1899,9 +1985,9 @@ void RenderMenu(Config* config, float menuResScale)
         if (rFont.released)
             anyChanged = true;
 
-        HelpMarker("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
-                   "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
-                   "\nrunning into their values.");
+        HelpMarker(Tr("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
+                      "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
+                      "\nrunning into their values."));
 
         // Must be popped before End(), and on every path out of this block -- it is a stack, not a
         // per-window property like the SetWindowFontScale it replaced.

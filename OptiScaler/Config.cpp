@@ -380,6 +380,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
             DlssNrLightTheme.set_from_config(readBool("DlssNr", "LightTheme"));
             DlssNrVendorColours.set_from_config(readBool("DlssNr", "VendorColours"));
+            DlssNrLanguage.set_from_config(readString("DlssNr", "Language", true));
             DlssNrFontScale.set_from_config(readFloat("DlssNr", "FontScale"));
             DlssNrReversibleMode.set_from_config(readUInt("DlssNr", "ReversibleMode"));
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
@@ -1214,8 +1215,7 @@ bool Config::SaveIni()
 
         // --- DLSS 5 Neural Rendering (OptiScaler/dlssnr) ---
         ini.SetValue("DlssNr", "Enabled", GetBoolValue(Instance()->DlssNrEnabled.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "RunBeforeSR",
-                     GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "RunBeforeSR", GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
         {
             auto toggle = Instance()->DlssNrToggleKey.value_for_config();
             ini.SetValue("DlssNr", "ToggleKey", GetIntValue(toggle, toggle > 0).c_str());
@@ -1296,6 +1296,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "LightTheme", GetBoolValue(Instance()->DlssNrLightTheme.value_for_config()).c_str());
         ini.SetValue("DlssNr", "VendorColours",
                      GetBoolValue(Instance()->DlssNrVendorColours.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "Language", Instance()->DlssNrLanguage.value_for_config_or(std::string("auto")).c_str());
         ini.SetValue("DlssNr", "FontScale", GetFloatValue(Instance()->DlssNrFontScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ReversibleMode",
                      GetIntValue(Instance()->DlssNrReversibleMode.value_for_config()).c_str());
