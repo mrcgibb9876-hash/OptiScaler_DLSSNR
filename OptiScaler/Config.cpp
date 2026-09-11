@@ -364,6 +364,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             LosslessScalingMode.set_from_config(readWString("DlssNr", "LosslessScalingMode"));
             LosslessScalingMultiplier.set_from_config(readInt("DlssNr", "LosslessScalingMultiplier"));
             LosslessScalingTarget.set_from_config(readInt("DlssNr", "LosslessScalingTarget"));
+            LosslessScalingHotkeyMods.set_from_config(readInt("DlssNr", "LosslessScalingHotkeyMods"));
+            LosslessScalingHotkeyVk.set_from_config(readInt("DlssNr", "LosslessScalingHotkeyVk"));
             DlssNrPreset.set_from_config(readUInt("DlssNr", "Preset"));
             DlssNrIntensity.set_from_config(readFloat("DlssNr", "Intensity"));
             DlssNrStyle.set_from_config(readUInt("DlssNr", "Style"));
@@ -1277,6 +1279,10 @@ bool Config::SaveIni()
                      GetIntValue(Instance()->LosslessScalingMultiplier.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LosslessScalingTarget",
                      GetIntValue(Instance()->LosslessScalingTarget.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "LosslessScalingHotkeyMods",
+                     GetIntValue(Instance()->LosslessScalingHotkeyMods.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "LosslessScalingHotkeyVk",
+                     GetIntValue(Instance()->LosslessScalingHotkeyVk.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Preset", GetIntValue(Instance()->DlssNrPreset.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Intensity", GetFloatValue(Instance()->DlssNrIntensity.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Style", GetIntValue(Instance()->DlssNrStyle.value_for_config()).c_str());

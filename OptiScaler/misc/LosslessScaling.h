@@ -1,74 +1,75 @@
 #pragma once
 #include <string>
 
-// Launch/close Lossless Scaling, and drive its Frame Generation on/off and multiplier -- offered
-// from the in-game menu as the working alternative to OptiScaler's own Frame Generation for a
-// DLSS5-Feeder game (see DlssNr_Menu.cpp, gated on DlssNr::IsFeederPresent()). This process does
-// not read, write, or otherwise understand Lossless Scaling's own settings file -- OptiDLSS5-UI
-// already does that safely (a real browser DOMParser/XMLSerializer round-trip) and writes the exe
-// path and profile title this class needs into Config::Instance()->LosslessScalingExePath /
-// LosslessScalingGameTitle. Comparing a hand-rolled XML editor written here against that would
-// only add a second, less-safe way to do the same job.
+// Launch/close Lossless Scaling and drive its Frame Generation on/off + multiplier from the
+// in-game DLSS-NR panel, as the working alternative to OptiScaler's own Frame Generation (which
+// crashes with the DLSS5 Feeder -- see FGHooks::CheckForFGStatus). Per-game setup (the Lossless
+// Scaling profile itself) is done by OptiDLSS5-UI, which writes the exe path, profile title,
+// multiplier and the LS global-hotkey chord into Config::Instance()->LosslessScaling* keys. This
+// process never opens or shows Lossless Scaling's own window.
 //
-// Reverse-engineered (ilspycmd against the real, installed LosslessScaling.dll -- a legitimately
-// owned copy, purely for interoperability, 2026-09-10) rather than guessed at, after several live
-// dead ends:
-//   * Its "AutoScale" feature (matching a profile against whatever window is currently in the
-//     foreground, UI.ForegroundWatcher/SetWinEventHook(EVENT_SYSTEM_FOREGROUND)) only fires on a
-//     genuine foreground CHANGE event. Confirmed live it never fires no matter the launch order,
-//     because the game was already the stable foreground window before Lossless Scaling started
-//     watching -- there is no change event left for it to see.
-//   * A synthetic SetForegroundWindow from an external, unrelated process (tried directly) does
-//     not generate a real change event either -- Windows' own foreground-lock protection silently
-//     blocks it. (Untested from in-process, where this actually runs -- may behave differently,
-//     not relied on either way.)
-//   * Its Ctrl+Alt+S hotkey (UI.GlobalKeyboardHook, a WH_KEYBOARD_LL hook) has NO anti-injection
-//     check -- it reads Keyboard.IsKeyDown() for the modifiers at the moment it sees the base key,
-//     so a synthetic press needs real delay between each key-down (confirmed the naive
-//     no-delay keybd_event sequence failed live; never retried with proper spacing once UI
-//     Automation was confirmed working end-to-end instead).
-//   * What is proven, twice, live: UI Automation's InvokePattern on its ScaleButton
-//     (AutomationId="ScaleButton", inside a ProfileList of AutomationId="ProfileList") genuinely
-//     starts Frame Generation for whichever profile was first selected via
-//     SelectionItemPattern -- but only once the window has actually been shown (even non-
-//     activated) at least once since launch; interacting with a window minimized since startup
-//     found and "selected" successfully at the automation level but never took real effect.
-//   * The multiplier field (AutomationId="LSFG3Multiplier") is a live value, not something needing
-//     a restart: its own ProfileChanged() calls Core.ApplySettings(...) (a native call into
-//     Lossless.dll) whenever the profile being edited matches the one currently scaling, so
-//     setting it via ValuePattern while active applies immediately.
+// WHY THE GLOBAL HOTKEY, NOT UI AUTOMATION (rewritten 2026-09-11 after live re-testing):
+//   * Lossless Scaling runs ELEVATED by default (Settings.xml <StartAsAdmin>true); a normal game
+//     process is medium integrity. UIPI blocks a medium-IL process from driving an elevated
+//     window's UI Automation InvokePattern / posting it input at all -- so the old UIA "select
+//     profile -> click Scale button" path only ever worked when the game itself happened to run
+//     elevated, and silently did nothing otherwise. OptiDLSS5-UI now writes <StartAsAdmin>false so
+//     Lossless Scaling matches the game's integrity, but the hotkey below does not even depend on
+//     that.
+//   * The UIA path REQUIRED briefly showing Lossless Scaling's window (a real, confirmed
+//     requirement: interacting with a never-shown window did nothing) -- that visible flash over
+//     the game is exactly what the user asked to be rid of. The hotkey shows no window at all.
+//   * Lossless Scaling installs a low-level keyboard hook (WH_KEYBOARD_LL, GlobalKeyboardHook in
+//     its own code) for its Ctrl+Alt+S toggle. A low-level hook sees synthetic input from
+//     SendInput regardless of the sender's integrity level -- CONFIRMED LIVE 2026-09-11: a
+//     non-elevated process toggled an elevated Lossless Scaling on and off with SendInput, no
+//     window shown, only the fullscreen frame-gen overlay appearing/disappearing. Its own hotkey
+//     handler activates whatever profile matches the current FOREGROUND window, which in-game is
+//     the game itself -- so no profile has to be selected in any list. The chord just has to be
+//     synthesised with a real gap between key events (its handler reads Keyboard.IsKeyDown for the
+//     modifiers at the instant it sees the base key); a zero-gap burst is missed.
 class LosslessScaling
 {
   public:
-    // Any process named LosslessScaling.exe, not just ones this class started -- the user may
-    // already have it open themselves.
+    // Not MOD_CTRL/MOD_ALT/... -- those names are Windows RegisterHotKey macros and collide.
+    enum Mod
+    {
+        HK_CTRL = 1,
+        HK_ALT = 2,
+        HK_SHIFT = 4,
+        HK_WIN = 8
+    };
+
+    // Any process named LosslessScaling.exe, not just one this class started -- the user may
+    // already have it open.
     static bool IsRunning();
 
-    // False if exePath is empty, doesn't exist, or CreateProcess itself fails. Does not wait for
-    // the process to finish starting.
+    // Launches Lossless Scaling minimized (-StartMinimized + its own tray settings keep it out of
+    // sight). False if exePath is empty/missing or CreateProcess fails. Does not wait.
     static bool Launch(const std::wstring& exePath);
 
-    // Posts WM_CLOSE to LosslessScaling.exe's own top-level window(s) first, same as the user
-    // clicking its own close button, so it gets a chance to save state normally -- then guarantees
-    // it's actually gone: confirmed live that closing its window alone leaves it running in the
-    // background (Frame Generation keeps going), so this falls back to terminating it if it's
-    // still alive after a short grace period. That wait runs on its own detached thread, not the
-    // caller's, so a slow/stuck Lossless Scaling can't stall the game's own render thread. Returns
-    // false only if the process wasn't running at all (nothing to do, not a failure to report).
+    // Posts WM_CLOSE, then force-terminates if still alive after a short grace period (Lossless
+    // Scaling keeps running in the background on WM_CLOSE alone). Best-effort: terminating a
+    // higher-integrity process from a medium-IL game is denied by Windows, which is another reason
+    // OptiDLSS5-UI sets <StartAsAdmin>false. Returns false only if it was not running. Runs its
+    // wait on a detached thread so a stuck Lossless Scaling never stalls the caller.
     static bool Close();
 
-    // Selects the profile named gameTitle in Lossless Scaling's own profile list and invokes its
-    // Scale button via UI Automation -- the same toggle the Ctrl+Alt+S hotkey and a manual click
-    // both drive, so calling this while already active turns it off, same as clicking Scale again.
-    // Briefly shows the window (SW_SHOWNOACTIVATE, does not steal focus from the game) since
-    // interacting with it never-shown-since-launch did not take real effect in testing, then
-    // minimizes it again. Runs on its own detached thread (UI Automation COM calls take real time,
-    // roughly half a second to a couple of seconds) -- does not block the caller.
-    static void TriggerScaleAsync(const std::wstring& gameTitle);
+    // Turn Lossless Scaling's Frame Generation ON for this game. Detached thread: ensures the
+    // process is running (launches + waits for it to be ready if not), then synthesises the global
+    // hotkey once. No window is shown. mods is a Mod bitmask, vk the base virtual-key (e.g. 'S').
+    static void ActivateAsync(const std::wstring& exePath, int mods, int vk);
 
-    // Sets the LSFG3Multiplier field (2/3/4) for the given profile via UI Automation's
-    // ValuePattern, not by touching Settings.xml. If that profile is the one currently active,
-    // Lossless Scaling's own change-tracking applies it live, no restart needed. Same brief
-    // show/minimize and background-thread behavior as TriggerScaleAsync.
-    static void SetMultiplierAsync(const std::wstring& gameTitle, int multiplier);
+    // Turn it OFF: synthesise the same toggle hotkey once (Lossless Scaling's toggle is symmetric).
+    // Detached thread; assumes the process is already running. No window shown.
+    static void DeactivateAsync(int mods, int vk);
+
+    // Change the fixed multiplier for this game's profile. Lossless Scaling only reads its profiles
+    // from Settings.xml at startup and exposes no live API a separate process can call, so this
+    // edits the game's own <Profile> in Settings.xml (a minimal, backed-up, value-only rewrite --
+    // no structural change, no XML declaration touched) and, if Lossless Scaling is running,
+    // restarts it so the new value is picked up, re-activating afterwards when wasActive. All on a
+    // detached thread. No window shown.
+    static void SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier,
+                                   int mods, int vk, bool wasActive);
 };

@@ -3,12 +3,11 @@
 
 #include <tlhelp32.h>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <thread>
 #include <chrono>
-#include <wrl/client.h>
-#include <UIAutomationClient.h>
-
-using Microsoft::WRL::ComPtr;
 
 static DWORD FindProcessId(const wchar_t* exeName)
 {
@@ -49,17 +48,14 @@ bool LosslessScaling::Launch(const std::wstring& exePath)
     std::filesystem::path path(exePath);
     STARTUPINFOW si {};
     si.cb = sizeof(si);
-    // Starts minimized -- TriggerScaleAsync/SetMultiplierAsync do their own real SW_SHOW +
-    // SetForegroundWindow before touching anything, so this process being launched doesn't itself
-    // need to ever show its window; confirmed live that showing it here just meant an extra,
-    // pointless window popping up over the game as soon as this checkbox was checked.
+    // Minimized, and Lossless Scaling's own -StartMinimized arg (App.cs reads it) makes it go
+    // straight to the tray rather than showing its window at all -- nothing pops over the game.
     si.dwFlags = STARTF_USESHOWWINDOW;
     si.wShowWindow = SW_SHOWMINNOACTIVE;
     PROCESS_INFORMATION pi {};
 
-    // CreateProcessW may write into its lpCommandLine argument, so it needs a mutable buffer even
-    // though we pass nothing on the command line -- lpApplicationName alone is enough here.
-    std::wstring mutableCmd = L"\"" + exePath + L"\"";
+    // CreateProcessW may write into lpCommandLine, so it needs a mutable buffer.
+    std::wstring mutableCmd = L"\"" + exePath + L"\" -StartMinimized";
 
     BOOL ok = CreateProcessW(exePath.c_str(), mutableCmd.data(), nullptr, nullptr, FALSE, 0, nullptr,
                              path.parent_path().wstring().c_str(), &si, &pi);
@@ -88,13 +84,158 @@ BOOL CALLBACK CloseWindowsForPid(HWND hwnd, LPARAM lParam)
     DWORD windowPid = 0;
     GetWindowThreadProcessId(hwnd, &windowPid);
 
-    if (windowPid == ctx->pid && IsWindowVisible(hwnd) && GetWindow(hwnd, GW_OWNER) == nullptr)
+    if (windowPid == ctx->pid && GetWindow(hwnd, GW_OWNER) == nullptr)
     {
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
         ctx->closedAny = true;
     }
 
     return TRUE; // keep enumerating -- a WPF app can have more than one top-level window
+}
+
+// Waits (up to ~timeoutMs) for a Lossless Scaling process to be present. Lossless Scaling launched
+// non-elevated relaunches itself elevated and the first process exits, so the PID we can observe
+// changes shortly after launch -- poll for "any LosslessScaling.exe", not a specific PID.
+bool WaitForRunning(int timeoutMs)
+{
+    for (int waited = 0; waited < timeoutMs; waited += 100)
+    {
+        if (LosslessScaling::IsRunning())
+            return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return LosslessScaling::IsRunning();
+}
+
+// One tap of a key (down or up) via SendInput.
+void SendKey(WORD vk, bool up)
+{
+    INPUT in {};
+    in.type = INPUT_KEYBOARD;
+    in.ki.wVk = vk;
+    in.ki.wScan = static_cast<WORD>(MapVirtualKeyW(vk, MAPVK_VK_TO_VSC));
+    in.ki.dwFlags = up ? KEYEVENTF_KEYUP : 0;
+    SendInput(1, &in, sizeof(INPUT));
+}
+
+// Synthesise the Lossless Scaling toggle chord (default Ctrl+Alt+S) with a real gap between each
+// event: its low-level-hook handler samples the modifier keys with Keyboard.IsKeyDown at the
+// instant it sees the base key, so a zero-gap burst is missed (confirmed live). ~60ms is
+// comfortably enough and imperceptible.
+void SendToggleChord(int mods, int vk)
+{
+    constexpr auto gap = std::chrono::milliseconds(60);
+    auto tap = [&](WORD k, bool up)
+    {
+        SendKey(k, up);
+        std::this_thread::sleep_for(gap);
+    };
+
+    if (mods & LosslessScaling::HK_CTRL)
+        tap(VK_CONTROL, false);
+    if (mods & LosslessScaling::HK_ALT)
+        tap(VK_MENU, false);
+    if (mods & LosslessScaling::HK_SHIFT)
+        tap(VK_SHIFT, false);
+    if (mods & LosslessScaling::HK_WIN)
+        tap(VK_LWIN, false);
+
+    tap(static_cast<WORD>(vk), false);
+    tap(static_cast<WORD>(vk), true);
+
+    // Release in reverse order.
+    if (mods & LosslessScaling::HK_WIN)
+        tap(VK_LWIN, true);
+    if (mods & LosslessScaling::HK_SHIFT)
+        tap(VK_SHIFT, true);
+    if (mods & LosslessScaling::HK_ALT)
+        tap(VK_MENU, true);
+    if (mods & LosslessScaling::HK_CTRL)
+        SendKey(VK_CONTROL, true);
+}
+
+std::filesystem::path SettingsXmlPath()
+{
+    // %LOCALAPPDATA%\Lossless Scaling\Settings.xml -- the env var avoids a shell32/shlobj link.
+    wchar_t buf[MAX_PATH] = {};
+    DWORD n = GetEnvironmentVariableW(L"LOCALAPPDATA", buf, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH)
+        return {};
+    return std::filesystem::path(buf) / L"Lossless Scaling" / L"Settings.xml";
+}
+
+// Replaces the text between <tag>...</tag> with newInner, but only within [from, to) of content.
+// Returns true if the tag was found and rewritten in that range. Leaves everything else byte-for-
+// byte intact -- no structural change, no re-serialisation, no XML declaration touched.
+bool ReplaceTagInRange(std::string& content, size_t from, size_t to, const std::string& tag,
+                       const std::string& newInner)
+{
+    const std::string open = "<" + tag + ">";
+    const std::string close = "</" + tag + ">";
+    size_t o = content.find(open, from);
+    if (o == std::string::npos || o >= to)
+        return false;
+    size_t innerStart = o + open.size();
+    size_t c = content.find(close, innerStart);
+    if (c == std::string::npos || c >= to)
+        return false;
+    content.replace(innerStart, c - innerStart, newInner);
+    return true;
+}
+
+// Minimal, backed-up, block-scoped edit of Settings.xml: find this game's <Profile> (by its exact
+// <Title>) and set its <LSFG3Multiplier> and force <LSFG3Mode1>FIXED</LSFG3Mode1>. Validated
+// against the real live Settings.xml before shipping (Node harness, 2026-09-11). Returns true on a
+// successful write.
+bool PatchMultiplierInSettings(const std::wstring& gameTitle, int multiplier)
+{
+    if (gameTitle.empty() || multiplier < 1)
+        return false;
+
+    std::filesystem::path xml = SettingsXmlPath();
+    if (xml.empty() || !std::filesystem::exists(xml))
+        return false;
+
+    std::string content;
+    {
+        std::ifstream in(xml, std::ios::binary);
+        if (!in)
+            return false;
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        content = ss.str();
+    }
+    if (content.empty())
+        return false;
+
+    // Settings.xml is UTF-8; wstring_to_string (SysUtils.h) emits UTF-8, so the title bytes match.
+    const std::string titleTag = "<Title>" + wstring_to_string(gameTitle) + "</Title>";
+    size_t ti = content.find(titleTag);
+    if (ti == std::string::npos)
+        return false;
+
+    size_t blockStart = content.rfind("<Profile>", ti);
+    size_t blockEnd = content.find("</Profile>", ti);
+    if (blockStart == std::string::npos || blockEnd == std::string::npos)
+        return false;
+
+    bool changed = ReplaceTagInRange(content, blockStart, blockEnd, "LSFG3Multiplier",
+                                     std::to_string(multiplier));
+    // Best-effort; a profile OptiDLSS5-UI wrote always has this, but don't fail the write if not.
+    ReplaceTagInRange(content, blockStart, blockEnd, "LSFG3Mode1", "FIXED");
+    if (!changed)
+        return false;
+
+    // Recoverable copy before overwriting -- this file holds the user's other LS game profiles too.
+    std::error_code ec;
+    std::filesystem::copy_file(xml, std::filesystem::path(xml).concat(L".bak-lsfork"),
+                               std::filesystem::copy_options::overwrite_existing, ec);
+
+    std::ofstream out(xml, std::ios::binary | std::ios::trunc);
+    if (!out)
+        return false;
+    out.write(content.data(), static_cast<std::streamsize>(content.size()));
+    return out.good();
 }
 } // namespace
 
@@ -107,14 +248,10 @@ bool LosslessScaling::Close()
     CloseContext ctx { pid, false };
     EnumWindows(CloseWindowsForPid, reinterpret_cast<LPARAM>(&ctx));
 
-    // WM_CLOSE alone isn't enough -- confirmed live (Batman: Arkham Knight, 2026-09-10): it closes
-    // the window (a real, visible effect -- MainWindowHandle goes to 0), but Lossless Scaling keeps
-    // running in the background regardless (same PID, same CPU/memory use, no MinimizeToTray or
-    // CloseToTray setting needed for this -- it does it either way), so Frame Generation never
-    // actually stops. The checkbox has to guarantee "off" means off. Give it a moment to exit
-    // cleanly on its own first (WM_CLOSE did close its window, so something is happening), then
-    // force it if it's still there. Runs on its own thread, detached, so a slow/stuck Lossless
-    // Scaling can't stall the game's own render thread while this waits.
+    // WM_CLOSE alone leaves Lossless Scaling running in the background (its CloseToTray), so
+    // guarantee it is gone. Detached so a slow exit can't stall the caller. TerminateProcess can be
+    // denied if Lossless Scaling is higher integrity than us -- that path is why OptiDLSS5-UI sets
+    // <StartAsAdmin>false.
     std::thread([pid]()
     {
         for (int i = 0; i < 20; i++) // up to ~2s in 100ms steps
@@ -140,257 +277,60 @@ bool LosslessScaling::Close()
     return true;
 }
 
-namespace
+void LosslessScaling::ActivateAsync(const std::wstring& exePath, int mods, int vk)
 {
-// EnumWindows finds a window by title regardless of show state (confirmed live it still finds a
-// minimized or even SW_HIDE'd window) -- AutomationElement/IUIAutomation's own top-level traversal
-// (RootElement's Children, or Process.MainWindowHandle on the .NET side) does not reliably see a
-// non-normal-state window, but wrapping an HWND found this way with ElementFromHandle works fine
-// regardless of its show state. Confirmed live, 2026-09-10.
-HWND FindLosslessWindow(DWORD pid)
-{
-    struct Ctx
+    std::thread([exePath, mods, vk]()
     {
-        DWORD pid;
-        HWND result;
-    } ctx { pid, nullptr };
-
-    EnumWindows(
-        [](HWND hwnd, LPARAM lParam) -> BOOL
+        bool wasRunning = IsRunning();
+        if (!wasRunning)
         {
-            auto* ctx = reinterpret_cast<Ctx*>(lParam);
-            DWORD windowPid = 0;
-            GetWindowThreadProcessId(hwnd, &windowPid);
-            if (windowPid == ctx->pid)
-            {
-                wchar_t title[256] = {};
-                GetWindowTextW(hwnd, title, 256);
-                if (wcscmp(title, L"Lossless Scaling") == 0)
-                {
-                    ctx->result = hwnd;
-                    return FALSE;
-                }
-            }
-            return TRUE;
-        },
-        reinterpret_cast<LPARAM>(&ctx));
-
-    return ctx.result;
-}
-
-ComPtr<IUIAutomationElement> FindByAutomationId(IUIAutomation* automation, IUIAutomationElement* root, const wchar_t* id)
-{
-    VARIANT v {};
-    v.vt = VT_BSTR;
-    v.bstrVal = SysAllocString(id);
-    ComPtr<IUIAutomationCondition> cond;
-    automation->CreatePropertyCondition(UIA_AutomationIdPropertyId, v, &cond);
-    VariantClear(&v);
-
-    ComPtr<IUIAutomationElement> found;
-    if (cond)
-        root->FindFirst(TreeScope_Descendants, cond.Get(), &found);
-    return found;
-}
-
-// Selects the ProfileList entry whose own descendant text exactly matches gameTitle (the list
-// items themselves carry no AutomationId, only their child Text elements show the profile's real
-// title -- confirmed against the real control tree, 2026-09-10). Returns true if a match was
-// found and selected.
-bool SelectProfileByTitle(IUIAutomation* automation, IUIAutomationElement* window, const std::wstring& gameTitle)
-{
-    auto profileList = FindByAutomationId(automation, window, L"ProfileList");
-    if (!profileList)
-        return false;
-
-    ComPtr<IUIAutomationCondition> trueCond;
-    automation->CreateTrueCondition(&trueCond);
-
-    ComPtr<IUIAutomationElementArray> items;
-    profileList->FindAll(TreeScope_Children, trueCond.Get(), &items);
-    if (!items)
-        return false;
-
-    int count = 0;
-    items->get_Length(&count);
-
-    for (int i = 0; i < count; i++)
-    {
-        ComPtr<IUIAutomationElement> item;
-        items->GetElement(i, &item);
-        if (!item)
-            continue;
-
-        ComPtr<IUIAutomationElementArray> texts;
-        item->FindAll(TreeScope_Descendants, trueCond.Get(), &texts);
-        if (!texts)
-            continue;
-
-        int textCount = 0;
-        texts->get_Length(&textCount);
-        bool matched = false;
-        for (int j = 0; j < textCount && !matched; j++)
-        {
-            ComPtr<IUIAutomationElement> textEl;
-            texts->GetElement(j, &textEl);
-            if (!textEl)
-                continue;
-            BSTR name = nullptr;
-            textEl->get_CurrentName(&name);
-            if (name != nullptr)
-            {
-                if (gameTitle == name)
-                    matched = true;
-                SysFreeString(name);
-            }
-        }
-
-        if (matched)
-        {
-            ComPtr<IUIAutomationSelectionItemPattern> selectPattern;
-            if (SUCCEEDED(item->GetCurrentPatternAs(UIA_SelectionItemPatternId, IID_PPV_ARGS(&selectPattern))) && selectPattern)
-            {
-                selectPattern->Select();
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-// LSFG3Multiplier is a custom WPF NumberBox (Wpf.Ui.Controls), not a stock control -- confirmed
-// live, 2026-09-10, that driving it via ValuePattern::SetValue() silently does nothing (no error,
-// no effect, still showed its old value after). Its +/- spinner buttons are real InvokePattern
-// targets though (PART_InlineIncrementButton/PART_InlineDecrementButton, children of the
-// LSFG3Multiplier element itself -- the same AutomationIds also exist on several *other* NumberBox
-// fields in the same window, e.g. QueueTarget, MaxFrameLatency, the Crop fields, so these must be
-// searched for within multEl specifically, not the whole window).
-//
-// Does not try to read the current value first and compute a delta -- GetCurrentValue() on this
-// same custom control is likely exactly as unreliable as SetValue() was; not fully confirmed
-// either way (the whole control tree was unfindable in the same debugging session that later
-// confirmed Invoke genuinely works, on a freshly-restarted Lossless Scaling instance -- the long-
-// running one already open had accumulated corrupted UI Automation state after being shown/hidden
-// many times over one session, unrelated to this function). Sidesteps needing to know either way:
-// unconditionally decrements enough times to guarantee hitting the real floor (confirmed live to
-// be 1, not 2 -- the first version of this got that wrong, which alone accounted for every result
-// landing one step short of the intended target) regardless of the real starting value, then
-// increments exactly (target - floor) times.
-void SetMultiplierViaSteppers(IUIAutomation* automation, IUIAutomationElement* window, int target)
-{
-    constexpr int kFloor = 1;
-    constexpr int kDecrementsToGuaranteeFloor = 10; // comfortably more than (any plausible max) - kFloor
-
-    auto multEl = FindByAutomationId(automation, window, L"LSFG3Multiplier");
-    if (!multEl)
-        return;
-
-    auto clickButton = [&](const wchar_t* buttonId, int times)
-    {
-        auto stepButton = FindByAutomationId(automation, multEl.Get(), buttonId);
-        if (!stepButton)
-            return;
-        ComPtr<IUIAutomationInvokePattern> stepInvoke;
-        if (FAILED(stepButton->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&stepInvoke))) || !stepInvoke)
-            return;
-        for (int i = 0; i < times; i++)
-        {
-            stepInvoke->Invoke();
-            std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        }
-    };
-
-    clickButton(L"PART_InlineDecrementButton", kDecrementsToGuaranteeFloor);
-    clickButton(L"PART_InlineIncrementButton", target - kFloor);
-}
-
-// Runs the whole "briefly show -> select profile -> (optionally set multiplier) -> (optionally
-// click Scale) -> minimize again" sequence on its own thread with a fresh COM apartment, so this
-// never touches whatever COM state the game itself may already have on its own threads, and never
-// blocks the caller (the game's own render thread, if called from the in-game panel). Runs both
-// actions in one pass when both are requested, rather than two separate show/hide cycles.
-void RunAutomationAsync(const std::wstring& gameTitle, bool clickScale, int multiplierOrZero)
-{
-    std::thread(
-        [gameTitle, clickScale, multiplierOrZero]()
-        {
-            HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-            if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
+            if (!Launch(exePath))
                 return;
-
-            {
-                DWORD pid = FindProcessId(L"LosslessScaling.exe");
-                HWND hwnd = pid ? FindLosslessWindow(pid) : nullptr;
-                if (hwnd != nullptr)
-                {
-                    // SW_SHOWNOACTIVATE alone wasn't enough -- confirmed live that a click driven
-                    // through UI Automation while the window was only ever non-activated silently
-                    // did nothing, and worked as soon as the window got a real activation (the user
-                    // cycling the Launch/Close checkbox, whose Launch() uses a normal activating
-                    // show, fixed it). SetForegroundWindow from an unrelated external process was
-                    // already confirmed blocked by Windows' foreground-lock protection -- but this
-                    // code runs inside the game's own process, which already holds the foreground,
-                    // so the "calling process is the foreground process" exception to that
-                    // protection should apply here even though it didn't in that external test.
-                    ShowWindow(hwnd, SW_SHOW);
-                    SetForegroundWindow(hwnd);
-                    // Give WPF a moment to actually render/activate at least one frame -- confirmed
-                    // live that acting on it too soon after showing behaves the same as never shown.
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
-                    ComPtr<IUIAutomation> automation;
-                    if (SUCCEEDED(CoCreateInstance(CLSID_CUIAutomation, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&automation))) &&
-                        automation)
-                    {
-                        ComPtr<IUIAutomationElement> window;
-                        if (SUCCEEDED(automation->ElementFromHandle(hwnd, &window)) && window)
-                        {
-                            if (SelectProfileByTitle(automation.Get(), window.Get(), gameTitle))
-                            {
-                                std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-                                if (multiplierOrZero > 0)
-                                    SetMultiplierViaSteppers(automation.Get(), window.Get(), multiplierOrZero);
-
-                                if (clickScale)
-                                {
-                                    auto scaleBtn = FindByAutomationId(automation.Get(), window.Get(), L"ScaleButton");
-                                    if (scaleBtn)
-                                    {
-                                        ComPtr<IUIAutomationInvokePattern> invokePattern;
-                                        if (SUCCEEDED(scaleBtn->GetCurrentPatternAs(UIA_InvokePatternId, IID_PPV_ARGS(&invokePattern))) &&
-                                            invokePattern)
-                                        {
-                                            invokePattern->Invoke();
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-                    // Deliberately no explicit SetForegroundWindow back to the game here --
-                    // confirmed live that it was the actual cause of a real bug: it generates its
-                    // own genuine foreground-change event, which Lossless Scaling's AutoScale (on
-                    // for our profile, by design) reacts to immediately -- turning Frame Generation
-                    // back on right after a click had just turned it off, every time. Minimizing
-                    // this window already naturally hands focus back to the game on its own,
-                    // without generating that same event, so this only needs the minimize.
-                    ShowWindow(hwnd, SW_MINIMIZE);
-                }
-            }
-
-            CoUninitialize();
-        })
-        .detach();
+            // Wait for the process, then give its keyboard hook time to install (it is set up in
+            // Lossless Scaling's MainWindow constructor, after settings load).
+            if (!WaitForRunning(6000))
+                return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+        }
+        SendToggleChord(mods, vk);
+    }).detach();
 }
-} // namespace
 
-void LosslessScaling::TriggerScaleAsync(const std::wstring& gameTitle) { RunAutomationAsync(gameTitle, true, 0); }
-
-void LosslessScaling::SetMultiplierAsync(const std::wstring& gameTitle, int multiplier)
+void LosslessScaling::DeactivateAsync(int mods, int vk)
 {
-    RunAutomationAsync(gameTitle, false, multiplier);
+    std::thread([mods, vk]()
+    {
+        if (!IsRunning())
+            return;
+        SendToggleChord(mods, vk);
+    }).detach();
+}
+
+void LosslessScaling::SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier,
+                                         int mods, int vk, bool wasActive)
+{
+    std::thread([exePath, gameTitle, multiplier, mods, vk, wasActive]()
+    {
+        if (!PatchMultiplierInSettings(gameTitle, multiplier))
+            return; // Couldn't write it -- nothing to restart for.
+
+        if (!IsRunning())
+            return; // Not running: the new value is read on next launch. Done.
+
+        // Running: it only reads the profile at startup, so restart to pick up the new multiplier.
+        Close();
+        // Wait for it to actually exit before relaunching.
+        for (int i = 0; i < 40 && IsRunning(); i++) // up to ~4s
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+        if (!Launch(exePath))
+            return;
+        if (!WaitForRunning(6000))
+            return;
+        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+        // Re-scale only if it was scaling before the multiplier change.
+        if (wasActive)
+            SendToggleChord(mods, vk);
+    }).detach();
 }

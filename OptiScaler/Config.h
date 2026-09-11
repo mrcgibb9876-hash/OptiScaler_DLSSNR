@@ -566,6 +566,15 @@ class Config
     CustomOptional<int> LosslessScalingMultiplier { 2 };
     CustomOptional<int> LosslessScalingTarget { 120 };
 
+    // Lossless Scaling's own global Frame-Generation toggle hotkey, as OptiDLSS5-UI read it out of
+    // Lossless Scaling's Settings.xml (<Hotkey>/<HotkeyModifierKeys>). The in-game panel synthesises
+    // this chord to turn scaling on/off without ever showing Lossless Scaling's window -- see
+    // LosslessScaling.h for why the hotkey, not UI Automation. Mods is a LosslessScaling::Mod
+    // bitmask (1=Ctrl,2=Alt,4=Shift,8=Win); Vk is the base virtual-key code. Default Ctrl+Alt+S,
+    // matching Lossless Scaling's own default, so it works even if OptiDLSS5-UI never wrote these.
+    CustomOptional<int> LosslessScalingHotkeyMods { 3 };
+    CustomOptional<int> LosslessScalingHotkeyVk { 0x53 };
+
     // --- end DLSS 5 Neural Rendering -------------------------------------------------------------
 
     // DLSS

@@ -676,6 +676,12 @@ void RenderMenu(Config* config, float menuResScale)
             }
             else
             {
+                // The global-hotkey chord OptiDLSS5-UI read from Lossless Scaling's own settings
+                // (default Ctrl+Alt+S). Everything below drives Lossless Scaling through it and
+                // through process launch/close only -- never its window, which is never shown.
+                const int lsMods = config->LosslessScalingHotkeyMods.value_or_default();
+                const int lsVk = config->LosslessScalingHotkeyVk.value_or_default();
+
                 bool lsRunning = LosslessScaling::IsRunning();
                 if (NrCheckbox(Tr("Lossless Scaling"), &lsRunning))
                 {
@@ -685,38 +691,49 @@ void RenderMenu(Config* config, float menuResScale)
                         LosslessScaling::Close();
                 }
                 ImGui::SameLine();
-                HelpMarker(Tr("Launches/closes Lossless Scaling in the background."));
+                HelpMarker(Tr("Launches/closes Lossless Scaling in the background (minimized to tray, no "
+                              "window shown). Turning Active on below launches it for you too."));
 
                 static bool scalingBelieved = false;
                 bool scalingRow = scalingBelieved;
-                ImGui::BeginDisabled(!lsRunning);
                 ImGui::SameLine();
                 if (NrCheckbox(Tr("Active"), &scalingRow))
                 {
                     scalingBelieved = scalingRow;
-                    LosslessScaling::TriggerScaleAsync(losslessGameTitle);
-
-                    // Two frame generators at once stack their generated frames -- stutter at best,
-                    // a crash at worst. OptiScaler's own FG is ours to switch off here; the game's
-                    // native DLSS Frame Generation is a game setting, so that gets a reminder below.
-                    if (scalingRow && config->FGEnabled.value_or_default())
+                    if (scalingRow)
                     {
-                        config->FGEnabled = false;
-                        state.fgChanged = true;
-                        anyChanged = true;
+                        // Launches Lossless Scaling if needed, then synthesises its toggle hotkey --
+                        // its handler scales whatever profile matches the foreground window (this
+                        // game). No window is shown.
+                        LosslessScaling::ActivateAsync(losslessExePath, lsMods, lsVk);
+
+                        // Two frame generators at once stack their generated frames -- stutter at
+                        // best, a crash at worst. OptiScaler's own FG is ours to switch off here; the
+                        // game's native DLSS Frame Generation is a game setting, so it gets a
+                        // reminder below.
+                        if (config->FGEnabled.value_or_default())
+                        {
+                            config->FGEnabled = false;
+                            state.fgChanged = true;
+                            anyChanged = true;
+                        }
+                    }
+                    else
+                    {
+                        LosslessScaling::DeactivateAsync(lsMods, lsVk);
                     }
                 }
                 ImGui::SameLine();
-                HelpMarker(Tr("Toggles its Frame Generation (same as its own Ctrl+Alt+S). Its window "
-                              "briefly flashes each time -- unavoidable. Shows what was last requested, "
-                              "not a confirmed live state.\n\nTurning this on switches OptiScaler's own "
-                              "Frame Generation off: two frame generators at once stack."));
+                HelpMarker(Tr("Turns Lossless Scaling's Frame Generation on/off for this game via its own "
+                              "global hotkey -- no window is shown, and it launches Lossless Scaling first "
+                              "if needed. Shows what was last requested, not a confirmed live state.\n\n"
+                              "Turning this on switches OptiScaler's own Frame Generation off: two frame "
+                              "generators at once stack."));
                 if (losslessAdaptive)
                 {
                     // Adaptive mode has no multiplier to step -- Lossless Scaling decides per frame
                     // how many to generate to hold the target. The target itself is set in
                     // OptiDLSS5-UI (it lives in the profile, not here).
-                    ImGui::EndDisabled();
                     ImGui::SameLine();
                     ImGui::TextColored(kTextDim, Tr("Adaptive: holds %d fps"),
                                        config->LosslessScalingTarget.value_or_default());
@@ -738,14 +755,18 @@ void RenderMenu(Config* config, float menuResScale)
                         if (NrCheckbox(label, &selected) && selected)
                         {
                             multiplierBelieved = m;
-                            LosslessScaling::SetMultiplierAsync(losslessGameTitle, m);
+                            // Writes the new multiplier into this game's profile and, if Lossless
+                            // Scaling is running, restarts it to pick the value up (it only reads
+                            // profiles at startup), re-scaling afterwards when it was already active.
+                            LosslessScaling::SetMultiplierAsync(losslessExePath, losslessGameTitle, m, lsMods,
+                                                                lsVk, scalingBelieved);
                         }
                     }
-                    ImGui::EndDisabled();
                     ImGui::SameLine();
-                    HelpMarker(Tr("Frames generated per real one -- applies live. Needs this game running "
-                                  "Borderless or Windowed, not exclusive Fullscreen (DX12 games are usually "
-                                  "fine either way)."));
+                    HelpMarker(Tr("Frames generated per real one. If Lossless Scaling is already running it "
+                                  "briefly restarts to apply -- Frame Gen blinks off for a second. Needs "
+                                  "this game running Borderless or Windowed, not exclusive Fullscreen (DX12 "
+                                  "games are usually fine either way)."));
                 }
                 if (lsRunning)
                     ImGui::TextColored(kTextDim, "%s",
