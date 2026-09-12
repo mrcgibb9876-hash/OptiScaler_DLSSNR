@@ -39,6 +39,8 @@ constexpr Entry<float> kFloats[] = {
     { "LocalStructure", &Config::DlssNrLocalStructure },
     { "LocalTone", &Config::DlssNrLocalTone },
     { "MaxRatio", &Config::DlssNrMaxRatio },
+    { "PanelX", &Config::DlssNrPanelX },
+    { "PanelY", &Config::DlssNrPanelY },
     { "ScanAnchorValue", &Config::DlssNrScanAnchorValue },
     { "ScanAnchorWhitePoint", &Config::DlssNrScanAnchorWhitePoint },
     { "ScanTrim", &Config::DlssNrScanTrim },

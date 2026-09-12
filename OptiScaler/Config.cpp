@@ -384,6 +384,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrVendorColours.set_from_config(readBool("DlssNr", "VendorColours"));
             DlssNrLanguage.set_from_config(readString("DlssNr", "Language", true));
             DlssNrFontScale.set_from_config(readFloat("DlssNr", "FontScale"));
+            DlssNrPanelX.set_from_config(readFloat("DlssNr", "PanelX"));
+            DlssNrPanelY.set_from_config(readFloat("DlssNr", "PanelY"));
             DlssNrReversibleMode.set_from_config(readUInt("DlssNr", "ReversibleMode"));
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
             DlssNrHoldFrame.set_from_config(readBool("DlssNr", "HoldFrame"));
@@ -1304,6 +1306,8 @@ bool Config::SaveIni()
                      GetBoolValue(Instance()->DlssNrVendorColours.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Language", Instance()->DlssNrLanguage.value_for_config_or(std::string("auto")).c_str());
         ini.SetValue("DlssNr", "FontScale", GetFloatValue(Instance()->DlssNrFontScale.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "PanelX", GetFloatValue(Instance()->DlssNrPanelX.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "PanelY", GetFloatValue(Instance()->DlssNrPanelY.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ReversibleMode",
                      GetIntValue(Instance()->DlssNrReversibleMode.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ApplyModel", GetBoolValue(Instance()->DlssNrApplyModel.value_for_config()).c_str());

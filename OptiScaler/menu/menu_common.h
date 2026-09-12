@@ -208,6 +208,10 @@ class MenuCommon
     // keyboard focus for itself.
     static bool IsSharedMenuVisible() { return _isVisible; }
 
+    // The panel's own close button. Goes through the same path as its key so the cursor, input
+    // capture and any open combo are handled exactly as a key press would -- next frame.
+    static void CloseDlssNrPanel();
+
     static HWND Handle() { return _handle; }
 
     // Renders one keybind row: a button that captures the next key, the current binding, and a

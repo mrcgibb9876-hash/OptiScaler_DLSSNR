@@ -58,6 +58,12 @@ static bool inputFG = false;
 static bool inputFps = false;
 static bool inputFpsCycle = false;
 static bool inputDlssNrPanel = false;
+
+void MenuCommon::CloseDlssNrPanel()
+{
+    if (_dlssNrVisible)
+        inputDlssNrPanel = true;
+}
 static uint64_t lastInputTick = 0;
 constexpr uint64_t debounceThreshold = 1000;
 

@@ -532,6 +532,12 @@ class Config
     // the old size.
     CustomOptional<float> DlssNrFontScale { 1.15f };
 
+    // Where the DLSS 5 panel sits: its top-left corner as a fraction of the display (0..1 on each
+    // axis), so a spot chosen at one resolution comes back at another. Negative means the default
+    // -- pinned to the left edge, vertically centred. Written by the panel itself when dragged.
+    CustomOptional<float> DlssNrPanelX { -1.0f };
+    CustomOptional<float> DlssNrPanelY { -1.0f };
+
     // Writes one set of matched before/after frames per session, without anyone having to ask. The
     // folder is cleared at the start of each run, so it holds one session's worth and never grows.
     CustomOptional<bool> DlssNrAutoCapture { true };

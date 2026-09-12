@@ -560,11 +560,50 @@ void RenderMenu(Config* config, float menuResScale)
 
     float rowWidth = PanelWidth(menuResScale);
 
-    // Pinned to the left edge, vertically centred -- the position NVIDIA's own overlay uses.
-    // Not user-movable: this is the only thing this build shows, so there is nothing to arrange
-    // it around.
-    float margin = 24.0f * menuResScale;
-    ImGui::SetNextWindowPos(ImVec2(margin, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.0f, 0.5f));
+    // Where the panel goes. The default is pinned to the left edge, vertically centred -- the
+    // position NVIDIA's own overlay uses. Drag anywhere on its background to move it: ImGui moves
+    // a title-less window by its body, so all this has to do is stop re-pinning it every frame.
+    // The position is only forced for two frames after the panel opens (the first frame has no
+    // size yet, so the vertical centring needs a second go), after a display-size change, and
+    // after Reset position; otherwise the window keeps whatever ImGui has it at. Once the mouse
+    // is up, wherever it ended is written to [DlssNr] PanelX / PanelY as a fraction of the display
+    // -- per game, since the ini is per game -- and clamped so no part of it can be dragged off
+    // the screen and lost.
+    const float margin = 24.0f * menuResScale;
+    static ImVec2 s_display(0.0f, 0.0f);
+    static ImVec2 s_size(0.0f, 0.0f);     // last frame's window size, for centring and clamping
+    static ImVec2 s_placed(-1.0f, -1.0f); // where this code last put the window, in pixels
+    static int s_placeFrames = 0;
+    static int s_lastFrame = -10;
+
+    if (ImGui::GetFrameCount() != s_lastFrame + 1)
+        s_placeFrames = 2; // just opened (this is only called while the panel is visible)
+    s_lastFrame = ImGui::GetFrameCount();
+
+    if (s_display.x != io.DisplaySize.x || s_display.y != io.DisplaySize.y)
+    {
+        s_display = io.DisplaySize;
+        s_placeFrames = 2;
+    }
+
+    const bool customPos =
+        config->DlssNrPanelX.value_or_default() >= 0.0f && config->DlssNrPanelY.value_or_default() >= 0.0f;
+
+    auto clampToDisplay = [&](ImVec2 p)
+    {
+        const float maxX = std::max(0.0f, io.DisplaySize.x - s_size.x);
+        const float maxY = std::max(0.0f, io.DisplaySize.y - s_size.y);
+        return ImVec2(std::clamp(p.x, 0.0f, maxX), std::clamp(p.y, 0.0f, maxY));
+    };
+
+    if (s_placeFrames > 0)
+    {
+        ImVec2 target = customPos ? clampToDisplay(ImVec2(config->DlssNrPanelX.value_or_default() * io.DisplaySize.x,
+                                                          config->DlssNrPanelY.value_or_default() * io.DisplaySize.y))
+                                  : ImVec2(margin, io.DisplaySize.y * 0.5f - s_size.y * 0.5f);
+        ImGui::SetNextWindowPos(target, ImGuiCond_Always);
+        s_placed = target;
+    }
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kPanelBg);
     ImGui::PushStyleColor(ImGuiCol_Border, g_pal->overlay(0.10f));
@@ -587,9 +626,11 @@ void RenderMenu(Config* config, float menuResScale)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 9.0f * menuResScale));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
 
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-                             ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-                             ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoScrollbar;
+    // No NoMove: that is what makes it draggable. NoSavedSettings stays -- the position lives in
+    // OptiScaler.ini with everything else, not in an imgui.ini.
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
+                             ImGuiWindowFlags_NoScrollbar;
 
     bool anyChanged = false;
 
@@ -622,9 +663,59 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
+        {
+            const ImVec2 pos = ImGui::GetWindowPos();
+            s_size = ImGui::GetWindowSize();
+
+            if (s_placeFrames > 0)
+            {
+                s_placeFrames--;
+            }
+            else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && (pos.x != s_placed.x || pos.y != s_placed.y))
+            {
+                // The mouse is up and the window is not where this code left it: the user dragged
+                // it. Keep it on screen, remember it, and save with the rest of the panel's state.
+                const ImVec2 kept = clampToDisplay(pos);
+                if (kept.x != pos.x || kept.y != pos.y)
+                    ImGui::SetWindowPos(kept, ImGuiCond_Always);
+                s_placed = kept;
+                config->DlssNrPanelX = io.DisplaySize.x > 0.0f ? kept.x / io.DisplaySize.x : 0.0f;
+                config->DlssNrPanelY = io.DisplaySize.y > 0.0f ? kept.y / io.DisplaySize.y : 0.0f;
+                anyChanged = true;
+            }
+        }
+
         ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
         TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
         ImGui::PopStyleColor();
+        HelpMarker(Tr("Drag anywhere on the panel's background to move it. The spot is remembered for this game,"
+                      "\nas a fraction of the screen, so it comes back at any resolution."));
+
+        if (customPos)
+        {
+            ImGui::SameLine();
+            if (ImGui::SmallButton((std::string(Tr("Reset position")) + "##panelpos").c_str()))
+            {
+                config->DlssNrPanelX = -1.0f;
+                config->DlssNrPanelY = -1.0f;
+                s_placeFrames = 2;
+                anyChanged = true;
+            }
+        }
+
+        // Close, at the right end of the title row. A plain X: every font this panel can be drawn
+        // in has one, which is not true of the multiplication sign or the box-drawing crosses.
+        {
+            const float xWidth = ImGui::CalcTextSize("X").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+            ImGui::SameLine(rowWidth - xWidth);
+            if (ImGui::SmallButton("X##closepanel"))
+                MenuCommon::CloseDlssNrPanel();
+            if (ImGui::BeginItemTooltip())
+            {
+                ImGui::TextUnformatted(Tr("Close the panel. Its key opens it again."));
+                ImGui::EndTooltip();
+            }
+        }
 
         ImGui::Spacing();
 
