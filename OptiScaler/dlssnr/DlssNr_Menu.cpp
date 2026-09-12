@@ -8,6 +8,7 @@
 #include <Config.h>
 #include <misc/IdentifyGpu.h>
 #include <misc/LosslessScaling.h>
+#include <hooks/Streamline_Hooks.h>
 
 #include <menu/menu_common.h>
 
@@ -1147,16 +1148,130 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nControls above, and from Detail strength below, which scales the result"
                       "\nafterwards."));
 
-        // Frame Generation -- NVIDIA's own DLSS-G (Streamline), driven the same way the old
-        // shared menu's "MFG" combo and "Force Dynamic MFG" checkbox did: straight through
-        // config->FGDLSSGInterpolationCount / FGDLSSGForceDMFG, which DLSSG_Dx12::Dispatch()
-        // reads every frame and hands to sl::DLSSGOptions.numFramesToGenerate. Nothing here
-        // touches OptiFG (the Nukem's FSR3-based fallback used when the game has no native
-        // frame generation) -- that path is FGOutput::FSRFG/XeFG, not FGOutput::DLSSG, and is
-        // deliberately left out of this panel.
+        // Frame Generation -- NVIDIA's own DLSS-G (Streamline). Two ways it can be running:
+        //
+        //  1. The GAME's own DLSS Frame Generation (the common case for every title that ships
+        //     sl.dlss_g.dll: Cyberpunk, Stellar Blade, Witcher 3...). Turning it on or off is the
+        //     game's own video setting; what this panel can do is override the multiplier the game
+        //     asks the driver for, through config->FGDLSSGOverrideInterpolationCount /
+        //     FGDLSSGOverrideForceDMFG, which StreamlineHooks::hkslDLSSGSetOptions applies to every
+        //     slDLSSGSetOptions the game makes (and updateDlssgOptions() re-sends the last one so a
+        //     change here lands immediately, not on the game's next settings change).
+        //
+        //  2. OptiScaler's OWN DLSS-G instance (FGOutput=dlssg, for a game that only has DLSS
+        //     upscaling), driven the same way the old shared menu's "MFG" combo did: straight
+        //     through config->FGDLSSGInterpolationCount / FGDLSSGForceDMFG, which
+        //     DLSSG_Dx12::Dispatch() reads every frame.
+        //
+        // Until 2026-09-12 only case 2 had controls here, and the manager app never enables that
+        // output (it leaves frame gen to the game -- see OptiDLSS5-UI's autoConfigureGame), so on
+        // every native-DLSS game the section only ever said "not the active output".
+        //
+        // Nothing here touches OptiFG (the FSR3-based fallback used when the game has no frame
+        // generation at all) -- that path is FGOutput::FSRFG/XeFG and is deliberately left out.
         SectionCaption(Tr("Frame Generation"), rowWidth);
 
-        if (state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr)
+        const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr;
+        // The game's sl.dlss_g.dll got hooked -- it ships and loads DLSS-G of its own. Streamline
+        // loads the plugin at startup whether or not the user has the option on, so this is true
+        // from the first frame; dlssgMfgMax (below) only fills in once FG has actually been on.
+        const bool gameDlssg = !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
+
+        if (gameDlssg)
+        {
+            // What the game is doing right now: the count NGX saw on its last DLSS-G evaluate
+            // (0 = off, 1 = 2X, ...), reset to 0 a few frames after FG stops being evaluated.
+            const int live = state.dlssgDetectedInterpolationCount;
+            if (live > 0)
+            {
+                char running[96];
+                snprintf(running, sizeof(running), Tr("Game's DLSS Frame Generation: running at %dX"), live + 1);
+                ImGui::TextUnformatted(running);
+            }
+            else
+            {
+                ImGui::TextColored(kTextDim, "%s", Tr("Game's DLSS Frame Generation: off in the game's video settings."));
+            }
+            HelpMarker(Tr("This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the"
+                          "\ngame's video settings as usual -- the row below only changes the multiplier"
+                          "\nit asks the driver for."));
+
+            // 4X (3 generated frames) is the most any card does today, and the hook clamps the
+            // override to what the driver reported once FG has been on (dlssgMfgMax) -- so before
+            // that is known, offer up to 4X and let it clamp. An RTX 40 card gets 2X either way.
+            const int maxCount = std::clamp(state.dlssgMfgMax.value_or(3), 1, 5);
+            static const char* gameMultNames[] = { "2X", "3X", "4X", "5X", "6X" };
+            const int shown = maxCount + 1; // "Game" + one button per multiplier
+            const int currentOverride = config->FGDLSSGOverrideInterpolationCount.has_value()
+                                            ? config->FGDLSSGOverrideInterpolationCount.value()
+                                            : 0;
+
+            const bool dmfgForced = state.dlssgGameDMFGSupported && config->FGDLSSGOverrideForceDMFG.value_or_default();
+
+            ImGui::BeginDisabled(dmfgForced);
+            {
+                float spacing = ImGui::GetStyle().ItemSpacing.x;
+                float btnWidth = (rowWidth - spacing * (shown - 1)) / shown;
+
+                for (int i = 0; i < shown; i++)
+                {
+                    if (i > 0)
+                        ImGui::SameLine();
+
+                    ImGui::PushID(100 + i);
+                    const char* label = i == 0 ? Tr("Game") : gameMultNames[i - 1];
+                    if (ModelButton(label, currentOverride == i, btnWidth))
+                    {
+                        if (i == 0)
+                        {
+                            LOG_DEBUG("DLSSG override cleared -- game's own multiplier");
+                            config->FGDLSSGOverrideInterpolationCount.reset();
+                        }
+                        else
+                        {
+                            LOG_DEBUG("DLSSG override interpolation count set to: {}", i);
+                            config->FGDLSSGOverrideInterpolationCount = i;
+                        }
+                        StreamlineHooks::updateDlssgOptions();
+                        anyChanged = true;
+                    }
+                    ImGui::PopID();
+                }
+            }
+            ImGui::EndDisabled();
+            HelpMarker(Tr("Overrides how many extra frames the game's DLSS-G inserts between real ones."
+                          "\n\"Game\" leaves it at whatever the game's own menu says. 2X inserts one, 3X"
+                          "\ninserts two, and so on. 3X and 4X need an RTX 50 series -- other cards are"
+                          "\ncapped at 2X by the driver, whatever is picked here."
+                          "\n\nGreyed out while Multi is on below -- the driver picks the count then."));
+
+            if (state.dlssgGameDMFGSupported)
+            {
+                bool dynamic = config->FGDLSSGOverrideForceDMFG.value_or_default();
+                if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dynamic))
+                {
+                    config->FGDLSSGOverrideForceDMFG = dynamic;
+                    StreamlineHooks::updateDlssgOptions();
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
+                              "\nthe FPS target below -- instead of a fixed 2X/3X/4X."));
+
+                ImGui::BeginDisabled(!dynamic);
+                float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
+                auto rFps = NrSlider(Tr("DMFG FPS Target"), &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
+                if (rFps.changed)
+                    config->FGDLSSGFramerateTargetDMFG = fpsTarget;
+                if (rFps.released)
+                {
+                    StreamlineHooks::updateDlssgOptions();
+                    anyChanged = true;
+                }
+                ImGui::EndDisabled();
+                HelpMarker(Tr("0 auto-detects your display's refresh rate."));
+            }
+        }
+        else if (optiDlssg)
         {
             auto* fg = state.currentFG;
 
@@ -1232,7 +1347,9 @@ void RenderMenu(Config* config, float menuResScale)
         }
         else
         {
-            ImGui::TextColored(kTextDim, "%s", Tr("NVIDIA DLSS Frame Generation is not the active output right now."));
+            // Neither the game nor OptiScaler has DLSS-G here. (The old text, "not the active
+            // output", read as a fault on every native-DLSS game; it was really this case.)
+            ImGui::TextColored(kTextDim, "%s", Tr("This game has no NVIDIA DLSS Frame Generation of its own."));
         }
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
