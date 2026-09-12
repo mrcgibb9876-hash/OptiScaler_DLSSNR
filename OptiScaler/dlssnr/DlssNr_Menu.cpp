@@ -924,8 +924,8 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nupscaled frame. On runs it at render resolution on the colour SR is about to"
                       "\nconsume, so SR then accumulates and upscales an already-enhanced picture."
                       "\n\nRay Reconstruction always stays on the post-upscale path -- its inputs are a"
-                      "\ndifferent contract. Padded or offset dynamic-resolution inputs quietly fall back"
-                      "\nthere too, rather than being run on dimensions that aren't what they look like."
+                      "\ndifferent contract. A colour image padded inside a larger texture is staged at its"
+                      "\nreal size; one offset from the corner still falls back after upscaling."
                       "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement."));
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
