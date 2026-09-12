@@ -782,19 +782,36 @@ void RenderMenu(Config* config, float menuResScale)
                 const int lsMods = config->LosslessScalingHotkeyMods.value_or_default();
                 const int lsVk = config->LosslessScalingHotkeyVk.value_or_default();
 
+                // What this row believes about Lossless Scaling's Frame Generation: the last
+                // request made here. It cannot be read back (no API), but one thing is certain:
+                // with no Lossless Scaling process there is no scaling. So a belief of "on" is
+                // dropped once the process is gone -- after a grace period, because Active
+                // launches it asynchronously and the process takes a few seconds to appear.
+                // Without this, closing it and pressing Active again sent the toggle chord to a
+                // fresh instance as an "off", which turned it on.
+                static bool scalingBelieved = false;
+                static uint64_t scalingRequestedAt = 0;
+
                 bool lsRunning = LosslessScaling::IsRunning();
+                if (!lsRunning && scalingBelieved && GetTickCount64() - scalingRequestedAt > 10000)
+                    scalingBelieved = false;
+
                 if (NrCheckbox(Tr("Lossless Scaling"), &lsRunning))
                 {
                     if (lsRunning)
+                    {
                         LosslessScaling::Launch(losslessExePath);
+                    }
                     else
+                    {
                         LosslessScaling::Close();
+                        scalingBelieved = false;
+                    }
                 }
                 ImGui::SameLine();
                 HelpMarker(Tr("Launches/closes Lossless Scaling in the background (minimized to tray, no "
                               "window shown). Turning Active on below launches it for you too."));
 
-                static bool scalingBelieved = false;
                 bool scalingRow = scalingBelieved;
                 ImGui::SameLine();
                 if (NrCheckbox(Tr("Active"), &scalingRow))
@@ -802,6 +819,7 @@ void RenderMenu(Config* config, float menuResScale)
                     scalingBelieved = scalingRow;
                     if (scalingRow)
                     {
+                        scalingRequestedAt = GetTickCount64();
                         // Launches Lossless Scaling if needed, then synthesises its toggle hotkey --
                         // its handler scales whatever profile matches the foreground window (this
                         // game). No window is shown.

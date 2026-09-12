@@ -7793,7 +7793,9 @@ void KeyUp(UINT vKey)
     inputFps = BindMatches(vKey, config->FpsShortcutKey.value_or_default());
     inputFG = BindMatches(vKey, config->FGShortcutKey.value_or_default());
     inputFpsCycle = BindMatches(vKey, config->FpsCycleShortcutKey.value_or_default());
-    inputDlssNrPanel = BindMatches(vKey, config->DlssNrPanelKey.value_or_default());
+    // Or, not assign: the panel's own close X sets this from the render thread, and a key release
+    // arriving in the same frame (a held movement key, say) must not clear that request.
+    inputDlssNrPanel = inputDlssNrPanel || BindMatches(vKey, config->DlssNrPanelKey.value_or_default());
 }
 
 // The lamp, and only the lamp.

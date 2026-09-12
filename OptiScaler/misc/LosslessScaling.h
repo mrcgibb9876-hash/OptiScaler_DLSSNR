@@ -27,7 +27,18 @@
 //     handler activates whatever profile matches the current FOREGROUND window, which in-game is
 //     the game itself -- so no profile has to be selected in any list. The chord just has to be
 //     synthesised with a real gap between key events (its handler reads Keyboard.IsKeyDown for the
-//     modifiers at the instant it sees the base key); a zero-gap burst is missed.
+//     modifiers at the instant it sees the base key); a zero-gap burst is missed. When the chord
+//     matches, that hook swallows the base key's press (returns 1), so the game never sees an S
+//     key-down -- only the modifier hold and a stray key-up (read from its decompiled
+//     GlobalKeyboardHook, 2026-09-12).
+//
+// WHAT LOSSLESS SCALING DOES WITH ITS SETTINGS FILE (from its decompiled MainWindow, 2026-09-12):
+//   * Profiles are read from Settings.xml once, at startup. There is no live re-read.
+//   * It writes its in-memory settings back over the file from its own UI (profile edits, window
+//     size changes) and from a real close through its Closing handler -- but not when killed. With
+//     <CloseToTray>true (which OptiDLSS5-UI sets) a WM_CLOSE only hides it to the tray.
+//   So a change to the file only sticks if it is made while Lossless Scaling is not running, and
+//   only takes effect once it starts: SetMultiplierAsync stops it, patches, then starts it again.
 class LosslessScaling
 {
   public:
@@ -41,18 +52,19 @@ class LosslessScaling
     };
 
     // Any process named LosslessScaling.exe, not just one this class started -- the user may
-    // already have it open.
+    // already have it open. Cached for half a second: the panel asks every frame, and a process
+    // snapshot is not free. A Launch or Close through this class refreshes it at once.
     static bool IsRunning();
 
     // Launches Lossless Scaling minimized (-StartMinimized + its own tray settings keep it out of
     // sight). False if exePath is empty/missing or CreateProcess fails. Does not wait.
     static bool Launch(const std::wstring& exePath);
 
-    // Posts WM_CLOSE, then force-terminates if still alive after a short grace period (Lossless
-    // Scaling keeps running in the background on WM_CLOSE alone). Best-effort: terminating a
-    // higher-integrity process from a medium-IL game is denied by Windows, which is another reason
-    // OptiDLSS5-UI sets <StartAsAdmin>false. Returns false only if it was not running. Runs its
-    // wait on a detached thread so a stuck Lossless Scaling never stalls the caller.
+    // Posts WM_CLOSE, then terminates if still alive after a short grace (Lossless Scaling keeps
+    // running in the tray on WM_CLOSE alone). Best-effort: terminating a higher-integrity process
+    // from a medium-IL game is denied by Windows, which is another reason OptiDLSS5-UI sets
+    // <StartAsAdmin>false. Returns false only if it was not running. Runs its wait on a detached
+    // thread so a stuck Lossless Scaling never stalls the caller.
     static bool Close();
 
     // Turn Lossless Scaling's Frame Generation ON for this game. Detached thread: ensures the
@@ -66,10 +78,10 @@ class LosslessScaling
 
     // Change the fixed multiplier for this game's profile. Lossless Scaling only reads its profiles
     // from Settings.xml at startup and exposes no live API a separate process can call, so this
-    // edits the game's own <Profile> in Settings.xml (a minimal, backed-up, value-only rewrite --
-    // no structural change, no XML declaration touched) and, if Lossless Scaling is running,
-    // restarts it so the new value is picked up, re-activating afterwards when wasActive. All on a
-    // detached thread. No window shown.
+    // stops it if it is running (a kill: a real close would write its stale in-memory copy back
+    // over the file), edits the game's own <Profile> in Settings.xml (a minimal, backed-up,
+    // value-only rewrite -- no structural change, no XML declaration touched), and starts it
+    // again, re-activating afterwards when wasActive. All on a detached thread. No window shown.
     static void SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier,
                                    int mods, int vk, bool wasActive);
 };
