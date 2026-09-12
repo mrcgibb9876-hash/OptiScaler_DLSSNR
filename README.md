@@ -38,11 +38,11 @@ holding, so `Insert` still works mid-sprint with Shift down; a bind that names o
 exactly. **v1.0.0 and earlier used bare `Home`** for the panel. Everything else about OptiScaler — the actual
 upscaler/frame-gen hooking — is untouched.
 
-**Moving and closing the panel (v1.0.13):** hold the left mouse button on any part of the panel's
+**Moving and closing the panel (v1.0.14):** hold the left mouse button on any part of the panel's
 background — not on a slider or a checkbox — and drag it wherever you want. The spot is saved per
 game in `OptiScaler.ini` (`[DlssNr] PanelX` / `PanelY`, as fractions of the screen, so it comes
 back at any resolution) and a **Reset position** button appears in the title row until you use it.
-The **X** at the right end of the title row closes the panel; its key opens it again.
+The bright red **X** at the far right of the title row closes the panel; its key opens it again.
 
 <div align="center">
   <img src="images/dlss5ui/dlss5-developer-controls-ui.png" width="420" alt="DLSS 5 Developer Controls overlay" />

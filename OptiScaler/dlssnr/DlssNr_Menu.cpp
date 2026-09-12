@@ -703,13 +703,22 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
-        // Close, at the right end of the title row. A plain X: every font this panel can be drawn
-        // in has one, which is not true of the multiplication sign or the box-drawing crosses.
+        // Close: a bright red square X flush with the panel's right edge. A plain X: every font
+        // this panel can be drawn in has one, which is not true of the multiplication sign or the
+        // box-drawing crosses. Placed against the window's actual content width, not rowWidth --
+        // at a large font scale the title, the (?) and Reset position run wider than rowWidth and
+        // the window grows to fit them, and an X placed at rowWidth then lands on top of Reset.
         {
-            const float xWidth = ImGui::CalcTextSize("X").x + ImGui::GetStyle().FramePadding.x * 2.0f;
-            ImGui::SameLine(rowWidth - xWidth);
-            if (ImGui::SmallButton("X##closepanel"))
+            const float side = ImGui::GetFrameHeight();
+            const float contentWidth = ImGui::GetWindowSize().x - ImGui::GetStyle().WindowPadding.x * 2.0f;
+            ImGui::SameLine(std::max(rowWidth, contentWidth) - side);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.22f, 0.22f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.15f, 0.15f, 0.16f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.15f, 0.15f, 0.40f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.10f, 0.10f, 0.65f));
+            if (ImGui::Button("X##closepanel", ImVec2(side, side)))
                 MenuCommon::CloseDlssNrPanel();
+            ImGui::PopStyleColor(4);
             if (ImGui::BeginItemTooltip())
             {
                 ImGui::TextUnformatted(Tr("Close the panel. Its key opens it again."));
