@@ -400,6 +400,11 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown(void)
     State::Instance().nvngxDx12Inited = false;
 
     D3D12Device = nullptr;
+    // The game's own session is over: the next Init (a game that recreates its device after a
+    // display change, or a device-removed recovery) claims the primary slot again. Without this
+    // the recreated device would read as "foreign" in Shutdown1 and its shutdown would skip the
+    // state teardown above.
+    State::Instance().primaryD3D12Device = nullptr;
 
     State::Instance().currentFeature = nullptr;
 

@@ -140,13 +140,25 @@ const char* CodeForSelectorIndex(int index)
 
 void EnsureFonts(ImFontAtlas* atlas, float fontSize)
 {
-    // One attempt per font per session, whether or not the file was there: a missing font is a
-    // once-per-session log line, not a per-frame disk probe.
+    // One attempt per font per atlas, whether or not the file was there: a missing font is a
+    // once-per-atlas log line, not a per-frame disk probe. Per atlas, not per session: the menu
+    // destroys and recreates its ImGui context when the game's window handle changes
+    // (MenuOverlayDx), and the new atlas starts empty -- a flag that outlived the old atlas would
+    // leave the new one without the font, and the panel's Chinese or Korean drawing as boxes.
+    static const ImFontAtlas* triedAtlas = nullptr;
+    static int triedGeneration = -1; // atlas->Clear() keeps the pointer; the Sources count restarts
     static bool triedChinese = false;
     static bool triedKorean = false;
 
     if (atlas == nullptr)
         return;
+
+    if (atlas != triedAtlas || atlas->Sources.Size < triedGeneration)
+    {
+        triedAtlas = atlas;
+        triedChinese = false;
+        triedKorean = false;
+    }
 
     const std::string code = Lower(ActiveCode());
     const wchar_t* file = nullptr;
@@ -197,6 +209,11 @@ void EnsureFonts(ImFontAtlas* atlas, float fontSize)
     ImFont* merged = atlas->AddFontFromFileTTF(wstring_to_string(path).c_str(), fontSize, &cfg);
     LOG_INFO("DLSS 5 panel: merged {} for '{}' ({})", wstring_to_string(path), code,
              merged != nullptr ? "ok" : "failed");
+
+    // The count with this font in it: an atlas later cleared and rebuilt with only the base font
+    // falls below it, and the merge is done again.
+    if (merged != nullptr)
+        triedGeneration = atlas->Sources.Size;
 }
 
 } // namespace DlssNr::I18n
