@@ -14,6 +14,8 @@
 
 #include <imgui/imgui.h>
 
+#include "DlssNr_PanelLayout.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cfloat>
@@ -149,6 +151,27 @@ static const Palette* g_pal = &Light();
 #define kPanelBg (g_pal->panelBg)
 
 static float PanelWidth(float scale) { return 460.0f * scale; }
+
+// The engine's failure reasons stay English where they are made -- they also go to OptiScaler.log and
+// through the API, where support needs one wording -- and are translated here, at display. A fixed
+// reason is a translation key itself. The add-on conflict is built around a file name, so it is
+// matched by its tail and rebuilt from the translated pattern.
+static std::string TrReason(const char* reason)
+{
+    static const std::string kConflictTail = " is already doing this -- remove it, or turn this off";
+    const std::string text(reason != nullptr ? reason : "");
+
+    if (text.size() > kConflictTail.size() &&
+        text.compare(text.size() - kConflictTail.size(), kConflictTail.size(), kConflictTail) == 0)
+    {
+        const std::string file = text.substr(0, text.size() - kConflictTail.size());
+        char buf[512];
+        snprintf(buf, sizeof(buf), Tr("%s is already doing this -- remove it, or turn this off"), file.c_str());
+        return buf;
+    }
+
+    return Tr(text.c_str());
+}
 
 static void HelpMarker(const char* tip)
 {
@@ -559,52 +582,23 @@ void RenderMenu(Config* config, float menuResScale)
         g_pal = light ? (amd ? &LightAmd() : &Light()) : (amd ? &DarkAmd() : &Dark());
     }
 
+    // Where the panel goes and how big it is: see DlssNr_PanelLayout.h for the whole behaviour (drag
+    // the background to move, edges or the corner to resize, a strip always left on screen, fit to
+    // content until resized). Position and size live in [DlssNr] PanelX/Y/W/H, per game.
+    //
+    // rowWidth is the rows' layout width: fixed until the panel is resized, then the panel's inner
+    // width, never below minRowWidth -- narrower and the 44% label column runs into the sliders.
     float rowWidth = PanelWidth(menuResScale);
-
-    // Where the panel goes. The default is pinned to the left edge, vertically centred -- the
-    // position NVIDIA's own overlay uses. Drag anywhere on its background to move it: ImGui moves
-    // a title-less window by its body, so all this has to do is stop re-pinning it every frame.
-    // The position is only forced for two frames after the panel opens (the first frame has no
-    // size yet, so the vertical centring needs a second go), after a display-size change, and
-    // after Reset position; otherwise the window keeps whatever ImGui has it at. Once the mouse
-    // is up, wherever it ended is written to [DlssNr] PanelX / PanelY as a fraction of the display
-    // -- per game, since the ini is per game -- and clamped so no part of it can be dragged off
-    // the screen and lost.
-    const float margin = 24.0f * menuResScale;
-    static ImVec2 s_display(0.0f, 0.0f);
-    static ImVec2 s_size(0.0f, 0.0f);     // last frame's window size, for centring and clamping
-    static ImVec2 s_placed(-1.0f, -1.0f); // where this code last put the window, in pixels
-    static int s_placeFrames = 0;
-    static int s_lastFrame = -10;
-
-    if (ImGui::GetFrameCount() != s_lastFrame + 1)
-        s_placeFrames = 2; // just opened (this is only called while the panel is visible)
-    s_lastFrame = ImGui::GetFrameCount();
-
-    if (s_display.x != io.DisplaySize.x || s_display.y != io.DisplaySize.y)
-    {
-        s_display = io.DisplaySize;
-        s_placeFrames = 2;
-    }
-
-    const bool customPos =
-        config->DlssNrPanelX.value_or_default() >= 0.0f && config->DlssNrPanelY.value_or_default() >= 0.0f;
-
-    auto clampToDisplay = [&](ImVec2 p)
-    {
-        const float maxX = std::max(0.0f, io.DisplaySize.x - s_size.x);
-        const float maxY = std::max(0.0f, io.DisplaySize.y - s_size.y);
-        return ImVec2(std::clamp(p.x, 0.0f, maxX), std::clamp(p.y, 0.0f, maxY));
-    };
-
-    if (s_placeFrames > 0)
-    {
-        ImVec2 target = customPos ? clampToDisplay(ImVec2(config->DlssNrPanelX.value_or_default() * io.DisplaySize.x,
-                                                          config->DlssNrPanelY.value_or_default() * io.DisplaySize.y))
-                                  : ImVec2(margin, io.DisplaySize.y * 0.5f - s_size.y * 0.5f);
-        ImGui::SetNextWindowPos(target, ImGuiCond_Always);
-        s_placed = target;
-    }
+    const PanelLayout::Metrics layoutMetrics { rowWidth,
+                                               std::round(rowWidth * 0.8f),
+                                               160.0f * menuResScale,
+                                               24.0f * menuResScale,
+                                               64.0f * menuResScale,
+                                               ImVec2(18.0f, 14.0f) * menuResScale };
+    static PanelLayout::State s_layout;
+    PanelLayout::Settings layout { config->DlssNrPanelX.value_or_default(), config->DlssNrPanelY.value_or_default(),
+                                   config->DlssNrPanelW.value_or_default(), config->DlssNrPanelH.value_or_default() };
+    PanelLayout::BeforeBegin(s_layout, layout, layoutMetrics);
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kPanelBg);
     ImGui::PushStyleColor(ImGuiCol_Border, g_pal->overlay(0.10f));
@@ -620,18 +614,28 @@ void RenderMenu(Config* config, float menuResScale)
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered, g_pal->overlay(0.12f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive, g_pal->overlay(0.16f));
     ImGui::PushStyleColor(ImGuiCol_PopupBg, g_pal->popupBg);
+    // The resize grip (bottom-right) and the scrollbar a size-capped panel gets, in the panel's colours
+    // rather than stock ImGui blue/grey.
+    ImGui::PushStyleColor(ImGuiCol_ResizeGrip, g_pal->overlay(0.10f));
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.60f));
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.90f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, g_pal->overlay(0.16f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, g_pal->overlay(0.26f));
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(kAccent.x, kAccent.y, kAccent.z, 0.70f));
+    const int kPanelColourCount = 21;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(18.0f, 14.0f) * menuResScale);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, layoutMetrics.pad);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 9.0f * menuResScale));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
 
-    // No NoMove: that is what makes it draggable. NoSavedSettings stays -- the position lives in
-    // OptiScaler.ini with everything else, not in an imgui.ini.
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse |
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize |
-                             ImGuiWindowFlags_NoScrollbar;
+    // No NoMove: that is what makes it draggable. No NoResize / AlwaysAutoResize: that is what makes it
+    // resizable (the fit is done by hand above). No NoScrollbar: a panel shorter than its content
+    // scrolls. NoSavedSettings stays -- position and size live in OptiScaler.ini, not an imgui.ini.
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
 
     bool anyChanged = false;
 
@@ -662,57 +666,53 @@ void RenderMenu(Config* config, float menuResScale)
         if (!MenuCommon::IsSharedMenuVisible() && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
             ImGui::SetWindowFocus();
 
-        ImGui::Dummy(ImVec2(rowWidth, 0.0f));
+        // Measured before anything is placed, so the cursor is at the start of the first line: the
+        // width a row can use, with the scrollbar (when there is one) already taken off.
+        const float innerWidth = ImGui::GetContentRegionAvail().x;
 
+        if (PanelLayout::AfterBegin(s_layout, layout, layoutMetrics, rowWidth))
         {
-            const ImVec2 pos = ImGui::GetWindowPos();
-            s_size = ImGui::GetWindowSize();
-
-            if (s_placeFrames > 0)
-            {
-                s_placeFrames--;
-            }
-            else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left) && (pos.x != s_placed.x || pos.y != s_placed.y))
-            {
-                // The mouse is up and the window is not where this code left it: the user dragged
-                // it. Keep it on screen, remember it, and save with the rest of the panel's state.
-                const ImVec2 kept = clampToDisplay(pos);
-                if (kept.x != pos.x || kept.y != pos.y)
-                    ImGui::SetWindowPos(kept, ImGuiCond_Always);
-                s_placed = kept;
-                config->DlssNrPanelX = io.DisplaySize.x > 0.0f ? kept.x / io.DisplaySize.x : 0.0f;
-                config->DlssNrPanelY = io.DisplaySize.y > 0.0f ? kept.y / io.DisplaySize.y : 0.0f;
-                anyChanged = true;
-            }
+            // The user finished moving or resizing it: keep that with the rest of the panel's state.
+            config->DlssNrPanelX = layout.x;
+            config->DlssNrPanelY = layout.y;
+            config->DlssNrPanelW = layout.w;
+            config->DlssNrPanelH = layout.h;
+            anyChanged = true;
         }
+
+        ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
         ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
         TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
         ImGui::PopStyleColor();
-        HelpMarker(Tr("Drag anywhere on the panel's background to move it. The spot is remembered for this game,"
-                      "\nas a fraction of the screen, so it comes back at any resolution."));
+        HelpMarker(Tr("Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right"
+                      "\ncorner to resize it. It can hang partly off screen, but a strip always stays visible to"
+                      "\ngrab. Position and size are remembered for this game as a fraction of the screen, so"
+                      "\nthey come back at any resolution."));
 
-        if (customPos)
+        if (layout.CustomPos() || layout.CustomSize())
         {
             ImGui::SameLine();
-            if (ImGui::SmallButton((std::string(Tr("Reset position")) + "##panelpos").c_str()))
+            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
             {
                 config->DlssNrPanelX = -1.0f;
                 config->DlssNrPanelY = -1.0f;
-                s_placeFrames = 2;
+                config->DlssNrPanelW = -1.0f;
+                config->DlssNrPanelH = -1.0f;
+                s_layout.placeFrames = 2;
                 anyChanged = true;
             }
         }
 
         // Close: a bright red square X flush with the panel's right edge. A plain X: every font
         // this panel can be drawn in has one, which is not true of the multiplication sign or the
-        // box-drawing crosses. Placed against the window's actual content width, not rowWidth --
-        // at a large font scale the title, the (?) and Reset position run wider than rowWidth and
-        // the window grows to fit them, and an X placed at rowWidth then lands on top of Reset.
+        // box-drawing crosses. Placed against the window's actual inner width, not rowWidth -- at a
+        // large font scale the title, the (?) and Reset layout run wider than rowWidth and the window
+        // grows to fit them, and an X placed at rowWidth then lands on top of Reset. Inner width, not
+        // window width: a size-capped panel has a scrollbar, and the X must not sit under it.
         {
             const float side = ImGui::GetFrameHeight();
-            const float contentWidth = ImGui::GetWindowSize().x - ImGui::GetStyle().WindowPadding.x * 2.0f;
-            ImGui::SameLine(std::max(rowWidth, contentWidth) - side);
+            ImGui::SameLine(std::max(rowWidth, innerWidth) - side);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.22f, 0.22f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.15f, 0.15f, 0.16f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.15f, 0.15f, 0.40f));
@@ -942,7 +942,8 @@ void RenderMenu(Config* config, float menuResScale)
                 // Wrapped: some reasons name a file and what to do about it, which does not fit on
                 // one line at this panel's width.
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), Tr("Off for this session: %s."), reason);
+                ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.35f, 1.0f), Tr("Off for this session: %s."),
+                                   TrReason(reason).c_str());
                 ImGui::PopTextWrapPos();
 
                 ImGui::SameLine();
@@ -1976,7 +1977,8 @@ void RenderMenu(Config* config, float menuResScale)
                 if (found.empty())
                 {
                     ImGui::TextColored(kTextDim, "%s",
-                                       why != nullptr && why[0] != 0 ? why : Tr("nothing matched yet."));
+                                       // The scan's status is English at the source (it is logged too).
+                                       why != nullptr && why[0] != 0 ? Tr(why) : Tr("nothing matched yet."));
                 }
                 else
                 {
@@ -2256,7 +2258,7 @@ void RenderMenu(Config* config, float menuResScale)
     ImGui::End();
 
     ImGui::PopStyleVar(5);
-    ImGui::PopStyleColor(14);
+    ImGui::PopStyleColor(kPanelColourCount);
 
     // This overlay saves as you go rather than needing a Save button -- there is nothing else
     // in this build's menu to put one on.
