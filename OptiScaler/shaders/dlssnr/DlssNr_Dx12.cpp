@@ -802,9 +802,8 @@ void ReleaseSurfacesIfFormatChanged(DXGI_FORMAT needed)
         g_nr.passPendingSubmission[i] = false;
     }
 
-    for (ID3D12Resource** r :
-         { &g_nr.output, &g_nr.passScratch, &g_nr.colorCopy, &g_nr.hdrCopy, &g_nr.colorSmall,
-           &g_nr.outputNative, &g_nr.activeColor })
+    for (ID3D12Resource** r : { &g_nr.output, &g_nr.passScratch, &g_nr.colorCopy, &g_nr.hdrCopy, &g_nr.colorSmall,
+                                &g_nr.outputNative, &g_nr.activeColor })
         ParkNrResource(*r);
 
     g_nr.passScratchFailed = false;
@@ -1644,9 +1643,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     }
 
     const D3D12_RESOURCE_DESC desc = target->GetDesc();
-    const auto active = frame.BeforeUpscale
-        ? DlssNr::PreSrColorExtent(desc, frame.RenderSubrectWidth, frame.RenderSubrectHeight)
-        : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width, desc.Height } };
+    const auto active =
+        frame.BeforeUpscale
+            ? DlssNr::PreSrColorExtent(desc, frame.RenderSubrectWidth, frame.RenderSubrectHeight)
+            : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width, desc.Height } };
     if (!active)
     {
         ReportSkipOnce("the pre-SR active colour size is invalid");
@@ -1656,8 +1656,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     const auto width = active->width;
     const auto height = active->height;
     const bool cropColor = frame.BeforeUpscale && (width != desc.Width || height != desc.Height);
-    const bool targetSupportsUav =
-        cropColor || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != 0;
+    const bool targetSupportsUav = cropColor || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != 0;
 
     // Depth and motion vectors are the upscaler's inputs and so are at render resolution, while colour
     // and output are at display resolution. The model takes that as a subrect per resource rather than
@@ -2262,8 +2261,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if (cropColor)
     {
         TransitionTarget(D3D12_RESOURCE_STATE_COPY_SOURCE);
-        Barrier(cmdList, g_nr.activeColor, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                D3D12_RESOURCE_STATE_COPY_DEST);
+        Barrier(cmdList, g_nr.activeColor, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_DEST);
         DlssNr::CopyActiveColor(cmdList, g_nr.activeColor, gameColor, *active);
         TransitionTarget(outputArrival);
         Barrier(cmdList, g_nr.activeColor, D3D12_RESOURCE_STATE_COPY_DEST,
@@ -3029,9 +3027,10 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
                 if (!reportedPadding)
                 {
                     reportedPadding = true;
-                    LOG_INFO("DLSS-NR before SR: staging active {}x{} from padded Color allocation {}x{}; "
-                             "only the active rectangle is copied back. Model size follows active size and WorkingScale.",
-                             active->width, active->height, allocationWidth, allocationHeight);
+                    LOG_INFO(
+                        "DLSS-NR before SR: staging active {}x{} from padded Color allocation {}x{}; "
+                        "only the active rectangle is copied back. Model size follows active size and WorkingScale.",
+                        active->width, active->height, allocationWidth, allocationHeight);
                 }
             }
 
@@ -3044,8 +3043,7 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
                     LOG_WARN("DLSS-NR before SR requires a valid origin-zero active rectangle inside a "
                              "single-sample 2D Color texture; got allocation {}x{}, active {}x{} at {},{}. "
                              "Falling back after SR.",
-                             allocationWidth, allocationHeight, renderWidth, renderHeight, colorBaseX,
-                             colorBaseY);
+                             allocationWidth, allocationHeight, renderWidth, renderHeight, colorBaseX, colorBaseY);
                 }
             }
         }
