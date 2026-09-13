@@ -101,6 +101,12 @@ constexpr std::size_t MaxTrackedDirectInputDevices = 32;
 constexpr std::size_t MaxTrackedHidHandles = 64;
 constexpr std::size_t MaxRawInputSanitizeCacheEntries = 128;
 
+// How many times we go back on top of a window procedure that replaced ours before accepting that
+// something else owns it (input_system_window.cpp, ValidateWindowSubclassLocked). A game swapping
+// its own proc during startup does it once or twice; a component actually fighting for
+// GWLP_WNDPROC would do it every frame, and trading blows with that forever helps nobody.
+constexpr int kMaxSubclassReinstalls = 8;
+
 struct ButtonState
 {
     bool Down = false;
@@ -135,6 +141,9 @@ struct InputState
     bool IsUwp = false;
     bool UseWndProcSubclass = true;
     bool WndProcSubclassed = false;
+
+    // Re-installs of our subclass onto a procedure that replaced ours, for this input window.
+    int SubclassReinstalls = 0;
     bool ExternalTargetProcess = false;
     bool HasExplicitInputHwnd = false;
 

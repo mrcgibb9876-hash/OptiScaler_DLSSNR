@@ -190,6 +190,10 @@ void SetInputWindow(HWND hwnd, bool useWndProcSubclass, bool explicitInputHwnd)
     _state.InputThreadId = threadId;
     _state.HasExplicitInputHwnd = explicitInputHwnd;
     _state.UseWndProcSubclass = useWndProcSubclass;
+    // A different input window is a fresh argument about who owns its procedure: the attempts spent
+    // on the previous one say nothing about this one (a game that recreates its window on a mode
+    // change would otherwise arrive with the budget already spent).
+    _state.SubclassReinstalls = 0;
 
     if (useWndProcSubclass)
     {
@@ -442,22 +446,46 @@ void ValidateWindowSubclassLocked()
     _state.OriginalWndProc = previousOriginalWndProc;
 
     // Safe auto-reinstall case: something restored the input window directly
-    // back to the WndProc we originally wrapped. If another component installed
-    // a new WndProc on top of ours, do not reinstall here; with raw
-    // GWLP_WNDPROC subclassing, that can create a recursive Opti -> other ->
-    // Opti chain.
+    // back to the WndProc we originally wrapped.
     if (restoredToOriginalWndProc)
     {
         LOG_INFO("attempting safe subclass reinstall input:{}", static_cast<void*>(_state.InputHwnd));
         InstallWindowSubclass(_state.InputHwnd);
+        return;
     }
-    else
+
+    // Something else is on top. This used to stop here, and stopping cost the input system its
+    // whole purpose: the DLSS 5 panel still opened (the key-state hooks see the shortcut) while
+    // every key and click inside it went to the game, so nothing could be changed -- and on some
+    // games the panel could not even be closed again.
+    //
+    // A game replacing its OWN window procedure is the common case, not a hostile hook. Armored
+    // Core VI does it about 0.4 s into startup (both procs inside armoredcore6.exe, ours simply
+    // overwritten, nothing chained to us), and every FromSoftware title behaves the same way. That
+    // case needs us back on top of the new proc, and the recursion the comment above describes is
+    // now handled where it belongs: OptiInputWndProc never forwards to itself, and a message that
+    // re-enters it through a cycle is processed once (ForwardWindowMessage and the thread depth
+    // guard in input_system_messages.cpp).
+    //
+    // Bounded all the same: if something really is fighting for GWLP_WNDPROC, a few attempts are
+    // enough to establish that, and after them the old behaviour stands rather than trading blows
+    // with it every frame for the rest of the session.
+    if (_state.SubclassReinstalls >= kMaxSubclassReinstalls)
     {
-        LOG_WARN("subclass lost to another WndProc; preserving previous original to avoid recursive WndProc chain "
-                 "input:{} current:{} preservedOriginal:{}",
-                 static_cast<void*>(_state.InputHwnd), reinterpret_cast<std::uintptr_t>(currentWndProc),
+        LOG_WARN("subclass lost to another WndProc {} times; leaving it alone now -- the DLSS 5 panel will open but "
+                 "take no input, because another component owns this window's procedure. input:{} current:{} "
+                 "preservedOriginal:{}",
+                 _state.SubclassReinstalls, static_cast<void*>(_state.InputHwnd),
+                 reinterpret_cast<std::uintptr_t>(currentWndProc),
                  reinterpret_cast<std::uintptr_t>(_state.OriginalWndProc));
+        return;
     }
+
+    ++_state.SubclassReinstalls;
+    LOG_INFO("subclass lost to another WndProc; going back on top of it (attempt {} of {}) input:{} current:{}",
+             _state.SubclassReinstalls, kMaxSubclassReinstalls, static_cast<void*>(_state.InputHwnd),
+             reinterpret_cast<std::uintptr_t>(currentWndProc));
+    InstallWindowSubclass(_state.InputHwnd);
 }
 
 void RemoveWindowSubclass()

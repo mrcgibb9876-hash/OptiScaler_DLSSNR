@@ -707,9 +707,35 @@ void ClearTransientState()
     _state.LastMouseClientPos = _state.MouseClientPos;
 }
 
+// Forwarding that can never call back into this WndProc. A chain can point at us twice: when a game
+// replaces its own window procedure after we subclassed it we go back on top of the new one
+// (ValidateWindowSubclassLocked), and the proc we then wrap may itself have captured ours as its
+// "previous". Calling ourselves there is the recursion that made re-installing look unsafe -- and
+// giving up instead is what left the panel visible with no input at all. Handled here, in one place.
+static LRESULT ForwardWindowMessage(WNDPROC proc, HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (proc != nullptr && proc != OptiInputWndProc)
+        return CallWindowProcW(proc, hwnd, msg, wParam, lParam);
+
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+// How deep this thread is inside OptiInputWndProc. A message that reaches us twice through a
+// re-entrant chain is processed once and only forwarded the second time, so a cycle costs one extra
+// hop rather than letting the input state see the same key twice.
+thread_local int _wndProcDepth = 0;
+
+struct WndProcDepthGuard
+{
+    WndProcDepthGuard() { ++_wndProcDepth; }
+    ~WndProcDepthGuard() { --_wndProcDepth; }
+};
+
 LRESULT CALLBACK OptiInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    if (msg == WM_NULL)
+    WndProcDepthGuard depthGuard;
+
+    if (msg == WM_NULL || _wndProcDepth > 1)
     {
         WNDPROC originalWndProc = nullptr;
 
@@ -718,10 +744,7 @@ LRESULT CALLBACK OptiInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
             originalWndProc = _state.OriginalWndProc;
         }
 
-        if (originalWndProc != nullptr)
-            return CallWindowProcW(originalWndProc, hwnd, msg, wParam, lParam);
-
-        return DefWindowProcW(hwnd, msg, wParam, lParam);
+        return ForwardWindowMessage(originalWndProc, hwnd, msg, wParam, lParam);
     }
 
     WNDPROC originalWndProc = nullptr;
@@ -746,10 +769,7 @@ LRESULT CALLBACK OptiInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
     if (handled)
         return 0;
 
-    if (originalWndProc != nullptr)
-        return CallWindowProcW(originalWndProc, hwnd, msg, wParam, lParam);
-
-    return DefWindowProcW(hwnd, msg, wParam, lParam);
+    return ForwardWindowMessage(originalWndProc, hwnd, msg, wParam, lParam);
 }
 
 bool ProcessRemovedMessage(MSG* msg)
