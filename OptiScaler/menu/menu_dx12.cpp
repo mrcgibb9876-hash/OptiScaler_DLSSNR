@@ -48,10 +48,19 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     if (pCmdList == nullptr || outTexture == nullptr)
         return false;
 
-    frameCounter++;
+    // ImGui::GetIO() below dereferences the global context, so there has to be one. It can genuinely
+    // be missing: MenuDxBase's constructor skips MenuCommon::Init -- the only thing that creates the
+    // context -- when OverlayMenu is true, and a per-game quirk can then force this old overlay by
+    // setting OverlayMenu to false afterwards, at which point the early-out above stops firing and
+    // we arrive here with nothing set up. Whether it happens varies by launch, because when the
+    // swapchain overlay gets there first it creates the context and the question never arises.
+    if (ImGui::GetCurrentContext() == nullptr)
+    {
+        LOG_WARN("No ImGui context on the old overlay path -- not drawing the menu this frame");
+        return false;
+    }
 
-    // if (!IsVisible())
-    //	return true;
+    frameCounter++;
 
     auto outDesc = outTexture->GetDesc();
 
@@ -103,8 +112,36 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     rtDesc.Format = outDesc.Format;
     rtDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
+    // What the caller actually handed us, and which of the two paths below that selects. Worth one
+    // line because the two paths make very different demands of a texture this code does not own.
+    static bool loggedOutTexture = false;
+    if (!loggedOutTexture)
+    {
+        loggedOutTexture = true;
+        LOG_WARN("Old overlay target: {}x{} fmt {} flags {:X} -> {} path", (UINT) outDesc.Width, (UINT) outDesc.Height,
+                 (UINT) outDesc.Format, (UINT) outDesc.Flags,
+                 (outDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) > 0 ? "render-target" : "copy");
+    }
+
     if ((outDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) > 0)
     {
+        ImGui_ImplDX12_NewFrame();
+        // ImGui_ImplWin32_NewFrame();
+
+        // Build the frame BEFORE touching the caller's command list, and stop here if there was
+        // nothing to draw. RenderMenu() has to run every frame either way: it is also where the
+        // menu shortcut keys are read, so gating it on the menu already being visible means no key
+        // can ever open anything.
+        //
+        // Everything below used to run unconditionally, once per frame, open menu or not: a
+        // transition of outTexture, a descriptor-heap rebind on the caller's command list, a render
+        // target swap and a full ImGui pass. Wasted work at best, and on a texture this code does
+        // not own it is fatal -- a game whose upscaler output belongs to another plugin died a few
+        // hundred frames in with nobody having pressed a key, faulting inside the D3D12 driver
+        // (2026-09-13).
+        if (!MenuDxBase::RenderMenu())
+            return true;
+
         D3D12_RESOURCE_BARRIER outBarrier = {};
         outBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
         outBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
@@ -120,12 +157,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
         _device->CreateRenderTargetView(outTexture, &rtDesc, _renderTargetDescriptor[backbuf]);
         pCmdList->OMSetRenderTargets(1, &_renderTargetDescriptor[backbuf], FALSE, NULL);
 
-        ImGui_ImplDX12_NewFrame();
-        // ImGui_ImplWin32_NewFrame();
-
-        // Render
-        if (MenuDxBase::RenderMenu())
-            ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCmdList);
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCmdList);
 
         outBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
         outBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -133,6 +165,15 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
 
         return true;
     }
+
+    // Same order, and for the same reasons, as the render-target path above. This one additionally
+    // used to strand outTexture in COPY_SOURCE whenever there was nothing to draw: it transitioned
+    // first and only restored UNORDERED_ACCESS inside the branch that actually drew.
+    ImGui_ImplDX12_NewFrame();
+    // ImGui_ImplWin32_NewFrame();
+
+    if (!MenuDxBase::RenderMenu())
+        return true;
 
     D3D12_RESOURCE_BARRIER outBarrier = {};
     outBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -167,11 +208,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     _device->CreateRenderTargetView(_renderTargetResource[backbuf], &rtDesc, _renderTargetDescriptor[backbuf]);
     pCmdList->OMSetRenderTargets(1, &_renderTargetDescriptor[backbuf], FALSE, nullptr);
 
-    ImGui_ImplDX12_NewFrame();
-    // ImGui_ImplWin32_NewFrame();
-
     // Render to buffer
-    if (MenuDxBase::RenderMenu())
     {
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCmdList);
 

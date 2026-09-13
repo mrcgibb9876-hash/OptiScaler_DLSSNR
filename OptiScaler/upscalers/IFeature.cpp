@@ -151,6 +151,13 @@ bool IFeature::SetInitParameters(NVSDK_NGX_Parameter* InParameters)
 
         _perfQualityValue = (NVSDK_NGX_PerfQuality_Value) pqValue;
 
+        // The size the caller asked this feature to be built for, kept because GetRenderResolution
+        // overwrites _renderWidth/_renderHeight with whatever subrect each dispatch reports. Every
+        // backend sizes its buffers from this, and so did the caller when it allocated the textures
+        // it hands over -- so it is the ceiling a dispatch may never exceed.
+        _createRenderWidth = _renderWidth;
+        _createRenderHeight = _renderHeight;
+
         LOG_INFO("Render Resolution: {0}x{1}, Display Resolution {2}x{3}, Quality: {4}", _renderWidth, _renderHeight,
                  _displayWidth, _displayHeight, pqValue);
 
@@ -222,6 +229,32 @@ void IFeature::GetRenderResolution(const NVSDK_NGX_Parameter* InParameters, unsi
             *OutHeight = RenderHeight();
 
         } while (false);
+    }
+
+    // A subrect bigger than the size this feature was created for cannot be real: the caller sized
+    // its own colour, depth and motion-vector textures from the creation parameters, and every
+    // backend allocated its intermediates from them too. Honouring it reads off the end of both.
+    //
+    // PureDark's Upscaler Base Plugin, driving REFramework's TemporalUpscaler, does exactly this on
+    // Resident Evil 2: it creates at the quality mode's recommended 1505x923 -- and its own log
+    // confirms that is the size of the textures it allocated -- then reports a render subrect of
+    // 2559x1569 on every dispatch, one pixel short of the 2560x1570 output. Passed through, FSR
+    // 2.1.2 ran 353 frames on it and then took the process down; sized up to match instead, the
+    // GPU faulted on textures that were never that big. Clamping is the only reading of those two
+    // numbers that is safe on both sides (2026-09-13).
+    if (_createRenderWidth != 0 && _createRenderHeight != 0 &&
+        (*OutWidth > _createRenderWidth || *OutHeight > _createRenderHeight))
+    {
+        if (!_loggedRenderResolutionClamp)
+        {
+            _loggedRenderResolutionClamp = true;
+            LOG_WARN("Render subrect {}x{} is larger than the {}x{} this feature was created for; clamping. The "
+                     "caller's textures are not that big.",
+                     *OutWidth, *OutHeight, _createRenderWidth, _createRenderHeight);
+        }
+
+        *OutWidth = _createRenderWidth;
+        *OutHeight = _createRenderHeight;
     }
 
     _renderWidth = *OutWidth;

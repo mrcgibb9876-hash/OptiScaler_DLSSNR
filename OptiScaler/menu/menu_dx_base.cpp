@@ -34,6 +34,14 @@ bool MenuDxBase::IsHandleDifferent()
     if (frontWindow != nullptr && frontWindow == _handle)
         return false;
 
+    // No window found this frame is not a reason to throw the overlay away. Saying "different"
+    // here tears it down and takes the ImGui context with it, and the handle we already hold is
+    // still the right one -- so keep it and try again next frame. Previously a single failed
+    // lookup, which happens while a game is changing display mode, was enough to lose the menu
+    // and the keyboard for the rest of the session.
+    if (frontWindow == nullptr)
+        return false;
+
     _handle = frontWindow;
 
     return true;

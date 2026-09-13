@@ -393,8 +393,34 @@ HWND Util::GetProcessWindow()
 
     if (hwnd == nullptr)
     {
-        LOG_DEBUG("EnumWindows returned null using GetForegroundWindow()");
-        hwnd = GetForegroundWindow();
+        // GetForegroundWindow() returns the foreground window of the SYSTEM, not of this process,
+        // so it is only usable here when it actually belongs to us. Alt-tab to a browser while the
+        // enumeration above is coming up empty and this used to hand back the browser's window --
+        // and callers treat whatever they get as the game's.
+        //
+        // MenuDxBase::IsHandleDifferent() compares the overlay's handle against this and tears the
+        // overlay down when they differ, so a foreign handle destroyed the menu, and with it the
+        // ImGui context, every frame for the rest of the run: no panel, and no keyboard either,
+        // because the shortcut keys are read on that same path. Resident Evil 2 lost its overlay
+        // the moment the game lost focus (2026-09-13).
+        //
+        // Returning null instead leaves callers holding the handle they already had, which is the
+        // right one.
+        HWND foreground = GetForegroundWindow();
+        DWORD foregroundPid = 0;
+
+        if (foreground != nullptr)
+            GetWindowThreadProcessId(foreground, &foregroundPid);
+
+        if (foreground != nullptr && foregroundPid == GetCurrentProcessId())
+        {
+            LOG_DEBUG("EnumWindows returned null, falling back to this process's foreground window");
+            hwnd = foreground;
+        }
+        else
+        {
+            LOG_DEBUG("EnumWindows returned null and the foreground window belongs to another process");
+        }
     }
 
     return hwnd;

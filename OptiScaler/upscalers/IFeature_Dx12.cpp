@@ -274,8 +274,16 @@ bool IFeature_Dx12::Evaluate(ID3D12GraphicsCommandList* InCommandList, NVSDK_NGX
         }
         else
         {
+            // This game's own window, not whatever is in front. GetForegroundWindow() returns the
+            // foreground window of the SYSTEM, so alt-tabbing away built the menu against another
+            // application's HWND -- and MenuDxBase::IsHandleDifferent(), which decides whether to
+            // tear the menu down, compares against Util::GetProcessWindow(). The two disagreeing
+            // put it in a loop: reset because the handle looks wrong, rebuild against the foreign
+            // handle, reset again next frame, so Render() is never reached and no menu can appear
+            // or take a keypress. Alt-tab once and the overlay was dead for the rest of the run
+            // (2026-09-13). The construction at the top of this file already gets this right.
             if (Imgui == nullptr || Imgui.get() == nullptr)
-                Imgui = std::make_unique<Menu_Dx12>(GetForegroundWindow(), Device);
+                Imgui = std::make_unique<Menu_Dx12>(Util::GetProcessWindow(), Device);
         }
     }
 
