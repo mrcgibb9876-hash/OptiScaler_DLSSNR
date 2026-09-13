@@ -146,6 +146,17 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     rtDesc.Format = outDesc.Format;
     rtDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
+    // What the caller actually handed us, and which of the two paths below that selects. Worth one
+    // line because the two paths make very different demands of a texture this code does not own.
+    static bool loggedOutTexture = false;
+    if (!loggedOutTexture)
+    {
+        loggedOutTexture = true;
+        LOG_WARN("Old overlay target: {}x{} fmt {} flags {:X} -> {} path", (UINT) outDesc.Width, (UINT) outDesc.Height,
+                 (UINT) outDesc.Format, (UINT) outDesc.Flags,
+                 (outDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) > 0 ? "render-target" : "copy");
+    }
+
     if ((outDesc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) > 0)
     {
         D3D12_RESOURCE_BARRIER outBarrier = {};
