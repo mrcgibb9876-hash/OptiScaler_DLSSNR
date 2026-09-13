@@ -48,6 +48,49 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     if (pCmdList == nullptr || outTexture == nullptr)
         return false;
 
+    // Nothing on screen to draw, so do not touch the caller's texture or command list at all.
+    //
+    // This early-out exists a few lines below as dead commented-out code; restoring it matters
+    // because everything after this point runs unconditionally today, once per frame, whether or
+    // not a menu is open: it transitions outTexture, rebinds descriptor heaps on the caller's
+    // command list, binds a render target view and runs a full ImGui pass. That is wasted work
+    // when nothing is visible, and on a texture this code does not own it is fatal -- Resident
+    // Evil 2 through PureDark's plugin died at ~444 upscaled frames with nobody having pressed a
+    // key, faulting in nvwgf2umx.dll (2026-09-13).
+    //
+    // Reading the flags needs no ImGui context (they are two statics), and menu shortcuts are
+    // handled off this path, so keys still work while this returns early.
+    if (!MenuDxBase::IsVisible())
+        return true;
+
+    // Make sure there is an ImGui context before ImGui::GetIO() below dereferences the null global
+    // and takes the process with it.
+    //
+    // It can genuinely be missing here, because two pieces of code disagree about which overlay is
+    // in use. MenuDxBase's constructor skips MenuCommon::Init -- the only thing that creates the
+    // context -- when OverlayMenu is true, and a per-game quirk can then force the old overlay by
+    // setting OverlayMenu to false afterwards. Once it does, the early-out at the top of this
+    // function stops firing and we arrive here with no context at all.
+    //
+    // Resident Evil 2 through REFramework and PureDark's plugin hits exactly that: the quirk logs
+    // "Using old overlay (draws on upscaled image)" and the first menu frame crashes on the null
+    // context (2026-09-13). Whether it happens at all varies by launch, because when OptiScaler wins
+    // the race to wrap the swapchain the overlay path initialises the context first and this is moot.
+    //
+    // Deliberately bail rather than create the context here. Creating it was tried, and it works --
+    // the context comes up, the panel toggles, input arrives -- but the draw that follows then dies
+    // inside nvwgf2umx.dll instead. This path assumes it owns the texture it is drawing into: it
+    // transitions it with StateBefore=UNORDERED_ACCESS and rebinds descriptor heaps on the caller's
+    // command list. Both are true for OptiScaler's own upscaler output and neither is guaranteed for
+    // a texture some other plugin created and still owns. Fixing that is a bigger change than a
+    // missing null check, so until then this leaves the game running without an overlay on this
+    // path, instead of taking it down.
+    if (ImGui::GetCurrentContext() == nullptr)
+    {
+        LOG_WARN("No ImGui context on the old overlay path -- not drawing the menu this frame");
+        return false;
+    }
+
     frameCounter++;
 
     // if (!IsVisible())
