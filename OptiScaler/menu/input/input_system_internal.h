@@ -129,6 +129,14 @@ struct InputState
 
     WNDPROC OriginalWndProc = nullptr;
 
+    // The first window procedure we ever wrapped on this input window -- the game's own, before
+    // anything chained onto it. When a game replaces its procedure and its replacement calls back
+    // into whatever was installed before it (Armored Core VI does exactly this), that call reaches
+    // us a second time, and forwarding it to OriginalWndProc would be forwarding it straight back
+    // to the caller: window -> us -> game -> us -> game -> ... until the stack is gone. The
+    // re-entrant pass forwards HERE instead, which is what the caller was really asking for.
+    WNDPROC BaseWndProc = nullptr;
+
     bool Initialized = false;
     bool HooksInstalled = false;
     bool Focused = false;

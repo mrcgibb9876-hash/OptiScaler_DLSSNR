@@ -720,9 +720,16 @@ static LRESULT ForwardWindowMessage(WNDPROC proc, HWND hwnd, UINT msg, WPARAM wP
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-// How deep this thread is inside OptiInputWndProc. A message that reaches us twice through a
-// re-entrant chain is processed once and only forwarded the second time, so a cycle costs one extra
-// hop rather than letting the input state see the same key twice.
+// How deep this thread is inside OptiInputWndProc. Depth 2 means a chain came back to us: the game
+// replaced its own window procedure, its replacement calls whatever was installed before it, and
+// that is us. Forwarding such a pass to OriginalWndProc sends it straight back to the caller --
+//
+//   window -> us -> game's new proc -> us -> game's new proc -> ... until the stack is gone
+//
+// which is exactly how the first attempt at this crashed Armored Core VI (the minidump's stack
+// alternates dxgi and armoredcore6 frames to the bottom). So a re-entrant pass is not processed
+// again AND is not forwarded to the top of the chain: it goes to BaseWndProc, the game's own
+// original, which is what the caller was asking for. Deeper than that, nothing is forwarded at all.
 thread_local int _wndProcDepth = 0;
 
 struct WndProcDepthGuard
@@ -735,16 +742,20 @@ LRESULT CALLBACK OptiInputWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 {
     WndProcDepthGuard depthGuard;
 
+    if (_wndProcDepth > 2)
+        return DefWindowProcW(hwnd, msg, wParam, lParam);
+
     if (msg == WM_NULL || _wndProcDepth > 1)
     {
-        WNDPROC originalWndProc = nullptr;
+        const bool reentrant = _wndProcDepth > 1;
+        WNDPROC forwardTo = nullptr;
 
         {
             std::unique_lock lock(_state.Mutex);
-            originalWndProc = _state.OriginalWndProc;
+            forwardTo = reentrant ? _state.BaseWndProc : _state.OriginalWndProc;
         }
 
-        return ForwardWindowMessage(originalWndProc, hwnd, msg, wParam, lParam);
+        return ForwardWindowMessage(forwardTo, hwnd, msg, wParam, lParam);
     }
 
     WNDPROC originalWndProc = nullptr;

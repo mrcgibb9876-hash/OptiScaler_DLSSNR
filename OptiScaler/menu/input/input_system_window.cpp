@@ -192,8 +192,10 @@ void SetInputWindow(HWND hwnd, bool useWndProcSubclass, bool explicitInputHwnd)
     _state.UseWndProcSubclass = useWndProcSubclass;
     // A different input window is a fresh argument about who owns its procedure: the attempts spent
     // on the previous one say nothing about this one (a game that recreates its window on a mode
-    // change would otherwise arrive with the budget already spent).
+    // change would otherwise arrive with the budget already spent), and its procedure chain starts
+    // over with it.
     _state.SubclassReinstalls = 0;
+    _state.BaseWndProc = nullptr;
 
     if (useWndProcSubclass)
     {
@@ -275,6 +277,8 @@ void ClearInputWindowLocked()
 
     _state.WndProcSubclassed = false;
     _state.OriginalWndProc = nullptr;
+    _state.BaseWndProc = nullptr;
+    _state.SubclassReinstalls = 0;
 }
 
 bool ValidateTargetWindowLocked()
@@ -393,6 +397,16 @@ bool InstallWindowSubclass(HWND hwnd)
 
     _state.OriginalWndProc = reinterpret_cast<WNDPROC>(previous);
     _state.WndProcSubclassed = true;
+
+    // The first procedure we ever wrapped here is the game's own, and it is the only safe place to
+    // send a message that comes back to us through a chain -- see BaseWndProc's own comment. Set
+    // once per input window: on a re-install `previous` is whatever replaced us, which is precisely
+    // the proc a re-entrant pass must NOT be forwarded to.
+    if (_state.BaseWndProc == nullptr && _state.OriginalWndProc != nullptr &&
+        _state.OriginalWndProc != OptiInputWndProc)
+    {
+        _state.BaseWndProc = _state.OriginalWndProc;
+    }
 
     LOG_INFO("subclass installed hwnd:{} previousWndProc:{} optiWndProc:{}", static_cast<void*>(hwnd),
              reinterpret_cast<std::uintptr_t>(_state.OriginalWndProc),
