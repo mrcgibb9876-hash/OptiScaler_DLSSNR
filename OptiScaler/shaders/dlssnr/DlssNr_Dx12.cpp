@@ -2639,7 +2639,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
          ++pass)
     {
         void* const passFeature = pass == 0 ? g_nr.feature : g_nr.passFeature[pass];
-        const bool passReset = g_nr.reset || (pass > 0 && g_nr.passNeedsReset[pass]);
+        // Pass one always follows the frame's own reset. For the stacked passes, ChainedHistory
+        // decides: on (the default, and what this engine has always done) they reset only on the
+        // frame their feature was built and keep their temporal history from then on; off resets
+        // them every frame, so each layer is a stateless refinement of the one below it.
+        //
+        // Neither is free. Keeping history lets a layer accumulate the one below it -- richer, and
+        // able to compound ghosting behind fast movement. Resetting every frame cannot compound
+        // anything, and NVIDIA documents Reset-per-frame as a flicker and aliasing risk, which is
+        // what shimmering on two or three passes usually is.
+        const bool chainedHistory = cfg.DlssNrChainedHistory.value_or_default();
+        const bool passReset = g_nr.reset || (pass > 0 && (g_nr.passNeedsReset[pass] || !chainedHistory));
         const float passTone = pass == 0 ? cfg.DlssNrLocalTone.value_or_default() : 0.0f;
 
         MakeModelWritable(passOutput);

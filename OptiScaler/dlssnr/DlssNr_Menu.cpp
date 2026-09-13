@@ -1396,6 +1396,23 @@ void RenderMenu(Config* config, float menuResScale)
                                    shownPasses);
                 ImGui::PopTextWrapPos();
 
+                bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
+                if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
+                {
+                    config->DlssNrChainedHistory = chainedHistory;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("What the stacked passes do with their temporal history between frames."
+                              "\n\nOn (default): every pass keeps its own history, so each layer accumulates the"
+                              "\nway pass one does. Off: passes 2+ are reset every frame -- stateless refinement,"
+                              "\nwhich cannot compound ghosting."
+                              "\n\nThe trade is real both ways. Keeping history is richer and can compound ghosting"
+                              "\nbehind fast movement; resetting every frame cannot, but NVIDIA documents"
+                              "\nreset-per-frame as a flicker and aliasing risk -- which is what shimmering on two"
+                              "\nor three passes usually is. Try the other setting when a stacked picture shimmers,"
+                              "\nand keep whichever the game looks better with."
+                              "\n\nOnly does anything with more than one pass."));
+
                 const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"), Tr("Model A"),
                                                               Tr("Model B"), Tr("Model C") };
                 const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),

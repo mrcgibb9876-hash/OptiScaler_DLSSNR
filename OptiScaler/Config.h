@@ -271,6 +271,16 @@ class Config
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };
+
+    // Do the stacked passes keep their temporal history between frames?
+    //
+    // On (this engine's behaviour since multi-pass existed): every pass keeps its own history, so
+    // each layer accumulates like pass one does. Off: passes 2+ are Reset every frame -- stateless
+    // refinement, which cannot compound ghosting but which NVIDIA documents as a flicker and
+    // aliasing risk. RenoDX's DLSS 5 consumer defaults to the stateless side and calls the other
+    // one "chained temporal history"; the two are worth having side by side, because which reads
+    // better depends on the game and on how many passes are stacked.
+    CustomOptional<bool> DlssNrChainedHistory { true };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };

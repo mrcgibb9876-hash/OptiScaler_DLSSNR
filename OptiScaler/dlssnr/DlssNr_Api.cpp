@@ -59,6 +59,7 @@ constexpr Entry<bool> kBools[] = {
     { "ApplyModel", &Config::DlssNrApplyModel },
     { "AutoCapture", &Config::DlssNrAutoCapture },
     { "AutoMask", &Config::DlssNrAutoMask },
+    { "ChainedHistory", &Config::DlssNrChainedHistory },
     { "CompareSwap", &Config::DlssNrCompareSwap },
     { "CompareTags", &Config::DlssNrCompareTags },
     { "Enabled", &Config::DlssNrEnabled },
