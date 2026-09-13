@@ -86,6 +86,11 @@ class IFeature
 
     unsigned int _renderWidth = 0;
     unsigned int _renderHeight = 0;
+    // What the feature was created for, as opposed to _renderWidth/_renderHeight, which each
+    // dispatch overwrites with the subrect it reports. See GetRenderResolution.
+    unsigned int _createRenderWidth = 0;
+    unsigned int _createRenderHeight = 0;
+    bool _loggedRenderResolutionClamp = false;
     unsigned int _targetWidth = 0;
     unsigned int _targetHeight = 0;
     unsigned int _displayWidth = 0;

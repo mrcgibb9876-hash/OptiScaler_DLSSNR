@@ -31,6 +31,10 @@ static ankerl::unordered_dense::map<unsigned int, ContextData<IFeature_Dx12>> Dx
 static std::unordered_map<unsigned int, NVSDK_NGX_Feature> HandleToFeature;
 
 static ID3D12Device* D3D12Device = nullptr;
+// How many frames a command list is given to show us a root signature worth restoring before we
+// conclude it has none and upscale on it anyway. Small: every one of these is a dropped frame.
+static constexpr unsigned int kMaxRootSignatureSkips = 3;
+static std::unordered_map<ID3D12GraphicsCommandList*, unsigned int> skippedForRootSignature;
 static int evalCounter = 0;
 static bool shutdown = false;
 static bool _skipInit = false;
@@ -1049,8 +1053,35 @@ static NVSDK_NGX_Result TryEvaluateOptiFeature(ID3D12GraphicsCommandList* InCmdL
 
         if (!D3D12Hooks::CanRestoreRootSignature(InCmdList))
         {
-            LOG_DEBUG("Skipping upscaling because can't restore root signature");
-            return NVSDK_NGX_Result_Success;
+            // Nothing tracked on this command list yet. Normally that is the frame or two right
+            // after the late hooks go in, before the game has bound a root signature through them,
+            // and skipping is right: dispatching would clobber state we cannot put back.
+            //
+            // But a command list the caller opened purely to run the upscale on never gets a
+            // tracked binding at all, because the only root signatures it ever sees are the ones
+            // the upscaler itself sets, and tracking is deliberately off for those. Waiting for it
+            // forever means dropping every frame the upscaler is handed and writing nothing to the
+            // output -- a black screen with the game running normally behind it, which is what
+            // Resident Evil 2 does through REFramework's TemporalUpscaler and PureDark's plugin
+            // (2026-09-13). There is nothing to preserve on such a list, so after a few frames of
+            // waiting, go ahead: RestoreRoot already no-ops safely when it has nothing to restore.
+            auto& skips = skippedForRootSignature[InCmdList];
+
+            if (skips < kMaxRootSignatureSkips)
+            {
+                skips++;
+                LOG_DEBUG("Skipping upscaling because can't restore root signature ({}/{})", skips,
+                          kMaxRootSignatureSkips);
+                return NVSDK_NGX_Result_Success;
+            }
+
+            if (skips == kMaxRootSignatureSkips)
+            {
+                skips++;
+                LOG_WARN("CmdList {:X} never had a root signature to track after {} frames -- it looks like a "
+                         "dedicated upscaling command list, so upscaling will run on it without a restore",
+                         (UINT64) InCmdList, kMaxRootSignatureSkips);
+            }
         }
     }
 
@@ -1067,6 +1098,7 @@ static NVSDK_NGX_Result TryEvaluateOptiFeature(ID3D12GraphicsCommandList* InCmdL
         // FSR 3.1 supports upscaleSize that doesn't need reinit to change output resolution
         if (!isFSR31OrLater && feature->UpdateOutputResolution(InParameters))
             state.changeBackend[handleId] = true;
+
     }
 
     // To avoid capturing potential upscaler change (creation) and then upscaling itself
