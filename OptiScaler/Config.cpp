@@ -58,9 +58,37 @@ void Config::MarkIniAsSeen()
         lastSeenWriteTime = when;
 }
 
+// Only where it is needed, rather than in every game that loads OptiScaler.
+//
+// The 32-bit route is the case this exists for: there OptiScaler runs inside
+// dlss5-feed-host64.exe, a process with no window, so its panel cannot be put on screen over the
+// game and the ini is the only way in. Everywhere else the panel is right there on a keypress, and
+// polling a file on every frame of every game to solve a problem those games do not have is not a
+// trade worth making by default -- this sits in the render path of every title that installs
+// OptiScaler at all.
+//
+// Note the process is 64-bit in both cases: OptiScaler is never loaded into the 32-bit game itself
+// (NVIDIA ships no 32-bit NGX). The helper's executable name is what tells the two apart.
+bool Config::LiveReloadWanted()
+{
+    if (DlssNrLiveReload.has_value())
+        return DlssNrLiveReload.value();
+
+    if (!inFeederHost.has_value())
+    {
+        const std::wstring exe = Util::ExePath().filename().wstring();
+        inFeederHost = _wcsicmp(exe.c_str(), L"dlss5-feed-host64.exe") == 0;
+        LOG_INFO("Live settings reload: {}", inFeederHost.value()
+                                                 ? "on (running in the DLSS5 Feeder's helper, where the panel cannot be shown)"
+                                                 : "off (this game can open the panel itself; set [DlssNr] LiveReload=true to force it on)");
+    }
+
+    return inFeederHost.value();
+}
+
 bool Config::ReloadIfChangedOnDisk()
 {
-    if (absoluteFileName.empty())
+    if (absoluteFileName.empty() || !LiveReloadWanted())
         return false;
 
     // The clock first: a stat on every frame of every game is a syscall nobody asked for, and a
@@ -406,6 +434,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrScanInverted.set_from_config(readBool("DlssNr", "ScanInverted"));
             DlssNrWhitePointTrim.set_from_config(readFloat("DlssNr", "WhitePointTrim"));
             DlssNrAutoCapture.set_from_config(readBool("DlssNr", "AutoCapture"));
+            DlssNrLiveReload.set_from_config(readBool("DlssNr", "LiveReload"));
             DlssNrWhitePointScale.set_from_config(readFloat("DlssNr", "WhitePointScale"));
             LosslessScalingExePath.set_from_config(readWString("DlssNr", "LosslessScalingExePath"));
             LosslessScalingGameTitle.set_from_config(readWString("DlssNr", "LosslessScalingGameTitle"));
@@ -1300,6 +1329,7 @@ bool Config::SaveIni()
                      GetFloatValue(Instance()->DlssNrWorkingScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());
 
         // These were read every launch but never written, so nothing set through the menu survived a
         // restart -- the white-point source, both trims, the anchor, the pass count and the rest all

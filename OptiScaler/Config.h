@@ -558,6 +558,13 @@ class Config
     // folder is cleared at the start of each run, so it holds one session's worth and never grows.
     CustomOptional<bool> DlssNrAutoCapture { true };
 
+    // Re-read this ini while the game runs, so a setting changed outside the process takes effect
+    // without a restart. Default (auto) is on only inside the DLSS5 Feeder's 64-bit helper, which
+    // is the one place OptiScaler has no window of its own and its panel cannot be reached at all
+    // -- every other game can open the panel and change things there. true forces it on anywhere,
+    // false off everywhere. See Config::LiveReloadWanted().
+    CustomOptional<bool, NoDefault> DlssNrLiveReload;
+
     // Multiplies the (auto or manual) white point before the encode: what the model considers "white".
     // Higher means highlights sit lower on the curve and the model treats them as less extreme.
     CustomOptional<float> DlssNrWhitePointScale { 1.0f };
@@ -1017,6 +1024,10 @@ class Config
     // Returns true when a reload actually happened, so a caller can log it once.
     bool ReloadIfChangedOnDisk();
 
+    // Whether this process should watch its ini at all: the setting above, or -- left on auto --
+    // whether this is the Feeder's helper process.
+    bool LiveReloadWanted();
+
     void CheckUpscalerFiles();
 
     std::vector<std::string> GetConfigLog();
@@ -1032,6 +1043,9 @@ class Config
 
     bool Reload(std::filesystem::path iniPath);
     void MarkIniAsSeen();
+
+    // Worked out once: the executable this is loaded into does not change.
+    std::optional<bool> inFeederHost;
 
     // The write time this process last saw, so its own SaveIni does not read as somebody else's
     // edit -- the in-game panel saves on every change, which would otherwise reload on every click.
