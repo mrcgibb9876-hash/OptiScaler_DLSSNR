@@ -1178,6 +1178,15 @@ void Barrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* res, D3D12_RESO
     cmdList->ResourceBarrier(1, &b);
 }
 
+// Whether the DLSS call this pass attached to came from the DLSS5 Feeder rather than the game's
+// own DLSS. Asked once: a ReShade add-on cannot appear or leave mid-process, and this is consulted
+// every frame.
+bool OnFeederRoute()
+{
+    static const bool feeder = DlssNr::IsFeederPresent();
+    return feeder;
+}
+
 // A typeless resource cannot be viewed, and NGX builds its own views with nothing to tell it which
 // format to use. Depth is very often declared typeless, so the typed member of the same family is
 // substituted; CopyResource accepts that as a destination for the typeless original.
@@ -1618,13 +1627,44 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // A completed upscaler output normally arrives as a UAV. The pre-SR colour input instead arrives
     // readable. Track every transition so both paths return the resource exactly as their caller gave
     // it to us; a pre-SR resource without UAV support is written through a scratch-and-copy fallback.
+    //
+    // Getting the arrival state wrong is not cosmetic. It becomes the StateBefore of the first
+    // transition below, D3D12 rejects a transition that disagrees with the resource's real state,
+    // and it is then the CALLER'S command list that fails to close -- killing a frame this pass
+    // does not own. That is DLSS5-Feeder#104: Close() returned E_INVALIDARG on the first frame this
+    // pass recorded into the feeder's list.
+    //
+    // Hence the split. Post-upscale on the native route the target really is a game upscaler's
+    // output, so UAV holds. On the Feeder route the resource comes from ReShade instead, which runs
+    // its effects with the back buffer transitioned to RENDER_TARGET -- the better guess of the two,
+    // not a certainty. [Hotfix] OutputResourceBarrier overrides either, and the log line below says
+    // which was assumed, so a game that needs a third answer can be given one without a rebuild.
+    const bool feederRoute = OnFeederRoute();
     const D3D12_RESOURCE_STATES outputArrival =
         frame.BeforeUpscale ? (Config::Instance()->ColorResourceBarrier.has_value()
                                    ? (D3D12_RESOURCE_STATES) Config::Instance()->ColorResourceBarrier.value()
                                    : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         : Config::Instance()->OutputResourceBarrier.has_value()
             ? (D3D12_RESOURCE_STATES) Config::Instance()->OutputResourceBarrier.value()
-            : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        : feederRoute ? D3D12_RESOURCE_STATE_RENDER_TARGET
+                      : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+    // Said once per distinct value, because it is the first thing to check when a frame dies at
+    // Close and the only way to tell an assumption apart from a setting after the fact.
+    {
+        static unsigned int said = ~0u;
+
+        if (said != (unsigned int) outputArrival)
+        {
+            said = (unsigned int) outputArrival;
+            LOG_INFO("DLSS-NR: target assumed to arrive in D3D12 state 0x{:X} ({}). If a frame fails "
+                     "to close, override it with [Hotfix] OutputResourceBarrier.",
+                     (unsigned int) outputArrival,
+                     Config::Instance()->OutputResourceBarrier.has_value() ? "set in the ini"
+                     : feederRoute                                         ? "Feeder route default"
+                                                                           : "native route default");
+        }
+    }
     D3D12_RESOURCE_STATES targetState = outputArrival;
     const auto TransitionTarget = [&](D3D12_RESOURCE_STATES to)
     {
