@@ -544,7 +544,7 @@ class Config
     CustomOptional<bool> DlssNrVendorColours { true };
 
     // What the DLSS 5 panel speaks: auto (the Windows display language) or one of the codes the
-    // manager ships -- en, pt-br, ru, ko, zh-cn, es, de. The panel only; the shared menu stays
+    // manager ships -- en, pt-br, ru, ko, zh-cn, es, de, fr. The panel only; the shared menu stays
     // English. OptiDLSS5-UI writes this key when its own Language setting is pinned.
     CustomOptional<std::string> DlssNrLanguage { std::string("auto") };
 

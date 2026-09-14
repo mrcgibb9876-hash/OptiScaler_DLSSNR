@@ -22,7 +22,7 @@ namespace
 {
 // The combo's order. Codes are compared case-insensitively everywhere, and written back to the
 // ini in this (lower-case) form so the manager and the panel never fight over "pt-BR" vs "pt-br".
-const char* const kSelectorCodes[] = { "auto", "en", "pt-br", "ru", "ko", "zh-cn", "es", "de" };
+const char* const kSelectorCodes[] = { "auto", "en", "pt-br", "ru", "ko", "zh-cn", "es", "de", "fr" };
 
 std::string g_configured;
 bool g_resolved = false;
@@ -82,6 +82,8 @@ int DetectFromWindows()
         return LanguageIndex("es");
     case LANG_GERMAN:
         return LanguageIndex("de");
+    case LANG_FRENCH:
+        return LanguageIndex("fr");
     default:
         return -1;
     }

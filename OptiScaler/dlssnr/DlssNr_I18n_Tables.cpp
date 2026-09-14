@@ -12,62 +12,64 @@ namespace DlssNr::I18n
 const char* const kKeys[] = {
     "DLSS 5 Developer Controls",
     "DLSS ON",
-    "Synthesises detail in the upscaler's frame, before frame generation sees it.\n\nNeeds two similarly named files "
-    "beside OptiScaler, one character apart:\n  nvngx_dlssnr.dll       NVIDIA's model (~165 MB) -- you supply it\n  "
-    "nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package\nUndocumented and driven directly, so none "
-    "of this is officially supported.",
+    "Synthesises detail in the upscaler's frame, before frame generation sees it.\n\nNeeds two similarly name"
+    "d files beside OptiScaler, one character apart:\n  nvngx_dlssnr.dll       NVIDIA's model (~165 MB) -- yo"
+    "u supply it\n  nvngx.dll_dlssnr.dll   the forwarder (~13 KB) -- ships in this package\nUndocumented and "
+    "driven directly, so none of this is officially supported.",
     "Source: DLSS5 Feeder (no native DLSS in this game)",
-    "This game has no DLSS of its own, so there is no evaluate call for Neural Rendering to attach to. The DLSS5 "
-    "Feeder ReShade add-on builds one from ReShade's own depth and estimated motion vectors instead.\n\nEstimated "
-    "motion vectors are rougher than a game's real ones -- expect more ghosting in fast motion and softer thin "
-    "geometry than a native-DLSS game gets from the same model.",
+    "This game has no DLSS of its own, so there is no evaluate call for Neural Rendering to attach to. The DL"
+    "SS5 Feeder ReShade add-on builds one from ReShade's own depth and estimated motion vectors instead.\n\nE"
+    "stimated motion vectors are rougher than a game's real ones -- expect more ghosting in fast motion and s"
+    "ofter thin geometry than a native-DLSS game gets from the same model.",
     "Lossless Scaling: not configured (OptiDLSS5-UI).",
     "Lossless Scaling",
-    "Launches/closes Lossless Scaling in the background (minimized to tray, no window shown). Turning Active on bel"
-    "ow launches it for you too.",
+    "Launches/closes Lossless Scaling in the background (minimized to tray, no window shown). Turning Active "
+    "on below launches it for you too.",
     "Active",
-    "Turns Lossless Scaling's Frame Generation on/off for this game via its own global hotkey -- no window is shown"
-    ", and it launches Lossless Scaling first if needed. Shows what was last requested, not a confirmed live state."
-    "\n\nTurning this on switches OptiScaler's own Frame Generation off: two frame generators at once stack.",
+    "Turns Lossless Scaling's Frame Generation on/off for this game via its own global hotkey -- no window is"
+    " shown, and it launches Lossless Scaling first if needed. Shows what was last requested, not a confirmed"
+    " live state.\n\nTurning this on switches OptiScaler's own Frame Generation off: two frame generators at "
+    "once stack.",
     "Adaptive: holds %d fps",
-    "Adaptive Frame Generation: Lossless Scaling generates only as many frames as it takes to hold this target. Change "
-    "the target (or switch to a fixed multiplier) in OptiDLSS5-UI. Needs this game running Borderless or Windowed, not "
-    "exclusive Fullscreen (DX12 games are usually fine either way).",
-    "Frames generated per real one. If Lossless Scaling is already running it briefly restarts to apply -- Frame Ge"
-    "n blinks off for a second. Needs this game running Borderless or Windowed, not exclusive Fullscreen (DX12 game"
-    "s are usually fine either way).",
+    "Adaptive Frame Generation: Lossless Scaling generates only as many frames as it takes to hold this targe"
+    "t. Change the target (or switch to a fixed multiplier) in OptiDLSS5-UI. Needs this game running Borderle"
+    "ss or Windowed, not exclusive Fullscreen (DX12 games are usually fine either way).",
+    "Frames generated per real one. If Lossless Scaling is already running it briefly restarts to apply -- Fr"
+    "ame Gen blinks off for a second. Needs this game running Borderless or Windowed, not exclusive Fullscree"
+    "n (DX12 games are usually fine either way).",
     "Keep the game's own DLSS Frame Generation off while this runs.",
     "Toggle key",
-    "Toggles Neural Rendering without opening this panel. Press the button, then the\nkey you want. Escape cancels, "
-    "Backspace unbinds, R resets it.",
+    "Toggles Neural Rendering without opening this panel. Press the button, then the\nkey you want. Escape ca"
+    "ncels, Backspace unbinds, R resets it.",
     "Panel key",
-    "Opens and closes this panel. Independent of OptiScaler's own menu key, so the\ntwo can be up together or on their "
-    "own.",
+    "Opens and closes this panel. Independent of OptiScaler's own menu key, so the\ntwo can be up together or"
+    " on their own.",
     "Apply the model",
-    "Whether the model's edit is applied. Off shows the clean upscaler frame while the\npass keeps running -- so with "
-    "Hold frame, under Inspect, you can freeze a frame\nand toggle this to see the same frozen frame with and without "
-    "Neural Rendering.\nLeave it on for normal use.",
+    "Whether the model's edit is applied. Off shows the clean upscaler frame while the\npass keeps running --"
+    " so with Hold frame, under Inspect, you can freeze a frame\nand toggle this to see the same frozen frame"
+    " with and without Neural Rendering.\nLeave it on for normal use.",
     "Before Super Resolution",
-    "Where the pass sits. Off is the original placement: the model runs on the finished\nupscaled frame. On runs it"
-    " at render resolution on the colour SR is about to\nconsume, so SR then accumulates and upscales an already-en"
-    "hanced picture.\n\nRay Reconstruction always stays on the post-upscale path -- its inputs are a\ndifferent con"
-    "tract. A colour image padded inside a larger texture is staged at its\nreal size; one offset from the corner s"
-    "till falls back after upscaling.\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old place"
-    "ment.",
+    "Where the pass sits. Off is the original placement: the model runs on the finished\nupscaled frame. On r"
+    "uns it at render resolution on the colour SR is about to\nconsume, so SR then accumulates and upscales a"
+    "n already-enhanced picture.\n\nRay Reconstruction always stays on the post-upscale path -- its inputs ar"
+    "e a\ndifferent contract. A colour image padded inside a larger texture is staged at its\nreal size; one "
+    "offset from the corner still falls back after upscaling.\n\nD3D12 and its D3D11/Vulkan bridges only; nat"
+    "ive Vulkan keeps the old placement.",
     "Off for this session: %s.",
     "Retry",
     "Waiting for the upscaler to run.",
-    "The DLSS5 Feeder add-on is loaded, but has not fed a DLSS evaluate yet -- check dlss5-feed.log in the game folder "
-    "for \"technique MISSING\" if this does not clear once you are in-game.",
-    "Needs DLSS or XeSS selected as the upscaler in the game's own video settings, and a save loaded -- this (and the "
-    "rest of OptiScaler) does not run in menus.",
+    "The DLSS5 Feeder add-on is loaded, but has not fed a DLSS evaluate yet -- check dlss5-feed.log in the ga"
+    "me folder for \"technique MISSING\" if this does not clear once you are in-game.",
+    "Needs DLSS or XeSS selected as the upscaler in the game's own video settings, and a save loaded -- this "
+    "(and the rest of OptiScaler) does not run in menus.",
     "  (model running, edit hidden)",
     "Running%s - %.2f ms per frame%s",
     " natively on Vulkan",
     "Running natively on Vulkan - %llu frames%s",
     "Running.%s",
-    "The whole pass: the staging copies and the resolve as well as the\nmodel. Timing only the model would flatter the "
-    "number.\n\nCompare it against the frame time at the bottom of this window to\nsee what it is costing you.",
+    "The whole pass: the staging copies and the resolve as well as the\nmodel. Timing only the model would fl"
+    "atter the number.\n\nCompare it against the frame time at the bottom of this window to\nsee what it is c"
+    "osting you.",
     "Global Controls",
     "Structure Intensity",
     "The model's structure-synthesis strength across the whole frame.",
@@ -76,131 +78,134 @@ const char* const kKeys[] = {
     "Model Automask",
     "Lets the model find skin itself rather than treating the frame uniformly.",
     "Show Mask",
-    "NVIDIA's panel can draw the automask over the frame. The model does not hand\nits mask back through the interface "
-    "this fork drives, so there is nothing\nhere to display.",
-    "-1 means follow the Global Controls Structure Intensity above, and is the\nmodel's own default. 0 and above set "
-    "the masked region's structure\nindependently of the rest of the frame.\n\nGreyed out while Model Automask is off "
-    "-- there is no mask for it to\nshape without it.",
+    "NVIDIA's panel can draw the automask over the frame. The model does not hand\nits mask back through the "
+    "interface this fork drives, so there is nothing\nhere to display.",
+    "-1 means follow the Global Controls Structure Intensity above, and is the\nmodel's own default. 0 and ab"
+    "ove set the masked region's structure\nindependently of the rest of the frame.\n\nGreyed out while Model"
+    " Automask is off -- there is no mask for it to\nshape without it.",
     "Developer Masking",
     "Show Masks",
-    "Per-object masks come from the game's own renderer, so this one stays NVIDIA-only -- an injector has no object "
-    "list to mask.",
+    "Per-object masks come from the game's own renderer, so this one stays NVIDIA-only -- an injector has no "
+    "object list to mask.",
     "Models",
     "Default",
     "Model A",
     "Model B",
     "Model C",
-    "Not the same scale as the super resolution or ray reconstruction presets --\nthe same letter means something "
-    "different here.\n\nRead when the model is built, so a change rebuilds it after a moment.",
+    "Not the same scale as the super resolution or ray reconstruction presets --\nthe same letter means somet"
+    "hing different here.\n\nRead when the model is built, so a change rebuilds it after a moment.",
     "Default (standard)",
     "Natural",
     "Cinematic",
     "Style",
-    "The model's own processing profiles.\n\nDefault (standard): the strongest, and most likely to look "
-    "'stylised'.\nNatural: the same detail work with a gentler hand.\nCinematic: tones down the shine and "
-    "over-processing for a film-like look.\n\nThe names come from community testing, unlike the panel labels above "
-    "--\nNVIDIA ships no names for this control in the binaries.",
+    "The model's own processing profiles.\n\nDefault (standard): the strongest, and most likely to look 'styl"
+    "ised'.\nNatural: the same detail work with a gentler hand.\nCinematic: tones down the shine and over-pro"
+    "cessing for a film-like look.\n\nThe names come from community testing, unlike the panel labels above --"
+    "\nNVIDIA ships no names for this control in the binaries.",
     "Intensity",
-    "The model's own strength control, applied inside it. Distinct from the Global\nControls above, and from Detail "
-    "strength below, which scales the result\nafterwards.",
+    "The model's own strength control, applied inside it. Distinct from the Global\nControls above, and from "
+    "Detail strength below, which scales the result\nafterwards.",
     "Frame Generation",
     "NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG.",
-    "Sets Streamline's numFramesToGenerate directly -- how many extra frames\nDLSS-G inserts between real ones. 2X "
-    "inserts one, 3X inserts two, and\nso on. Capped by what your GPU and driver report supporting.\n\nGreyed out "
-    "while Multi is on below -- the driver picks the count then.",
+    "Sets Streamline's numFramesToGenerate directly -- how many extra frames\nDLSS-G inserts between real one"
+    "s. 2X inserts one, 3X inserts two, and\nso on. Capped by what your GPU and driver report supporting.\n\n"
+    "Greyed out while Multi is on below -- the driver picks the count then.",
     "Multi (Dynamic Frame Generation)",
-    "Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold\nthe FPS target below -- instead of a "
-    "fixed 2X/3X/4X.",
+    "Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold\nthe FPS target below -- instea"
+    "d of a fixed 2X/3X/4X.",
     "DMFG FPS Target",
     "0 auto-detects your display's refresh rate.",
     "This game has no NVIDIA DLSS Frame Generation of its own.",
     "Cost",
     "Model passes",
-    "How many times the model runs before its answer is composed. Each extra layer is\nfed the previous layer's output "
-    "and keeps its own temporal history.\n\nThe base frame stays untouched and the composition happens once at the "
-    "end, so\ncolour and transfer strength do not compound -- but the model is being asked to\nenhance its own output, "
-    "which is outside what it was trained on.\n\nCost is very nearly linear: the model is almost the whole expense of "
-    "the pass\nand every layer pays it again. Three is the ceiling because later layers converge\nwhile still costing "
-    "full price.",
+    "How many times the model runs before its answer is composed. Each extra layer is\nfed the previous layer"
+    "'s output and keeps its own temporal history.\n\nThe base frame stays untouched and the composition happ"
+    "ens once at the end, so\ncolour and transfer strength do not compound -- but the model is being asked to"
+    "\nenhance its own output, which is outside what it was trained on.\n\nCost is very nearly linear: the mo"
+    "del is almost the whole expense of the pass\nand every layer pays it again. Three is the ceiling because"
+    " later layers converge\nwhile still costing full price.",
     "%dx model cost. Two often reads as richer; three is usually visibly over-processed.",
     "Auto (inherit pass 1)",
     "Pass 2 model",
     "Pass 2 style",
     "Pass 3 model",
     "Pass 3 style",
-    "Which built-in profile each later layer runs. These select a different\nprofile inside the same NVIDIA model file "
-    "-- nothing extra is loaded.\n\nAuto means the layer runs whatever pass 1 is set to. Changing one\nrebuilds only "
-    "that layer's feature, and only while that layer is active.",
+    "Which built-in profile each later layer runs. These select a different\nprofile inside the same NVIDIA m"
+    "odel file -- nothing extra is loaded.\n\nAuto means the layer runs whatever pass 1 is set to. Changing o"
+    "ne\nrebuilds only that layer's feature, and only while that layer is active.",
     "Model resolution",
-    "What fraction of the frame the model works at. Cost falls with the square of\nthis, so half resolution is roughly "
-    "a quarter of the time. Below 100 the frame\nitself is never reduced -- only the model's own contribution is "
-    "computed small\nand enlarged. Applied when the handle is let go, not while it is moving.",
-    "Supersampling %.2fx: the model runs ABOVE native, then is sampled back down. Experimental, and costly -- time "
-    "grows with the area.",
+    "What fraction of the frame the model works at. Cost falls with the square of\nthis, so half resolution i"
+    "s roughly a quarter of the time. Below 100 the frame\nitself is never reduced -- only the model's own co"
+    "ntribution is computed small\nand enlarged. Applied when the handle is let go, not while it is moving.",
+    "Supersampling %.2fx: the model runs ABOVE native, then is sampled back down. Experimental, and costly --"
+    " time grows with the area.",
     "Downscaler",
-    "The filter that averages the model's above-native answer back to display size --\nthis is what turns "
-    "supersampling into LESS noise rather than more. Sharper\nfilters (Lanczos3, Kaiser3) keep the most detail; softer "
-    "ones (Bicubic,\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling\ndownscaler, so the two "
-    "can differ and run at the same time.",
+    "The filter that averages the model's above-native answer back to display size --\nthis is what turns sup"
+    "ersampling into LESS noise rather than more. Sharper\nfilters (Lanczos3, Kaiser3) keep the most detail; "
+    "softer ones (Bicubic,\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling\ndownscale"
+    "r, so the two can differ and run at the same time.",
     "Classic",
     "Matched residual",
     "Enlargement",
-    "How the model's work is brought back up when it ran below the frame's size.\n\nClassic composes the model's small "
-    "picture directly against the full-size frame.\nThose two disagree by the shrink's blur as well as by the model's "
-    "edit, and the\ncomposition cannot tell them apart.\n\nGreyed out at 100%, where there is nothing to enlarge.",
+    "How the model's work is brought back up when it ran below the frame's size.\n\nClassic composes the mode"
+    "l's small picture directly against the full-size frame.\nThose two disagree by the shrink's blur as well"
+    " as by the model's edit, and the\ncomposition cannot tell them apart.\n\nGreyed out at 100%, where there"
+    " is nothing to enlarge.",
     "How much of it lands",
     "Detail strength",
     "Reset",
-    "How far the frame moves toward the model's picture. 0 gives back exactly what\nthe upscaler produced. 1 is the "
-    "model's picture. Above 1 carries on past\nit in the same direction.",
+    "How far the frame moves toward the model's picture. 0 gives back exactly what\nthe upscaler produced. 1 "
+    "is the model's picture. Above 1 carries on past\nit in the same direction.",
     "Colour strength",
-    "Whether the model's colour arrives with its light. 0 keeps the game's own hue\nexactly -- every pixel the "
-    "original colour, with only its brightness carrying\nthe model's verdict. 1 brings the model's colour as well, in "
-    "its own hue,\nclamped into AP1 so nothing unreachable is asked for.\n\nAbove 1 it over-saturates: the colour "
-    "keeps its hue but grows more vivid, and\nrolls off at the edge of what the display can show rather than clipping "
-    "into a\nflat blown patch. 1 is the model's own colour; push past it for punch.",
+    "Whether the model's colour arrives with its light. 0 keeps the game's own hue\nexactly -- every pixel th"
+    "e original colour, with only its brightness carrying\nthe model's verdict. 1 brings the model's colour a"
+    "s well, in its own hue,\nclamped into AP1 so nothing unreachable is asked for.\n\nAbove 1 it over-satura"
+    "tes: the colour keeps its hue but grows more vivid, and\nrolls off at the edge of what the display can s"
+    "how rather than clipping into a\nflat blown patch. 1 is the model's own colour; push past it for punch.",
     "Colour",
-    "The model was trained on finished, sRGB-encoded frames. These decide how the upscaler's linear output is mapped "
-    "into something it recognises.",
+    "The model was trained on finished, sRGB-encoded frames. These decide how the upscaler's linear output is"
+    " mapped into something it recognises.",
     "Off (soft knee)",
     "Neutwo proxy + composed",
     "Neutwo proxy + replace",
     "Hybrid proxy + composed",
     "Hybrid proxy + replace",
     "Reversible proxy",
-    "What the model is shown, and how its answer comes back. Experimental.\n\nOff (soft knee): the default, and "
-    "byte-identical to before. It rolls highlights\noff so hard the model cannot resolve detail in them -- fine in "
-    "soft-lit scenes,\nweak in bright ones.\n\nNeutwo composed: an unclipped curve, so the model sees highlight "
-    "detail, then\neverything above it (strengths, highlight guard, palette). Wins in bright scenes,\nbut the curve "
-    "compresses midtones too, so soft-lit content can be worse than Off.\nIt also shifts paper white -- re-check that "
-    "when you switch.\n\nHybrid composed: the one to use. Identity in the midtones -- as good as Off\nthere -- with "
-    "the unclipped roll only in the highlights, so it recovers the detail\nOff crushes without giving up the midtones "
-    "Neutwo does. Barely shifts paper white.\n\nReplace: the raw model straight back through the exact inverse, none "
-    "of the\ncomposition -- no guard, no palette, no strengths. Gorgeous where there are no\nbright lights, but they "
-    "FLASH in motion. A reference, not a daily setting.\n\nHybrid replace: Replace's raw model on the hybrid curve, so "
-    "the flashing is\nconfined to genuine highlights instead of everywhere. Most of Replace's detail,\nfar more "
-    "stable.",
+    "What the model is shown, and how its answer comes back. Experimental.\n\nOff (soft knee): the default, a"
+    "nd byte-identical to before. It rolls highlights\noff so hard the model cannot resolve detail in them --"
+    " fine in soft-lit scenes,\nweak in bright ones.\n\nNeutwo composed: an unclipped curve, so the model see"
+    "s highlight detail, then\neverything above it (strengths, highlight guard, palette). Wins in bright scen"
+    "es,\nbut the curve compresses midtones too, so soft-lit content can be worse than Off.\nIt also shifts p"
+    "aper white -- re-check that when you switch.\n\nHybrid composed: the one to use. Identity in the midtone"
+    "s -- as good as Off\nthere -- with the unclipped roll only in the highlights, so it recovers the detail\n"
+    "Off crushes without giving up the midtones Neutwo does. Barely shifts paper white.\n\nReplace: the raw m"
+    "odel straight back through the exact inverse, none of the\ncomposition -- no guard, no palette, no stren"
+    "gths. Gorgeous where there are no\nbright lights, but they FLASH in motion. A reference, not a daily set"
+    "ting.\n\nHybrid replace: Replace's raw model on the hybrid curve, so the flashing is\nconfined to genuin"
+    "e highlights instead of everywhere. Most of Replace's detail,\nfar more stable.",
     "Paper white only",
     "The game's own exposure",
     "A buffer the scan found",
     "White point from",
-    "Paper white only -- the slider below and nothing else. Right for a game whose\nexposure never moves, wrong the "
-    "moment it does: one constant cannot serve a\ncave and a field.\n\nThe game's own exposure -- read from the "
-    "texture the game hands the upscaler.\nThe best source there is, because it is decided upstream and nothing this "
-    "pass\ndoes can move it. Not every game supplies one.\n\nA buffer the scan found -- for games that compute an "
-    "exposure and never pass\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels\nthe "
-    "scale. Needs anchoring once, in the Experimental section, and checking after.",
+    "Paper white only -- the slider below and nothing else. Right for a game whose\nexposure never moves, wro"
+    "ng the moment it does: one constant cannot serve a\ncave and a field.\n\nThe game's own exposure -- read"
+    " from the texture the game hands the upscaler.\nThe best source there is, because it is decided upstream"
+    " and nothing this pass\ndoes can move it. Not every game supplies one.\n\nA buffer the scan found -- for"
+    " games that compute an exposure and never pass\nit on. A guess: candidates are matched by shape, and the"
+    " anchor's ratio cancels\nthe scale. Needs anchoring once, in the Experimental section, and checking afte"
+    "r.",
     "Scan %.5f  ->  white point %.2f   (1 point)",
     "Scan %.5f  ->  white point %.2f   (%u points)",
     "Paper white (point %d)",
     "Paper white",
-    "The white point for the selected calibration point, or -- with no row\nselected -- the value the next Anchor "
-    "press captures.\n\nSet it until the picture looks right here, then Anchor. Move to very\ndifferent light and do "
-    "it again: two points fix the buffer's real\nrelationship and the white point holds between them.",
+    "The white point for the selected calibration point, or -- with no row\nselected -- the value the next An"
+    "chor press captures.\n\nSet it until the picture looks right here, then Anchor. Move to very\ndifferent "
+    "light and do it again: two points fix the buffer's real\nrelationship and the white point holds between "
+    "them.",
     "Trim (x the scan)",
-    "A multiplier on the scan's white point, and the control to adjust between\nanchor points: dial it until the "
-    "picture looks right in the current light,\nthen press Anchor under Experimental -- that captures the trimmed "
-    "value as\na new point and resets this to 1.",
+    "A multiplier on the scan's white point, and the control to adjust between\nanchor points: dial it until "
+    "the picture looks right in the current light,\nthen press Anchor under Experimental -- that captures the"
+    " trimmed value as\na new point and resets this to 1.",
     "This game supplies an exposure and it is being read.",
     "This game supplies no exposure. Try the scan instead.",
     "Waiting for a frame...",
@@ -208,84 +213,88 @@ const char* const kKeys[] = {
     "  (held: absent this frame)",
     "Reading the exposure...",
     "Trim (x the game's exposure)",
-    "A multiplier on the exposure the game supplied. 1.00x takes its number exactly,\nand that is the right answer "
-    "here.\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look\nright is evidence the "
-    "exposure being read is wrong for that game, not that the\ngame wants trimming. Roughly 0.8 to 1.25 is honest "
-    "tuning; reaching for 4 means\nsomething upstream is broken and this is hiding it.\n\nYour manual paper white is "
-    "kept separately and comes back untouched if you\nswitch the source back.",
-    "What the frame is divided by before the model sees it. There is no other white\npoint; this is the whole of it. "
-    "Above 1 the picture handed over is darker, so\nhighlights sit lower on the curve.",
+    "A multiplier on the exposure the game supplied. 1.00x takes its number exactly,\nand that is the right a"
+    "nswer here.\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look\nright is evide"
+    "nce the exposure being read is wrong for that game, not that the\ngame wants trimming. Roughly 0.8 to 1."
+    "25 is honest tuning; reaching for 4 means\nsomething upstream is broken and this is hiding it.\n\nYour m"
+    "anual paper white is kept separately and comes back untouched if you\nswitch the source back.",
+    "What the frame is divided by before the model sees it. There is no other white\npoint; this is the whole"
+    " of it. Above 1 the picture handed over is darker, so\nhighlights sit lower on the curve.",
     "Highlight guard",
-    "The most the pass may move any pixel, as a multiple of what it already was, in both\ndirections -- a pixel may "
-    "not be brightened past this nor darkened past its\nreciprocal. Lights are where the model has least to say and "
-    "rescaling its answer\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning\ninto a "
-    "string of coloured cells. Raise it only if bright areas look clipped.",
+    "The most the pass may move any pixel, as a multiple of what it already was, in both\ndirections -- a pix"
+    "el may not be brightened past this nor darkened past its\nreciprocal. Lights are where the model has lea"
+    "st to say and rescaling its answer\ndoes the most damage; 2x leaves detail intact while stopping a strip"
+    " light turning\ninto a string of coloured cells. Raise it only if bright areas look clipped.",
     "Exposure scan",
     "Show the light meter on screen",
-    "A lamp in the corner: red for dark, green for full light, and the shades\nbetween, with the reading beside "
-    "it.\n\nIt is how you see at a glance that the scan is TRACKING rather than\nmerely running. Walk into shade and "
-    "it should slide toward red; step out\nand it should go green. If it moves the wrong way, that is what \"the "
-    "number\nruns the other way\" below is for.\n\nPurely a readout. It changes nothing.",
+    "A lamp in the corner: red for dark, green for full light, and the shades\nbetween, with the reading besi"
+    "de it.\n\nIt is how you see at a glance that the scan is TRACKING rather than\nmerely running. Walk into"
+    " shade and it should slide toward red; step out\nand it should go green. If it moves the wrong way, that"
+    " is what \"the number\nruns the other way\" below is for.\n\nPurely a readout. It changes nothing.",
     "Anchor here",
-    "Make the picture look right, then press this -- it captures the current look as a\npoint. For the first point use "
-    "the Paper white slider above; for every point\nafter, move to different light and use the Trim, which this then "
-    "bakes in.\n\nOne point calibrates a ratio and the white point follows the scan from there.\nWalk into very "
-    "different light and press it again: the second point pins down\nthe buffer's real curve, so everything between "
-    "the two is right rather than\nonly the neighbourhood of one anchor. Up to eight.\n\nThe table is per game and "
-    "shareable -- one person calibrates a game and the\nnumbers are the same for everyone who takes the profile.",
+    "Make the picture look right, then press this -- it captures the current look as a\npoint. For the first "
+    "point use the Paper white slider above; for every point\nafter, move to different light and use the Trim"
+    ", which this then bakes in.\n\nOne point calibrates a ratio and the white point follows the scan from th"
+    "ere.\nWalk into very different light and press it again: the second point pins down\nthe buffer's real c"
+    "urve, so everything between the two is right rather than\nonly the neighbourhood of one anchor. Up to ei"
+    "ght.\n\nThe table is per game and shareable -- one person calibrates a game and the\nnumbers are the sam"
+    "e for everyone who takes the profile.",
     "(the scan is only watching -- the white point above comes from somewhere else)",
     "%s scan %.4f  ->  white %.2f%s",
     "   [editing]",
-    "Click a row to edit it with the slider above; click it again to control the live point. > is the point in use "
-    "now.",
+    "Click a row to edit it with the slider above; click it again to control the live point. > is the point i"
+    "n use now.",
     "The number runs the other way",
-    "Flip this if the picture gets worse in the direction it should be getting\nbetter. Most engines store an exposure "
-    "that falls as the scene brightens;\nsome store its reciprocal, and a buffer found by shape does not say "
-    "which.\nAdd a second anchor point in different light and this is decided for you,\nso it disappears.",
+    "Flip this if the picture gets worse in the direction it should be getting\nbetter. Most engines store an"
+    " exposure that falls as the scene brightens;\nsome store its reciprocal, and a buffer found by shape doe"
+    "s not say which.\nAdd a second anchor point in different light and this is decided for you,\nso it disap"
+    "pears.",
     "Candidates",
     "nothing matched yet.",
     "%zu. %s -- not read yet",
     "%zu. %s = %.5f  (seen %.5f..%.5f) %s",
     "MOVES",
     "flat so far",
-    "Walk from shade into daylight. A real exposure moves. One that only ever climbs is a counter, not an exposure.",
+    "Walk from shade into daylight. A real exposure moves. One that only ever climbs is a counter, not an exp"
+    "osure.",
     "Guide",
     "Follow the game",
     "Force normal",
     "Force inverted",
     "Depth",
-    "Which way round the model is told depth runs. The game states this in the flags it\ncreated its own DLSS feature "
-    "with, and following it is right almost always -- but\na game that states it wrongly needs correcting by "
-    "hand.\n\nIf the pass looks worst where geometry meets sky, try forcing the other one.",
+    "Which way round the model is told depth runs. The game states this in the flags it\ncreated its own DLSS"
+    " feature with, and following it is right almost always -- but\na game that states it wrongly needs corre"
+    "cting by hand.\n\nIf the pass looks worst where geometry meets sky, try forcing the other one.",
     "UI correction",
-    "Lets the model account for a UI layer laid over the frame. On is its own default\nand right whenever a UI "
-    "resource reaches it; turn it off if the correction is\nitself what looks wrong.\n\nRead when the model is built.",
+    "Lets the model account for a UI layer laid over the frame. On is its own default\nand right whenever a U"
+    "I resource reaches it; turn it off if the correction is\nitself what looks wrong.\n\nRead when the model"
+    " is built.",
     "Inspect",
     "Capturing...",
     "Capture 8 frames",
-    "Writes eight consecutive frames twice: as the upscaler produced them, and again\nonce the model's edit was "
-    "applied. Into a dlssnr-capture folder beside\nOptiScaler; each run overwrites the last.",
+    "Writes eight consecutive frames twice: as the upscaler produced them, and again\nonce the model's edit w"
+    "as applied. Into a dlssnr-capture folder beside\nOptiScaler; each run overwrites the last.",
     "Auto-capture once per session",
-    "Writes one matched before/after set automatically, without anyone asking. The\nfolder is cleared each run, so it "
-    "holds a single session and never grows.",
+    "Writes one matched before/after set automatically, without anyone asking. The\nfolder is cleared each ru"
+    "n, so it holds a single session and never grows.",
     "Hold frame",
-    "Freezes the frame the model works on. While held, change paper white, the strengths,\nthe reversible mode, the "
-    "model preset -- anything below the upscaler -- and only\nthat setting moves; the scene does not. Pairs with "
-    "\"Apply the model\" at the top:\nfreeze a frame, then toggle that to see it with and without.\n\nWhat it cannot "
-    "show: upscaler presets or anything upstream of this pass (the\nupscaler is not re-run on a held frame), and the "
-    "game's own HUD and\npost-processing, which run after this and keep updating. The white point stops\nbeing "
-    "measured and holds its value, so it cannot drift and confound the\ncomparison.\n\nClose the panel and it stays "
-    "held. Untick to resume.",
+    "Freezes the frame the model works on. While held, change paper white, the strengths,\nthe reversible mod"
+    "e, the model preset -- anything below the upscaler -- and only\nthat setting moves; the scene does not. "
+    "Pairs with \"Apply the model\" at the top:\nfreeze a frame, then toggle that to see it with and without."
+    "\n\nWhat it cannot show: upscaler presets or anything upstream of this pass (the\nupscaler is not re-run"
+    " on a held frame), and the game's own HUD and\npost-processing, which run after this and keep updating. "
+    "The white point stops\nbeing measured and holds its value, so it cannot drift and confound the\ncomparis"
+    "on.\n\nClose the panel and it stays held. Untick to resume.",
     "Off",
     "Side by side",
     "Wipe",
     "Compare",
-    "Shows the pass against itself. Side by side puts the whole frame in each half;\nwipe cuts a single frame at the "
-    "split and plays normally. Neither needs the\nmenu open to keep working.",
+    "Shows the pass against itself. Side by side puts the whole frame in each half;\nwipe cuts a single frame"
+    " at the split and plays normally. Neither needs the\nmenu open to keep working.",
     "Swap sides",
     "Labels",
-    "Draws which side is which into the frame's own plane, so a screenshot still\nsays it. Clipped per side, so the "
-    "wipe reveals and hides them exactly as it\ndoes the images.",
+    "Draws which side is which into the frame's own plane, so a screenshot still\nsays it. Clipped per side, "
+    "so the wipe reveals and hides them exactly as it\ndoes the images.",
     "Label size",
     "Zoom",
     "Split",
@@ -293,26 +302,26 @@ const char* const kKeys[] = {
     "Model output (raw)",
     "Difference (amplified)",
     "Debug view",
-    "Proxy is the picture handed to the model. Difference shows what the model\nactually changed, amplified twenty "
-    "times and centred on grey.",
+    "Proxy is the picture handed to the model. Difference shows what the model\nactually changed, amplified t"
+    "wenty times and centred on grey.",
     "Experimental",
-    "Both are unproven. They exist to test whether the driver's own nvngx.dll can dispatch the model, which would "
-    "remove the need for the 165 MB copy beside OptiScaler.",
+    "Both are unproven. They exist to test whether the driver's own nvngx.dll can dispatch the model, which w"
+    "ould remove the need for the 165 MB copy beside OptiScaler.",
     "Probe the driver",
-    "Asks the driver's nvngx.dll once per session whether it already knows the model.\nWrites the answer to the log "
-    "and changes nothing else.\n\nRead when the model is built, so it applies from the next session.",
+    "Asks the driver's nvngx.dll once per session whether it already knows the model.\nWrites the answer to t"
+    "he log and changes nothing else.\n\nRead when the model is built, so it applies from the next session.",
     "Run through the driver",
-    "Drives the model through the driver's own nvngx.dll instead of the forwarder --\nthe way DLSS itself is called. "
-    "If the picture matches, the forwarder is\nunnecessary.\n\nCompare before trusting it: turn on Compare above and "
-    "look for a difference.",
+    "Drives the model through the driver's own nvngx.dll instead of the forwarder --\nthe way DLSS itself is "
+    "called. If the picture matches, the forwarder is\nunnecessary.\n\nCompare before trusting it: turn on Co"
+    "mpare above and look for a difference.",
     "Appearance",
     "Light panel",
-    "Light is the default. The dark palette this panel was originally styled after put\nits dimmed text at 2.65:1 "
-    "against the background, against the 4.5:1 that reads\ncomfortably -- and an overlay is read at a glance, over a "
-    "moving picture.\n\nUnticking restores NVIDIA's own colouring.",
+    "Light is the default. The dark palette this panel was originally styled after put\nits dimmed text at 2."
+    "65:1 against the background, against the 4.5:1 that reads\ncomfortably -- and an overlay is read at a gl"
+    "ance, over a moving picture.\n\nUnticking restores NVIDIA's own colouring.",
     "Vendor colours",
-    "The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,\nAMD red on an AMD one. Untick "
-    "to keep the green everywhere.",
+    "The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,\nAMD red on an AMD on"
+    "e. Untick to keep the green everywhere.",
     "\n\nThis game is running on an AMD card.",
     "\n\nThis game is not running on an AMD card, so this changes nothing here.",
     "Auto (Windows)",
@@ -324,25 +333,26 @@ const char* const kKeys[] = {
     "Spanish",
     "German",
     "Language",
-    "Auto follows the Windows display language. Pinning one here only changes this panel;\nOptiScaler's own menu stays "
-    "English. A language that needs its own font (Chinese,\nKorean) loads it from Windows on the next frame.",
+    "Auto follows the Windows display language. Pinning one here only changes this panel;\nOptiScaler's own m"
+    "enu stays English. A language that needs its own font (Chinese,\nKorean) loads it from Windows on the ne"
+    "xt frame.",
     "Font size",
-    "This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize.\n\nRow widths are worked out from the "
-    "font size, so far above 1.5x labels start\nrunning into their values.",
+    "This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize.\n\nRow widths are worked out "
+    "from the font size, so far above 1.5x labels start\nrunning into their values.",
     "Reset layout",
-    "Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right\ncorner to resize it. "
-    "It can hang partly off screen, but a strip always stays visible to\ngrab. Position and size are remembered for"
-    " this game as a fraction of the screen, so\nthey come back at any resolution.",
+    "Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right\ncorner to resiz"
+    "e it. It can hang partly off screen, but a strip always stays visible to\ngrab. Position and size are re"
+    "membered for this game as a fraction of the screen, so\nthey come back at any resolution.",
     "Close the panel. Its key opens it again.",
     "Game's DLSS Frame Generation: running at %dX",
     "Game's DLSS Frame Generation: off in the game's video settings.",
-    "This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the\ngame's video settings as usua"
-    "l -- the row below only changes the multiplier\nit asks the driver for.",
+    "This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the\ngame's video settings a"
+    "s usual -- the row below only changes the multiplier\nit asks the driver for.",
     "Game",
-    "Overrides how many extra frames the game's DLSS-G inserts between real ones.\n\"Game\" leaves it at whatever t"
-    "he game's own menu says. 2X inserts one, 3X\ninserts two, and so on. 3X and 4X need an RTX 50 series -- other "
-    "cards are\ncapped at 2X by the driver, whatever is picked here.\n\nGreyed out while Multi is on below -- the d"
-    "river picks the count then.",
+    "Overrides how many extra frames the game's DLSS-G inserts between real ones.\n\"Game\" leaves it at what"
+    "ever the game's own menu says. 2X inserts one, 3X\ninserts two, and so on. 3X and 4X need an RTX 50 seri"
+    "es -- other cards are\ncapped at 2X by the driver, whatever is picked here.\n\nGreyed out while Multi is"
+    " on below -- the driver picks the count then.",
     "nvngx.dll_dlssnr.dll is missing",
     "nvngx.dll_dlssnr.dll would not load",
     "the forwarder is missing its exports",
@@ -360,74 +370,77 @@ const char* const kKeys[] = {
     "not started",
     "could not allocate the readback buffers",
     "no buffer in this game is shaped like an exposure",
+    "French",
 };
 
-const int kKeyCount = 224;
+const int kKeyCount = (int) (sizeof(kKeys) / sizeof(kKeys[0]));
 
 static const char* const kTable_pt_BR[] = {
     "Controles de desenvolvedor DLSS 5",
     "DLSS LIGADO",
-    "Sintetiza detalhe no quadro do upscaler, antes que a gera\303\247\303\243o de quadros o veja.\n\nPrecisa de dois "
-    "arquivos de nome parecido ao lado do OptiScaler, com um caractere de diferen\303\247a:\n  nvngx_dlssnr.dll       "
-    "o modelo da NVIDIA (~165 MB) -- voc\303\252 fornece\n  nvngx.dll_dlssnr.dll   o encaminhador (~13 KB) -- vem "
-    "neste pacote\nN\303\243o documentado e acionado diretamente, ent\303\243o nada disto tem suporte oficial.",
+    "Sintetiza detalhe no quadro do upscaler, antes que a gera\303\247\303\243o de quadros o veja.\n\nPrecisa"
+    " de dois arquivos de nome parecido ao lado do OptiScaler, com um caractere de diferen\303\247a:\n  nvngx"
+    "_dlssnr.dll       o modelo da NVIDIA (~165 MB) -- voc\303\252 fornece\n  nvngx.dll_dlssnr.dll   o encami"
+    "nhador (~13 KB) -- vem neste pacote\nN\303\243o documentado e acionado diretamente, ent\303\243o nada di"
+    "sto tem suporte oficial.",
     "Fonte: DLSS5 Feeder (sem DLSS nativo neste jogo)",
-    "Este jogo n\303\243o tem DLSS pr\303\263prio, ent\303\243o n\303\243o h\303\241 chamada evaluate \303\240 qual o "
-    "Neural Rendering possa se ligar. O add-on de ReShade DLSS5 Feeder constr\303\263i uma a partir da profundidade e "
-    "dos vetores de movimento estimados do pr\303\263prio ReShade.\n\nVetores de movimento estimados s\303\243o mais "
-    "grosseiros que os reais do jogo -- espere mais ghosting em movimento r\303\241pido e geometria fina mais suave do "
-    "que um jogo com DLSS nativo obt\303\251m do mesmo modelo.",
+    "Este jogo n\303\243o tem DLSS pr\303\263prio, ent\303\243o n\303\243o h\303\241 chamada evaluate \303\240"
+    " qual o Neural Rendering possa se ligar. O add-on de ReShade DLSS5 Feeder constr\303\263i uma a partir d"
+    "a profundidade e dos vetores de movimento estimados do pr\303\263prio ReShade.\n\nVetores de movimento e"
+    "stimados s\303\243o mais grosseiros que os reais do jogo -- espere mais ghosting em movimento r\303\241p"
+    "ido e geometria fina mais suave do que um jogo com DLSS nativo obt\303\251m do mesmo modelo.",
     "Lossless Scaling: n\303\243o configurado (OptiDLSS5-UI).",
     "Lossless Scaling",
-    "Abre/fecha o Lossless Scaling em segundo plano (minimizado na bandeja, sem janela vis\303\255vel). Ligar Ativo"
-    " abaixo tamb\303\251m o abre para voc\303\252.",
+    "Abre/fecha o Lossless Scaling em segundo plano (minimizado na bandeja, sem janela vis\303\255vel). Ligar"
+    " Ativo abaixo tamb\303\251m o abre para voc\303\252.",
     "Ativo",
-    "Liga/desliga a Frame Generation do Lossless Scaling para este jogo pelo atalho global dele -- nenhuma janela a"
-    "parece, e ele abre o Lossless Scaling antes se preciso. Mostra o \303\272ltimo pedido, n\303\243o um estado co"
-    "nfirmado ao vivo.\n\nLigar isto desliga a Frame Generation do pr\303\263prio OptiScaler: dois geradores de qua"
-    "dros ao mesmo tempo se acumulam.",
+    "Liga/desliga a Frame Generation do Lossless Scaling para este jogo pelo atalho global dele -- nenhuma ja"
+    "nela aparece, e ele abre o Lossless Scaling antes se preciso. Mostra o \303\272ltimo pedido, n\303\243o "
+    "um estado confirmado ao vivo.\n\nLigar isto desliga a Frame Generation do pr\303\263prio OptiScaler: doi"
+    "s geradores de quadros ao mesmo tempo se acumulam.",
     "Adaptativo: mant\303\251m %d fps",
-    "Frame Generation adaptativa: o Lossless Scaling gera s\303\263 os quadros necess\303\241rios para manter este "
-    "alvo. Mude o alvo (ou troque para um multiplicador fixo) no OptiDLSS5-UI. Exige o jogo em janela sem bordas ou em "
-    "janela, n\303\243o em tela cheia exclusiva (jogos DX12 geralmente funcionam de qualquer jeito).",
-    "Quadros gerados por quadro real. Se o Lossless Scaling j\303\241 estiver rodando, ele reinicia rapidamente par"
-    "a aplicar -- a Frame Gen some por um segundo. Exige o jogo em janela sem bordas ou em janela, n\303\243o em te"
-    "la cheia exclusiva (jogos DX12 geralmente funcionam de qualquer jeito).",
+    "Frame Generation adaptativa: o Lossless Scaling gera s\303\263 os quadros necess\303\241rios para manter"
+    " este alvo. Mude o alvo (ou troque para um multiplicador fixo) no OptiDLSS5-UI. Exige o jogo em janela s"
+    "em bordas ou em janela, n\303\243o em tela cheia exclusiva (jogos DX12 geralmente funcionam de qualquer "
+    "jeito).",
+    "Quadros gerados por quadro real. Se o Lossless Scaling j\303\241 estiver rodando, ele reinicia rapidamen"
+    "te para aplicar -- a Frame Gen some por um segundo. Exige o jogo em janela sem bordas ou em janela, n\303\243"
+    "o em tela cheia exclusiva (jogos DX12 geralmente funcionam de qualquer jeito).",
     "Mantenha a DLSS Frame Generation do pr\303\263prio jogo desligada enquanto isto roda.",
     "Tecla de altern\303\242ncia",
-    "Liga e desliga o Neural Rendering sem abrir este painel. Pressione o bot\303\243o e depois a tecla desejada. "
-    "Escape cancela, Backspace desvincula, R restaura.",
+    "Liga e desliga o Neural Rendering sem abrir este painel. Pressione o bot\303\243o e depois a tecla desej"
+    "ada. Escape cancela, Backspace desvincula, R restaura.",
     "Tecla do painel",
-    "Abre e fecha este painel. Independente da tecla do menu do pr\303\263prio OptiScaler, ent\303\243o os dois podem "
-    "estar abertos juntos ou separados.",
+    "Abre e fecha este painel. Independente da tecla do menu do pr\303\263prio OptiScaler, ent\303\243o os do"
+    "is podem estar abertos juntos ou separados.",
     "Aplicar o modelo",
-    "Se a edi\303\247\303\243o do modelo \303\251 aplicada. Desligado mostra o quadro limpo do upscaler enquanto o "
-    "passo continua rodando -- assim, com Congelar quadro, em Inspecionar, voc\303\252 congela um quadro e alterna "
-    "isto para ver o mesmo quadro com e sem Neural Rendering.\nDeixe ligado no uso normal.",
+    "Se a edi\303\247\303\243o do modelo \303\251 aplicada. Desligado mostra o quadro limpo do upscaler enqua"
+    "nto o passo continua rodando -- assim, com Congelar quadro, em Inspecionar, voc\303\252 congela um quadr"
+    "o e alterna isto para ver o mesmo quadro com e sem Neural Rendering.\nDeixe ligado no uso normal.",
     "Antes da Super Resolution",
-    "Onde o passo fica. Desligado \303\251 a posi\303\247\303\243o original: o modelo roda no quadro j\303\241 ampl"
-    "iado. Ligado roda na resolu\303\247\303\243o de renderiza\303\247\303\243o, na cor que a SR est\303\241 preste"
-    "s a consumir, ent\303\243o a SR acumula e amplia uma imagem j\303\241 melhorada.\n\nRay Reconstruction sempre "
-    "fica no caminho p\303\263s-amplia\303\247\303\243o -- suas entradas s\303\243o outro contrato. Uma imagem de c"
-    "or com padding dentro de uma textura maior \303\251 processada no tamanho real; uma deslocada do canto ainda r"
-    "ecua para depois da amplia\303\247\303\243o.\n\nS\303\263 D3D12 e suas pontes D3D11/Vulkan; Vulkan nativo mant"
-    "\303\251m a posi\303\247\303\243o antiga.",
+    "Onde o passo fica. Desligado \303\251 a posi\303\247\303\243o original: o modelo roda no quadro j\303\241"
+    " ampliado. Ligado roda na resolu\303\247\303\243o de renderiza\303\247\303\243o, na cor que a SR est\303\241"
+    " prestes a consumir, ent\303\243o a SR acumula e amplia uma imagem j\303\241 melhorada.\n\nRay Reconstru"
+    "ction sempre fica no caminho p\303\263s-amplia\303\247\303\243o -- suas entradas s\303\243o outro contra"
+    "to. Uma imagem de cor com padding dentro de uma textura maior \303\251 processada no tamanho real; uma d"
+    "eslocada do canto ainda recua para depois da amplia\303\247\303\243o.\n\nS\303\263 D3D12 e suas pontes D"
+    "3D11/Vulkan; Vulkan nativo mant\303\251m a posi\303\247\303\243o antiga.",
     "Desligado nesta sess\303\243o: %s.",
     "Tentar de novo",
     "Aguardando o upscaler rodar.",
-    "O add-on DLSS5 Feeder est\303\241 carregado, mas ainda n\303\243o alimentou um evaluate do DLSS -- procure "
-    "\"technique MISSING\" em dlss5-feed.log na pasta do jogo se isto n\303\243o sumir depois que voc\303\252 estiver "
-    "dentro do jogo.",
-    "Precisa de DLSS ou XeSS selecionado como upscaler nas op\303\247\303\265es de v\303\255deo do pr\303\263prio "
-    "jogo, e de um save carregado -- isto (e o resto do OptiScaler) n\303\243o roda em menus.",
+    "O add-on DLSS5 Feeder est\303\241 carregado, mas ainda n\303\243o alimentou um evaluate do DLSS -- procu"
+    "re \"technique MISSING\" em dlss5-feed.log na pasta do jogo se isto n\303\243o sumir depois que voc\303\252"
+    " estiver dentro do jogo.",
+    "Precisa de DLSS ou XeSS selecionado como upscaler nas op\303\247\303\265es de v\303\255deo do pr\303\263"
+    "prio jogo, e de um save carregado -- isto (e o resto do OptiScaler) n\303\243o roda em menus.",
     "  (modelo rodando, edi\303\247\303\243o oculta)",
     "Rodando%s - %.2f ms por quadro%s",
     " nativamente em Vulkan",
     "Rodando nativamente em Vulkan - %llu quadros%s",
     "Rodando.%s",
-    "O passo inteiro: as c\303\263pias de staging e o resolve, al\303\251m do modelo. Medir s\303\263 o modelo "
-    "maquiaria o n\303\272mero.\n\nCompare com o tempo de quadro no rodap\303\251 desta janela para ver quanto "
-    "est\303\241 custando.",
+    "O passo inteiro: as c\303\263pias de staging e o resolve, al\303\251m do modelo. Medir s\303\263 o model"
+    "o maquiaria o n\303\272mero.\n\nCompare com o tempo de quadro no rodap\303\251 desta janela para ver qua"
+    "nto est\303\241 custando.",
     "Controles globais",
     "Intensidade de estrutura",
     "A for\303\247a de s\303\255ntese de estrutura do modelo em todo o quadro.",
@@ -436,142 +449,148 @@ static const char* const kTable_pt_BR[] = {
     "Automask do modelo",
     "Deixa o modelo encontrar pele sozinho em vez de tratar o quadro de forma uniforme.",
     "Mostrar m\303\241scara",
-    "O painel da NVIDIA consegue desenhar a automask sobre o quadro. O modelo n\303\243o devolve a m\303\241scara pela "
-    "interface que este fork usa, ent\303\243o n\303\243o h\303\241 nada para exibir aqui.",
-    "-1 segue a Intensidade de estrutura dos Controles globais acima, e \303\251 o padr\303\243o do pr\303\263prio "
-    "modelo. 0 ou mais define a estrutura da regi\303\243o mascarada independentemente do resto do "
-    "quadro.\n\nDesativado enquanto a Automask do modelo est\303\241 desligada -- sem ela n\303\243o h\303\241 "
-    "m\303\241scara para moldar.",
+    "O painel da NVIDIA consegue desenhar a automask sobre o quadro. O modelo n\303\243o devolve a m\303\241s"
+    "cara pela interface que este fork usa, ent\303\243o n\303\243o h\303\241 nada para exibir aqui.",
+    "-1 segue a Intensidade de estrutura dos Controles globais acima, e \303\251 o padr\303\243o do pr\303\263"
+    "prio modelo. 0 ou mais define a estrutura da regi\303\243o mascarada independentemente do resto do quadr"
+    "o.\n\nDesativado enquanto a Automask do modelo est\303\241 desligada -- sem ela n\303\243o h\303\241 m\303\241"
+    "scara para moldar.",
     "M\303\241scaras de desenvolvedor",
     "Mostrar m\303\241scaras",
-    "M\303\241scaras por objeto v\303\252m do renderizador do pr\303\263prio jogo, ent\303\243o isto fica s\303\263 na "
-    "NVIDIA -- um injetor n\303\243o tem lista de objetos para mascarar.",
+    "M\303\241scaras por objeto v\303\252m do renderizador do pr\303\263prio jogo, ent\303\243o isto fica s\303\263"
+    " na NVIDIA -- um injetor n\303\243o tem lista de objetos para mascarar.",
     "Modelos",
     "Padr\303\243o",
     "Modelo A",
     "Modelo B",
     "Modelo C",
-    "N\303\243o \303\251 a mesma escala dos presets de super resolution ou ray reconstruction -- a mesma letra "
-    "significa outra coisa aqui.\n\nLido quando o modelo \303\251 constru\303\255do, ent\303\243o uma mudan\303\247a o "
-    "reconstr\303\263i ap\303\263s um instante.",
+    "N\303\243o \303\251 a mesma escala dos presets de super resolution ou ray reconstruction -- a mesma letr"
+    "a significa outra coisa aqui.\n\nLido quando o modelo \303\251 constru\303\255do, ent\303\243o uma mudan"
+    "\303\247a o reconstr\303\263i ap\303\263s um instante.",
     "Padr\303\243o (standard)",
     "Natural",
     "Cinem\303\241tico",
     "Estilo",
-    "Os perfis de processamento do pr\303\263prio modelo.\n\nPadr\303\243o (standard): o mais forte, e o mais propenso "
-    "a parecer 'estilizado'.\nNatural: o mesmo trabalho de detalhe com m\303\243o mais leve.\nCinem\303\241tico: reduz "
-    "o brilho e o excesso de processamento para um visual de cinema.\n\nOs nomes v\303\252m de testes da comunidade, "
-    "ao contr\303\241rio dos r\303\263tulos do painel acima -- a NVIDIA n\303\243o inclui nomes para este controle nos "
-    "bin\303\241rios.",
+    "Os perfis de processamento do pr\303\263prio modelo.\n\nPadr\303\243o (standard): o mais forte, e o mais"
+    " propenso a parecer 'estilizado'.\nNatural: o mesmo trabalho de detalhe com m\303\243o mais leve.\nCinem"
+    "\303\241tico: reduz o brilho e o excesso de processamento para um visual de cinema.\n\nOs nomes v\303\252"
+    "m de testes da comunidade, ao contr\303\241rio dos r\303\263tulos do painel acima -- a NVIDIA n\303\243o"
+    " inclui nomes para este controle nos bin\303\241rios.",
     "Intensidade",
-    "O controle de for\303\247a do pr\303\263prio modelo, aplicado dentro dele. Diferente dos Controles globais acima "
-    "e da For\303\247a de detalhe abaixo, que escala o resultado depois.",
+    "O controle de for\303\247a do pr\303\263prio modelo, aplicado dentro dele. Diferente dos Controles globa"
+    "is acima e da For\303\247a de detalhe abaixo, que escala o resultado depois.",
     "Frame Generation",
     "A DLSS Frame Generation da pr\303\263pria NVIDIA, via Streamline. N\303\243o o OptiFG.",
-    "Define numFramesToGenerate do Streamline diretamente -- quantos quadros extras o DLSS-G insere entre os reais. 2X "
-    "insere um, 3X insere dois, e assim por diante. Limitado ao que sua GPU e driver dizem suportar.\n\nDesativado "
-    "enquanto Multi est\303\241 ligado abaixo -- a\303\255 o driver escolhe a quantidade.",
+    "Define numFramesToGenerate do Streamline diretamente -- quantos quadros extras o DLSS-G insere entre os "
+    "reais. 2X insere um, 3X insere dois, e assim por diante. Limitado ao que sua GPU e driver dizem suportar"
+    ".\n\nDesativado enquanto Multi est\303\241 ligado abaixo -- a\303\255 o driver escolhe a quantidade.",
     "Multi (Frame Generation din\303\242mica)",
-    "Deixa o driver da NVIDIA variar o multiplicador sozinho, quadro a quadro, para manter o alvo de FPS abaixo -- em "
-    "vez de um 2X/3X/4X fixo.",
+    "Deixa o driver da NVIDIA variar o multiplicador sozinho, quadro a quadro, para manter o alvo de FPS abai"
+    "xo -- em vez de um 2X/3X/4X fixo.",
     "Alvo de FPS do DMFG",
     "0 detecta a taxa de atualiza\303\247\303\243o do seu monitor automaticamente.",
     "Este jogo n\303\243o tem DLSS Frame Generation da NVIDIA pr\303\263pria.",
     "Custo",
     "Passadas do modelo",
-    "Quantas vezes o modelo roda antes de a resposta ser composta. Cada camada extra recebe a sa\303\255da da anterior "
-    "e mant\303\251m o pr\303\263prio hist\303\263rico temporal.\n\nO quadro base fica intocado e a "
-    "composi\303\247\303\243o acontece uma vez no fim, ent\303\243o cor e for\303\247a de transfer\303\252ncia "
-    "n\303\243o se acumulam -- mas o modelo est\303\241 sendo pedido a melhorar a pr\303\263pria sa\303\255da, o que "
-    "est\303\241 fora do que ele treinou.\n\nO custo \303\251 quase linear: o modelo \303\251 quase toda a despesa do "
-    "passo e cada camada o paga de novo. Tr\303\252s \303\251 o teto porque camadas posteriores convergem enquanto "
-    "ainda custam o pre\303\247o cheio.",
-    "%dx o custo do modelo. Duas costumam parecer mais ricas; tr\303\252s normalmente fica visivelmente processado "
-    "demais.",
+    "Quantas vezes o modelo roda antes de a resposta ser composta. Cada camada extra recebe a sa\303\255da da"
+    " anterior e mant\303\251m o pr\303\263prio hist\303\263rico temporal.\n\nO quadro base fica intocado e a"
+    " composi\303\247\303\243o acontece uma vez no fim, ent\303\243o cor e for\303\247a de transfer\303\252nc"
+    "ia n\303\243o se acumulam -- mas o modelo est\303\241 sendo pedido a melhorar a pr\303\263pria sa\303\255"
+    "da, o que est\303\241 fora do que ele treinou.\n\nO custo \303\251 quase linear: o modelo \303\251 quase"
+    " toda a despesa do passo e cada camada o paga de novo. Tr\303\252s \303\251 o teto porque camadas poster"
+    "iores convergem enquanto ainda custam o pre\303\247o cheio.",
+    "%dx o custo do modelo. Duas costumam parecer mais ricas; tr\303\252s normalmente fica visivelmente proce"
+    "ssado demais.",
     "Auto (herda a passada 1)",
     "Modelo da passada 2",
     "Estilo da passada 2",
     "Modelo da passada 3",
     "Estilo da passada 3",
-    "Qual perfil embutido cada camada posterior roda. Eles selecionam um perfil diferente dentro do mesmo arquivo de "
-    "modelo da NVIDIA -- nada extra \303\251 carregado.\n\nAuto significa que a camada roda o que a passada 1 estiver "
-    "usando. Mudar um reconstr\303\263i s\303\263 o recurso daquela camada, e s\303\263 enquanto ela estiver ativa.",
+    "Qual perfil embutido cada camada posterior roda. Eles selecionam um perfil diferente dentro do mesmo arq"
+    "uivo de modelo da NVIDIA -- nada extra \303\251 carregado.\n\nAuto significa que a camada roda o que a p"
+    "assada 1 estiver usando. Mudar um reconstr\303\263i s\303\263 o recurso daquela camada, e s\303\263 enqu"
+    "anto ela estiver ativa.",
     "Resolu\303\247\303\243o do modelo",
-    "Em que fra\303\247\303\243o do quadro o modelo trabalha. O custo cai com o quadrado disto, ent\303\243o meia "
-    "resolu\303\247\303\243o \303\251 cerca de um quarto do tempo. Abaixo de 100 o quadro em si nunca \303\251 "
-    "reduzido -- s\303\263 a contribui\303\247\303\243o do modelo \303\251 calculada pequena e ampliada. Aplicado ao "
-    "soltar a al\303\247a, n\303\243o enquanto ela se move.",
-    "Supersampling %.2fx: o modelo roda ACIMA do nativo e depois \303\251 reamostrado para baixo. Experimental e caro "
-    "-- o tempo cresce com a \303\241rea.",
+    "Em que fra\303\247\303\243o do quadro o modelo trabalha. O custo cai com o quadrado disto, ent\303\243o "
+    "meia resolu\303\247\303\243o \303\251 cerca de um quarto do tempo. Abaixo de 100 o quadro em si nunca \303\251"
+    " reduzido -- s\303\263 a contribui\303\247\303\243o do modelo \303\251 calculada pequena e ampliada. Apl"
+    "icado ao soltar a al\303\247a, n\303\243o enquanto ela se move.",
+    "Supersampling %.2fx: o modelo roda ACIMA do nativo e depois \303\251 reamostrado para baixo. Experimenta"
+    "l e caro -- o tempo cresce com a \303\241rea.",
     "Redutor",
-    "O filtro que traz a resposta acima do nativo do modelo de volta ao tamanho de exibi\303\247\303\243o -- \303\251 "
-    "isto que transforma supersampling em MENOS ru\303\255do, n\303\243o mais. Filtros mais n\303\255tidos (Lanczos3, "
-    "Kaiser3) preservam mais detalhe; os mais suaves (Bicubic, Catmull-Rom) s\303\243o mais gentis com ringing. "
-    "Independente do redutor do Output Scaling, ent\303\243o os dois podem diferir e rodar ao mesmo tempo.",
+    "O filtro que traz a resposta acima do nativo do modelo de volta ao tamanho de exibi\303\247\303\243o -- "
+    "\303\251 isto que transforma supersampling em MENOS ru\303\255do, n\303\243o mais. Filtros mais n\303\255"
+    "tidos (Lanczos3, Kaiser3) preservam mais detalhe; os mais suaves (Bicubic, Catmull-Rom) s\303\243o mais "
+    "gentis com ringing. Independente do redutor do Output Scaling, ent\303\243o os dois podem diferir e roda"
+    "r ao mesmo tempo.",
     "Cl\303\241ssico",
     "Residual casado",
     "Amplia\303\247\303\243o",
-    "Como o trabalho do modelo \303\251 trazido de volta quando rodou abaixo do tamanho do quadro.\n\nCl\303\241ssico "
-    "comp\303\265e a imagem pequena do modelo diretamente contra o quadro em tamanho cheio. Os dois divergem tanto "
-    "pelo desfoque da redu\303\247\303\243o quanto pela edi\303\247\303\243o do modelo, e a composi\303\247\303\243o "
-    "n\303\243o consegue distingui-los.\n\nDesativado em 100%, onde n\303\243o h\303\241 nada a ampliar.",
+    "Como o trabalho do modelo \303\251 trazido de volta quando rodou abaixo do tamanho do quadro.\n\nCl\303\241"
+    "ssico comp\303\265e a imagem pequena do modelo diretamente contra o quadro em tamanho cheio. Os dois div"
+    "ergem tanto pelo desfoque da redu\303\247\303\243o quanto pela edi\303\247\303\243o do modelo, e a compo"
+    "si\303\247\303\243o n\303\243o consegue distingui-los.\n\nDesativado em 100%, onde n\303\243o h\303\241 "
+    "nada a ampliar.",
     "Quanto disso chega",
     "For\303\247a de detalhe",
     "Redefinir",
-    "Quanto o quadro se move em dire\303\247\303\243o \303\240 imagem do modelo. 0 devolve exatamente o que o upscaler "
-    "produziu. 1 \303\251 a imagem do modelo. Acima de 1 continua al\303\251m dela, na mesma dire\303\247\303\243o.",
+    "Quanto o quadro se move em dire\303\247\303\243o \303\240 imagem do modelo. 0 devolve exatamente o que o"
+    " upscaler produziu. 1 \303\251 a imagem do modelo. Acima de 1 continua al\303\251m dela, na mesma dire\303\247"
+    "\303\243o.",
     "For\303\247a de cor",
-    "Se a cor do modelo chega junto com a luz dele. 0 mant\303\251m a matiz do pr\303\263prio jogo exatamente -- cada "
-    "pixel na cor original, s\303\263 o brilho carregando o veredito do modelo. 1 traz tamb\303\251m a cor do modelo, "
-    "na matiz dele, limitada a AP1 para nada inalcan\303\247\303\241vel ser pedido.\n\nAcima de 1 satura demais: a cor "
-    "mant\303\251m a matiz mas fica mais v\303\255vida, e suaviza na borda do que o monitor consegue mostrar em vez de "
-    "cortar numa mancha estourada. 1 \303\251 a cor do pr\303\263prio modelo; passe disso para mais impacto.",
+    "Se a cor do modelo chega junto com a luz dele. 0 mant\303\251m a matiz do pr\303\263prio jogo exatamente"
+    " -- cada pixel na cor original, s\303\263 o brilho carregando o veredito do modelo. 1 traz tamb\303\251m"
+    " a cor do modelo, na matiz dele, limitada a AP1 para nada inalcan\303\247\303\241vel ser pedido.\n\nAcim"
+    "a de 1 satura demais: a cor mant\303\251m a matiz mas fica mais v\303\255vida, e suaviza na borda do que"
+    " o monitor consegue mostrar em vez de cortar numa mancha estourada. 1 \303\251 a cor do pr\303\263prio m"
+    "odelo; passe disso para mais impacto.",
     "Cor",
-    "O modelo foi treinado em quadros finalizados, codificados em sRGB. Estes decidem como a sa\303\255da linear do "
-    "upscaler \303\251 mapeada para algo que ele reconhece.",
+    "O modelo foi treinado em quadros finalizados, codificados em sRGB. Estes decidem como a sa\303\255da lin"
+    "ear do upscaler \303\251 mapeada para algo que ele reconhece.",
     "Desligado (joelho suave)",
     "Proxy Neutwo + composto",
     "Proxy Neutwo + substituir",
     "Proxy h\303\255brido + composto",
     "Proxy h\303\255brido + substituir",
     "Proxy revers\303\255vel",
-    "O que o modelo v\303\252 e como a resposta volta. Experimental.\n\nDesligado (joelho suave): o padr\303\243o, "
-    "byte a byte id\303\252ntico ao de antes. Comprime os realces com tanta for\303\247a que o modelo n\303\243o "
-    "resolve detalhe neles -- bom em cenas de luz suave, fraco em cenas claras.\n\nNeutwo composto: uma curva sem "
-    "corte, ent\303\243o o modelo v\303\252 detalhe nos realces, e depois tudo o que vem acima (for\303\247as, guarda "
-    "de realces, paleta). Ganha em cenas claras, mas a curva comprime os meios-tons tamb\303\251m, ent\303\243o "
-    "conte\303\272do de luz suave pode ficar pior que Desligado. Tamb\303\251m desloca o branco de papel -- confira ao "
-    "trocar.\n\nH\303\255brido composto: o que usar. Identidade nos meios-tons -- t\303\243o bom quanto Desligado ali "
-    "-- com a curva sem corte s\303\263 nos realces, ent\303\243o recupera o detalhe que Desligado esmaga sem abrir "
-    "m\303\243o dos meios-tons como o Neutwo faz. Quase n\303\243o desloca o branco de papel.\n\nSubstituir: o modelo "
-    "cru de volta pela inversa exata, sem composi\303\247\303\243o -- sem guarda, sem paleta, sem for\303\247as. Lindo "
-    "onde n\303\243o h\303\241 luzes fortes, mas elas PISCAM em movimento. Uma refer\303\252ncia, n\303\243o uma "
-    "configura\303\247\303\243o di\303\241ria.\n\nH\303\255brido substituir: o modelo cru de Substituir na curva "
-    "h\303\255brida, ent\303\243o o piscar fica restrito aos realces genu\303\255nos em vez de estar por toda parte. A "
-    "maior parte do detalhe de Substituir, muito mais est\303\241vel.",
+    "O que o modelo v\303\252 e como a resposta volta. Experimental.\n\nDesligado (joelho suave): o padr\303\243"
+    "o, byte a byte id\303\252ntico ao de antes. Comprime os realces com tanta for\303\247a que o modelo n\303\243"
+    "o resolve detalhe neles -- bom em cenas de luz suave, fraco em cenas claras.\n\nNeutwo composto: uma cur"
+    "va sem corte, ent\303\243o o modelo v\303\252 detalhe nos realces, e depois tudo o que vem acima (for\303\247"
+    "as, guarda de realces, paleta). Ganha em cenas claras, mas a curva comprime os meios-tons tamb\303\251m,"
+    " ent\303\243o conte\303\272do de luz suave pode ficar pior que Desligado. Tamb\303\251m desloca o branco"
+    " de papel -- confira ao trocar.\n\nH\303\255brido composto: o que usar. Identidade nos meios-tons -- t\303\243"
+    "o bom quanto Desligado ali -- com a curva sem corte s\303\263 nos realces, ent\303\243o recupera o detal"
+    "he que Desligado esmaga sem abrir m\303\243o dos meios-tons como o Neutwo faz. Quase n\303\243o desloca "
+    "o branco de papel.\n\nSubstituir: o modelo cru de volta pela inversa exata, sem composi\303\247\303\243o"
+    " -- sem guarda, sem paleta, sem for\303\247as. Lindo onde n\303\243o h\303\241 luzes fortes, mas elas PI"
+    "SCAM em movimento. Uma refer\303\252ncia, n\303\243o uma configura\303\247\303\243o di\303\241ria.\n\nH\303\255"
+    "brido substituir: o modelo cru de Substituir na curva h\303\255brida, ent\303\243o o piscar fica restrit"
+    "o aos realces genu\303\255nos em vez de estar por toda parte. A maior parte do detalhe de Substituir, mu"
+    "ito mais est\303\241vel.",
     "S\303\263 branco de papel",
     "A exposi\303\247\303\243o do pr\303\263prio jogo",
     "Um buffer que a varredura encontrou",
     "Ponto branco de",
-    "S\303\263 branco de papel -- o controle abaixo e nada mais. Certo para um jogo cuja exposi\303\247\303\243o nunca "
-    "muda, errado no momento em que ela muda: uma constante n\303\243o serve a uma caverna e a um campo.\n\nA "
-    "exposi\303\247\303\243o do pr\303\263prio jogo -- lida da textura que o jogo entrega ao upscaler. A melhor fonte "
-    "que existe, porque \303\251 decidida antes e nada que este passo faz a move. Nem todo jogo fornece uma.\n\nUm "
-    "buffer que a varredura encontrou -- para jogos que calculam uma exposi\303\247\303\243o e nunca a repassam. Um "
-    "palpite: candidatos s\303\243o casados por formato, e a raz\303\243o da \303\242ncora cancela a escala. Precisa "
-    "ancorar uma vez, na se\303\247\303\243o Experimental, e conferir depois.",
+    "S\303\263 branco de papel -- o controle abaixo e nada mais. Certo para um jogo cuja exposi\303\247\303\243"
+    "o nunca muda, errado no momento em que ela muda: uma constante n\303\243o serve a uma caverna e a um cam"
+    "po.\n\nA exposi\303\247\303\243o do pr\303\263prio jogo -- lida da textura que o jogo entrega ao upscale"
+    "r. A melhor fonte que existe, porque \303\251 decidida antes e nada que este passo faz a move. Nem todo "
+    "jogo fornece uma.\n\nUm buffer que a varredura encontrou -- para jogos que calculam uma exposi\303\247\303\243"
+    "o e nunca a repassam. Um palpite: candidatos s\303\243o casados por formato, e a raz\303\243o da \303\242"
+    "ncora cancela a escala. Precisa ancorar uma vez, na se\303\247\303\243o Experimental, e conferir depois.",
     "Varredura %.5f  ->  ponto branco %.2f   (1 ponto)",
     "Varredura %.5f  ->  ponto branco %.2f   (%u pontos)",
     "Branco de papel (ponto %d)",
     "Branco de papel",
-    "O ponto branco do ponto de calibra\303\247\303\243o selecionado, ou -- sem linha selecionada -- o valor que o "
-    "pr\303\263ximo Ancorar captura.\n\nAjuste at\303\251 a imagem ficar certa aqui, depois Ancorar. V\303\241 a uma "
-    "luz bem diferente e repita: dois pontos fixam a rela\303\247\303\243o real do buffer e o ponto branco se "
-    "mant\303\251m entre eles.",
+    "O ponto branco do ponto de calibra\303\247\303\243o selecionado, ou -- sem linha selecionada -- o valor "
+    "que o pr\303\263ximo Ancorar captura.\n\nAjuste at\303\251 a imagem ficar certa aqui, depois Ancorar. V\303\241"
+    " a uma luz bem diferente e repita: dois pontos fixam a rela\303\247\303\243o real do buffer e o ponto br"
+    "anco se mant\303\251m entre eles.",
     "Ajuste (x a varredura)",
-    "Um multiplicador sobre o ponto branco da varredura, e o controle para ajustar entre pontos de \303\242ncora: gire "
-    "at\303\251 a imagem ficar certa na luz atual, depois pressione Ancorar em Experimental -- isso captura o valor "
-    "ajustado como novo ponto e redefine isto para 1.",
+    "Um multiplicador sobre o ponto branco da varredura, e o controle para ajustar entre pontos de \303\242nc"
+    "ora: gire at\303\251 a imagem ficar certa na luz atual, depois pressione Ancorar em Experimental -- isso"
+    " captura o valor ajustado como novo ponto e redefine isto para 1.",
     "Este jogo fornece uma exposi\303\247\303\243o e ela est\303\241 sendo lida.",
     "Este jogo n\303\243o fornece exposi\303\247\303\243o. Tente a varredura.",
     "Aguardando um quadro...",
@@ -579,97 +598,99 @@ static const char* const kTable_pt_BR[] = {
     "  (mantido: ausente neste quadro)",
     "Lendo a exposi\303\247\303\243o...",
     "Ajuste (x a exposi\303\247\303\243o do jogo)",
-    "Um multiplicador sobre a exposi\303\247\303\243o que o jogo forneceu. 1.00x usa o n\303\272mero exato, e essa "
-    "\303\251 a resposta certa aqui.\n\nIsto n\303\243o \303\251 um fator de corre\303\247\303\243o. Um jogo que "
-    "precisa do ajuste longe de 1 para ficar certo \303\251 evid\303\252ncia de que a exposi\303\247\303\243o lida "
-    "est\303\241 errada para aquele jogo, n\303\243o de que o jogo quer ajuste. Cerca de 0.8 a 1.25 \303\251 "
-    "afina\303\247\303\243o honesta; chegar a 4 significa que algo antes est\303\241 quebrado e isto est\303\241 "
-    "escondendo.\n\nSeu branco de papel manual \303\251 guardado \303\240 parte e volta intocado se voc\303\252 trocar "
-    "a fonte de volta.",
-    "Pelo que o quadro \303\251 dividido antes de o modelo o ver. N\303\243o h\303\241 outro ponto branco; este "
-    "\303\251 o todo. Acima de 1 a imagem entregue \303\251 mais escura, ent\303\243o os realces ficam mais baixos na "
-    "curva.",
+    "Um multiplicador sobre a exposi\303\247\303\243o que o jogo forneceu. 1.00x usa o n\303\272mero exato, e"
+    " essa \303\251 a resposta certa aqui.\n\nIsto n\303\243o \303\251 um fator de corre\303\247\303\243o. Um"
+    " jogo que precisa do ajuste longe de 1 para ficar certo \303\251 evid\303\252ncia de que a exposi\303\247"
+    "\303\243o lida est\303\241 errada para aquele jogo, n\303\243o de que o jogo quer ajuste. Cerca de 0.8 a"
+    " 1.25 \303\251 afina\303\247\303\243o honesta; chegar a 4 significa que algo antes est\303\241 quebrado "
+    "e isto est\303\241 escondendo.\n\nSeu branco de papel manual \303\251 guardado \303\240 parte e volta in"
+    "tocado se voc\303\252 trocar a fonte de volta.",
+    "Pelo que o quadro \303\251 dividido antes de o modelo o ver. N\303\243o h\303\241 outro ponto branco; es"
+    "te \303\251 o todo. Acima de 1 a imagem entregue \303\251 mais escura, ent\303\243o os realces ficam mai"
+    "s baixos na curva.",
     "Guarda de realces",
-    "O m\303\241ximo que o passo pode mover qualquer pixel, como m\303\272ltiplo do que ele j\303\241 era, nas duas "
-    "dire\303\247\303\265es -- um pixel n\303\243o pode ser clareado al\303\251m disto nem escurecido al\303\251m do "
-    "rec\303\255proco. Luzes s\303\243o onde o modelo tem menos a dizer e reescalar a resposta faz mais estrago; 2x "
-    "mant\303\251m o detalhe intacto enquanto impede uma l\303\242mpada fluorescente de virar uma fileira de "
-    "c\303\251lulas coloridas. Aumente s\303\263 se \303\241reas claras parecerem cortadas.",
+    "O m\303\241ximo que o passo pode mover qualquer pixel, como m\303\272ltiplo do que ele j\303\241 era, na"
+    "s duas dire\303\247\303\265es -- um pixel n\303\243o pode ser clareado al\303\251m disto nem escurecido "
+    "al\303\251m do rec\303\255proco. Luzes s\303\243o onde o modelo tem menos a dizer e reescalar a resposta"
+    " faz mais estrago; 2x mant\303\251m o detalhe intacto enquanto impede uma l\303\242mpada fluorescente de"
+    " virar uma fileira de c\303\251lulas coloridas. Aumente s\303\263 se \303\241reas claras parecerem corta"
+    "das.",
     "Varredura de exposi\303\247\303\243o",
     "Mostrar o fot\303\264metro na tela",
-    "Uma l\303\242mpada no canto: vermelha para escuro, verde para luz plena, e os tons entre, com a leitura ao "
-    "lado.\n\n\303\211 como voc\303\252 v\303\252 de relance que a varredura est\303\241 ACOMPANHANDO em vez de "
-    "s\303\263 rodar. Entre na sombra e ela deve deslizar para o vermelho; saia e deve ficar verde. Se mover para o "
-    "lado errado, \303\251 para isso que serve \"O n\303\272mero corre ao contr\303\241rio\" abaixo.\n\nS\303\263 uma "
-    "leitura. N\303\243o muda nada.",
+    "Uma l\303\242mpada no canto: vermelha para escuro, verde para luz plena, e os tons entre, com a leitura "
+    "ao lado.\n\n\303\211 como voc\303\252 v\303\252 de relance que a varredura est\303\241 ACOMPANHANDO em v"
+    "ez de s\303\263 rodar. Entre na sombra e ela deve deslizar para o vermelho; saia e deve ficar verde. Se "
+    "mover para o lado errado, \303\251 para isso que serve \"O n\303\272mero corre ao contr\303\241rio\" aba"
+    "ixo.\n\nS\303\263 uma leitura. N\303\243o muda nada.",
     "Ancorar aqui",
-    "Deixe a imagem certa e pressione isto -- captura o visual atual como um ponto. Para o primeiro ponto use o "
-    "controle Branco de papel acima; para cada ponto seguinte, v\303\241 a outra luz e use o Ajuste, que isto "
-    "ent\303\243o incorpora.\n\nUm ponto calibra uma raz\303\243o e o ponto branco segue a varredura a partir "
-    "da\303\255. V\303\241 a uma luz bem diferente e pressione de novo: o segundo ponto fixa a curva real do buffer, "
-    "ent\303\243o tudo entre os dois fica certo e n\303\243o s\303\263 a vizinhan\303\247a de uma \303\242ncora. "
-    "At\303\251 oito.\n\nA tabela \303\251 por jogo e compartilh\303\241vel -- uma pessoa calibra um jogo e os "
-    "n\303\272meros valem para todos que pegarem o perfil.",
+    "Deixe a imagem certa e pressione isto -- captura o visual atual como um ponto. Para o primeiro ponto use"
+    " o controle Branco de papel acima; para cada ponto seguinte, v\303\241 a outra luz e use o Ajuste, que i"
+    "sto ent\303\243o incorpora.\n\nUm ponto calibra uma raz\303\243o e o ponto branco segue a varredura a pa"
+    "rtir da\303\255. V\303\241 a uma luz bem diferente e pressione de novo: o segundo ponto fixa a curva rea"
+    "l do buffer, ent\303\243o tudo entre os dois fica certo e n\303\243o s\303\263 a vizinhan\303\247a de um"
+    "a \303\242ncora. At\303\251 oito.\n\nA tabela \303\251 por jogo e compartilh\303\241vel -- uma pessoa ca"
+    "libra um jogo e os n\303\272meros valem para todos que pegarem o perfil.",
     "(a varredura s\303\263 est\303\241 observando -- o ponto branco acima vem de outro lugar)",
     "%s varredura %.4f  ->  branco %.2f%s",
     "   [editando]",
-    "Clique numa linha para edit\303\241-la com o controle acima; clique de novo para controlar o ponto ao vivo. > "
-    "\303\251 o ponto em uso agora.",
+    "Clique numa linha para edit\303\241-la com o controle acima; clique de novo para controlar o ponto ao vi"
+    "vo. > \303\251 o ponto em uso agora.",
     "O n\303\272mero corre ao contr\303\241rio",
-    "Inverta isto se a imagem piorar na dire\303\247\303\243o em que deveria melhorar. A maioria dos motores guarda "
-    "uma exposi\303\247\303\243o que cai conforme a cena clareia; alguns guardam o rec\303\255proco, e um buffer "
-    "achado por formato n\303\243o diz qual. Adicione um segundo ponto de \303\242ncora em outra luz e isto \303\251 "
-    "decidido por voc\303\252, ent\303\243o desaparece.",
+    "Inverta isto se a imagem piorar na dire\303\247\303\243o em que deveria melhorar. A maioria dos motores "
+    "guarda uma exposi\303\247\303\243o que cai conforme a cena clareia; alguns guardam o rec\303\255proco, e"
+    " um buffer achado por formato n\303\243o diz qual. Adicione um segundo ponto de \303\242ncora em outra l"
+    "uz e isto \303\251 decidido por voc\303\252, ent\303\243o desaparece.",
     "Candidatos",
     "nada casou ainda.",
     "%zu. %s -- ainda n\303\243o lido",
     "%zu. %s = %.5f  (visto %.5f..%.5f) %s",
     "MOVE",
     "parado at\303\251 agora",
-    "Ande da sombra para a luz do dia. Uma exposi\303\247\303\243o real se move. Uma que s\303\263 sobe \303\251 um "
-    "contador, n\303\243o uma exposi\303\247\303\243o.",
+    "Ande da sombra para a luz do dia. Uma exposi\303\247\303\243o real se move. Uma que s\303\263 sobe \303\251"
+    " um contador, n\303\243o uma exposi\303\247\303\243o.",
     "Guia",
     "Seguir o jogo",
     "For\303\247ar normal",
     "For\303\247ar invertida",
     "Profundidade",
-    "Em que sentido o modelo \303\251 informado de que a profundidade corre. O jogo declara isto nos flags com que "
-    "criou o pr\303\263prio recurso DLSS, e segui-lo \303\251 certo quase sempre -- mas um jogo que declara errado "
-    "precisa de corre\303\247\303\243o manual.\n\nSe o passo parecer pior onde a geometria encontra o c\303\251u, "
-    "tente for\303\247ar o outro.",
+    "Em que sentido o modelo \303\251 informado de que a profundidade corre. O jogo declara isto nos flags co"
+    "m que criou o pr\303\263prio recurso DLSS, e segui-lo \303\251 certo quase sempre -- mas um jogo que dec"
+    "lara errado precisa de corre\303\247\303\243o manual.\n\nSe o passo parecer pior onde a geometria encont"
+    "ra o c\303\251u, tente for\303\247ar o outro.",
     "Corre\303\247\303\243o de UI",
-    "Deixa o modelo levar em conta uma camada de UI sobre o quadro. Ligado \303\251 o padr\303\243o dele e \303\251 o "
-    "certo sempre que um recurso de UI chega at\303\251 ele; desligue se a corre\303\247\303\243o em si \303\251 o que "
-    "parece errado.\n\nLido quando o modelo \303\251 constru\303\255do.",
+    "Deixa o modelo levar em conta uma camada de UI sobre o quadro. Ligado \303\251 o padr\303\243o dele e \303\251"
+    " o certo sempre que um recurso de UI chega at\303\251 ele; desligue se a corre\303\247\303\243o em si \303\251"
+    " o que parece errado.\n\nLido quando o modelo \303\251 constru\303\255do.",
     "Inspecionar",
     "Capturando...",
     "Capturar 8 quadros",
-    "Grava oito quadros consecutivos duas vezes: como o upscaler os produziu e de novo com a edi\303\247\303\243o do "
-    "modelo aplicada. Numa pasta dlssnr-capture ao lado do OptiScaler; cada execu\303\247\303\243o sobrescreve a "
-    "anterior.",
+    "Grava oito quadros consecutivos duas vezes: como o upscaler os produziu e de novo com a edi\303\247\303\243"
+    "o do modelo aplicada. Numa pasta dlssnr-capture ao lado do OptiScaler; cada execu\303\247\303\243o sobre"
+    "screve a anterior.",
     "Captura autom\303\241tica uma vez por sess\303\243o",
-    "Grava um conjunto casado antes/depois automaticamente, sem ningu\303\251m pedir. A pasta \303\251 limpa a cada "
-    "execu\303\247\303\243o, ent\303\243o guarda uma \303\272nica sess\303\243o e nunca cresce.",
+    "Grava um conjunto casado antes/depois automaticamente, sem ningu\303\251m pedir. A pasta \303\251 limpa "
+    "a cada execu\303\247\303\243o, ent\303\243o guarda uma \303\272nica sess\303\243o e nunca cresce.",
     "Congelar quadro",
-    "Congela o quadro em que o modelo trabalha. Enquanto congelado, mude o branco de papel, as for\303\247as, o modo "
-    "revers\303\255vel, o preset do modelo -- qualquer coisa abaixo do upscaler -- e s\303\263 essa "
-    "configura\303\247\303\243o muda; a cena n\303\243o. Combina com \"Aplicar o modelo\" no topo: congele um quadro e "
-    "alterne aquilo para ver com e sem.\n\nO que n\303\243o consegue mostrar: presets do upscaler ou qualquer coisa "
-    "antes deste passo (o upscaler n\303\243o roda de novo num quadro congelado), e o HUD e p\303\263s-processamento "
-    "do pr\303\263prio jogo, que rodam depois disto e continuam atualizando. O ponto branco para de ser medido e "
-    "mant\303\251m o valor, ent\303\243o n\303\243o deriva nem confunde a compara\303\247\303\243o.\n\nFeche o painel "
-    "e continua congelado. Desmarque para retomar.",
+    "Congela o quadro em que o modelo trabalha. Enquanto congelado, mude o branco de papel, as for\303\247as,"
+    " o modo revers\303\255vel, o preset do modelo -- qualquer coisa abaixo do upscaler -- e s\303\263 essa c"
+    "onfigura\303\247\303\243o muda; a cena n\303\243o. Combina com \"Aplicar o modelo\" no topo: congele um "
+    "quadro e alterne aquilo para ver com e sem.\n\nO que n\303\243o consegue mostrar: presets do upscaler ou"
+    " qualquer coisa antes deste passo (o upscaler n\303\243o roda de novo num quadro congelado), e o HUD e p"
+    "\303\263s-processamento do pr\303\263prio jogo, que rodam depois disto e continuam atualizando. O ponto "
+    "branco para de ser medido e mant\303\251m o valor, ent\303\243o n\303\243o deriva nem confunde a compara"
+    "\303\247\303\243o.\n\nFeche o painel e continua congelado. Desmarque para retomar.",
     "Desligado",
     "Lado a lado",
     "Cortina",
     "Comparar",
-    "Mostra o passo contra si mesmo. Lado a lado p\303\265e o quadro inteiro em cada metade; cortina corta um "
-    "\303\272nico quadro na divis\303\243o e roda normalmente. Nenhum precisa do menu aberto para continuar "
+    "Mostra o passo contra si mesmo. Lado a lado p\303\265e o quadro inteiro em cada metade; cortina corta um"
+    " \303\272nico quadro na divis\303\243o e roda normalmente. Nenhum precisa do menu aberto para continuar "
     "funcionando.",
     "Trocar lados",
     "R\303\263tulos",
-    "Desenha qual lado \303\251 qual no pr\303\263prio plano do quadro, ent\303\243o uma captura de tela ainda mostra. "
-    "Recortado por lado, ent\303\243o a cortina revela e esconde os r\303\263tulos exatamente como as imagens.",
+    "Desenha qual lado \303\251 qual no pr\303\263prio plano do quadro, ent\303\243o uma captura de tela aind"
+    "a mostra. Recortado por lado, ent\303\243o a cortina revela e esconde os r\303\263tulos exatamente como "
+    "as imagens.",
     "Tamanho do r\303\263tulo",
     "Zoom",
     "Divis\303\243o",
@@ -677,29 +698,31 @@ static const char* const kTable_pt_BR[] = {
     "Sa\303\255da do modelo (crua)",
     "Diferen\303\247a (amplificada)",
     "Vis\303\243o de depura\303\247\303\243o",
-    "Proxy \303\251 a imagem entregue ao modelo. Diferen\303\247a mostra o que o modelo realmente mudou, amplificado "
-    "vinte vezes e centrado no cinza.",
+    "Proxy \303\251 a imagem entregue ao modelo. Diferen\303\247a mostra o que o modelo realmente mudou, ampl"
+    "ificado vinte vezes e centrado no cinza.",
     "Experimental",
-    "Ambos n\303\243o comprovados. Existem para testar se a nvngx.dll do pr\303\263prio driver consegue despachar o "
-    "modelo, o que dispensaria a c\303\263pia de 165 MB ao lado do OptiScaler.",
+    "Ambos n\303\243o comprovados. Existem para testar se a nvngx.dll do pr\303\263prio driver consegue despa"
+    "char o modelo, o que dispensaria a c\303\263pia de 165 MB ao lado do OptiScaler.",
     "Sondar o driver",
-    "Pergunta \303\240 nvngx.dll do driver uma vez por sess\303\243o se ela j\303\241 conhece o modelo. Grava a "
-    "resposta no log e n\303\243o muda mais nada.\n\nLido quando o modelo \303\251 constru\303\255do, ent\303\243o "
-    "vale a partir da pr\303\263xima sess\303\243o.",
+    "Pergunta \303\240 nvngx.dll do driver uma vez por sess\303\243o se ela j\303\241 conhece o modelo. Grava"
+    " a resposta no log e n\303\243o muda mais nada.\n\nLido quando o modelo \303\251 constru\303\255do, ent\303\243"
+    "o vale a partir da pr\303\263xima sess\303\243o.",
     "Rodar pelo driver",
-    "Aciona o modelo pela nvngx.dll do pr\303\263prio driver em vez do encaminhador -- do jeito que o DLSS em si "
-    "\303\251 chamado. Se a imagem bater, o encaminhador \303\251 desnecess\303\241rio.\n\nCompare antes de confiar: "
-    "ligue Comparar acima e procure uma diferen\303\247a.",
+    "Aciona o modelo pela nvngx.dll do pr\303\263prio driver em vez do encaminhador -- do jeito que o DLSS em"
+    " si \303\251 chamado. Se a imagem bater, o encaminhador \303\251 desnecess\303\241rio.\n\nCompare antes "
+    "de confiar: ligue Comparar acima e procure uma diferen\303\247a.",
     "Apar\303\252ncia",
     "Painel claro",
-    "Claro \303\251 o padr\303\243o. A paleta escura em que este painel foi originalmente inspirado punha o texto "
-    "esmaecido a 2.65:1 contra o fundo, contra os 4.5:1 que se leem confortavelmente -- e um overlay \303\251 lido de "
-    "relance, sobre uma imagem em movimento.\n\nDesmarcar restaura as cores da pr\303\263pria NVIDIA.",
+    "Claro \303\251 o padr\303\243o. A paleta escura em que este painel foi originalmente inspirado punha o t"
+    "exto esmaecido a 2.65:1 contra o fundo, contra os 4.5:1 que se leem confortavelmente -- e um overlay \303\251"
+    " lido de relance, sobre uma imagem em movimento.\n\nDesmarcar restaura as cores da pr\303\263pria NVIDIA"
+    ".",
     "Cores do fabricante",
-    "O destaque do painel segue a placa em que \303\251 desenhado: verde NVIDIA numa GPU NVIDIA, vermelho AMD numa "
-    "AMD. Desmarque para manter o verde em toda parte.",
+    "O destaque do painel segue a placa em que \303\251 desenhado: verde NVIDIA numa GPU NVIDIA, vermelho AMD"
+    " numa AMD. Desmarque para manter o verde em toda parte.",
     "\n\nEste jogo est\303\241 rodando numa placa AMD.",
-    "\n\nEste jogo n\303\243o est\303\241 rodando numa placa AMD, ent\303\243o isto n\303\243o muda nada aqui.",
+    "\n\nEste jogo n\303\243o est\303\241 rodando numa placa AMD, ent\303\243o isto n\303\243o muda nada aqui"
+    ".",
     "Auto (Windows)",
     "Ingl\303\252s",
     "Portugu\303\252s (Brasil)",
@@ -709,28 +732,29 @@ static const char* const kTable_pt_BR[] = {
     "Espanhol",
     "Alem\303\243o",
     "Idioma",
-    "Auto segue o idioma de exibi\303\247\303\243o do Windows. Fixar um aqui s\303\263 muda este painel; o menu do "
-    "pr\303\263prio OptiScaler continua em ingl\303\252s. Um idioma que precisa de fonte pr\303\263pria "
-    "(chin\303\252s, coreano) a carrega do Windows no pr\303\263ximo quadro.",
+    "Auto segue o idioma de exibi\303\247\303\243o do Windows. Fixar um aqui s\303\263 muda este painel; o me"
+    "nu do pr\303\263prio OptiScaler continua em ingl\303\252s. Um idioma que precisa de fonte pr\303\263pria"
+    " (chin\303\252s, coreano) a carrega do Windows no pr\303\263ximo quadro.",
     "Tamanho da fonte",
-    "S\303\263 o texto deste painel -- o menu do pr\303\263prio OptiScaler mant\303\251m seu [Menu] FontSize.\n\nAs "
-    "larguras das linhas s\303\243o calculadas a partir do tamanho da fonte, ent\303\243o muito acima de 1.5x os "
-    "r\303\263tulos come\303\247am a invadir os valores.",
+    "S\303\263 o texto deste painel -- o menu do pr\303\263prio OptiScaler mant\303\251m seu [Menu] FontSize."
+    "\n\nAs larguras das linhas s\303\243o calculadas a partir do tamanho da fonte, ent\303\243o muito acima "
+    "de 1.5x os r\303\263tulos come\303\247am a invadir os valores.",
     "Redefinir layout",
-    "Arraste em qualquer parte do fundo do painel para mov\303\252-lo, ou arraste uma borda ou o canto\ninferior di"
-    "reito para redimension\303\241-lo. Ele pode ficar parcialmente fora da tela, mas sempre sobra\numa faixa vis"
-    "\303\255vel para agarrar. Posi\303\247\303\243o e tamanho ficam guardados para este jogo como fra\303\247\303"
-    "\243o da\ntela, ent\303\243o voltam em qualquer resolu\303\247\303\243o.",
+    "Arraste em qualquer parte do fundo do painel para mov\303\252-lo, ou arraste uma borda ou o canto\ninfer"
+    "ior direito para redimension\303\241-lo. Ele pode ficar parcialmente fora da tela, mas sempre sobra\numa"
+    " faixa vis\303\255vel para agarrar. Posi\303\247\303\243o e tamanho ficam guardados para este jogo como "
+    "fra\303\247\303\243o da\ntela, ent\303\243o voltam em qualquer resolu\303\247\303\243o.",
     "Fecha o painel. Sua tecla o abre de novo.",
     "DLSS Frame Generation do jogo: rodando em %dX",
     "DLSS Frame Generation do jogo: desligada nas op\303\247\303\265es de v\303\255deo do jogo.",
-    "Este jogo tem DLSS Frame Generation da NVIDIA pr\303\263pria. Ligue ou desligue nas\nop\303\247\303\265es de v"
-    "\303\255deo do jogo como sempre -- a linha abaixo s\303\263 muda o multiplicador\nque ele pede ao driver.",
+    "Este jogo tem DLSS Frame Generation da NVIDIA pr\303\263pria. Ligue ou desligue nas\nop\303\247\303\265e"
+    "s de v\303\255deo do jogo como sempre -- a linha abaixo s\303\263 muda o multiplicador\nque ele pede ao "
+    "driver.",
     "Jogo",
-    "Substitui quantos quadros extras o DLSS-G do jogo insere entre os reais.\n\"Jogo\" mant\303\251m o que o menu "
-    "do pr\303\263prio jogo diz. 2X insere um, 3X\ninsere dois, e assim por diante. 3X e 4X exigem uma RTX s\303"
-    "\251rie 50 -- nas outras placas\no driver limita a 2X, seja qual for a escolha aqui.\n\nFica esmaecido enquant"
-    "o Multi estiver ligado abaixo -- a\303\255 o driver escolhe a quantidade.",
+    "Substitui quantos quadros extras o DLSS-G do jogo insere entre os reais.\n\"Jogo\" mant\303\251m o que o"
+    " menu do pr\303\263prio jogo diz. 2X insere um, 3X\ninsere dois, e assim por diante. 3X e 4X exigem uma "
+    "RTX s\303\251rie 50 -- nas outras placas\no driver limita a 2X, seja qual for a escolha aqui.\n\nFica es"
+    "maecido enquanto Multi estiver ligado abaixo -- a\303\255 o driver escolhe a quantidade.",
     "nvngx.dll_dlssnr.dll est\303\241 faltando",
     "nvngx.dll_dlssnr.dll n\303\243o carregou",
     "faltam exporta\303\247\303\265es no forwarder",
@@ -748,1560 +772,1340 @@ static const char* const kTable_pt_BR[] = {
     "n\303\243o iniciado",
     "n\303\243o foi poss\303\255vel alocar os buffers de leitura",
     "nenhum buffer deste jogo tem o formato de uma exposi\303\247\303\243o",
+    "Franc\303\252s",
 };
 
 static const char* const kTable_ru[] = {
-    "\320\230\320\275\321\201\321\202\321\200\321\203\320\274\320\265\320\275\321\202\321\213 "
-    "\321\200\320\260\320\267\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272\320\260 DLSS 5",
+    "\320\230\320\275\321\201\321\202\321\200\321\203\320\274\320\265\320\275\321\202\321\213 \321\200\320\260"
+    "\320\267\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272\320\260 DLSS 5",
     "DLSS \320\222\320\232\320\233",
-    "\320\241\320\270\320\275\321\202\320\265\320\267\320\270\321\200\321\203\320\265\321\202 "
-    "\320\264\320\265\321\202\320\260\320\273\320\270 \320\262 \320\272\320\260\320\264\321\200\320\265 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 \320\264\320\276 "
-    "\321\202\320\276\320\263\320\276, \320\272\320\260\320\272 \320\265\320\263\320\276 "
-    "\321\203\320\262\320\270\320\264\320\270\321\202 "
-    "\320\263\320\265\320\275\320\265\321\200\320\260\321\206\320\270\321\217 "
-    "\320\272\320\260\320\264\321\200\320\276\320\262.\n\n\320\235\321\203\320\266\320\275\321\213 "
-    "\320\264\320\262\320\260 \321\204\320\260\320\271\320\273\320\260 \321\201 "
-    "\320\277\320\276\321\205\320\276\320\266\320\270\320\274\320\270 "
-    "\320\270\320\274\320\265\320\275\320\260\320\274\320\270 \321\200\321\217\320\264\320\276\320\274 \321\201 "
-    "OptiScaler, \320\276\321\202\320\273\320\270\321\207\320\260\321\216\321\211\320\270\320\265\321\201\321\217 "
-    "\320\276\320\264\320\275\320\270\320\274 \321\201\320\270\320\274\320\262\320\276\320\273\320\276\320\274:\n  "
-    "nvngx_dlssnr.dll       \320\274\320\276\320\264\320\265\320\273\321\214 NVIDIA (~165 \320\234\320\221) -- "
-    "\320\262\321\213 "
-    "\320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202\320\265 "
-    "\320\265\321\221 \321\201\320\260\320\274\320\270\n  nvngx.dll_dlssnr.dll   "
-    "\320\277\320\265\321\200\320\265\320\260\320\264\321\200\320\265\321\201\320\260\321\202\320\276\321\200 (~13 "
-    "\320\232\320\221) -- \320\262\321\205\320\276\320\264\320\270\321\202 \320\262 \321\215\321\202\320\276\321\202 "
-    "\320\277\320\260\320\272\320\265\321\202\n\320\235\320\265 "
-    "\320\264\320\276\320\272\321\203\320\274\320\265\320\275\321\202\320\270\321\200\320\276\320\262\320\260\320\275"
-    "\320\276 \320\270 \320\262\321\213\320\267\321\213\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\320\275\320\260\320\277\321\200\321\217\320\274\321\203\321\216, "
-    "\320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\275\320\270\321\207\321\202\320\276 "
-    "\320\270\320\267 \321\215\321\202\320\276\320\263\320\276 "
-    "\320\276\321\204\320\270\321\206\320\270\320\260\320\273\321\214\320\275\320\276 \320\275\320\265 "
-    "\320\277\320\276\320\264\320\264\320\265\321\200\320\266\320\270\320\262\320\260\320\265\321\202\321\201\321\217.",
-    "\320\230\321\201\321\202\320\276\321\207\320\275\320\270\320\272: DLSS5 Feeder (\320\262 "
-    "\321\215\321\202\320\276\320\271 \320\270\320\263\321\200\320\265 \320\275\320\265\321\202 "
-    "\321\200\320\276\320\264\320\275\320\276\320\263\320\276 DLSS)",
-    "\320\243 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 \320\275\320\265\321\202 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\263\320\276 DLSS, "
-    "\320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\275\320\265\321\202 "
-    "\320\262\321\213\320\267\320\276\320\262\320\260 evaluate, \320\272 "
-    "\320\272\320\276\321\202\320\276\321\200\320\276\320\274\321\203 \320\274\320\276\320\263 \320\261\321\213 "
-    "\320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\270\321\202\321\214\321\201\321\217 Neural "
-    "Rendering. \320\220\320\264\320\264\320\276\320\275 ReShade DLSS5 Feeder "
-    "\321\201\321\202\321\200\320\276\320\270\321\202 \320\265\320\263\320\276 \320\270\320\267 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\271 "
-    "\320\263\320\273\321\203\320\261\320\270\320\275\321\213 \320\270 "
-    "\320\276\321\206\320\265\320\275\320\276\321\207\320\275\321\213\321\205 "
-    "\320\262\320\265\320\272\321\202\320\276\321\200\320\276\320\262 "
-    "\320\264\320\262\320\270\320\266\320\265\320\275\320\270\321\217 "
-    "ReShade.\n\n\320\236\321\206\320\265\320\275\320\276\321\207\320\275\321\213\320\265 "
-    "\320\262\320\265\320\272\321\202\320\276\321\200\321\213 "
-    "\320\264\320\262\320\270\320\266\320\265\320\275\320\270\321\217 \320\263\321\200\321\203\320\261\320\265\320\265 "
-    "\320\275\320\260\321\201\321\202\320\276\321\217\321\211\320\270\321\205 "
-    "\320\270\320\263\321\200\320\276\320\262\321\213\321\205 -- "
-    "\320\276\320\266\320\270\320\264\320\260\320\271\321\202\320\265 \320\261\320\276\320\273\321\214\321\210\320\265 "
-    "\321\210\320\273\320\265\320\271\321\204\320\276\320\262 \320\262 "
-    "\320\261\321\213\321\201\321\202\321\200\320\276\320\274 "
-    "\320\264\320\262\320\270\320\266\320\265\320\275\320\270\320\270 \320\270 "
-    "\320\261\320\276\320\273\320\265\320\265 \320\274\321\217\320\263\320\272\321\203\321\216 "
-    "\321\202\320\276\320\275\320\272\321\203\321\216 "
-    "\320\263\320\265\320\276\320\274\320\265\321\202\321\200\320\270\321\216, \321\207\320\265\320\274 "
-    "\320\264\320\260\321\221\321\202 \321\202\320\260 \320\266\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\262 \320\270\320\263\321\200\320\265 \321\201 "
-    "\321\200\320\276\320\264\320\275\321\213\320\274 DLSS.",
-    "Lossless Scaling: \320\275\320\265 \320\275\320\260\321\201\321\202\321\200\320\276\320\265\320\275 "
-    "(OptiDLSS5-UI).",
+    "\320\241\320\270\320\275\321\202\320\265\320\267\320\270\321\200\321\203\320\265\321\202 \320\264\320\265"
+    "\321\202\320\260\320\273\320\270 \320\262 \320\272\320\260\320\264\321\200\320\265 \320\260\320\277\321\201"
+    "\320\272\320\265\320\271\320\273\320\265\321\200\320\260 \320\264\320\276 \321\202\320\276\320\263\320\276"
+    ", \320\272\320\260\320\272 \320\265\320\263\320\276 \321\203\320\262\320\270\320\264\320\270\321\202 \320\263"
+    "\320\265\320\275\320\265\321\200\320\260\321\206\320\270\321\217 \320\272\320\260\320\264\321\200\320\276"
+    "\320\262.\n\n\320\235\321\203\320\266\320\275\321\213 \320\264\320\262\320\260 \321\204\320\260\320\271\320\273"
+    "\320\260 \321\201 \320\277\320\276\321\205\320\276\320\266\320\270\320\274\320\270 \320\270\320\274\320\265"
+    "\320\275\320\260\320\274\320\270 \321\200\321\217\320\264\320\276\320\274 \321\201 OptiScaler, \320\276\321\202"
+    "\320\273\320\270\321\207\320\260\321\216\321\211\320\270\320\265\321\201\321\217 \320\276\320\264\320\275"
+    "\320\270\320\274 \321\201\320\270\320\274\320\262\320\276\320\273\320\276\320\274:\n  nvngx_dlssnr.dll  "
+    "     \320\274\320\276\320\264\320\265\320\273\321\214 NVIDIA (~165 \320\234\320\221) -- \320\262\321\213"
+    " \320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202"
+    "\320\265 \320\265\321\221 \321\201\320\260\320\274\320\270\n  nvngx.dll_dlssnr.dll   \320\277\320\265\321\200"
+    "\320\265\320\260\320\264\321\200\320\265\321\201\320\260\321\202\320\276\321\200 (~13 \320\232\320\221) "
+    "-- \320\262\321\205\320\276\320\264\320\270\321\202 \320\262 \321\215\321\202\320\276\321\202 \320\277\320\260"
+    "\320\272\320\265\321\202\n\320\235\320\265 \320\264\320\276\320\272\321\203\320\274\320\265\320\275\321\202"
+    "\320\270\321\200\320\276\320\262\320\260\320\275\320\276 \320\270 \320\262\321\213\320\267\321\213\320\262"
+    "\320\260\320\265\321\202\321\201\321\217 \320\275\320\260\320\277\321\200\321\217\320\274\321\203\321\216"
+    ", \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\275\320\270\321\207\321\202\320\276 \320\270"
+    "\320\267 \321\215\321\202\320\276\320\263\320\276 \320\276\321\204\320\270\321\206\320\270\320\260\320\273"
+    "\321\214\320\275\320\276 \320\275\320\265 \320\277\320\276\320\264\320\264\320\265\321\200\320\266\320\270"
+    "\320\262\320\260\320\265\321\202\321\201\321\217.",
+    "\320\230\321\201\321\202\320\276\321\207\320\275\320\270\320\272: DLSS5 Feeder (\320\262 \321\215\321\202"
+    "\320\276\320\271 \320\270\320\263\321\200\320\265 \320\275\320\265\321\202 \321\200\320\276\320\264\320\275"
+    "\320\276\320\263\320\276 DLSS)",
+    "\320\243 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 \320\275\320\265\321\202 \321\201"
+    "\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\263\320\276 DLSS, \320\277\320\276"
+    "\321\215\321\202\320\276\320\274\321\203 \320\275\320\265\321\202 \320\262\321\213\320\267\320\276\320\262"
+    "\320\260 evaluate, \320\272 \320\272\320\276\321\202\320\276\321\200\320\276\320\274\321\203 \320\274\320\276"
+    "\320\263 \320\261\321\213 \320\277\320\276\320\264\320\272\320\273\321\216\321\207\320\270\321\202\321\214"
+    "\321\201\321\217 Neural Rendering. \320\220\320\264\320\264\320\276\320\275 ReShade DLSS5 Feeder \321\201"
+    "\321\202\321\200\320\276\320\270\321\202 \320\265\320\263\320\276 \320\270\320\267 \321\201\320\276\320\261"
+    "\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\271 \320\263\320\273\321\203\320\261\320\270"
+    "\320\275\321\213 \320\270 \320\276\321\206\320\265\320\275\320\276\321\207\320\275\321\213\321\205 \320\262"
+    "\320\265\320\272\321\202\320\276\321\200\320\276\320\262 \320\264\320\262\320\270\320\266\320\265\320\275"
+    "\320\270\321\217 ReShade.\n\n\320\236\321\206\320\265\320\275\320\276\321\207\320\275\321\213\320\265 \320\262"
+    "\320\265\320\272\321\202\320\276\321\200\321\213 \320\264\320\262\320\270\320\266\320\265\320\275\320\270"
+    "\321\217 \320\263\321\200\321\203\320\261\320\265\320\265 \320\275\320\260\321\201\321\202\320\276\321\217"
+    "\321\211\320\270\321\205 \320\270\320\263\321\200\320\276\320\262\321\213\321\205 -- \320\276\320\266\320\270"
+    "\320\264\320\260\320\271\321\202\320\265 \320\261\320\276\320\273\321\214\321\210\320\265 \321\210\320\273"
+    "\320\265\320\271\321\204\320\276\320\262 \320\262 \320\261\321\213\321\201\321\202\321\200\320\276\320\274"
+    " \320\264\320\262\320\270\320\266\320\265\320\275\320\270\320\270 \320\270 \320\261\320\276\320\273\320\265"
+    "\320\265 \320\274\321\217\320\263\320\272\321\203\321\216 \321\202\320\276\320\275\320\272\321\203\321\216"
+    " \320\263\320\265\320\276\320\274\320\265\321\202\321\200\320\270\321\216, \321\207\320\265\320\274 \320\264"
+    "\320\260\321\221\321\202 \321\202\320\260 \320\266\320\265 \320\274\320\276\320\264\320\265\320\273\321\214"
+    " \320\262 \320\270\320\263\321\200\320\265 \321\201 \321\200\320\276\320\264\320\275\321\213\320\274 DLS"
+    "S.",
+    "Lossless Scaling: \320\275\320\265 \320\275\320\260\321\201\321\202\321\200\320\276\320\265\320\275 (Opt"
+    "iDLSS5-UI).",
     "Lossless Scaling",
-    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202/\320\267\320\260\320\272\321\200\321"
-    "\213\320\262\320\260\320\265\321\202 Lossless Scaling \320\262 \321\204\320\276\320\275\320\265 (\321\201\320"
-    "\262\321\221\321\200\320\275\321\203\321\202\321\213\320\274 \320\262 \321\202\321\200\320\265\320\271, \320"
-    "\261\320\265\320\267 \320\276\320\272\320\275\320\260). \320\222\320\272\320\273\321\216\321\207\320\265\320"
-    "\275\320\270\320\265 \302\253\320\220\320\272\321\202\320\270\320\262\320\275\320\276\302\273 \320\275\320\270"
-    "\320\266\320\265 \321\202\320\276\320\266\320\265 \320\267\320\260\320\277\321\203\321\201\320\272\320\260\320"
-    "\265\321\202 \320\265\320\263\320\276 \320\267\320\260 \320\262\320\260\321\201.",
+    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202/\320\267\320\260\320\272\321\200"
+    "\321\213\320\262\320\260\320\265\321\202 Lossless Scaling \320\262 \321\204\320\276\320\275\320\265 (\321\201"
+    "\320\262\321\221\321\200\320\275\321\203\321\202\321\213\320\274 \320\262 \321\202\321\200\320\265\320\271"
+    ", \320\261\320\265\320\267 \320\276\320\272\320\275\320\260). \320\222\320\272\320\273\321\216\321\207\320\265"
+    "\320\275\320\270\320\265 \302\253\320\220\320\272\321\202\320\270\320\262\320\275\320\276\302\273 \320\275"
+    "\320\270\320\266\320\265 \321\202\320\276\320\266\320\265 \320\267\320\260\320\277\321\203\321\201\320\272"
+    "\320\260\320\265\321\202 \320\265\320\263\320\276 \320\267\320\260 \320\262\320\260\321\201.",
     "\320\220\320\272\321\202\320\270\320\262\320\275\320\276",
-    "\320\222\320\272\320\273\321\216\321\207\320\260\320\265\321\202/\320\262\321\213\320\272\320\273\321\216\321"
-    "\207\320\260\320\265\321\202 Frame Generation Lossless Scaling \320\264\320\273\321\217 \321\215\321\202\320"
-    "\276\320\271 \320\270\320\263\321\200\321\213 \321\207\320\265\321\200\320\265\320\267 \320\265\320\263\320"
-    "\276 \320\263\320\273\320\276\320\261\320\260\320\273\321\214\320\275\321\203\321\216 \320\263\320\276\321\200"
-    "\321\217\321\207\321\203\321\216 \320\272\320\273\320\260\320\262\320\270\321\210\321\203 -- \320\276\320\272"
-    "\320\275\320\276 \320\275\320\265 \320\277\320\276\321\217\320\262\320\273\321\217\320\265\321\202\321\201\321"
-    "\217, \320\260 Lossless Scaling \320\277\321\200\320\270 \320\275\320\265\320\276\320\261\321\205\320\276\320"
-    "\264\320\270\320\274\320\276\321\201\321\202\320\270 \321\201\320\275\320\260\321\207\320\260\320\273\320\260 "
-    "\320\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201\321\217. \320\237\320\276\320"
-    "\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202 \320\277\320\276\321\201\320\273\320\265\320\264"
-    "\320\275\320\270\320\271 \320\267\320\260\320\277\321\200\320\276\321\201, \320\260 \320\275\320\265 \320\277"
-    "\320\276\320\264\321\202\320\262\320\265\321\200\320\266\320\264\321\221\320\275\320\275\320\276\320\265 \321"
-    "\201\320\276\321\201\321\202\320\276\321\217\320\275\320\270\320\265.\n\n\320\222\320\272\320\273\321\216\321"
-    "\207\320\265\320\275\320\270\320\265 \320\262\321\213\320\272\320\273\321\216\321\207\320\260\320\265\321\202 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\203\321\216 Frame Generation Opti"
-    "Scaler: \320\264\320\262\320\260 \320\263\320\265\320\275\320\265\321\200\320\260\321\202\320\276\321\200\320"
-    "\260 \320\272\320\260\320\264\321\200\320\276\320\262 \320\276\320\264\320\275\320\276\320\262\321\200\320\265"
-    "\320\274\320\265\320\275\320\275\320\276 \321\201\320\272\320\273\320\260\320\264\321\213\320\262\320\260\321"
-    "\216\321\202 \320\272\320\260\320\264\321\200\321\213.",
-    "\320\220\320\264\320\260\320\277\321\202\320\270\320\262\320\275\320\276: "
-    "\321\203\320\264\320\265\321\200\320\266\320\270\320\262\320\260\320\265\321\202 %d fps",
-    "\320\220\320\264\320\260\320\277\321\202\320\270\320\262\320\275\320\260\321\217 Frame Generation: Lossless "
-    "Scaling \320\263\320\265\320\275\320\265\321\200\320\270\321\200\321\203\320\265\321\202 "
-    "\321\200\320\276\320\262\320\275\320\276 \321\201\321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\320\272\320\260\320\264\321\200\320\276\320\262, \321\201\320\272\320\276\320\273\321\214\320\272\320\276 "
-    "\320\275\321\203\320\266\320\275\320\276 \320\264\320\273\321\217 "
-    "\321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\270\321\217 \321\215\321\202\320\276\320\271 "
-    "\321\206\320\265\320\273\320\270. \320\246\320\265\320\273\321\214 (\320\270\320\273\320\270 "
-    "\320\277\320\265\321\200\320\265\321\205\320\276\320\264 \320\275\320\260 "
-    "\321\204\320\270\320\272\321\201\320\270\321\200\320\276\320\262\320\260\320\275\320\275\321\213\320\271 "
-    "\320\274\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214) "
-    "\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217 \320\262 OptiDLSS5-UI. "
-    "\320\230\320\263\321\200\320\260 \320\264\320\276\320\273\320\266\320\275\320\260 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 \320\262 "
-    "\321\200\320\265\320\266\320\270\320\274\320\265 Borderless \320\270\320\273\320\270 \320\262 "
-    "\320\276\320\272\320\275\320\265, \320\260 \320\275\320\265 \320\262 "
-    "\321\215\320\272\321\201\320\272\320\273\321\216\320\267\320\270\320\262\320\275\320\276\320\274 "
-    "\320\277\320\276\320\273\320\275\320\276\321\215\320\272\321\200\320\260\320\275\320\275\320\276\320\274 "
-    "\321\200\320\265\320\266\320\270\320\274\320\265 (DX12-\320\270\320\263\321\200\321\213 "
-    "\320\276\320\261\321\213\321\207\320\275\320\276 \321\200\320\260\320\261\320\276\321\202\320\260\321\216\321\202 "
-    "\320\262 \320\273\321\216\320\261\320\276\320\274 \321\201\320\273\321\203\321\207\320\260\320\265).",
-    "\320\241\320\263\320\265\320\275\320\265\321\200\320\270\321\200\320\276\320\262\320\260\320\275\320\275\321"
-    "\213\321\205 \320\272\320\260\320\264\321\200\320\276\320\262 \320\275\320\260 \320\276\320\264\320\270\320"
-    "\275 \321\200\320\265\320\260\320\273\321\214\320\275\321\213\320\271. \320\225\321\201\320\273\320\270 Lossle"
-    "ss Scaling \321\203\320\266\320\265 \320\267\320\260\320\277\321\203\321\211\320\265\320\275, \320\276\320\275"
-    " \320\275\320\265\320\275\320\260\320\264\320\276\320\273\320\263\320\276 \320\277\320\265\321\200\320\265\320"
-    "\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201\321\217, \321\207\321\202\320\276"
-    "\320\261\321\213 \320\277\321\200\320\270\320\274\320\265\320\275\320\270\321\202\321\214 -- Frame Gen \320"
-    "\277\321\200\320\276\320\277\320\260\320\264\320\260\320\265\321\202 \320\275\320\260 \321\201\320\265\320\272"
-    "\321\203\320\275\320\264\321\203. \320\230\320\263\321\200\320\260 \320\264\320\276\320\273\320\266\320\275"
-    "\320\260 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 \320\262 \321\200\320\265\320\266"
-    "\320\270\320\274\320\265 Borderless \320\270\320\273\320\270 \320\262 \320\276\320\272\320\275\320\265, \320"
-    "\260 \320\275\320\265 \320\262 \321\215\320\272\321\201\320\272\320\273\321\216\320\267\320\270\320\262\320"
-    "\275\320\276\320\274 \320\277\320\276\320\273\320\275\320\276\321\215\320\272\321\200\320\260\320\275\320\275"
-    "\320\276\320\274 \321\200\320\265\320\266\320\270\320\274\320\265 (DX12-\320\270\320\263\321\200\321\213 \320"
-    "\276\320\261\321\213\321\207\320\275\320\276 \321\200\320\260\320\261\320\276\321\202\320\260\321\216\321\202 "
-    "\320\262 \320\273\321\216\320\261\320\276\320\274 \321\201\320\273\321\203\321\207\320\260\320\265).",
-    "\320\237\320\276\320\272\320\260 \321\215\321\202\320\276 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202, "
-    "\320\264\320\265\321\200\320\266\320\270\321\202\320\265 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\203\321\216 DLSS Frame Generation "
-    "\320\270\320\263\321\200\321\213 "
-    "\320\262\321\213\320\272\320\273\321\216\321\207\320\265\320\275\320\275\320\276\320\271.",
-    "\320\232\320\273\320\260\320\262\320\270\321\210\320\260 "
-    "\320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\265\320\275\320\270\321\217",
-    "\320\222\320\272\320\273\321\216\321\207\320\260\320\265\321\202 \320\270 "
-    "\320\262\321\213\320\272\320\273\321\216\321\207\320\260\320\265\321\202 Neural Rendering "
-    "\320\261\320\265\320\267 \320\276\321\202\320\272\321\200\321\213\321\202\320\270\321\217 "
-    "\321\215\321\202\320\276\320\271 \320\277\320\260\320\275\320\265\320\273\320\270. "
-    "\320\235\320\260\320\266\320\274\320\270\321\202\320\265 \320\272\320\275\320\276\320\277\320\272\321\203, "
-    "\320\267\320\260\321\202\320\265\320\274 \320\275\321\203\320\266\320\275\321\203\321\216 "
-    "\320\272\320\273\320\260\320\262\320\270\321\210\321\203. Escape "
-    "\320\276\321\202\320\274\320\265\320\275\321\217\320\265\321\202, Backspace "
-    "\321\201\320\275\320\270\320\274\320\260\320\265\321\202 "
-    "\320\277\321\200\320\270\320\262\321\217\320\267\320\272\321\203, R "
-    "\321\201\320\261\321\200\320\260\321\201\321\213\320\262\320\260\320\265\321\202.",
+    "\320\222\320\272\320\273\321\216\321\207\320\260\320\265\321\202/\320\262\321\213\320\272\320\273\321\216"
+    "\321\207\320\260\320\265\321\202 Frame Generation Lossless Scaling \320\264\320\273\321\217 \321\215\321\202"
+    "\320\276\320\271 \320\270\320\263\321\200\321\213 \321\207\320\265\321\200\320\265\320\267 \320\265\320\263"
+    "\320\276 \320\263\320\273\320\276\320\261\320\260\320\273\321\214\320\275\321\203\321\216 \320\263\320\276"
+    "\321\200\321\217\321\207\321\203\321\216 \320\272\320\273\320\260\320\262\320\270\321\210\321\203 -- \320\276"
+    "\320\272\320\275\320\276 \320\275\320\265 \320\277\320\276\321\217\320\262\320\273\321\217\320\265\321\202"
+    "\321\201\321\217, \320\260 Lossless Scaling \320\277\321\200\320\270 \320\275\320\265\320\276\320\261\321\205"
+    "\320\276\320\264\320\270\320\274\320\276\321\201\321\202\320\270 \321\201\320\275\320\260\321\207\320\260"
+    "\320\273\320\260 \320\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201\321\217"
+    ". \320\237\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202 \320\277\320\276\321\201"
+    "\320\273\320\265\320\264\320\275\320\270\320\271 \320\267\320\260\320\277\321\200\320\276\321\201, \320\260"
+    " \320\275\320\265 \320\277\320\276\320\264\321\202\320\262\320\265\321\200\320\266\320\264\321\221\320\275"
+    "\320\275\320\276\320\265 \321\201\320\276\321\201\321\202\320\276\321\217\320\275\320\270\320\265.\n\n\320\222"
+    "\320\272\320\273\321\216\321\207\320\265\320\275\320\270\320\265 \320\262\321\213\320\272\320\273\321\216"
+    "\321\207\320\260\320\265\321\202 \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275"
+    "\321\203\321\216 Frame Generation OptiScaler: \320\264\320\262\320\260 \320\263\320\265\320\275\320\265\321\200"
+    "\320\260\321\202\320\276\321\200\320\260 \320\272\320\260\320\264\321\200\320\276\320\262 \320\276\320\264"
+    "\320\275\320\276\320\262\321\200\320\265\320\274\320\265\320\275\320\275\320\276 \321\201\320\272\320\273"
+    "\320\260\320\264\321\213\320\262\320\260\321\216\321\202 \320\272\320\260\320\264\321\200\321\213.",
+    "\320\220\320\264\320\260\320\277\321\202\320\270\320\262\320\275\320\276: \321\203\320\264\320\265\321\200"
+    "\320\266\320\270\320\262\320\260\320\265\321\202 %d fps",
+    "\320\220\320\264\320\260\320\277\321\202\320\270\320\262\320\275\320\260\321\217 Frame Generation: Lossl"
+    "ess Scaling \320\263\320\265\320\275\320\265\321\200\320\270\321\200\321\203\320\265\321\202 \321\200\320\276"
+    "\320\262\320\275\320\276 \321\201\321\202\320\276\320\273\321\214\320\272\320\276 \320\272\320\260\320\264"
+    "\321\200\320\276\320\262, \321\201\320\272\320\276\320\273\321\214\320\272\320\276 \320\275\321\203\320\266"
+    "\320\275\320\276 \320\264\320\273\321\217 \321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\270"
+    "\321\217 \321\215\321\202\320\276\320\271 \321\206\320\265\320\273\320\270. \320\246\320\265\320\273\321\214"
+    " (\320\270\320\273\320\270 \320\277\320\265\321\200\320\265\321\205\320\276\320\264 \320\275\320\260 \321\204"
+    "\320\270\320\272\321\201\320\270\321\200\320\276\320\262\320\260\320\275\320\275\321\213\320\271 \320\274"
+    "\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214) \320\274\320\265\320\275\321\217\320\265"
+    "\321\202\321\201\321\217 \320\262 OptiDLSS5-UI. \320\230\320\263\321\200\320\260 \320\264\320\276\320\273"
+    "\320\266\320\275\320\260 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 \320\262 \321\200"
+    "\320\265\320\266\320\270\320\274\320\265 Borderless \320\270\320\273\320\270 \320\262 \320\276\320\272\320\275"
+    "\320\265, \320\260 \320\275\320\265 \320\262 \321\215\320\272\321\201\320\272\320\273\321\216\320\267\320\270"
+    "\320\262\320\275\320\276\320\274 \320\277\320\276\320\273\320\275\320\276\321\215\320\272\321\200\320\260"
+    "\320\275\320\275\320\276\320\274 \321\200\320\265\320\266\320\270\320\274\320\265 (DX12-\320\270\320\263"
+    "\321\200\321\213 \320\276\320\261\321\213\321\207\320\275\320\276 \321\200\320\260\320\261\320\276\321\202"
+    "\320\260\321\216\321\202 \320\262 \320\273\321\216\320\261\320\276\320\274 \321\201\320\273\321\203\321\207"
+    "\320\260\320\265).",
+    "\320\241\320\263\320\265\320\275\320\265\321\200\320\270\321\200\320\276\320\262\320\260\320\275\320\275"
+    "\321\213\321\205 \320\272\320\260\320\264\321\200\320\276\320\262 \320\275\320\260 \320\276\320\264\320\270"
+    "\320\275 \321\200\320\265\320\260\320\273\321\214\320\275\321\213\320\271. \320\225\321\201\320\273\320\270"
+    " Lossless Scaling \321\203\320\266\320\265 \320\267\320\260\320\277\321\203\321\211\320\265\320\275, \320\276"
+    "\320\275 \320\275\320\265\320\275\320\260\320\264\320\276\320\273\320\263\320\276 \320\277\320\265\321\200"
+    "\320\265\320\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201\321\217, \321\207"
+    "\321\202\320\276\320\261\321\213 \320\277\321\200\320\270\320\274\320\265\320\275\320\270\321\202\321\214"
+    " -- Frame Gen \320\277\321\200\320\276\320\277\320\260\320\264\320\260\320\265\321\202 \320\275\320\260 "
+    "\321\201\320\265\320\272\321\203\320\275\320\264\321\203. \320\230\320\263\321\200\320\260 \320\264\320\276"
+    "\320\273\320\266\320\275\320\260 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 \320\262"
+    " \321\200\320\265\320\266\320\270\320\274\320\265 Borderless \320\270\320\273\320\270 \320\262 \320\276\320\272"
+    "\320\275\320\265, \320\260 \320\275\320\265 \320\262 \321\215\320\272\321\201\320\272\320\273\321\216\320\267"
+    "\320\270\320\262\320\275\320\276\320\274 \320\277\320\276\320\273\320\275\320\276\321\215\320\272\321\200"
+    "\320\260\320\275\320\275\320\276\320\274 \321\200\320\265\320\266\320\270\320\274\320\265 (DX12-\320\270"
+    "\320\263\321\200\321\213 \320\276\320\261\321\213\321\207\320\275\320\276 \321\200\320\260\320\261\320\276"
+    "\321\202\320\260\321\216\321\202 \320\262 \320\273\321\216\320\261\320\276\320\274 \321\201\320\273\321\203"
+    "\321\207\320\260\320\265).",
+    "\320\237\320\276\320\272\320\260 \321\215\321\202\320\276 \321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\265\321\202, \320\264\320\265\321\200\320\266\320\270\321\202\320\265 \321\201\320\276\320\261\321\201"
+    "\321\202\320\262\320\265\320\275\320\275\321\203\321\216 DLSS Frame Generation \320\270\320\263\321\200\321\213"
+    " \320\262\321\213\320\272\320\273\321\216\321\207\320\265\320\275\320\275\320\276\320\271.",
+    "\320\232\320\273\320\260\320\262\320\270\321\210\320\260 \320\277\320\265\321\200\320\265\320\272\320\273"
+    "\321\216\321\207\320\265\320\275\320\270\321\217",
+    "\320\222\320\272\320\273\321\216\321\207\320\260\320\265\321\202 \320\270 \320\262\321\213\320\272\320\273"
+    "\321\216\321\207\320\260\320\265\321\202 Neural Rendering \320\261\320\265\320\267 \320\276\321\202\320\272"
+    "\321\200\321\213\321\202\320\270\321\217 \321\215\321\202\320\276\320\271 \320\277\320\260\320\275\320\265"
+    "\320\273\320\270. \320\235\320\260\320\266\320\274\320\270\321\202\320\265 \320\272\320\275\320\276\320\277"
+    "\320\272\321\203, \320\267\320\260\321\202\320\265\320\274 \320\275\321\203\320\266\320\275\321\203\321\216"
+    " \320\272\320\273\320\260\320\262\320\270\321\210\321\203. Escape \320\276\321\202\320\274\320\265\320\275"
+    "\321\217\320\265\321\202, Backspace \321\201\320\275\320\270\320\274\320\260\320\265\321\202 \320\277\321\200"
+    "\320\270\320\262\321\217\320\267\320\272\321\203, R \321\201\320\261\321\200\320\260\321\201\321\213\320\262"
+    "\320\260\320\265\321\202.",
     "\320\232\320\273\320\260\320\262\320\270\321\210\320\260 \320\277\320\260\320\275\320\265\320\273\320\270",
-    "\320\236\321\202\320\272\321\200\321\213\320\262\320\260\320\265\321\202 \320\270 "
-    "\320\267\320\260\320\272\321\200\321\213\320\262\320\260\320\265\321\202 \321\215\321\202\321\203 "
-    "\320\277\320\260\320\275\320\265\320\273\321\214. \320\235\320\265 "
-    "\320\267\320\260\320\262\320\270\321\201\320\270\321\202 \320\276\321\202 "
-    "\320\272\320\273\320\260\320\262\320\270\321\210\320\270 \320\274\320\265\320\275\321\216 "
-    "\321\201\320\260\320\274\320\276\320\263\320\276 OptiScaler, "
-    "\320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\276\320\261\320\265 "
-    "\320\277\320\260\320\275\320\265\320\273\320\270 \320\274\320\276\320\263\321\203\321\202 "
-    "\320\261\321\213\321\202\321\214 \320\276\321\202\320\272\321\200\321\213\321\202\321\213 "
-    "\320\262\320\274\320\265\321\201\321\202\320\265 \320\270\320\273\320\270 \320\277\320\276 "
-    "\320\276\321\202\320\264\320\265\320\273\321\214\320\275\320\276\321\201\321\202\320\270.",
-    "\320\237\321\200\320\270\320\274\320\265\320\275\321\217\321\202\321\214 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214",
-    "\320\237\321\200\320\270\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217 \320\273\320\270 "
-    "\320\277\321\200\320\260\320\262\320\272\320\260 \320\274\320\276\320\264\320\265\320\273\320\270. "
-    "\320\222\321\213\320\272\320\273. "
-    "\320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202 "
-    "\321\207\320\270\321\201\321\202\321\213\320\271 \320\272\320\260\320\264\321\200 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260, "
-    "\320\277\320\276\320\272\320\260 \320\277\321\200\320\276\321\205\320\276\320\264 "
-    "\320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\260\320\265\321\202 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 -- \321\202\320\260\320\272 \321\201 "
-    "\302\253\320\243\320\264\320\265\321\200\320\266\320\260\321\202\321\214 \320\272\320\260\320\264\321\200\302\273 "
-    "\320\262 \321\200\320\260\320\267\320\264\320\265\320\273\320\265 "
-    "\302\253\320\236\321\201\320\274\320\276\321\202\321\200\302\273 \320\274\320\276\320\266\320\275\320\276 "
-    "\320\267\320\260\320\274\320\276\321\200\320\276\320\267\320\270\321\202\321\214 \320\272\320\260\320\264\321\200 "
-    "\320\270 \320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\260\321\202\321\214 "
-    "\321\215\321\202\320\276, \321\207\321\202\320\276\320\261\321\213 "
-    "\321\203\320\262\320\270\320\264\320\265\321\202\321\214 \321\202\320\276\321\202 \320\266\320\265 "
-    "\320\272\320\260\320\264\321\200 \321\201 Neural Rendering \320\270 \320\261\320\265\320\267 "
-    "\320\275\320\265\320\263\320\276.\n\320\224\320\273\321\217 "
-    "\320\276\320\261\321\213\321\207\320\275\320\276\320\263\320\276 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\320\276\320\262\320\260\320\275\320\270\321\217 "
-    "\320\276\321\201\321\202\320\260\320\262\321\214\321\202\320\265 "
-    "\320\262\320\272\320\273\321\216\321\207\321\221\320\275\320\275\321\213\320\274.",
+    "\320\236\321\202\320\272\321\200\321\213\320\262\320\260\320\265\321\202 \320\270 \320\267\320\260\320\272"
+    "\321\200\321\213\320\262\320\260\320\265\321\202 \321\215\321\202\321\203 \320\277\320\260\320\275\320\265"
+    "\320\273\321\214. \320\235\320\265 \320\267\320\260\320\262\320\270\321\201\320\270\321\202 \320\276\321\202"
+    " \320\272\320\273\320\260\320\262\320\270\321\210\320\270 \320\274\320\265\320\275\321\216 \321\201\320\260"
+    "\320\274\320\276\320\263\320\276 OptiScaler, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\276"
+    "\320\261\320\265 \320\277\320\260\320\275\320\265\320\273\320\270 \320\274\320\276\320\263\321\203\321\202"
+    " \320\261\321\213\321\202\321\214 \320\276\321\202\320\272\321\200\321\213\321\202\321\213 \320\262\320\274"
+    "\320\265\321\201\321\202\320\265 \320\270\320\273\320\270 \320\277\320\276 \320\276\321\202\320\264\320\265"
+    "\320\273\321\214\320\275\320\276\321\201\321\202\320\270.",
+    "\320\237\321\200\320\270\320\274\320\265\320\275\321\217\321\202\321\214 \320\274\320\276\320\264\320\265"
+    "\320\273\321\214",
+    "\320\237\321\200\320\270\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217 \320\273\320\270"
+    " \320\277\321\200\320\260\320\262\320\272\320\260 \320\274\320\276\320\264\320\265\320\273\320\270. \320\222"
+    "\321\213\320\272\320\273. \320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202"
+    " \321\207\320\270\321\201\321\202\321\213\320\271 \320\272\320\260\320\264\321\200 \320\260\320\277\321\201"
+    "\320\272\320\265\320\271\320\273\320\265\321\200\320\260, \320\277\320\276\320\272\320\260 \320\277\321\200"
+    "\320\276\321\205\320\276\320\264 \320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\260\320\265"
+    "\321\202 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 -- \321\202\320\260\320\272 \321\201"
+    " \302\253\320\243\320\264\320\265\321\200\320\266\320\260\321\202\321\214 \320\272\320\260\320\264\321\200"
+    "\302\273 \320\262 \321\200\320\260\320\267\320\264\320\265\320\273\320\265 \302\253\320\236\321\201\320\274"
+    "\320\276\321\202\321\200\302\273 \320\274\320\276\320\266\320\275\320\276 \320\267\320\260\320\274\320\276"
+    "\321\200\320\276\320\267\320\270\321\202\321\214 \320\272\320\260\320\264\321\200 \320\270 \320\277\320\265"
+    "\321\200\320\265\320\272\320\273\321\216\321\207\320\260\321\202\321\214 \321\215\321\202\320\276, \321\207"
+    "\321\202\320\276\320\261\321\213 \321\203\320\262\320\270\320\264\320\265\321\202\321\214 \321\202\320\276"
+    "\321\202 \320\266\320\265 \320\272\320\260\320\264\321\200 \321\201 Neural Rendering \320\270 \320\261\320\265"
+    "\320\267 \320\275\320\265\320\263\320\276.\n\320\224\320\273\321\217 \320\276\320\261\321\213\321\207\320\275"
+    "\320\276\320\263\320\276 \320\270\321\201\320\277\320\276\320\273\321\214\320\267\320\276\320\262\320\260"
+    "\320\275\320\270\321\217 \320\276\321\201\321\202\320\260\320\262\321\214\321\202\320\265 \320\262\320\272"
+    "\320\273\321\216\321\207\321\221\320\275\320\275\321\213\320\274.",
     "\320\224\320\276 Super Resolution",
-    "\320\223\320\264\320\265 \321\201\321\202\320\276\320\270\321\202 \320\277\321\200\320\276\321\205\320\276\320"
-    "\264. \320\222\321\213\320\272\320\273. -- \320\270\321\201\321\205\320\276\320\264\320\275\320\276\320\265 "
-    "\320\274\320\265\321\201\321\202\320\276: \320\274\320\276\320\264\320\265\320\273\321\214 \321\200\320\260"
-    "\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\260 \320\263\320\276\321\202\320\276\320\262\320"
-    "\276\320\274 \321\203\320\262\320\265\320\273\320\270\321\207\320\265\320\275\320\275\320\276\320\274 \320\272"
-    "\320\260\320\264\321\200\320\265. \320\222\320\272\320\273. \320\267\320\260\320\277\321\203\321\201\320\272"
-    "\320\260\320\265\321\202 \320\265\321\221 \320\262 \321\200\320\260\320\267\321\200\320\265\321\210\320\265"
-    "\320\275\320\270\320\270 \321\200\320\265\320\275\320\264\320\265\321\200\320\270\320\275\320\263\320\260 \320"
-    "\275\320\260 \321\206\320\262\320\265\321\202\320\265, \320\272\320\276\321\202\320\276\321\200\321\213\320"
-    "\271 SR \320\262\320\276\321\202-\320\262\320\276\321\202 \320\262\320\276\320\267\321\214\320\274\321\221\321"
-    "\202, \321\202\320\260\320\272 \321\207\321\202\320\276 SR \320\275\320\260\320\272\320\260\320\277\320\273"
-    "\320\270\320\262\320\260\320\265\321\202 \320\270 \321\203\320\262\320\265\320\273\320\270\321\207\320\270\320"
-    "\262\320\260\320\265\321\202 \321\203\320\266\320\265 \321\203\320\273\321\203\321\207\321\210\320\265\320\275"
-    "\320\275\321\203\321\216 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\321\203.\n\nRay Reconstructi"
-    "on \320\262\321\201\320\265\320\263\320\264\320\260 \320\276\321\201\321\202\320\260\321\221\321\202\321\201"
-    "\321\217 \320\275\320\260 \320\277\321\203\321\202\320\270 \320\277\320\276\321\201\320\273\320\265 \320\260"
-    "\320\277\321\201\320\272\320\265\320\271\320\273\320\260 -- \321\203 \320\275\320\265\320\263\320\276 \320\264"
-    "\321\200\321\203\320\263\320\276\320\271 \320\272\320\276\320\275\321\202\321\200\320\260\320\272\321\202 \320"
-    "\262\321\205\320\276\320\264\320\276\320\262. \320\246\320\262\320\265\321\202\320\275\320\276\320\265 \320"
-    "\270\320\267\320\276\320\261\321\200\320\260\320\266\320\265\320\275\320\270\320\265 \321\201 \320\276\321\202"
-    "\321\201\321\202\321\203\320\277\320\260\320\274\320\270 \320\262\320\275\321\203\321\202\321\200\320\270 \320"
-    "\261\320\276\320\273\321\214\321\210\320\265\320\271 \321\202\320\265\320\272\321\201\321\202\321\203\321\200"
-    "\321\213 \320\276\320\261\321\200\320\260\320\261\320\260\321\202\321\213\320\262\320\260\320\265\321\202\321"
-    "\201\321\217 \320\262 \321\200\320\265\320\260\320\273\321\214\320\275\320\276\320\274 \321\200\320\260\320"
-    "\267\320\274\320\265\321\200\320\265; \321\201\320\274\320\265\321\211\321\221\320\275\320\275\320\276\320\265"
-    " \320\276\321\202 \321\203\320\263\320\273\320\260 \320\277\320\276-\320\277\321\200\320\265\320\266\320\275"
-    "\320\265\320\274\321\203 \320\276\321\202\320\272\320\260\321\202\321\213\320\262\320\260\320\265\321\202\321"
-    "\201\321\217 \320\275\320\260 \320\277\321\203\321\202\321\214 \320\277\320\276\321\201\320\273\320\265 \320"
-    "\260\320\277\321\201\320\272\320\265\320\271\320\273\320\260.\n\n\320\242\320\276\320\273\321\214\320\272\320"
-    "\276 D3D12 \320\270 \320\265\320\263\320\276 \320\274\320\276\321\201\321\202\321\213 D3D11/Vulkan; \320\275"
-    "\320\260\321\202\320\270\320\262\320\275\321\213\320\271 Vulkan \321\201\320\276\321\205\321\200\320\260\320"
-    "\275\321\217\320\265\321\202 \321\201\321\202\320\260\321\200\320\276\320\265 \320\274\320\265\321\201\321\202"
-    "\320\276.",
-    "\320\222\321\213\320\272\320\273\321\216\321\207\320\265\320\275\320\276 \320\262 "
-    "\321\215\321\202\320\276\320\271 \321\201\320\265\321\201\321\201\320\270\320\270: %s.",
+    "\320\223\320\264\320\265 \321\201\321\202\320\276\320\270\321\202 \320\277\321\200\320\276\321\205\320\276"
+    "\320\264. \320\222\321\213\320\272\320\273. -- \320\270\321\201\321\205\320\276\320\264\320\275\320\276\320\265"
+    " \320\274\320\265\321\201\321\202\320\276: \320\274\320\276\320\264\320\265\320\273\321\214 \321\200\320\260"
+    "\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\260 \320\263\320\276\321\202\320\276\320\262"
+    "\320\276\320\274 \321\203\320\262\320\265\320\273\320\270\321\207\320\265\320\275\320\275\320\276\320\274"
+    " \320\272\320\260\320\264\321\200\320\265. \320\222\320\272\320\273. \320\267\320\260\320\277\321\203\321\201"
+    "\320\272\320\260\320\265\321\202 \320\265\321\221 \320\262 \321\200\320\260\320\267\321\200\320\265\321\210"
+    "\320\265\320\275\320\270\320\270 \321\200\320\265\320\275\320\264\320\265\321\200\320\270\320\275\320\263"
+    "\320\260 \320\275\320\260 \321\206\320\262\320\265\321\202\320\265, \320\272\320\276\321\202\320\276\321\200"
+    "\321\213\320\271 SR \320\262\320\276\321\202-\320\262\320\276\321\202 \320\262\320\276\320\267\321\214\320\274"
+    "\321\221\321\202, \321\202\320\260\320\272 \321\207\321\202\320\276 SR \320\275\320\260\320\272\320\260\320\277"
+    "\320\273\320\270\320\262\320\260\320\265\321\202 \320\270 \321\203\320\262\320\265\320\273\320\270\321\207"
+    "\320\270\320\262\320\260\320\265\321\202 \321\203\320\266\320\265 \321\203\320\273\321\203\321\207\321\210"
+    "\320\265\320\275\320\275\321\203\321\216 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\321\203"
+    ".\n\nRay Reconstruction \320\262\321\201\320\265\320\263\320\264\320\260 \320\276\321\201\321\202\320\260"
+    "\321\221\321\202\321\201\321\217 \320\275\320\260 \320\277\321\203\321\202\320\270 \320\277\320\276\321\201"
+    "\320\273\320\265 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\260 -- \321\203 \320\275\320\265"
+    "\320\263\320\276 \320\264\321\200\321\203\320\263\320\276\320\271 \320\272\320\276\320\275\321\202\321\200"
+    "\320\260\320\272\321\202 \320\262\321\205\320\276\320\264\320\276\320\262. \320\246\320\262\320\265\321\202"
+    "\320\275\320\276\320\265 \320\270\320\267\320\276\320\261\321\200\320\260\320\266\320\265\320\275\320\270"
+    "\320\265 \321\201 \320\276\321\202\321\201\321\202\321\203\320\277\320\260\320\274\320\270 \320\262\320\275"
+    "\321\203\321\202\321\200\320\270 \320\261\320\276\320\273\321\214\321\210\320\265\320\271 \321\202\320\265"
+    "\320\272\321\201\321\202\321\203\321\200\321\213 \320\276\320\261\321\200\320\260\320\261\320\260\321\202"
+    "\321\213\320\262\320\260\320\265\321\202\321\201\321\217 \320\262 \321\200\320\265\320\260\320\273\321\214"
+    "\320\275\320\276\320\274 \321\200\320\260\320\267\320\274\320\265\321\200\320\265; \321\201\320\274\320\265"
+    "\321\211\321\221\320\275\320\275\320\276\320\265 \320\276\321\202 \321\203\320\263\320\273\320\260 \320\277"
+    "\320\276-\320\277\321\200\320\265\320\266\320\275\320\265\320\274\321\203 \320\276\321\202\320\272\320\260"
+    "\321\202\321\213\320\262\320\260\320\265\321\202\321\201\321\217 \320\275\320\260 \320\277\321\203\321\202"
+    "\321\214 \320\277\320\276\321\201\320\273\320\265 \320\260\320\277\321\201\320\272\320\265\320\271\320\273"
+    "\320\260.\n\n\320\242\320\276\320\273\321\214\320\272\320\276 D3D12 \320\270 \320\265\320\263\320\276 \320\274"
+    "\320\276\321\201\321\202\321\213 D3D11/Vulkan; \320\275\320\260\321\202\320\270\320\262\320\275\321\213\320\271"
+    " Vulkan \321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 \321\201\321\202\320\260"
+    "\321\200\320\276\320\265 \320\274\320\265\321\201\321\202\320\276.",
+    "\320\222\321\213\320\272\320\273\321\216\321\207\320\265\320\275\320\276 \320\262 \321\215\321\202\320\276"
+    "\320\271 \321\201\320\265\321\201\321\201\320\270\320\270: %s.",
     "\320\237\320\276\320\262\321\202\320\276\321\200\320\270\321\202\321\214",
-    "\320\236\320\266\320\270\320\264\320\260\320\275\320\270\320\265 "
-    "\320\267\320\260\320\277\321\203\321\201\320\272\320\260 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260.",
-    "\320\220\320\264\320\264\320\276\320\275 DLSS5 Feeder "
-    "\320\267\320\260\320\263\321\200\321\203\320\266\320\265\320\275, \320\275\320\276 \320\265\321\211\321\221 "
-    "\320\275\320\265 \320\277\320\265\321\200\320\265\320\264\320\260\320\273 evaluate DLSS -- "
-    "\320\265\321\201\320\273\320\270 \321\215\321\202\320\276 \320\275\320\265 "
-    "\320\277\321\200\320\276\320\277\320\260\320\264\320\260\320\265\321\202 \321\203\320\266\320\265 \320\262 "
-    "\320\270\320\263\321\200\320\265, \320\277\320\276\320\270\321\211\320\270\321\202\320\265 \"technique MISSING\" "
-    "\320\262 dlss5-feed.log \320\262 \320\277\320\260\320\277\320\272\320\265 \320\270\320\263\321\200\321\213.",
-    "\320\235\321\203\320\266\320\275\320\276, \321\207\321\202\320\276\320\261\321\213 \320\262 "
-    "\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260\321\205 "
-    "\320\262\320\270\320\264\320\265\320\276 \320\270\320\263\321\200\321\213 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\276\320\274 \320\261\321\213\320\273 "
-    "\320\262\321\213\320\261\321\200\320\260\320\275 DLSS \320\270\320\273\320\270 XeSS \320\270 "
-    "\320\261\321\213\320\273\320\276 \320\267\320\260\320\263\321\200\321\203\320\266\320\265\320\275\320\276 "
-    "\321\201\320\276\321\205\321\200\320\260\320\275\320\265\320\275\320\270\320\265 -- \321\215\321\202\320\276 "
-    "(\320\270 \320\262\320\265\321\201\321\214 OptiScaler) \320\275\320\265 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\262 \320\274\320\265\320\275\321\216.",
-    "  (\320\274\320\276\320\264\320\265\320\273\321\214 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202, "
-    "\320\277\321\200\320\260\320\262\320\272\320\260 \321\201\320\272\321\200\321\213\321\202\320\260)",
-    "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202%s - %.2f \320\274\321\201 \320\275\320\260 "
-    "\320\272\320\260\320\264\321\200%s",
+    "\320\236\320\266\320\270\320\264\320\260\320\275\320\270\320\265 \320\267\320\260\320\277\321\203\321\201"
+    "\320\272\320\260 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260.",
+    "\320\220\320\264\320\264\320\276\320\275 DLSS5 Feeder \320\267\320\260\320\263\321\200\321\203\320\266\320\265"
+    "\320\275, \320\275\320\276 \320\265\321\211\321\221 \320\275\320\265 \320\277\320\265\321\200\320\265\320\264"
+    "\320\260\320\273 evaluate DLSS -- \320\265\321\201\320\273\320\270 \321\215\321\202\320\276 \320\275\320\265"
+    " \320\277\321\200\320\276\320\277\320\260\320\264\320\260\320\265\321\202 \321\203\320\266\320\265 \320\262"
+    " \320\270\320\263\321\200\320\265, \320\277\320\276\320\270\321\211\320\270\321\202\320\265 \"technique "
+    "MISSING\" \320\262 dlss5-feed.log \320\262 \320\277\320\260\320\277\320\272\320\265 \320\270\320\263\321\200"
+    "\321\213.",
+    "\320\235\321\203\320\266\320\275\320\276, \321\207\321\202\320\276\320\261\321\213 \320\262 \320\275\320\260"
+    "\321\201\321\202\321\200\320\276\320\271\320\272\320\260\321\205 \320\262\320\270\320\264\320\265\320\276"
+    " \320\270\320\263\321\200\321\213 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200"
+    "\320\276\320\274 \320\261\321\213\320\273 \320\262\321\213\320\261\321\200\320\260\320\275 DLSS \320\270"
+    "\320\273\320\270 XeSS \320\270 \320\261\321\213\320\273\320\276 \320\267\320\260\320\263\321\200\321\203"
+    "\320\266\320\265\320\275\320\276 \321\201\320\276\321\205\321\200\320\260\320\275\320\265\320\275\320\270"
+    "\320\265 -- \321\215\321\202\320\276 (\320\270 \320\262\320\265\321\201\321\214 OptiScaler) \320\275\320\265"
+    " \321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\262 \320\274\320\265\320\275\321\216"
+    ".",
+    "  (\320\274\320\276\320\264\320\265\320\273\321\214 \321\200\320\260\320\261\320\276\321\202\320\260\320\265"
+    "\321\202, \320\277\321\200\320\260\320\262\320\272\320\260 \321\201\320\272\321\200\321\213\321\202\320\260"
+    ")",
+    "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202%s - %.2f \320\274\321\201 \320\275\320\260"
+    " \320\272\320\260\320\264\321\200%s",
     " \320\275\320\260\321\202\320\270\320\262\320\275\320\276 \320\275\320\260 Vulkan",
-    "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202 "
-    "\320\275\320\260\321\202\320\270\320\262\320\275\320\276 \320\275\320\260 Vulkan - %llu "
-    "\320\272\320\260\320\264\321\200\320\276\320\262%s",
+    "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\260\321\202\320\270\320\262"
+    "\320\275\320\276 \320\275\320\260 Vulkan - %llu \320\272\320\260\320\264\321\200\320\276\320\262%s",
     "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202.%s",
-    "\320\222\320\265\321\201\321\214 \320\277\321\200\320\276\321\205\320\276\320\264: "
-    "\320\277\321\200\320\276\320\274\320\265\320\266\321\203\321\202\320\276\321\207\320\275\321\213\320\265 "
-    "\320\272\320\276\320\277\320\270\320\270 \320\270 resolve, \320\260 \320\275\320\265 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \320\274\320\276\320\264\320\265\320\273\321\214. "
-    "\320\227\320\260\320\274\320\265\321\200 \320\276\320\264\320\275\320\276\320\271 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\277\321\200\320\270\321\203\320\272\321\200\320\260\321\201\320\270\320\273 \320\261\321\213 "
-    "\321\207\320\270\321\201\320\273\320\276.\n\n\320\241\321\200\320\260\320\262\320\275\320\270\321\202\320\265 "
-    "\321\201 \320\262\321\200\320\265\320\274\320\265\320\275\320\265\320\274 "
-    "\320\272\320\260\320\264\321\200\320\260 \320\262\320\275\320\270\320\267\321\203 "
-    "\321\215\321\202\320\276\320\263\320\276 \320\276\320\272\320\275\320\260, "
-    "\321\207\321\202\320\276\320\261\321\213 \321\203\320\262\320\270\320\264\320\265\321\202\321\214, "
-    "\320\262\320\276 \321\207\321\202\320\276 \321\215\321\202\320\276 "
-    "\320\276\320\261\321\205\320\276\320\264\320\270\321\202\321\201\321\217.",
-    "\320\236\320\261\321\211\320\270\320\265 \320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\270",
-    "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\321\214 "
-    "\321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\213",
-    "\320\241\320\270\320\273\320\260 \321\201\320\270\320\275\321\202\320\265\320\267\320\260 "
-    "\321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\213 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214\321\216 \320\277\320\276 "
-    "\320\262\321\201\320\265\320\274\321\203 \320\272\320\260\320\264\321\200\321\203.",
-    "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\321\214 "
-    "\321\202\320\276\320\275\320\260",
-    "\320\241\320\270\320\273\320\260 "
-    "\320\277\320\265\321\200\320\265\320\272\320\260\321\200\321\202\320\270\321\200\320\276\320\262\320\260\320\275"
-    "\320\270\321\217 \321\202\320\276\320\275\320\260 \320\274\320\276\320\264\320\265\320\273\321\214\321\216 "
-    "\320\277\320\276 \320\262\321\201\320\265\320\274\321\203 \320\272\320\260\320\264\321\200\321\203.",
-    "\320\220\320\262\321\202\320\276\320\274\320\260\321\201\320\272\320\260 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270",
-    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 \321\201\320\260\320\274\320\276\320\271 "
-    "\320\275\320\260\321\205\320\276\320\264\320\270\321\202\321\214 \320\272\320\276\320\266\321\203 "
-    "\320\262\320\274\320\265\321\201\321\202\320\276 "
-    "\321\200\320\260\320\262\320\275\320\276\320\274\320\265\321\200\320\275\320\276\320\271 "
-    "\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\272\320\270 "
-    "\320\272\320\260\320\264\321\200\320\260.",
+    "\320\222\320\265\321\201\321\214 \320\277\321\200\320\276\321\205\320\276\320\264: \320\277\321\200\320\276"
+    "\320\274\320\265\320\266\321\203\321\202\320\276\321\207\320\275\321\213\320\265 \320\272\320\276\320\277"
+    "\320\270\320\270 \320\270 resolve, \320\260 \320\275\320\265 \321\202\320\276\320\273\321\214\320\272\320\276"
+    " \320\274\320\276\320\264\320\265\320\273\321\214. \320\227\320\260\320\274\320\265\321\200 \320\276\320\264"
+    "\320\275\320\276\320\271 \320\274\320\276\320\264\320\265\320\273\320\270 \320\277\321\200\320\270\321\203"
+    "\320\272\321\200\320\260\321\201\320\270\320\273 \320\261\321\213 \321\207\320\270\321\201\320\273\320\276"
+    ".\n\n\320\241\321\200\320\260\320\262\320\275\320\270\321\202\320\265 \321\201 \320\262\321\200\320\265\320\274"
+    "\320\265\320\275\320\265\320\274 \320\272\320\260\320\264\321\200\320\260 \320\262\320\275\320\270\320\267"
+    "\321\203 \321\215\321\202\320\276\320\263\320\276 \320\276\320\272\320\275\320\260, \321\207\321\202\320\276"
+    "\320\261\321\213 \321\203\320\262\320\270\320\264\320\265\321\202\321\214, \320\262\320\276 \321\207\321\202"
+    "\320\276 \321\215\321\202\320\276 \320\276\320\261\321\205\320\276\320\264\320\270\321\202\321\201\321\217"
+    ".",
+    "\320\236\320\261\321\211\320\270\320\265 \320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272"
+    "\320\270",
+    "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\321\214"
+    " \321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\213",
+    "\320\241\320\270\320\273\320\260 \321\201\320\270\320\275\321\202\320\265\320\267\320\260 \321\201\321\202"
+    "\321\200\321\203\320\272\321\202\321\203\321\200\321\213 \320\274\320\276\320\264\320\265\320\273\321\214"
+    "\321\216 \320\277\320\276 \320\262\321\201\320\265\320\274\321\203 \320\272\320\260\320\264\321\200\321\203"
+    ".",
+    "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\321\214"
+    " \321\202\320\276\320\275\320\260",
+    "\320\241\320\270\320\273\320\260 \320\277\320\265\321\200\320\265\320\272\320\260\321\200\321\202\320\270"
+    "\321\200\320\276\320\262\320\260\320\275\320\270\321\217 \321\202\320\276\320\275\320\260 \320\274\320\276"
+    "\320\264\320\265\320\273\321\214\321\216 \320\277\320\276 \320\262\321\201\320\265\320\274\321\203 \320\272"
+    "\320\260\320\264\321\200\321\203.",
+    "\320\220\320\262\321\202\320\276\320\274\320\260\321\201\320\272\320\260 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270",
+    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270 \321\201\320\260\320\274\320\276\320\271 \320\275\320\260\321\205\320\276\320\264\320\270"
+    "\321\202\321\214 \320\272\320\276\320\266\321\203 \320\262\320\274\320\265\321\201\321\202\320\276 \321\200"
+    "\320\260\320\262\320\275\320\276\320\274\320\265\321\200\320\275\320\276\320\271 \320\276\320\261\321\200"
+    "\320\260\320\261\320\276\321\202\320\272\320\270 \320\272\320\260\320\264\321\200\320\260.",
     "\320\237\320\276\320\272\320\260\320\267\320\260\321\202\321\214 \320\274\320\260\321\201\320\272\321\203",
-    "\320\237\320\260\320\275\320\265\320\273\321\214 NVIDIA \321\203\320\274\320\265\320\265\321\202 "
-    "\321\200\320\270\321\201\320\276\320\262\320\260\321\202\321\214 "
-    "\320\260\320\262\321\202\320\276\320\274\320\260\321\201\320\272\321\203 "
-    "\320\277\320\276\320\262\320\265\321\200\321\205 \320\272\320\260\320\264\321\200\320\260. "
-    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\275\320\265 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 \321\201\320\262\320\276\321\216 "
-    "\320\274\320\260\321\201\320\272\321\203 \321\207\320\265\321\200\320\265\320\267 "
-    "\320\270\320\275\321\202\320\265\321\200\321\204\320\265\320\271\321\201, "
-    "\320\272\320\276\321\202\320\276\321\200\321\213\320\274 "
-    "\320\277\320\276\320\273\321\214\320\267\321\203\320\265\321\202\321\201\321\217 \321\215\321\202\320\276\321\202 "
-    "\321\204\320\276\321\200\320\272, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 "
-    "\320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\321\202\321\214 "
-    "\320\267\320\264\320\265\321\201\321\214 \320\275\320\265\321\207\320\265\320\263\320\276.",
-    "-1 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 "
-    "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\320\270 "
-    "\321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\213 \320\270\320\267 "
-    "\320\236\320\261\321\211\320\270\321\205 \320\275\320\260\321\201\321\202\321\200\320\276\320\265\320\272 "
-    "\320\262\321\213\321\210\320\265 \320\270 \321\217\320\262\320\273\321\217\320\265\321\202\321\201\321\217 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\274 "
-    "\321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265\320\274 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. 0 \320\270 \320\262\321\213\321\210\320\265 "
-    "\320\267\320\260\320\264\320\260\321\216\321\202 "
-    "\321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\203 "
-    "\320\274\320\260\321\201\320\272\320\270\321\200\320\276\320\262\320\260\320\275\320\275\320\276\320\271 "
-    "\320\276\320\261\320\273\320\260\321\201\321\202\320\270 "
-    "\320\275\320\265\320\267\320\260\320\262\320\270\321\201\320\270\320\274\320\276 \320\276\321\202 "
-    "\320\276\321\201\321\202\320\260\320\273\321\214\320\275\320\276\320\263\320\276 "
-    "\320\272\320\260\320\264\321\200\320\260."
-    "\n\n\320\235\320\265\320\260\320\272\321\202\320\270\320\262\320\275\320\276, \320\277\320\276\320\272\320\260 "
-    "\320\220\320\262\321\202\320\276\320\274\320\260\321\201\320\272\320\260 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\262\321\213\320\272\320\273\321\216\321\207\320\265\320\275\320\260 -- \320\261\320\265\320\267 "
-    "\320\275\320\265\321\221 \320\275\320\265\321\202 \320\274\320\260\321\201\320\272\320\270, "
-    "\320\272\320\276\321\202\320\276\321\200\321\203\321\216 \320\274\320\276\320\266\320\275\320\276 "
-    "\321\204\320\276\321\200\320\274\320\270\321\200\320\276\320\262\320\260\321\202\321\214.",
-    "\320\234\320\260\321\201\320\272\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 "
-    "\321\200\320\260\320\267\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272\320\260",
+    "\320\237\320\260\320\275\320\265\320\273\321\214 NVIDIA \321\203\320\274\320\265\320\265\321\202 \321\200"
+    "\320\270\321\201\320\276\320\262\320\260\321\202\321\214 \320\260\320\262\321\202\320\276\320\274\320\260"
+    "\321\201\320\272\321\203 \320\277\320\276\320\262\320\265\321\200\321\205 \320\272\320\260\320\264\321\200"
+    "\320\260. \320\234\320\276\320\264\320\265\320\273\321\214 \320\275\320\265 \320\262\320\276\320\267\320\262"
+    "\321\200\320\260\321\211\320\260\320\265\321\202 \321\201\320\262\320\276\321\216 \320\274\320\260\321\201"
+    "\320\272\321\203 \321\207\320\265\321\200\320\265\320\267 \320\270\320\275\321\202\320\265\321\200\321\204"
+    "\320\265\320\271\321\201, \320\272\320\276\321\202\320\276\321\200\321\213\320\274 \320\277\320\276\320\273"
+    "\321\214\320\267\321\203\320\265\321\202\321\201\321\217 \321\215\321\202\320\276\321\202 \321\204\320\276"
+    "\321\200\320\272, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\277\320\276\320\272\320\260"
+    "\320\267\321\213\320\262\320\260\321\202\321\214 \320\267\320\264\320\265\321\201\321\214 \320\275\320\265"
+    "\321\207\320\265\320\263\320\276.",
+    "-1 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 \320\230\320\275\321\202\320\265\320\275\321\201"
+    "\320\270\320\262\320\275\320\276\321\201\321\202\320\270 \321\201\321\202\321\200\321\203\320\272\321\202"
+    "\321\203\321\200\321\213 \320\270\320\267 \320\236\320\261\321\211\320\270\321\205 \320\275\320\260\321\201"
+    "\321\202\321\200\320\276\320\265\320\272 \320\262\321\213\321\210\320\265 \320\270 \321\217\320\262\320\273"
+    "\321\217\320\265\321\202\321\201\321\217 \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275"
+    "\320\275\321\213\320\274 \321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265\320\274"
+    " \320\274\320\276\320\264\320\265\320\273\320\270. 0 \320\270 \320\262\321\213\321\210\320\265 \320\267\320\260"
+    "\320\264\320\260\321\216\321\202 \321\201\321\202\321\200\321\203\320\272\321\202\321\203\321\200\321\203"
+    " \320\274\320\260\321\201\320\272\320\270\321\200\320\276\320\262\320\260\320\275\320\275\320\276\320\271"
+    " \320\276\320\261\320\273\320\260\321\201\321\202\320\270 \320\275\320\265\320\267\320\260\320\262\320\270"
+    "\321\201\320\270\320\274\320\276 \320\276\321\202 \320\276\321\201\321\202\320\260\320\273\321\214\320\275"
+    "\320\276\320\263\320\276 \320\272\320\260\320\264\321\200\320\260.\n\n\320\235\320\265\320\260\320\272\321\202"
+    "\320\270\320\262\320\275\320\276, \320\277\320\276\320\272\320\260 \320\220\320\262\321\202\320\276\320\274"
+    "\320\260\321\201\320\272\320\260 \320\274\320\276\320\264\320\265\320\273\320\270 \320\262\321\213\320\272"
+    "\320\273\321\216\321\207\320\265\320\275\320\260 -- \320\261\320\265\320\267 \320\275\320\265\321\221 \320\275"
+    "\320\265\321\202 \320\274\320\260\321\201\320\272\320\270, \320\272\320\276\321\202\320\276\321\200\321\203"
+    "\321\216 \320\274\320\276\320\266\320\275\320\276 \321\204\320\276\321\200\320\274\320\270\321\200\320\276"
+    "\320\262\320\260\321\202\321\214.",
+    "\320\234\320\260\321\201\320\272\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 \321\200"
+    "\320\260\320\267\321\200\320\260\320\261\320\276\321\202\321\207\320\270\320\272\320\260",
     "\320\237\320\276\320\272\320\260\320\267\320\260\321\202\321\214 \320\274\320\260\321\201\320\272\320\270",
-    "\320\237\320\276\320\276\320\261\321\212\320\265\320\272\321\202\320\275\321\213\320\265 "
-    "\320\274\320\260\321\201\320\272\320\270 \320\277\321\200\320\270\321\205\320\276\320\264\321\217\321\202 "
-    "\320\270\320\267 \321\200\320\265\320\275\320\264\320\265\321\200\320\265\321\200\320\260 "
-    "\321\201\320\260\320\274\320\276\320\271 \320\270\320\263\321\200\321\213, "
-    "\320\277\320\276\321\215\321\202\320\276\320\274\321\203 \321\215\321\202\320\276 "
-    "\320\276\321\201\321\202\320\260\321\221\321\202\321\201\321\217 \321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\321\203 NVIDIA -- \321\203 \320\270\320\275\320\266\320\265\320\272\321\202\320\276\321\200\320\260 "
-    "\320\275\320\265\321\202 \321\201\320\277\320\270\321\201\320\272\320\260 "
-    "\320\276\320\261\321\212\320\265\320\272\321\202\320\276\320\262 \320\264\320\273\321\217 "
-    "\320\274\320\260\321\201\320\272\320\270\321\200\320\276\320\262\320\260\320\275\320\270\321\217.",
+    "\320\237\320\276\320\276\320\261\321\212\320\265\320\272\321\202\320\275\321\213\320\265 \320\274\320\260"
+    "\321\201\320\272\320\270 \320\277\321\200\320\270\321\205\320\276\320\264\321\217\321\202 \320\270\320\267"
+    " \321\200\320\265\320\275\320\264\320\265\321\200\320\265\321\200\320\260 \321\201\320\260\320\274\320\276"
+    "\320\271 \320\270\320\263\321\200\321\213, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \321\215"
+    "\321\202\320\276 \320\276\321\201\321\202\320\260\321\221\321\202\321\201\321\217 \321\202\320\276\320\273"
+    "\321\214\320\272\320\276 \321\203 NVIDIA -- \321\203 \320\270\320\275\320\266\320\265\320\272\321\202\320\276"
+    "\321\200\320\260 \320\275\320\265\321\202 \321\201\320\277\320\270\321\201\320\272\320\260 \320\276\320\261"
+    "\321\212\320\265\320\272\321\202\320\276\320\262 \320\264\320\273\321\217 \320\274\320\260\321\201\320\272"
+    "\320\270\321\200\320\276\320\262\320\260\320\275\320\270\321\217.",
     "\320\234\320\276\320\264\320\265\320\273\320\270",
     "\320\237\320\276 \321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\321\216",
     "\320\234\320\276\320\264\320\265\320\273\321\214 A",
     "\320\234\320\276\320\264\320\265\320\273\321\214 B",
     "\320\234\320\276\320\264\320\265\320\273\321\214 C",
-    "\320\250\320\272\320\260\320\273\320\260 \320\275\320\265 \321\202\320\260 \320\266\320\265, "
-    "\321\207\321\202\320\276 \321\203 \320\277\321\200\320\265\321\201\320\265\321\202\320\276\320\262 super "
-    "resolution \320\270\320\273\320\270 ray reconstruction -- \321\202\320\260 \320\266\320\265 "
-    "\320\261\321\203\320\272\320\262\320\260 \320\267\320\264\320\265\321\201\321\214 "
-    "\320\267\320\275\320\260\321\207\320\270\321\202 "
-    "\320\264\321\200\321\203\320\263\320\276\320\265."
-    "\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 "
-    "\320\270\320\267\320\274\320\265\320\275\320\265\320\275\320\270\320\265 "
-    "\320\277\320\265\321\200\320\265\321\201\320\276\320\261\320\270\321\200\320\260\320\265\321\202 \320\265\321\221 "
-    "\321\207\320\265\321\200\320\265\320\267 "
-    "\320\274\320\263\320\275\320\276\320\262\320\265\320\275\320\270\320\265.",
+    "\320\250\320\272\320\260\320\273\320\260 \320\275\320\265 \321\202\320\260 \320\266\320\265, \321\207\321\202"
+    "\320\276 \321\203 \320\277\321\200\320\265\321\201\320\265\321\202\320\276\320\262 super resolution \320\270"
+    "\320\273\320\270 ray reconstruction -- \321\202\320\260 \320\266\320\265 \320\261\321\203\320\272\320\262"
+    "\320\260 \320\267\320\264\320\265\321\201\321\214 \320\267\320\275\320\260\321\207\320\270\321\202 \320\264"
+    "\321\200\321\203\320\263\320\276\320\265.\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260\320\265"
+    "\321\202\321\201\321\217 \320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265 \320\274"
+    "\320\276\320\264\320\265\320\273\320\270, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\270"
+    "\320\267\320\274\320\265\320\275\320\265\320\275\320\270\320\265 \320\277\320\265\321\200\320\265\321\201"
+    "\320\276\320\261\320\270\321\200\320\260\320\265\321\202 \320\265\321\221 \321\207\320\265\321\200\320\265"
+    "\320\267 \320\274\320\263\320\275\320\276\320\262\320\265\320\275\320\270\320\265.",
     "\320\237\320\276 \321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\321\216 (standard)",
     "Natural",
     "Cinematic",
     "\320\241\321\202\320\270\320\273\321\214",
-    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\265 "
-    "\320\277\321\200\320\276\321\204\320\270\320\273\320\270 "
-    "\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\272\320\270 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270.\n\n\320\237\320\276 "
-    "\321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\321\216 (standard): "
-    "\321\201\320\260\320\274\321\213\320\271 \321\201\320\270\320\273\321\214\320\275\321\213\320\271 \320\270 "
-    "\321\207\320\260\321\211\320\265 \320\262\321\201\320\265\320\263\320\276 "
-    "\320\262\321\213\320\263\320\273\321\217\320\264\320\270\321\202 "
-    "\302\253\321\201\321\202\320\270\320\273\320\270\320\267\320\276\320\262\320\260\320\275\320\275\320\276\302\273."
-    "\nNatural: \321\202\320\260 \320\266\320\265 \321\200\320\260\320\261\320\276\321\202\320\260 \321\201 "
-    "\320\264\320\265\321\202\320\260\320\273\321\217\320\274\320\270, \320\275\320\276 "
-    "\320\274\321\217\320\263\321\207\320\265.\nCinematic: "
-    "\321\203\320\261\320\260\320\262\320\273\321\217\320\265\321\202 \320\261\320\273\320\265\321\201\320\272 "
-    "\320\270 \320\277\320\265\321\200\320\265\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\272\321\203 "
-    "\321\200\320\260\320\264\320\270 \320\272\320\270\320\275\320\276\321\210\320\275\320\276\320\263\320\276 "
-    "\320\262\320\270\320\264\320\260.\n\n\320\235\320\260\320\267\320\262\320\260\320\275\320\270\321\217 "
-    "\320\262\320\267\321\217\321\202\321\213 \320\270\320\267 \321\202\320\265\321\201\321\202\320\276\320\262 "
-    "\321\201\320\276\320\276\320\261\321\211\320\265\321\201\321\202\320\262\320\260, \320\262 "
-    "\320\276\321\202\320\273\320\270\321\207\320\270\320\265 \320\276\321\202 "
-    "\320\277\320\276\320\264\320\277\320\270\321\201\320\265\320\271 \320\277\320\260\320\275\320\265\320\273\320\270 "
-    "\320\262\321\213\321\210\320\265 -- NVIDIA \320\275\320\265 "
-    "\320\277\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 "
-    "\320\275\320\260\320\267\320\262\320\260\320\275\320\270\320\271 \320\264\320\273\321\217 "
-    "\321\215\321\202\320\276\320\263\320\276 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\320\260 "
-    "\320\262 \320\261\320\270\320\275\320\260\321\200\320\275\320\270\320\272\320\260\321\205.",
+    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\265 \320\277\321\200"
+    "\320\276\321\204\320\270\320\273\320\270 \320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\272"
+    "\320\270 \320\274\320\276\320\264\320\265\320\273\320\270.\n\n\320\237\320\276 \321\203\320\274\320\276\320\273"
+    "\321\207\320\260\320\275\320\270\321\216 (standard): \321\201\320\260\320\274\321\213\320\271 \321\201\320\270"
+    "\320\273\321\214\320\275\321\213\320\271 \320\270 \321\207\320\260\321\211\320\265 \320\262\321\201\320\265"
+    "\320\263\320\276 \320\262\321\213\320\263\320\273\321\217\320\264\320\270\321\202 \302\253\321\201\321\202"
+    "\320\270\320\273\320\270\320\267\320\276\320\262\320\260\320\275\320\275\320\276\302\273.\nNatural: \321\202"
+    "\320\260 \320\266\320\265 \321\200\320\260\320\261\320\276\321\202\320\260 \321\201 \320\264\320\265\321\202"
+    "\320\260\320\273\321\217\320\274\320\270, \320\275\320\276 \320\274\321\217\320\263\321\207\320\265.\nCi"
+    "nematic: \321\203\320\261\320\260\320\262\320\273\321\217\320\265\321\202 \320\261\320\273\320\265\321\201"
+    "\320\272 \320\270 \320\277\320\265\321\200\320\265\320\276\320\261\321\200\320\260\320\261\320\276\321\202"
+    "\320\272\321\203 \321\200\320\260\320\264\320\270 \320\272\320\270\320\275\320\276\321\210\320\275\320\276"
+    "\320\263\320\276 \320\262\320\270\320\264\320\260.\n\n\320\235\320\260\320\267\320\262\320\260\320\275\320\270"
+    "\321\217 \320\262\320\267\321\217\321\202\321\213 \320\270\320\267 \321\202\320\265\321\201\321\202\320\276"
+    "\320\262 \321\201\320\276\320\276\320\261\321\211\320\265\321\201\321\202\320\262\320\260, \320\262 \320\276"
+    "\321\202\320\273\320\270\321\207\320\270\320\265 \320\276\321\202 \320\277\320\276\320\264\320\277\320\270"
+    "\321\201\320\265\320\271 \320\277\320\260\320\275\320\265\320\273\320\270 \320\262\321\213\321\210\320\265"
+    " -- NVIDIA \320\275\320\265 \320\277\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202"
+    " \320\275\320\260\320\267\320\262\320\260\320\275\320\270\320\271 \320\264\320\273\321\217 \321\215\321\202"
+    "\320\276\320\263\320\276 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\320\260 \320\262"
+    " \320\261\320\270\320\275\320\260\321\200\320\275\320\270\320\272\320\260\321\205.",
     "\320\230\320\275\321\202\320\265\320\275\321\201\320\270\320\262\320\275\320\276\321\201\321\202\321\214",
-    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 "
-    "\321\200\320\265\320\263\321\203\320\273\321\217\321\202\320\276\321\200 \321\201\320\270\320\273\321\213 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270, "
-    "\320\277\321\200\320\270\320\274\320\265\320\275\321\217\320\265\320\274\321\213\320\271 "
-    "\320\262\320\275\321\203\321\202\321\200\320\270 \320\275\320\265\321\221. "
-    "\320\236\321\202\320\273\320\270\321\207\320\260\320\265\321\202\321\201\321\217 \320\276\321\202 "
-    "\320\236\320\261\321\211\320\270\321\205 \320\275\320\260\321\201\321\202\321\200\320\276\320\265\320\272 "
-    "\320\262\321\213\321\210\320\265 \320\270 \320\276\321\202 \320\241\320\270\320\273\321\213 "
-    "\320\264\320\265\321\202\320\260\320\273\320\265\320\271 \320\275\320\270\320\266\320\265, "
-    "\320\272\320\276\321\202\320\276\321\200\320\260\321\217 "
-    "\320\274\320\260\321\201\321\210\321\202\320\260\320\261\320\270\321\200\321\203\320\265\321\202 "
-    "\321\200\320\265\320\267\321\203\320\273\321\214\321\202\320\260\321\202 \321\203\320\266\320\265 "
-    "\320\277\320\276\321\201\320\273\320\265.",
+    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 \321\200\320\265"
+    "\320\263\321\203\320\273\321\217\321\202\320\276\321\200 \321\201\320\270\320\273\321\213 \320\274\320\276"
+    "\320\264\320\265\320\273\320\270, \320\277\321\200\320\270\320\274\320\265\320\275\321\217\320\265\320\274"
+    "\321\213\320\271 \320\262\320\275\321\203\321\202\321\200\320\270 \320\275\320\265\321\221. \320\236\321\202"
+    "\320\273\320\270\321\207\320\260\320\265\321\202\321\201\321\217 \320\276\321\202 \320\236\320\261\321\211"
+    "\320\270\321\205 \320\275\320\260\321\201\321\202\321\200\320\276\320\265\320\272 \320\262\321\213\321\210"
+    "\320\265 \320\270 \320\276\321\202 \320\241\320\270\320\273\321\213 \320\264\320\265\321\202\320\260\320\273"
+    "\320\265\320\271 \320\275\320\270\320\266\320\265, \320\272\320\276\321\202\320\276\321\200\320\260\321\217"
+    " \320\274\320\260\321\201\321\210\321\202\320\260\320\261\320\270\321\200\321\203\320\265\321\202 \321\200"
+    "\320\265\320\267\321\203\320\273\321\214\321\202\320\260\321\202 \321\203\320\266\320\265 \320\277\320\276"
+    "\321\201\320\273\320\265.",
     "Frame Generation",
-    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 DLSS Frame Generation "
-    "NVIDIA \321\207\320\265\321\200\320\265\320\267 Streamline. \320\235\320\265 OptiFG.",
-    "\320\227\320\260\320\264\320\260\321\221\321\202 numFramesToGenerate Streamline "
-    "\320\275\320\260\320\277\321\200\321\217\320\274\321\203\321\216 -- "
-    "\321\201\320\272\320\276\320\273\321\214\320\272\320\276 "
-    "\320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213\321\205 "
-    "\320\272\320\260\320\264\321\200\320\276\320\262 DLSS-G "
-    "\320\262\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \320\274\320\265\320\266\320\264\321\203 "
-    "\320\275\320\260\321\201\321\202\320\276\321\217\321\211\320\270\320\274\320\270. 2X "
-    "\320\262\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \320\276\320\264\320\270\320\275, 3X -- "
-    "\320\264\320\262\320\260, \320\270 \321\202\320\260\320\272 \320\264\320\260\320\273\320\265\320\265. "
-    "\320\236\320\263\321\200\320\260\320\275\320\270\321\207\320\265\320\275\320\276 \321\202\320\265\320\274, "
-    "\321\207\321\202\320\276 "
-    "\320\277\320\276\320\264\320\264\320\265\321\200\320\266\320\270\320\262\320\260\321\216\321\202 "
-    "\320\262\320\260\321\210\320\260 GPU \320\270 "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200."
-    "\n\n\320\235\320\265\320\260\320\272\321\202\320\270\320\262\320\275\320\276, \320\277\320\276\320\272\320\260 "
-    "\320\275\320\270\320\266\320\265 \320\262\320\272\320\273\321\216\321\207\320\265\320\275\320\276 Multi -- "
-    "\321\202\320\276\320\263\320\264\320\260 "
-    "\320\272\320\276\320\273\320\270\321\207\320\265\321\201\321\202\320\262\320\276 "
-    "\320\262\321\213\320\261\320\270\321\200\320\260\320\265\321\202 "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200.",
-    "Multi (\320\264\320\270\320\275\320\260\320\274\320\270\321\207\320\265\321\201\320\272\320\260\321\217 Frame "
-    "Generation)",
-    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200\321\203 NVIDIA "
-    "\321\201\320\260\320\274\320\276\320\274\321\203 \320\274\320\265\320\275\321\217\321\202\321\214 "
-    "\320\274\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214 \320\276\321\202 "
-    "\320\272\320\260\320\264\321\200\320\260 \320\272 \320\272\320\260\320\264\321\200\321\203, "
-    "\321\207\321\202\320\276\320\261\321\213 "
-    "\321\203\320\264\320\265\321\200\320\266\320\270\320\262\320\260\321\202\321\214 "
-    "\321\206\320\265\320\273\320\265\320\262\320\276\320\271 FPS \320\275\320\270\320\266\320\265 -- "
-    "\320\262\320\274\320\265\321\201\321\202\320\276 "
-    "\321\204\320\270\320\272\321\201\320\270\321\200\320\276\320\262\320\260\320\275\320\275\321\213\321\205 "
-    "2X/3X/4X.",
+    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 DLSS Frame Gene"
+    "ration NVIDIA \321\207\320\265\321\200\320\265\320\267 Streamline. \320\235\320\265 OptiFG.",
+    "\320\227\320\260\320\264\320\260\321\221\321\202 numFramesToGenerate Streamline \320\275\320\260\320\277"
+    "\321\200\321\217\320\274\321\203\321\216 -- \321\201\320\272\320\276\320\273\321\214\320\272\320\276 \320\264"
+    "\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213\321\205"
+    " \320\272\320\260\320\264\321\200\320\276\320\262 DLSS-G \320\262\321\201\321\202\320\260\320\262\320\273"
+    "\321\217\320\265\321\202 \320\274\320\265\320\266\320\264\321\203 \320\275\320\260\321\201\321\202\320\276"
+    "\321\217\321\211\320\270\320\274\320\270. 2X \320\262\321\201\321\202\320\260\320\262\320\273\321\217\320\265"
+    "\321\202 \320\276\320\264\320\270\320\275, 3X -- \320\264\320\262\320\260, \320\270 \321\202\320\260\320\272"
+    " \320\264\320\260\320\273\320\265\320\265. \320\236\320\263\321\200\320\260\320\275\320\270\321\207\320\265"
+    "\320\275\320\276 \321\202\320\265\320\274, \321\207\321\202\320\276 \320\277\320\276\320\264\320\264\320\265"
+    "\321\200\320\266\320\270\320\262\320\260\321\216\321\202 \320\262\320\260\321\210\320\260 GPU \320\270 \320\264"
+    "\321\200\320\260\320\271\320\262\320\265\321\200.\n\n\320\235\320\265\320\260\320\272\321\202\320\270\320\262"
+    "\320\275\320\276, \320\277\320\276\320\272\320\260 \320\275\320\270\320\266\320\265 \320\262\320\272\320\273"
+    "\321\216\321\207\320\265\320\275\320\276 Multi -- \321\202\320\276\320\263\320\264\320\260 \320\272\320\276"
+    "\320\273\320\270\321\207\320\265\321\201\321\202\320\262\320\276 \320\262\321\213\320\261\320\270\321\200"
+    "\320\260\320\265\321\202 \320\264\321\200\320\260\320\271\320\262\320\265\321\200.",
+    "Multi (\320\264\320\270\320\275\320\260\320\274\320\270\321\207\320\265\321\201\320\272\320\260\321\217 "
+    "Frame Generation)",
+    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 \320\264\321\200\320\260\320\271"
+    "\320\262\320\265\321\200\321\203 NVIDIA \321\201\320\260\320\274\320\276\320\274\321\203 \320\274\320\265"
+    "\320\275\321\217\321\202\321\214 \320\274\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214"
+    " \320\276\321\202 \320\272\320\260\320\264\321\200\320\260 \320\272 \320\272\320\260\320\264\321\200\321\203"
+    ", \321\207\321\202\320\276\320\261\321\213 \321\203\320\264\320\265\321\200\320\266\320\270\320\262\320\260"
+    "\321\202\321\214 \321\206\320\265\320\273\320\265\320\262\320\276\320\271 FPS \320\275\320\270\320\266\320\265"
+    " -- \320\262\320\274\320\265\321\201\321\202\320\276 \321\204\320\270\320\272\321\201\320\270\321\200\320\276"
+    "\320\262\320\260\320\275\320\275\321\213\321\205 2X/3X/4X.",
     "\320\246\320\265\320\273\320\265\320\262\320\276\320\271 FPS DMFG",
-    "0 \320\276\320\277\321\200\320\265\320\264\320\265\320\273\321\217\320\265\321\202 "
-    "\321\207\320\260\321\201\321\202\320\276\321\202\321\203 "
-    "\320\276\320\261\320\275\320\276\320\262\320\273\320\265\320\275\320\270\321\217 "
-    "\320\262\320\260\321\210\320\265\320\263\320\276 \320\264\320\270\321\201\320\277\320\273\320\265\321\217 "
-    "\320\260\320\262\321\202\320\276\320\274\320\260\321\202\320\270\321\207\320\265\321\201\320\272\320\270.",
+    "0 \320\276\320\277\321\200\320\265\320\264\320\265\320\273\321\217\320\265\321\202 \321\207\320\260\321\201"
+    "\321\202\320\276\321\202\321\203 \320\276\320\261\320\275\320\276\320\262\320\273\320\265\320\275\320\270"
+    "\321\217 \320\262\320\260\321\210\320\265\320\263\320\276 \320\264\320\270\321\201\320\277\320\273\320\265"
+    "\321\217 \320\260\320\262\321\202\320\276\320\274\320\260\321\202\320\270\321\207\320\265\321\201\320\272"
+    "\320\270.",
     "\320\243 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 \320\275\320\265\321\202 \321\201"
-    "\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\271 NVIDIA DLSS Frame Generation.",
+    "\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\271 NVIDIA DLSS Frame Gener"
+    "ation.",
     "\320\241\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214",
     "\320\237\321\200\320\276\321\205\320\276\320\264\321\213 \320\274\320\276\320\264\320\265\320\273\320\270",
-    "\320\241\320\272\320\276\320\273\321\214\320\272\320\276 \321\200\320\260\320\267 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 "
-    "\320\276\321\202\321\200\320\260\320\261\320\260\321\202\321\213\320\262\320\260\320\265\321\202, "
-    "\320\277\321\200\320\265\320\266\320\264\320\265 \321\207\320\265\320\274 \320\265\321\221 "
-    "\320\276\321\202\320\262\320\265\321\202 "
-    "\320\272\320\276\320\274\320\277\320\276\320\275\321\203\320\265\321\202\321\201\321\217. "
-    "\320\232\320\260\320\266\320\264\321\213\320\271 "
-    "\320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213\320\271 "
-    "\321\201\320\273\320\276\320\271 \320\277\320\276\320\273\321\203\321\207\320\260\320\265\321\202 "
-    "\320\262\321\213\321\205\320\276\320\264 "
-    "\320\277\321\200\320\265\320\264\321\213\320\264\321\203\321\211\320\265\320\263\320\276 \320\270 "
-    "\320\262\320\265\320\264\321\221\321\202 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\203\321\216 "
-    "\320\262\321\200\320\265\320\274\320\265\320\275\320\275\321\203\321\216 "
-    "\320\270\321\201\321\202\320\276\321\200\320\270\321\216."
-    "\n\n\320\221\320\260\320\267\320\276\320\262\321\213\320\271 \320\272\320\260\320\264\321\200 \320\275\320\265 "
-    "\321\202\321\200\320\276\320\263\320\260\320\265\321\202\321\201\321\217, \320\260 "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217 "
-    "\320\262\321\213\320\277\320\276\320\273\320\275\321\217\320\265\321\202\321\201\321\217 "
-    "\320\276\320\264\320\270\320\275 \321\200\320\260\320\267 \320\262 \320\272\320\276\320\275\321\206\320\265, "
-    "\321\202\320\260\320\272 \321\207\321\202\320\276 \321\206\320\262\320\265\321\202 \320\270 "
-    "\321\201\320\270\320\273\320\260 \320\277\320\265\321\200\320\265\320\275\320\276\321\201\320\260 "
-    "\320\275\320\265 "
-    "\320\275\320\260\320\272\320\260\320\277\320\273\320\270\320\262\320\260\321\216\321\202\321\201\321\217 -- "
-    "\320\275\320\276 \320\274\320\276\320\264\320\265\320\273\321\214 "
-    "\320\277\321\200\320\276\321\201\321\217\321\202 \321\203\320\273\321\203\321\207\321\210\320\260\321\202\321\214 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 "
-    "\320\262\321\213\321\205\320\276\320\264, \320\260 \321\215\321\202\320\276\320\274\321\203 "
-    "\320\276\320\275\320\260 \320\275\320\265 "
-    "\320\276\320\261\321\203\321\207\320\260\320\273\320\260\321\201\321\214."
-    "\n\n\320\241\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214 "
-    "\320\277\320\276\321\207\321\202\320\270 \320\273\320\270\320\275\320\265\320\271\320\275\320\260: "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 -- \320\277\320\276\321\207\321\202\320\270 "
-    "\320\262\321\201\321\217 \321\206\320\265\320\275\320\260 "
-    "\320\277\321\200\320\276\321\205\320\276\320\264\320\260, \320\270 "
-    "\320\272\320\260\320\266\320\264\321\213\320\271 \321\201\320\273\320\276\320\271 "
-    "\320\277\320\273\320\260\321\202\320\270\321\202 \320\265\321\221 \321\201\320\275\320\276\320\262\320\260. "
-    "\320\242\321\200\320\270 -- \320\277\320\276\321\202\320\276\320\273\320\276\320\272, "
-    "\320\277\320\276\321\202\320\276\320\274\321\203 \321\207\321\202\320\276 "
-    "\320\264\320\260\320\273\321\214\320\275\320\265\320\271\321\210\320\270\320\265 \321\201\320\273\320\276\320\270 "
-    "\321\201\321\205\320\276\320\264\321\217\321\202\321\201\321\217, \320\275\320\276 "
-    "\321\201\321\202\320\276\321\217\321\202 "
-    "\320\277\320\276-\320\277\321\200\320\265\320\266\320\275\320\265\320\274\321\203 "
-    "\320\277\320\276\320\273\320\275\321\203\321\216 \321\206\320\265\320\275\321\203.",
-    "%dx \321\201\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. \320\224\320\262\320\260 "
-    "\321\207\320\260\321\201\321\202\320\276 \320\262\321\213\320\263\320\273\321\217\320\264\321\217\321\202 "
-    "\320\261\320\276\320\263\320\260\321\207\320\265; \321\202\321\200\320\270 "
-    "\320\276\320\261\321\213\321\207\320\275\320\276 \320\267\320\260\320\274\320\265\321\202\320\275\320\276 "
-    "\320\277\320\265\321\200\320\265\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\260\320\275\321\213.",
-    "\320\220\320\262\321\202\320\276 (\320\272\320\260\320\272 \320\277\321\200\320\276\321\205\320\276\320\264 1)",
-    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 2",
+    "\320\241\320\272\320\276\320\273\321\214\320\272\320\276 \321\200\320\260\320\267 \320\274\320\276\320\264"
+    "\320\265\320\273\321\214 \320\276\321\202\321\200\320\260\320\261\320\260\321\202\321\213\320\262\320\260"
+    "\320\265\321\202, \320\277\321\200\320\265\320\266\320\264\320\265 \321\207\320\265\320\274 \320\265\321\221"
+    " \320\276\321\202\320\262\320\265\321\202 \320\272\320\276\320\274\320\277\320\276\320\275\321\203\320\265"
+    "\321\202\321\201\321\217. \320\232\320\260\320\266\320\264\321\213\320\271 \320\264\320\276\320\277\320\276"
+    "\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213\320\271 \321\201\320\273\320\276"
+    "\320\271 \320\277\320\276\320\273\321\203\321\207\320\260\320\265\321\202 \320\262\321\213\321\205\320\276"
+    "\320\264 \320\277\321\200\320\265\320\264\321\213\320\264\321\203\321\211\320\265\320\263\320\276 \320\270"
+    " \320\262\320\265\320\264\321\221\321\202 \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275"
+    "\320\275\321\203\321\216 \320\262\321\200\320\265\320\274\320\265\320\275\320\275\321\203\321\216 \320\270"
+    "\321\201\321\202\320\276\321\200\320\270\321\216.\n\n\320\221\320\260\320\267\320\276\320\262\321\213\320\271"
+    " \320\272\320\260\320\264\321\200 \320\275\320\265 \321\202\321\200\320\276\320\263\320\260\320\265\321\202"
+    "\321\201\321\217, \320\260 \320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217"
+    " \320\262\321\213\320\277\320\276\320\273\320\275\321\217\320\265\321\202\321\201\321\217 \320\276\320\264"
+    "\320\270\320\275 \321\200\320\260\320\267 \320\262 \320\272\320\276\320\275\321\206\320\265, \321\202\320\260"
+    "\320\272 \321\207\321\202\320\276 \321\206\320\262\320\265\321\202 \320\270 \321\201\320\270\320\273\320\260"
+    " \320\277\320\265\321\200\320\265\320\275\320\276\321\201\320\260 \320\275\320\265 \320\275\320\260\320\272"
+    "\320\260\320\277\320\273\320\270\320\262\320\260\321\216\321\202\321\201\321\217 -- \320\275\320\276 \320\274"
+    "\320\276\320\264\320\265\320\273\321\214 \320\277\321\200\320\276\321\201\321\217\321\202 \321\203\320\273"
+    "\321\203\321\207\321\210\320\260\321\202\321\214 \321\201\320\276\320\261\321\201\321\202\320\262\320\265"
+    "\320\275\320\275\321\213\320\271 \320\262\321\213\321\205\320\276\320\264, \320\260 \321\215\321\202\320\276"
+    "\320\274\321\203 \320\276\320\275\320\260 \320\275\320\265 \320\276\320\261\321\203\321\207\320\260\320\273"
+    "\320\260\321\201\321\214.\n\n\320\241\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214 \320\277"
+    "\320\276\321\207\321\202\320\270 \320\273\320\270\320\275\320\265\320\271\320\275\320\260: \320\274\320\276"
+    "\320\264\320\265\320\273\321\214 -- \320\277\320\276\321\207\321\202\320\270 \320\262\321\201\321\217 \321\206"
+    "\320\265\320\275\320\260 \320\277\321\200\320\276\321\205\320\276\320\264\320\260, \320\270 \320\272\320\260"
+    "\320\266\320\264\321\213\320\271 \321\201\320\273\320\276\320\271 \320\277\320\273\320\260\321\202\320\270"
+    "\321\202 \320\265\321\221 \321\201\320\275\320\276\320\262\320\260. \320\242\321\200\320\270 -- \320\277"
+    "\320\276\321\202\320\276\320\273\320\276\320\272, \320\277\320\276\321\202\320\276\320\274\321\203 \321\207"
+    "\321\202\320\276 \320\264\320\260\320\273\321\214\320\275\320\265\320\271\321\210\320\270\320\265 \321\201"
+    "\320\273\320\276\320\270 \321\201\321\205\320\276\320\264\321\217\321\202\321\201\321\217, \320\275\320\276"
+    " \321\201\321\202\320\276\321\217\321\202 \320\277\320\276-\320\277\321\200\320\265\320\266\320\275\320\265"
+    "\320\274\321\203 \320\277\320\276\320\273\320\275\321\203\321\216 \321\206\320\265\320\275\321\203.",
+    "%dx \321\201\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270. \320\224\320\262\320\260 \321\207\320\260\321\201\321\202\320\276 \320\262\321\213\320\263"
+    "\320\273\321\217\320\264\321\217\321\202 \320\261\320\276\320\263\320\260\321\207\320\265; \321\202\321\200"
+    "\320\270 \320\276\320\261\321\213\321\207\320\275\320\276 \320\267\320\260\320\274\320\265\321\202\320\275"
+    "\320\276 \320\277\320\265\321\200\320\265\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\275\321\213.",
+    "\320\220\320\262\321\202\320\276 (\320\272\320\260\320\272 \320\277\321\200\320\276\321\205\320\276\320\264"
+    " 1)",
+    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260"
+    " 2",
     "\320\241\321\202\320\270\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 2",
-    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 3",
+    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260"
+    " 3",
     "\320\241\321\202\320\270\320\273\321\214 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 3",
-    "\320\232\320\260\320\272\320\276\320\271 "
-    "\320\262\321\201\321\202\321\200\320\276\320\265\320\275\320\275\321\213\320\271 "
-    "\320\277\321\200\320\276\321\204\320\270\320\273\321\214 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\321\203\320\265\321\202 "
-    "\320\272\320\260\320\266\320\264\321\213\320\271 "
-    "\320\277\320\276\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\270\320\271 "
-    "\321\201\320\273\320\276\320\271. \320\236\320\275\320\270 "
-    "\320\262\321\213\320\261\320\270\321\200\320\260\321\216\321\202 \320\264\321\200\321\203\320\263\320\276\320\271 "
-    "\320\277\321\200\320\276\321\204\320\270\320\273\321\214 \320\262\320\275\321\203\321\202\321\200\320\270 "
-    "\321\202\320\276\320\263\320\276 \320\266\320\265 \321\204\320\260\320\271\320\273\320\260 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 NVIDIA -- \320\275\320\270\321\207\320\265\320\263\320\276 "
-    "\320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\320\276\320\263"
-    "\320\276 \320\275\320\265 "
-    "\320\267\320\260\320\263\321\200\321\203\320\266\320\260\320\265\321\202\321\201\321\217."
-    "\n\n\320\220\320\262\321\202\320\276 \320\276\320\267\320\275\320\260\321\207\320\260\320\265\321\202, "
-    "\321\207\321\202\320\276 \321\201\320\273\320\276\320\271 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\321\203\320\265\321\202 \321\202\320\276, "
-    "\321\207\321\202\320\276 \320\267\320\260\320\264\320\260\320\275\320\276 \320\264\320\273\321\217 "
-    "\320\277\321\200\320\276\321\205\320\276\320\264\320\260 1. "
-    "\320\230\320\267\320\274\320\265\320\275\320\265\320\275\320\270\320\265 "
-    "\320\277\320\265\321\200\320\265\321\201\320\276\320\261\320\270\321\200\320\260\320\265\321\202 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 feature \321\215\321\202\320\276\320\263\320\276 "
-    "\321\201\320\273\320\276\321\217, \320\270 \321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\320\277\320\276\320\272\320\260 \321\201\320\273\320\276\320\271 "
-    "\320\260\320\272\321\202\320\270\320\262\320\265\320\275.",
-    "\320\240\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270",
-    "\320\235\320\260 \320\272\320\260\320\272\320\276\320\271 \320\264\320\276\320\273\320\265 "
-    "\320\272\320\260\320\264\321\200\320\260 \321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214. "
-    "\320\241\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214 "
-    "\320\277\320\260\320\264\320\260\320\265\321\202 \320\272\320\260\320\272 "
-    "\320\272\320\262\320\260\320\264\321\200\320\260\321\202 \321\215\321\202\320\276\320\263\320\276 "
-    "\320\267\320\275\320\260\321\207\320\265\320\275\320\270\321\217, \321\202\320\260\320\272 "
-    "\321\207\321\202\320\276 \320\277\320\276\320\273\320\276\320\262\320\270\320\275\320\275\320\276\320\265 "
-    "\321\200\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\320\265 -- "
-    "\320\277\321\200\320\270\320\274\320\265\321\200\320\275\320\276 "
-    "\321\207\320\265\321\202\320\262\320\265\321\200\321\202\321\214 "
-    "\320\262\321\200\320\265\320\274\320\265\320\275\320\270. \320\235\320\270\320\266\320\265 100 "
-    "\321\201\320\260\320\274 \320\272\320\260\320\264\321\200 "
-    "\320\275\320\270\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 "
-    "\321\203\320\274\320\265\320\275\321\214\321\210\320\260\320\265\321\202\321\201\321\217 -- "
-    "\320\274\320\260\320\273\320\265\320\275\321\214\320\272\320\270\320\274 "
-    "\321\201\321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217 \320\270 "
-    "\321\203\320\262\320\265\320\273\320\270\321\207\320\270\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \320\262\320\272\320\273\320\260\320\264 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. "
-    "\320\237\321\200\320\270\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217, "
-    "\320\272\320\276\320\263\320\264\320\260 \320\277\320\276\320\273\320\267\321\203\320\275\320\276\320\272 "
-    "\320\276\321\202\320\277\321\203\321\211\320\265\320\275, \320\260 \320\275\320\265 "
-    "\320\277\320\276\320\272\320\260 \320\276\320\275 "
-    "\320\264\320\262\320\270\320\266\320\265\321\202\321\201\321\217.",
-    "\320\241\321\203\320\277\320\265\321\200\321\201\321\215\320\274\320\277\320\273\320\270\320\275\320\263 %.2fx: "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 "
-    "\320\222\320\253\320\250\320\225 \320\275\320\260\321\202\320\270\320\262\320\275\320\276\320\263\320\276 "
-    "\321\200\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\321\217 \320\270 "
-    "\320\267\320\260\321\202\320\265\320\274 \321\201\320\262\320\276\320\264\320\270\321\202\321\201\321\217 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\320\276. "
-    "\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273\321\214"
-    "\320\275\320\276 \320\270 \320\264\320\276\321\200\320\276\320\263\320\276 -- "
-    "\320\262\321\200\320\265\320\274\321\217 \321\200\320\260\321\201\321\202\321\221\321\202 \321\201 "
-    "\320\277\320\273\320\276\321\211\320\260\320\264\321\214\321\216.",
+    "\320\232\320\260\320\272\320\276\320\271 \320\262\321\201\321\202\321\200\320\276\320\265\320\275\320\275"
+    "\321\213\320\271 \320\277\321\200\320\276\321\204\320\270\320\273\321\214 \320\270\321\201\320\277\320\276"
+    "\320\273\321\214\320\267\321\203\320\265\321\202 \320\272\320\260\320\266\320\264\321\213\320\271 \320\277"
+    "\320\276\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\270\320\271 \321\201\320\273\320\276"
+    "\320\271. \320\236\320\275\320\270 \320\262\321\213\320\261\320\270\321\200\320\260\321\216\321\202 \320\264"
+    "\321\200\321\203\320\263\320\276\320\271 \320\277\321\200\320\276\321\204\320\270\320\273\321\214 \320\262"
+    "\320\275\321\203\321\202\321\200\320\270 \321\202\320\276\320\263\320\276 \320\266\320\265 \321\204\320\260"
+    "\320\271\320\273\320\260 \320\274\320\276\320\264\320\265\320\273\320\270 NVIDIA -- \320\275\320\270\321\207"
+    "\320\265\320\263\320\276 \320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273"
+    "\321\214\320\275\320\276\320\263\320\276 \320\275\320\265 \320\267\320\260\320\263\321\200\321\203\320\266"
+    "\320\260\320\265\321\202\321\201\321\217.\n\n\320\220\320\262\321\202\320\276 \320\276\320\267\320\275\320\260"
+    "\321\207\320\260\320\265\321\202, \321\207\321\202\320\276 \321\201\320\273\320\276\320\271 \320\270\321\201"
+    "\320\277\320\276\320\273\321\214\320\267\321\203\320\265\321\202 \321\202\320\276, \321\207\321\202\320\276"
+    " \320\267\320\260\320\264\320\260\320\275\320\276 \320\264\320\273\321\217 \320\277\321\200\320\276\321\205"
+    "\320\276\320\264\320\260 1. \320\230\320\267\320\274\320\265\320\275\320\265\320\275\320\270\320\265 \320\277"
+    "\320\265\321\200\320\265\321\201\320\276\320\261\320\270\321\200\320\260\320\265\321\202 \321\202\320\276"
+    "\320\273\321\214\320\272\320\276 feature \321\215\321\202\320\276\320\263\320\276 \321\201\320\273\320\276"
+    "\321\217, \320\270 \321\202\320\276\320\273\321\214\320\272\320\276 \320\277\320\276\320\272\320\260 \321\201"
+    "\320\273\320\276\320\271 \320\260\320\272\321\202\320\270\320\262\320\265\320\275.",
+    "\320\240\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\320\265 \320\274\320\276\320\264"
+    "\320\265\320\273\320\270",
+    "\320\235\320\260 \320\272\320\260\320\272\320\276\320\271 \320\264\320\276\320\273\320\265 \320\272\320\260"
+    "\320\264\321\200\320\260 \321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\274\320\276"
+    "\320\264\320\265\320\273\321\214. \320\241\321\202\320\276\320\270\320\274\320\276\321\201\321\202\321\214"
+    " \320\277\320\260\320\264\320\260\320\265\321\202 \320\272\320\260\320\272 \320\272\320\262\320\260\320\264"
+    "\321\200\320\260\321\202 \321\215\321\202\320\276\320\263\320\276 \320\267\320\275\320\260\321\207\320\265"
+    "\320\275\320\270\321\217, \321\202\320\260\320\272 \321\207\321\202\320\276 \320\277\320\276\320\273\320\276"
+    "\320\262\320\270\320\275\320\275\320\276\320\265 \321\200\320\260\320\267\321\200\320\265\321\210\320\265"
+    "\320\275\320\270\320\265 -- \320\277\321\200\320\270\320\274\320\265\321\200\320\275\320\276 \321\207\320\265"
+    "\321\202\320\262\320\265\321\200\321\202\321\214 \320\262\321\200\320\265\320\274\320\265\320\275\320\270"
+    ". \320\235\320\270\320\266\320\265 100 \321\201\320\260\320\274 \320\272\320\260\320\264\321\200 \320\275"
+    "\320\270\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 \321\203\320\274\320\265\320\275\321\214"
+    "\321\210\320\260\320\265\321\202\321\201\321\217 -- \320\274\320\260\320\273\320\265\320\275\321\214\320\272"
+    "\320\270\320\274 \321\201\321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217 \320\270 \321\203"
+    "\320\262\320\265\320\273\320\270\321\207\320\270\320\262\320\260\320\265\321\202\321\201\321\217 \321\202"
+    "\320\276\320\273\321\214\320\272\320\276 \320\262\320\272\320\273\320\260\320\264 \320\274\320\276\320\264"
+    "\320\265\320\273\320\270. \320\237\321\200\320\270\320\274\320\265\320\275\321\217\320\265\321\202\321\201"
+    "\321\217, \320\272\320\276\320\263\320\264\320\260 \320\277\320\276\320\273\320\267\321\203\320\275\320\276"
+    "\320\272 \320\276\321\202\320\277\321\203\321\211\320\265\320\275, \320\260 \320\275\320\265 \320\277\320\276"
+    "\320\272\320\260 \320\276\320\275 \320\264\320\262\320\270\320\266\320\265\321\202\321\201\321\217.",
+    "\320\241\321\203\320\277\320\265\321\200\321\201\321\215\320\274\320\277\320\273\320\270\320\275\320\263"
+    " %.2fx: \320\274\320\276\320\264\320\265\320\273\321\214 \321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\265\321\202 \320\222\320\253\320\250\320\225 \320\275\320\260\321\202\320\270\320\262\320\275\320\276"
+    "\320\263\320\276 \321\200\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\321\217 \320\270"
+    " \320\267\320\260\321\202\320\265\320\274 \321\201\320\262\320\276\320\264\320\270\321\202\321\201\321\217"
+    " \320\276\320\261\321\200\320\260\321\202\320\275\320\276. \320\255\320\272\321\201\320\277\320\265\321\200"
+    "\320\270\320\274\320\265\320\275\321\202\320\260\320\273\321\214\320\275\320\276 \320\270 \320\264\320\276"
+    "\321\200\320\276\320\263\320\276 -- \320\262\321\200\320\265\320\274\321\217 \321\200\320\260\321\201\321\202"
+    "\321\221\321\202 \321\201 \320\277\320\273\320\276\321\211\320\260\320\264\321\214\321\216.",
     "\320\224\320\260\321\203\320\275\321\201\320\272\320\265\320\271\320\273\320\265\321\200",
-    "\320\244\320\270\320\273\321\214\321\202\321\200, "
-    "\321\203\321\201\321\200\320\265\320\264\320\275\321\217\321\216\321\211\320\270\320\271 "
-    "\320\276\321\202\320\262\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\262\321\213\321\210\320\265 \320\275\320\260\321\202\320\270\320\262\320\275\320\276\320\263\320\276 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\320\276 \320\272 "
-    "\321\200\320\260\320\267\320\274\320\265\321\200\321\203 \321\215\320\272\321\200\320\260\320\275\320\260 -- "
-    "\320\270\320\274\320\265\320\275\320\275\320\276 \320\276\320\275 "
-    "\320\277\321\200\320\265\320\262\321\200\320\260\321\211\320\260\320\265\321\202 "
-    "\321\201\321\203\320\277\320\265\321\200\321\201\321\215\320\274\320\277\320\273\320\270\320\275\320\263 \320\262 "
-    "\320\234\320\225\320\235\320\254\320\250\320\230\320\231 \321\210\321\203\320\274, \320\260 \320\275\320\265 "
-    "\320\262 \320\261\320\276\320\273\321\214\321\210\320\270\320\271. \320\221\320\276\320\273\320\265\320\265 "
-    "\321\200\320\265\320\267\320\272\320\270\320\265 \321\204\320\270\320\273\321\214\321\202\321\200\321\213 "
-    "(Lanczos3, Kaiser3) \321\201\320\276\321\205\321\200\320\260\320\275\321\217\321\216\321\202 "
-    "\320\261\320\276\320\273\321\214\321\210\320\265 \320\264\320\265\321\202\320\260\320\273\320\265\320\271; "
-    "\320\261\320\276\320\273\320\265\320\265 \320\274\321\217\320\263\320\272\320\270\320\265 (Bicubic, Catmull-Rom) "
-    "\320\261\320\265\321\200\320\265\320\266\320\275\320\265\320\265 \320\272 "
-    "\320\276\321\200\320\265\320\276\320\273\320\260\320\274. \320\235\320\265 "
-    "\320\267\320\260\320\262\320\270\321\201\320\270\321\202 \320\276\321\202 "
-    "\320\264\320\260\321\203\320\275\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 Output Scaling, "
-    "\321\202\320\260\320\272 \321\207\321\202\320\276 \320\276\320\275\320\270 "
-    "\320\274\320\276\320\263\321\203\321\202 "
-    "\320\276\321\202\320\273\320\270\321\207\320\260\321\202\321\214\321\201\321\217 \320\270 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 "
-    "\320\276\320\264\320\275\320\276\320\262\321\200\320\265\320\274\320\265\320\275\320\275\320\276.",
+    "\320\244\320\270\320\273\321\214\321\202\321\200, \321\203\321\201\321\200\320\265\320\264\320\275\321\217"
+    "\321\216\321\211\320\270\320\271 \320\276\321\202\320\262\320\265\321\202 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270 \320\262\321\213\321\210\320\265 \320\275\320\260\321\202\320\270\320\262\320\275\320\276"
+    "\320\263\320\276 \320\276\320\261\321\200\320\260\321\202\320\275\320\276 \320\272 \321\200\320\260\320\267"
+    "\320\274\320\265\321\200\321\203 \321\215\320\272\321\200\320\260\320\275\320\260 -- \320\270\320\274\320\265"
+    "\320\275\320\275\320\276 \320\276\320\275 \320\277\321\200\320\265\320\262\321\200\320\260\321\211\320\260"
+    "\320\265\321\202 \321\201\321\203\320\277\320\265\321\200\321\201\321\215\320\274\320\277\320\273\320\270"
+    "\320\275\320\263 \320\262 \320\234\320\225\320\235\320\254\320\250\320\230\320\231 \321\210\321\203\320\274"
+    ", \320\260 \320\275\320\265 \320\262 \320\261\320\276\320\273\321\214\321\210\320\270\320\271. \320\221\320\276"
+    "\320\273\320\265\320\265 \321\200\320\265\320\267\320\272\320\270\320\265 \321\204\320\270\320\273\321\214"
+    "\321\202\321\200\321\213 (Lanczos3, Kaiser3) \321\201\320\276\321\205\321\200\320\260\320\275\321\217\321\216"
+    "\321\202 \320\261\320\276\320\273\321\214\321\210\320\265 \320\264\320\265\321\202\320\260\320\273\320\265"
+    "\320\271; \320\261\320\276\320\273\320\265\320\265 \320\274\321\217\320\263\320\272\320\270\320\265 (Bic"
+    "ubic, Catmull-Rom) \320\261\320\265\321\200\320\265\320\266\320\275\320\265\320\265 \320\272 \320\276\321\200"
+    "\320\265\320\276\320\273\320\260\320\274. \320\235\320\265 \320\267\320\260\320\262\320\270\321\201\320\270"
+    "\321\202 \320\276\321\202 \320\264\320\260\321\203\320\275\321\201\320\272\320\265\320\271\320\273\320\265"
+    "\321\200\320\260 Output Scaling, \321\202\320\260\320\272 \321\207\321\202\320\276 \320\276\320\275\320\270"
+    " \320\274\320\276\320\263\321\203\321\202 \320\276\321\202\320\273\320\270\321\207\320\260\321\202\321\214"
+    "\321\201\321\217 \320\270 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214 \320\276\320\264"
+    "\320\275\320\276\320\262\321\200\320\265\320\274\320\265\320\275\320\275\320\276.",
     "\320\232\320\273\320\260\321\201\321\201\320\270\321\207\320\265\321\201\320\272\320\276\320\265",
-    "\320\241\320\276\320\263\320\273\320\260\321\201\320\276\320\262\320\260\320\275\320\275\321\213\320\271 "
-    "\320\276\321\201\321\202\320\260\321\202\320\276\320\272",
+    "\320\241\320\276\320\263\320\273\320\260\321\201\320\276\320\262\320\260\320\275\320\275\321\213\320\271"
+    " \320\276\321\201\321\202\320\260\321\202\320\276\320\272",
     "\320\243\320\262\320\265\320\273\320\270\321\207\320\265\320\275\320\270\320\265",
-    "\320\232\320\260\320\272 \321\200\320\260\320\261\320\276\321\202\320\260 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202\321\201\321\217 "
-    "\320\262\320\262\320\265\321\200\321\205, \320\265\321\201\320\273\320\270 \320\276\320\275\320\260 "
-    "\320\262\321\213\320\277\320\276\320\273\320\275\321\217\320\273\320\260\321\201\321\214 "
-    "\320\275\320\270\320\266\320\265 \321\200\320\260\320\267\320\274\320\265\321\200\320\260 "
-    "\320\272\320\260\320\264\321\200\320\260."
-    "\n\n\320\232\320\273\320\260\321\201\321\201\320\270\321\207\320\265\321\201\320\272\320\276\320\265 "
-    "\320\272\320\276\320\274\320\277\320\276\320\275\321\203\320\265\321\202 "
-    "\320\274\320\260\320\273\320\265\320\275\321\214\320\272\321\203\321\216 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\321\203 \320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\277\321\200\321\217\320\274\320\276 \321\201 "
-    "\320\277\320\276\320\273\320\275\320\276\321\200\320\260\320\267\320\274\320\265\321\200\320\275\321\213\320\274 "
-    "\320\272\320\260\320\264\321\200\320\276\320\274. \320\236\320\275\320\270 "
-    "\321\200\320\260\321\201\321\205\320\276\320\264\321\217\321\202\321\201\321\217 \320\270 \320\275\320\260 "
-    "\321\200\320\260\320\267\320\274\321\213\321\202\320\270\320\265 \320\276\321\202 "
-    "\321\203\320\274\320\265\320\275\321\214\321\210\320\265\320\275\320\270\321\217, \320\270 \320\275\320\260 "
-    "\320\277\321\200\320\260\320\262\320\272\321\203 \320\274\320\276\320\264\320\265\320\273\320\270, \320\260 "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\275\320\265 "
-    "\320\274\320\276\320\266\320\265\321\202 \320\270\321\205 "
-    "\321\200\320\260\320\267\320\273\320\270\321\207\320\270\321\202\321\214."
-    "\n\n\320\235\320\265\320\260\320\272\321\202\320\270\320\262\320\275\320\276 \320\275\320\260 100%, "
-    "\320\263\320\264\320\265 \321\203\320\262\320\265\320\273\320\270\321\207\320\270\320\262\320\260\321\202\321\214 "
-    "\320\275\320\265\321\207\320\265\320\263\320\276.",
-    "\320\241\320\272\320\276\320\273\321\214\320\272\320\276 \320\270\320\267 "
-    "\321\215\321\202\320\276\320\263\320\276 \320\264\320\276\321\205\320\276\320\264\320\270\321\202",
+    "\320\232\320\260\320\272 \321\200\320\260\320\261\320\276\321\202\320\260 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270 \320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202\321\201"
+    "\321\217 \320\262\320\262\320\265\321\200\321\205, \320\265\321\201\320\273\320\270 \320\276\320\275\320\260"
+    " \320\262\321\213\320\277\320\276\320\273\320\275\321\217\320\273\320\260\321\201\321\214 \320\275\320\270"
+    "\320\266\320\265 \321\200\320\260\320\267\320\274\320\265\321\200\320\260 \320\272\320\260\320\264\321\200"
+    "\320\260.\n\n\320\232\320\273\320\260\321\201\321\201\320\270\321\207\320\265\321\201\320\272\320\276\320\265"
+    " \320\272\320\276\320\274\320\277\320\276\320\275\321\203\320\265\321\202 \320\274\320\260\320\273\320\265"
+    "\320\275\321\214\320\272\321\203\321\216 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\321\203"
+    " \320\274\320\276\320\264\320\265\320\273\320\270 \320\277\321\200\321\217\320\274\320\276 \321\201 \320\277"
+    "\320\276\320\273\320\275\320\276\321\200\320\260\320\267\320\274\320\265\321\200\320\275\321\213\320\274"
+    " \320\272\320\260\320\264\321\200\320\276\320\274. \320\236\320\275\320\270 \321\200\320\260\321\201\321\205"
+    "\320\276\320\264\321\217\321\202\321\201\321\217 \320\270 \320\275\320\260 \321\200\320\260\320\267\320\274"
+    "\321\213\321\202\320\270\320\265 \320\276\321\202 \321\203\320\274\320\265\320\275\321\214\321\210\320\265"
+    "\320\275\320\270\321\217, \320\270 \320\275\320\260 \320\277\321\200\320\260\320\262\320\272\321\203 \320\274"
+    "\320\276\320\264\320\265\320\273\320\270, \320\260 \320\272\320\276\320\274\320\277\320\276\320\267\320\270"
+    "\321\206\320\270\321\217 \320\275\320\265 \320\274\320\276\320\266\320\265\321\202 \320\270\321\205 \321\200"
+    "\320\260\320\267\320\273\320\270\321\207\320\270\321\202\321\214.\n\n\320\235\320\265\320\260\320\272\321\202"
+    "\320\270\320\262\320\275\320\276 \320\275\320\260 100%, \320\263\320\264\320\265 \321\203\320\262\320\265"
+    "\320\273\320\270\321\207\320\270\320\262\320\260\321\202\321\214 \320\275\320\265\321\207\320\265\320\263"
+    "\320\276.",
+    "\320\241\320\272\320\276\320\273\321\214\320\272\320\276 \320\270\320\267 \321\215\321\202\320\276\320\263"
+    "\320\276 \320\264\320\276\321\205\320\276\320\264\320\270\321\202",
     "\320\241\320\270\320\273\320\260 \320\264\320\265\321\202\320\260\320\273\320\265\320\271",
     "\320\241\320\261\321\200\320\276\321\201",
-    "\320\235\320\260\321\201\320\272\320\276\320\273\321\214\320\272\320\276 \320\272\320\260\320\264\321\200 "
-    "\321\201\320\274\320\265\321\211\320\260\320\265\321\202\321\201\321\217 \320\272 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. 0 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 "
-    "\321\200\320\276\320\262\320\275\320\276 \321\202\320\276, \321\207\321\202\320\276 "
-    "\320\262\321\213\320\264\320\260\320\273 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200. 1 -- "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. \320\222\321\213\321\210\320\265 1 "
-    "\320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\260\320\265\321\202 "
-    "\320\264\320\260\320\273\321\214\321\210\320\265 \320\262 \321\202\320\276\320\274 \320\266\320\265 "
-    "\320\275\320\260\320\277\321\200\320\260\320\262\320\273\320\265\320\275\320\270\320\270.",
+    "\320\235\320\260\321\201\320\272\320\276\320\273\321\214\320\272\320\276 \320\272\320\260\320\264\321\200"
+    " \321\201\320\274\320\265\321\211\320\260\320\265\321\202\321\201\321\217 \320\272 \320\272\320\260\321\200"
+    "\321\202\320\270\320\275\320\272\320\265 \320\274\320\276\320\264\320\265\320\273\320\270. 0 \320\262\320\276"
+    "\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 \321\200\320\276\320\262\320\275\320\276"
+    " \321\202\320\276, \321\207\321\202\320\276 \320\262\321\213\320\264\320\260\320\273 \320\260\320\277\321\201"
+    "\320\272\320\265\320\271\320\273\320\265\321\200. 1 -- \320\272\320\260\321\200\321\202\320\270\320\275\320\272"
+    "\320\260 \320\274\320\276\320\264\320\265\320\273\320\270. \320\222\321\213\321\210\320\265 1 \320\277\321\200"
+    "\320\276\320\264\320\276\320\273\320\266\320\260\320\265\321\202 \320\264\320\260\320\273\321\214\321\210"
+    "\320\265 \320\262 \321\202\320\276\320\274 \320\266\320\265 \320\275\320\260\320\277\321\200\320\260\320\262"
+    "\320\273\320\265\320\275\320\270\320\270.",
     "\320\241\320\270\320\273\320\260 \321\206\320\262\320\265\321\202\320\260",
-    "\320\237\321\200\320\270\321\205\320\276\320\264\320\270\321\202 \320\273\320\270 "
-    "\321\206\320\262\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\262\320\274\320\265\321\201\321\202\320\265 \321\201 \320\265\321\221 "
-    "\321\201\320\262\320\265\321\202\320\276\320\274. 0 "
-    "\321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 "
-    "\320\276\321\202\321\202\320\265\320\275\320\276\320\272 \320\270\320\263\321\200\321\213 \320\262 "
-    "\321\202\320\276\321\207\320\275\320\276\321\201\321\202\320\270 -- "
-    "\320\272\320\260\320\266\320\264\321\213\320\271 \320\277\320\270\320\272\321\201\320\265\320\273\321\214 "
-    "\320\270\321\201\321\205\320\276\320\264\320\275\320\276\320\263\320\276 "
-    "\321\206\320\262\320\265\321\202\320\260, \320\270 \321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\321\217\321\200\320\272\320\276\321\201\321\202\321\214 \320\275\320\265\321\201\321\221\321\202 "
-    "\320\262\320\265\321\200\320\264\320\270\320\272\321\202 \320\274\320\276\320\264\320\265\320\273\320\270. 1 "
-    "\320\277\321\200\320\270\320\275\320\276\321\201\320\270\321\202 \320\270 \321\206\320\262\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270, \320\262 \320\265\321\221 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\274 "
-    "\320\276\321\202\321\202\320\265\320\275\320\272\320\265, "
-    "\320\267\320\260\320\266\320\260\321\202\321\213\320\271 \320\262 AP1, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\275\320\265 "
-    "\320\267\320\260\320\277\321\200\320\260\321\210\320\270\320\262\320\260\320\273\320\276\321\201\321\214 "
-    "\320\275\320\265\320\264\320\276\321\201\321\202\320\270\320\266\320\270\320\274\320\276\320\265."
-    "\n\n\320\222\321\213\321\210\320\265 1 -- "
-    "\320\277\320\265\321\200\320\265\320\275\320\260\321\201\321\213\321\211\320\265\320\275\320\270\320\265: "
-    "\321\206\320\262\320\265\321\202 \321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 "
-    "\320\276\321\202\321\202\320\265\320\275\320\276\320\272, \320\275\320\276 "
-    "\321\201\321\202\320\260\320\275\320\276\320\262\320\270\321\202\321\201\321\217 "
-    "\321\217\321\200\321\207\320\265, \320\270 \320\277\320\273\320\260\320\262\320\275\320\276 "
-    "\321\201\320\277\320\260\320\264\320\260\320\265\321\202 \321\203 "
-    "\320\263\321\200\320\260\320\275\320\270\321\206\321\213 "
-    "\320\262\320\276\320\267\320\274\320\276\320\266\320\275\320\276\321\201\321\202\320\265\320\271 "
-    "\320\264\320\270\321\201\320\277\320\273\320\265\321\217 \320\262\320\274\320\265\321\201\321\202\320\276 "
-    "\320\272\320\273\320\270\320\277\320\277\320\270\320\275\320\263\320\260 \320\262 "
-    "\320\277\320\273\320\276\321\201\320\272\320\276\320\265 "
-    "\320\262\321\213\320\266\320\266\320\265\320\275\320\275\320\276\320\265 "
-    "\320\277\321\217\321\202\320\275\320\276. 1 -- "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 "
-    "\321\206\320\262\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\320\270; "
-    "\320\262\321\213\321\210\320\265 -- \321\200\320\260\320\264\320\270 "
-    "\321\201\320\276\321\207\320\275\320\276\321\201\321\202\320\270.",
+    "\320\237\321\200\320\270\321\205\320\276\320\264\320\270\321\202 \320\273\320\270 \321\206\320\262\320\265"
+    "\321\202 \320\274\320\276\320\264\320\265\320\273\320\270 \320\262\320\274\320\265\321\201\321\202\320\265"
+    " \321\201 \320\265\321\221 \321\201\320\262\320\265\321\202\320\276\320\274. 0 \321\201\320\276\321\205\321\200"
+    "\320\260\320\275\321\217\320\265\321\202 \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275"
+    "\320\275\321\213\320\271 \320\276\321\202\321\202\320\265\320\275\320\276\320\272 \320\270\320\263\321\200"
+    "\321\213 \320\262 \321\202\320\276\321\207\320\275\320\276\321\201\321\202\320\270 -- \320\272\320\260\320\266"
+    "\320\264\321\213\320\271 \320\277\320\270\320\272\321\201\320\265\320\273\321\214 \320\270\321\201\321\205"
+    "\320\276\320\264\320\275\320\276\320\263\320\276 \321\206\320\262\320\265\321\202\320\260, \320\270 \321\202"
+    "\320\276\320\273\321\214\320\272\320\276 \321\217\321\200\320\272\320\276\321\201\321\202\321\214 \320\275"
+    "\320\265\321\201\321\221\321\202 \320\262\320\265\321\200\320\264\320\270\320\272\321\202 \320\274\320\276"
+    "\320\264\320\265\320\273\320\270. 1 \320\277\321\200\320\270\320\275\320\276\321\201\320\270\321\202 \320\270"
+    " \321\206\320\262\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\320\270, \320\262 \320\265\321\221"
+    " \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\274 \320\276\321\202"
+    "\321\202\320\265\320\275\320\272\320\265, \320\267\320\260\320\266\320\260\321\202\321\213\320\271 \320\262"
+    " AP1, \321\207\321\202\320\276\320\261\321\213 \320\275\320\265 \320\267\320\260\320\277\321\200\320\260"
+    "\321\210\320\270\320\262\320\260\320\273\320\276\321\201\321\214 \320\275\320\265\320\264\320\276\321\201"
+    "\321\202\320\270\320\266\320\270\320\274\320\276\320\265.\n\n\320\222\321\213\321\210\320\265 1 -- \320\277"
+    "\320\265\321\200\320\265\320\275\320\260\321\201\321\213\321\211\320\265\320\275\320\270\320\265: \321\206"
+    "\320\262\320\265\321\202 \321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 \320\276"
+    "\321\202\321\202\320\265\320\275\320\276\320\272, \320\275\320\276 \321\201\321\202\320\260\320\275\320\276"
+    "\320\262\320\270\321\202\321\201\321\217 \321\217\321\200\321\207\320\265, \320\270 \320\277\320\273\320\260"
+    "\320\262\320\275\320\276 \321\201\320\277\320\260\320\264\320\260\320\265\321\202 \321\203 \320\263\321\200"
+    "\320\260\320\275\320\270\321\206\321\213 \320\262\320\276\320\267\320\274\320\276\320\266\320\275\320\276"
+    "\321\201\321\202\320\265\320\271 \320\264\320\270\321\201\320\277\320\273\320\265\321\217 \320\262\320\274"
+    "\320\265\321\201\321\202\320\276 \320\272\320\273\320\270\320\277\320\277\320\270\320\275\320\263\320\260"
+    " \320\262 \320\277\320\273\320\276\321\201\320\272\320\276\320\265 \320\262\321\213\320\266\320\266\320\265"
+    "\320\275\320\275\320\276\320\265 \320\277\321\217\321\202\320\275\320\276. 1 -- \321\201\320\276\320\261"
+    "\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 \321\206\320\262\320\265\321\202 \320\274"
+    "\320\276\320\264\320\265\320\273\320\270; \320\262\321\213\321\210\320\265 -- \321\200\320\260\320\264\320\270"
+    " \321\201\320\276\321\207\320\275\320\276\321\201\321\202\320\270.",
     "\320\246\320\262\320\265\321\202",
-    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\276\320\261\321\203\321\207\320\265\320\275\320\260 "
-    "\320\275\320\260 \320\263\320\276\321\202\320\276\320\262\321\213\321\205 "
-    "\320\272\320\260\320\264\321\200\320\260\321\205 \320\262 "
-    "\320\272\320\276\320\264\320\270\321\200\320\276\320\262\320\272\320\265 sRGB. \320\255\321\202\320\270 "
-    "\320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\321\213 "
-    "\321\200\320\265\321\210\320\260\321\216\321\202, \320\272\320\260\320\272 "
-    "\320\273\320\270\320\275\320\265\320\271\320\275\321\213\320\271 \320\262\321\213\321\205\320\276\320\264 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 "
-    "\320\276\321\202\320\276\320\261\321\200\320\260\320\266\320\260\320\265\321\202\321\201\321\217 \320\262\320\276 "
-    "\321\207\321\202\320\276-\321\202\320\276, \321\207\321\202\320\276 \320\276\320\275\320\260 "
-    "\321\203\320\267\320\275\320\260\321\221\321\202.",
-    "\320\222\321\213\320\272\320\273 (\320\274\321\217\320\263\320\272\320\276\320\265 "
-    "\320\272\320\276\320\273\320\265\320\275\320\276)",
-    "\320\237\321\200\320\276\320\272\321\201\320\270 Neutwo + "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217",
+    "\320\234\320\276\320\264\320\265\320\273\321\214 \320\276\320\261\321\203\321\207\320\265\320\275\320\260"
+    " \320\275\320\260 \320\263\320\276\321\202\320\276\320\262\321\213\321\205 \320\272\320\260\320\264\321\200"
+    "\320\260\321\205 \320\262 \320\272\320\276\320\264\320\270\321\200\320\276\320\262\320\272\320\265 sRGB."
+    " \320\255\321\202\320\270 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\321\213 \321\200"
+    "\320\265\321\210\320\260\321\216\321\202, \320\272\320\260\320\272 \320\273\320\270\320\275\320\265\320\271"
+    "\320\275\321\213\320\271 \320\262\321\213\321\205\320\276\320\264 \320\260\320\277\321\201\320\272\320\265"
+    "\320\271\320\273\320\265\321\200\320\260 \320\276\321\202\320\276\320\261\321\200\320\260\320\266\320\260"
+    "\320\265\321\202\321\201\321\217 \320\262\320\276 \321\207\321\202\320\276-\321\202\320\276, \321\207\321\202"
+    "\320\276 \320\276\320\275\320\260 \321\203\320\267\320\275\320\260\321\221\321\202.",
+    "\320\222\321\213\320\272\320\273 (\320\274\321\217\320\263\320\272\320\276\320\265 \320\272\320\276\320\273"
+    "\320\265\320\275\320\276)",
+    "\320\237\321\200\320\276\320\272\321\201\320\270 Neutwo + \320\272\320\276\320\274\320\277\320\276\320\267"
+    "\320\270\321\206\320\270\321\217",
     "\320\237\321\200\320\276\320\272\321\201\320\270 Neutwo + \320\267\320\260\320\274\320\265\320\275\320\260",
-    "\320\223\320\270\320\261\321\200\320\270\320\264\320\275\321\213\320\271 "
-    "\320\277\321\200\320\276\320\272\321\201\320\270 + "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217",
-    "\320\223\320\270\320\261\321\200\320\270\320\264\320\275\321\213\320\271 "
-    "\320\277\321\200\320\276\320\272\321\201\320\270 + \320\267\320\260\320\274\320\265\320\275\320\260",
-    "\320\236\320\261\321\200\320\260\321\202\320\270\320\274\321\213\320\271 "
-    "\320\277\321\200\320\276\320\272\321\201\320\270",
-    "\320\247\321\202\320\276 "
-    "\320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 \320\270 \320\272\320\260\320\272 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202\321\201\321\217 \320\265\321\221 "
-    "\320\276\321\202\320\262\320\265\321\202. "
-    "\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273\321\214"
-    "\320\275\320\276.\n\n\320\222\321\213\320\272\320\273 (\320\274\321\217\320\263\320\272\320\276\320\265 "
-    "\320\272\320\276\320\273\320\265\320\275\320\276): "
-    "\321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265, "
-    "\320\277\320\276\320\261\320\260\320\271\321\202\320\275\320\276 \321\202\320\276 \320\266\320\265, "
-    "\321\207\321\202\320\276 \320\270 \321\200\320\260\320\275\321\214\321\210\320\265. \320\242\320\260\320\272 "
-    "\321\201\320\270\320\273\321\214\320\275\320\276 "
-    "\321\201\320\262\320\276\321\200\320\260\321\207\320\270\320\262\320\260\320\265\321\202 "
-    "\321\201\320\262\320\265\321\202\320\260, \321\207\321\202\320\276 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\265 "
-    "\321\200\320\260\320\267\320\273\320\270\321\207\320\260\320\265\321\202 \320\262 \320\275\320\270\321\205 "
-    "\320\264\320\265\321\202\320\260\320\273\320\265\320\271 -- \321\205\320\276\321\200\320\276\321\210\320\276 "
-    "\320\262 \320\274\321\217\320\263\320\272\320\276 "
-    "\320\276\321\201\320\262\320\265\321\211\321\221\320\275\320\275\321\213\321\205 "
-    "\321\201\321\206\320\265\320\275\320\260\321\205, \321\201\320\273\320\260\320\261\320\276 \320\262 "
-    "\321\217\321\200\320\272\320\270\321\205.\n\nNeutwo "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217: "
-    "\320\272\321\200\320\270\320\262\320\260\321\217 \320\261\320\265\320\267 "
-    "\320\272\320\273\320\270\320\277\320\277\320\270\320\275\320\263\320\260, \321\202\320\260\320\272 "
-    "\321\207\321\202\320\276 \320\274\320\276\320\264\320\265\320\273\321\214 "
-    "\320\262\320\270\320\264\320\270\321\202 \320\264\320\265\321\202\320\260\320\273\320\270 \320\262 "
-    "\321\201\320\262\320\265\321\202\320\260\321\205, \320\260 \320\267\320\260\321\202\320\265\320\274 "
-    "\320\262\321\201\321\221, \321\207\321\202\320\276 \320\262\321\213\321\210\320\265 "
-    "(\321\201\320\270\320\273\321\213, \320\267\320\260\321\211\320\270\321\202\320\260 "
-    "\321\201\320\262\320\265\321\202\320\276\320\262, \320\277\320\260\320\273\320\270\321\202\321\200\320\260). "
-    "\320\222\321\213\320\270\320\263\321\200\321\213\320\262\320\260\320\265\321\202 \320\262 "
-    "\321\217\321\200\320\272\320\270\321\205 \321\201\321\206\320\265\320\275\320\260\321\205, \320\275\320\276 "
-    "\320\272\321\200\320\270\320\262\320\260\321\217 \321\201\320\266\320\270\320\274\320\260\320\265\321\202 "
-    "\320\270 \321\201\321\200\320\265\320\264\320\275\320\270\320\265 \321\202\320\276\320\275\320\260, "
-    "\321\202\320\260\320\272 \321\207\321\202\320\276 \320\274\321\217\320\263\320\272\320\276 "
-    "\320\276\321\201\320\262\320\265\321\211\321\221\320\275\320\275\321\213\320\271 "
-    "\320\272\320\276\320\275\321\202\320\265\320\275\321\202 \320\274\320\276\320\266\320\265\321\202 "
-    "\320\261\321\213\321\202\321\214 \321\205\321\203\320\266\320\265, \321\207\320\265\320\274 "
-    "\320\222\321\213\320\272\320\273. \320\242\320\260\320\272\320\266\320\265 "
-    "\321\201\320\264\320\262\320\270\320\263\320\260\320\265\321\202 paper white -- "
-    "\320\277\320\265\321\200\320\265\320\277\321\200\320\276\320\262\320\265\321\200\321\214\321\202\320\265 "
-    "\320\265\320\263\320\276 \320\277\321\200\320\270 "
-    "\320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\265\320\275\320\270\320\270."
-    "\n\n\320\223\320\270\320\261\321\200\320\270\320\264\320\275\320\260\321\217 "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217: \321\202\320\276, "
-    "\321\207\321\202\320\276 \321\201\321\202\320\276\320\270\321\202 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\320\276\320\262\320\260\321\202\321\214. "
-    "\320\242\320\276\320\266\320\264\320\265\321\201\321\202\320\262\320\276 \320\262 "
-    "\321\201\321\200\320\265\320\264\320\275\320\270\321\205 \321\202\320\276\320\275\320\260\321\205 -- "
-    "\321\202\320\260\320\274 \320\275\320\265 \321\205\321\203\320\266\320\265 \320\222\321\213\320\272\320\273 -- "
-    "\320\270 \320\272\321\200\320\270\320\262\320\260\321\217 \320\261\320\265\320\267 "
-    "\320\272\320\273\320\270\320\277\320\277\320\270\320\275\320\263\320\260 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \320\262 \321\201\320\262\320\265\321\202\320\260\321\205, "
-    "\321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 "
-    "\320\264\320\265\321\202\320\260\320\273\320\270, \320\272\320\276\321\202\320\276\321\200\321\213\320\265 "
-    "\320\222\321\213\320\272\320\273 \320\264\320\260\320\262\320\270\321\202, \320\275\320\265 "
-    "\320\276\321\202\320\264\320\260\320\262\320\260\321\217 \321\201\321\200\320\265\320\264\320\275\320\270\320\265 "
-    "\321\202\320\276\320\275\320\260, \320\272\320\260\320\272 Neutwo. \320\237\320\276\321\207\321\202\320\270 "
-    "\320\275\320\265 \321\201\320\264\320\262\320\270\320\263\320\260\320\265\321\202 paper "
-    "white.\n\n\320\227\320\260\320\274\320\265\320\275\320\260: \321\201\321\213\321\200\320\260\321\217 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\260\320\277\321\200\321\217\320\274\321\203\321\216 "
-    "\321\207\320\265\321\200\320\265\320\267 \321\202\320\276\321\207\320\275\321\203\321\216 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\321\203\321\216 "
-    "\320\272\321\200\320\270\320\262\321\203\321\216, \320\261\320\265\320\267 "
-    "\320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\320\270 -- \320\261\320\265\320\267 "
-    "\320\267\320\260\321\211\320\270\321\202\321\213, \320\277\320\260\320\273\320\270\321\202\321\200\321\213 "
-    "\320\270 \321\201\320\270\320\273. "
-    "\320\222\320\265\320\273\320\270\320\272\320\276\320\273\320\265\320\277\320\275\320\276 "
-    "\321\202\320\260\320\274, \320\263\320\264\320\265 \320\275\320\265\321\202 "
-    "\321\217\321\200\320\272\320\270\321\205 "
-    "\320\270\321\201\321\202\320\276\321\207\320\275\320\270\320\272\320\276\320\262 "
-    "\321\201\320\262\320\265\321\202\320\260, \320\275\320\276 \320\276\320\275\320\270 "
-    "\320\222\320\241\320\237\320\253\320\245\320\230\320\222\320\220\320\256\320\242 \320\262 "
-    "\320\264\320\262\320\270\320\266\320\265\320\275\320\270\320\270. "
-    "\320\255\321\202\320\260\320\273\320\276\320\275, \320\260 \320\275\320\265 "
-    "\320\277\320\276\320\262\321\201\320\265\320\264\320\275\320\265\320\262\320\275\320\260\321\217 "
-    "\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260."
-    "\n\n\320\223\320\270\320\261\321\200\320\270\320\264\320\275\320\260\321\217 "
-    "\320\267\320\260\320\274\320\265\320\275\320\260: \321\201\321\213\321\200\320\260\321\217 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\227\320\260\320\274\320\265\320\275\321\213 "
-    "\320\275\320\260 \320\263\320\270\320\261\321\200\320\270\320\264\320\275\320\276\320\271 "
-    "\320\272\321\200\320\270\320\262\320\276\320\271, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\320\262\321\201\320\277\321\213\321\210\320\272\320\270 "
-    "\320\276\320\263\321\200\320\260\320\275\320\270\321\207\320\265\320\275\321\213 "
-    "\320\275\320\260\321\201\321\202\320\276\321\217\321\211\320\270\320\274\320\270 "
-    "\321\201\320\262\320\265\321\202\320\260\320\274\320\270, \320\260 \320\275\320\265 "
-    "\320\277\320\276\320\262\321\201\321\216\320\264\321\203. "
-    "\320\221\320\276\320\273\321\214\321\210\320\260\321\217 \321\207\320\260\321\201\321\202\321\214 "
-    "\320\264\320\265\321\202\320\260\320\273\320\265\320\271 \320\227\320\260\320\274\320\265\320\275\321\213, "
-    "\320\272\321\203\320\264\320\260 "
-    "\321\201\321\202\320\260\320\261\320\270\320\273\321\214\320\275\320\265\320\265.",
+    "\320\223\320\270\320\261\321\200\320\270\320\264\320\275\321\213\320\271 \320\277\321\200\320\276\320\272"
+    "\321\201\320\270 + \320\272\320\276\320\274\320\277\320\276\320\267\320\270\321\206\320\270\321\217",
+    "\320\223\320\270\320\261\321\200\320\270\320\264\320\275\321\213\320\271 \320\277\321\200\320\276\320\272"
+    "\321\201\320\270 + \320\267\320\260\320\274\320\265\320\275\320\260",
+    "\320\236\320\261\321\200\320\260\321\202\320\270\320\274\321\213\320\271 \320\277\321\200\320\276\320\272"
+    "\321\201\320\270",
+    "\320\247\321\202\320\276 \320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202"
+    "\321\201\321\217 \320\274\320\276\320\264\320\265\320\273\320\270 \320\270 \320\272\320\260\320\272 \320\262"
+    "\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202\321\201\321\217 \320\265\321\221"
+    " \320\276\321\202\320\262\320\265\321\202. \320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274"
+    "\320\265\320\275\321\202\320\260\320\273\321\214\320\275\320\276.\n\n\320\222\321\213\320\272\320\273 (\320\274"
+    "\321\217\320\263\320\272\320\276\320\265 \320\272\320\276\320\273\320\265\320\275\320\276): \321\203\320\274"
+    "\320\276\320\273\321\207\320\260\320\275\320\270\320\265, \320\277\320\276\320\261\320\260\320\271\321\202"
+    "\320\275\320\276 \321\202\320\276 \320\266\320\265, \321\207\321\202\320\276 \320\270 \321\200\320\260\320\275"
+    "\321\214\321\210\320\265. \320\242\320\260\320\272 \321\201\320\270\320\273\321\214\320\275\320\276 \321\201"
+    "\320\262\320\276\321\200\320\260\321\207\320\270\320\262\320\260\320\265\321\202 \321\201\320\262\320\265"
+    "\321\202\320\260, \321\207\321\202\320\276 \320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\265"
+    " \321\200\320\260\320\267\320\273\320\270\321\207\320\260\320\265\321\202 \320\262 \320\275\320\270\321\205"
+    " \320\264\320\265\321\202\320\260\320\273\320\265\320\271 -- \321\205\320\276\321\200\320\276\321\210\320\276"
+    " \320\262 \320\274\321\217\320\263\320\272\320\276 \320\276\321\201\320\262\320\265\321\211\321\221\320\275"
+    "\320\275\321\213\321\205 \321\201\321\206\320\265\320\275\320\260\321\205, \321\201\320\273\320\260\320\261"
+    "\320\276 \320\262 \321\217\321\200\320\272\320\270\321\205.\n\nNeutwo \320\272\320\276\320\274\320\277\320\276"
+    "\320\267\320\270\321\206\320\270\321\217: \320\272\321\200\320\270\320\262\320\260\321\217 \320\261\320\265"
+    "\320\267 \320\272\320\273\320\270\320\277\320\277\320\270\320\275\320\263\320\260, \321\202\320\260\320\272"
+    " \321\207\321\202\320\276 \320\274\320\276\320\264\320\265\320\273\321\214 \320\262\320\270\320\264\320\270"
+    "\321\202 \320\264\320\265\321\202\320\260\320\273\320\270 \320\262 \321\201\320\262\320\265\321\202\320\260"
+    "\321\205, \320\260 \320\267\320\260\321\202\320\265\320\274 \320\262\321\201\321\221, \321\207\321\202\320\276"
+    " \320\262\321\213\321\210\320\265 (\321\201\320\270\320\273\321\213, \320\267\320\260\321\211\320\270\321\202"
+    "\320\260 \321\201\320\262\320\265\321\202\320\276\320\262, \320\277\320\260\320\273\320\270\321\202\321\200"
+    "\320\260). \320\222\321\213\320\270\320\263\321\200\321\213\320\262\320\260\320\265\321\202 \320\262 \321\217"
+    "\321\200\320\272\320\270\321\205 \321\201\321\206\320\265\320\275\320\260\321\205, \320\275\320\276 \320\272"
+    "\321\200\320\270\320\262\320\260\321\217 \321\201\320\266\320\270\320\274\320\260\320\265\321\202 \320\270"
+    " \321\201\321\200\320\265\320\264\320\275\320\270\320\265 \321\202\320\276\320\275\320\260, \321\202\320\260"
+    "\320\272 \321\207\321\202\320\276 \320\274\321\217\320\263\320\272\320\276 \320\276\321\201\320\262\320\265"
+    "\321\211\321\221\320\275\320\275\321\213\320\271 \320\272\320\276\320\275\321\202\320\265\320\275\321\202"
+    " \320\274\320\276\320\266\320\265\321\202 \320\261\321\213\321\202\321\214 \321\205\321\203\320\266\320\265"
+    ", \321\207\320\265\320\274 \320\222\321\213\320\272\320\273. \320\242\320\260\320\272\320\266\320\265 \321\201"
+    "\320\264\320\262\320\270\320\263\320\260\320\265\321\202 paper white -- \320\277\320\265\321\200\320\265"
+    "\320\277\321\200\320\276\320\262\320\265\321\200\321\214\321\202\320\265 \320\265\320\263\320\276 \320\277"
+    "\321\200\320\270 \320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\265\320\275\320\270"
+    "\320\270.\n\n\320\223\320\270\320\261\321\200\320\270\320\264\320\275\320\260\321\217 \320\272\320\276\320\274"
+    "\320\277\320\276\320\267\320\270\321\206\320\270\321\217: \321\202\320\276, \321\207\321\202\320\276 \321\201"
+    "\321\202\320\276\320\270\321\202 \320\270\321\201\320\277\320\276\320\273\321\214\320\267\320\276\320\262"
+    "\320\260\321\202\321\214. \320\242\320\276\320\266\320\264\320\265\321\201\321\202\320\262\320\276 \320\262"
+    " \321\201\321\200\320\265\320\264\320\275\320\270\321\205 \321\202\320\276\320\275\320\260\321\205 -- \321\202"
+    "\320\260\320\274 \320\275\320\265 \321\205\321\203\320\266\320\265 \320\222\321\213\320\272\320\273 -- \320\270"
+    " \320\272\321\200\320\270\320\262\320\260\321\217 \320\261\320\265\320\267 \320\272\320\273\320\270\320\277"
+    "\320\277\320\270\320\275\320\263\320\260 \321\202\320\276\320\273\321\214\320\272\320\276 \320\262 \321\201"
+    "\320\262\320\265\321\202\320\260\321\205, \321\202\320\260\320\272 \321\207\321\202\320\276 \320\262\320\276"
+    "\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 \320\264\320\265\321\202\320\260\320\273"
+    "\320\270, \320\272\320\276\321\202\320\276\321\200\321\213\320\265 \320\222\321\213\320\272\320\273 \320\264"
+    "\320\260\320\262\320\270\321\202, \320\275\320\265 \320\276\321\202\320\264\320\260\320\262\320\260\321\217"
+    " \321\201\321\200\320\265\320\264\320\275\320\270\320\265 \321\202\320\276\320\275\320\260, \320\272\320\260"
+    "\320\272 Neutwo. \320\237\320\276\321\207\321\202\320\270 \320\275\320\265 \321\201\320\264\320\262\320\270"
+    "\320\263\320\260\320\265\321\202 paper white.\n\n\320\227\320\260\320\274\320\265\320\275\320\260: \321\201"
+    "\321\213\321\200\320\260\321\217 \320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\260\320\277"
+    "\321\200\321\217\320\274\321\203\321\216 \321\207\320\265\321\200\320\265\320\267 \321\202\320\276\321\207"
+    "\320\275\321\203\321\216 \320\276\320\261\321\200\320\260\321\202\320\275\321\203\321\216 \320\272\321\200"
+    "\320\270\320\262\321\203\321\216, \320\261\320\265\320\267 \320\272\320\276\320\274\320\277\320\276\320\267"
+    "\320\270\321\206\320\270\320\270 -- \320\261\320\265\320\267 \320\267\320\260\321\211\320\270\321\202\321\213"
+    ", \320\277\320\260\320\273\320\270\321\202\321\200\321\213 \320\270 \321\201\320\270\320\273. \320\222\320\265"
+    "\320\273\320\270\320\272\320\276\320\273\320\265\320\277\320\275\320\276 \321\202\320\260\320\274, \320\263"
+    "\320\264\320\265 \320\275\320\265\321\202 \321\217\321\200\320\272\320\270\321\205 \320\270\321\201\321\202"
+    "\320\276\321\207\320\275\320\270\320\272\320\276\320\262 \321\201\320\262\320\265\321\202\320\260, \320\275"
+    "\320\276 \320\276\320\275\320\270 \320\222\320\241\320\237\320\253\320\245\320\230\320\222\320\220\320\256"
+    "\320\242 \320\262 \320\264\320\262\320\270\320\266\320\265\320\275\320\270\320\270. \320\255\321\202\320\260"
+    "\320\273\320\276\320\275, \320\260 \320\275\320\265 \320\277\320\276\320\262\321\201\320\265\320\264\320\275"
+    "\320\265\320\262\320\275\320\260\321\217 \320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272"
+    "\320\260.\n\n\320\223\320\270\320\261\321\200\320\270\320\264\320\275\320\260\321\217 \320\267\320\260\320\274"
+    "\320\265\320\275\320\260: \321\201\321\213\321\200\320\260\321\217 \320\274\320\276\320\264\320\265\320\273"
+    "\321\214 \320\227\320\260\320\274\320\265\320\275\321\213 \320\275\320\260 \320\263\320\270\320\261\321\200"
+    "\320\270\320\264\320\275\320\276\320\271 \320\272\321\200\320\270\320\262\320\276\320\271, \321\202\320\260"
+    "\320\272 \321\207\321\202\320\276 \320\262\321\201\320\277\321\213\321\210\320\272\320\270 \320\276\320\263"
+    "\321\200\320\260\320\275\320\270\321\207\320\265\320\275\321\213 \320\275\320\260\321\201\321\202\320\276"
+    "\321\217\321\211\320\270\320\274\320\270 \321\201\320\262\320\265\321\202\320\260\320\274\320\270, \320\260"
+    " \320\275\320\265 \320\277\320\276\320\262\321\201\321\216\320\264\321\203. \320\221\320\276\320\273\321\214"
+    "\321\210\320\260\321\217 \321\207\320\260\321\201\321\202\321\214 \320\264\320\265\321\202\320\260\320\273"
+    "\320\265\320\271 \320\227\320\260\320\274\320\265\320\275\321\213, \320\272\321\203\320\264\320\260 \321\201"
+    "\321\202\320\260\320\261\320\270\320\273\321\214\320\275\320\265\320\265.",
     "\320\242\320\276\320\273\321\214\320\272\320\276 paper white",
-    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200\321\213",
-    "\320\221\321\203\321\204\320\265\321\200, "
-    "\320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213\320\271 "
-    "\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265\320\274",
+    "\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 \321\215\320\272"
+    "\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200\321\213",
+    "\320\221\321\203\321\204\320\265\321\200, \320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213"
+    "\320\271 \321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265"
+    "\320\274",
     "\320\242\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 \320\270\320\267",
-    "\320\242\320\276\320\273\321\214\320\272\320\276 paper white -- "
-    "\320\277\320\276\320\273\320\267\321\203\320\275\320\276\320\272 \320\275\320\270\320\266\320\265 \320\270 "
-    "\320\275\320\270\321\207\320\265\320\263\320\276 \320\261\320\276\320\273\321\214\321\210\320\265. "
-    "\320\222\320\265\321\200\320\275\320\276 \320\264\320\273\321\217 \320\270\320\263\321\200\321\213, "
-    "\321\207\321\214\321\217 \321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 "
-    "\320\275\320\270\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217, \320\270 "
-    "\320\275\320\265\320\262\320\265\321\200\320\275\320\276, \320\272\320\260\320\272 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217: \320\276\320\264\320\275\320\260 "
-    "\320\272\320\276\320\275\321\201\321\202\320\260\320\275\321\202\320\260 \320\275\320\265 "
-    "\320\277\320\276\320\264\321\205\320\276\320\264\320\270\321\202 \320\270 "
-    "\320\277\320\265\321\211\320\265\321\200\320\265, \320\270 "
-    "\320\277\320\276\320\273\321\216."
-    "\n\n\320\241\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200\321\213 "
-    "-- \321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217 \320\270\320\267 "
-    "\321\202\320\265\320\272\321\201\321\202\321\203\321\200\321\213, "
-    "\320\272\320\276\321\202\320\276\321\200\321\203\321\216 \320\270\320\263\321\200\320\260 "
-    "\320\277\320\265\321\200\320\265\320\264\320\260\321\221\321\202 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\321\203. "
-    "\320\233\321\203\321\207\321\210\320\270\320\271 \320\270\320\267 "
-    "\320\270\321\201\321\202\320\276\321\207\320\275\320\270\320\272\320\276\320\262, "
-    "\320\277\320\276\321\202\320\276\320\274\321\203 \321\207\321\202\320\276 "
-    "\321\200\320\265\321\210\320\260\320\265\321\202\321\201\321\217 \320\262\321\213\321\210\320\265 "
-    "\320\277\320\276 \320\277\320\276\321\202\320\276\320\272\321\203 \320\270 "
-    "\320\275\320\270\321\207\321\202\320\276 \320\262 \321\215\321\202\320\276\320\274 "
-    "\320\277\321\200\320\276\321\205\320\276\320\264\320\265 \320\265\321\221 \320\275\320\265 "
-    "\321\201\320\264\320\262\320\270\320\275\320\265\321\202. \320\235\320\265 "
-    "\320\272\320\260\320\266\320\264\320\260\321\217 \320\270\320\263\321\200\320\260 \320\265\321\221 "
-    "\320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202."
-    "\n\n\320\221\321\203\321\204\320\265\321\200, "
-    "\320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213\320\271 "
-    "\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265\320\274 -- "
-    "\320\264\320\273\321\217 \320\270\320\263\321\200, \320\272\320\276\321\202\320\276\321\200\321\213\320\265 "
-    "\321\201\321\207\320\270\321\202\320\260\321\216\321\202 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216 \320\270 "
-    "\320\275\320\270\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 "
-    "\320\277\320\265\321\200\320\265\320\264\320\260\321\216\321\202 \320\265\321\221 "
-    "\320\264\320\260\320\273\321\214\321\210\320\265. \320\224\320\276\320\263\320\260\320\264\320\272\320\260: "
-    "\320\272\320\260\320\275\320\264\320\270\320\264\320\260\321\202\321\213 "
-    "\320\277\320\276\320\264\320\261\320\270\321\200\320\260\321\216\321\202\321\201\321\217 \320\277\320\276 "
-    "\321\204\320\276\321\200\320\274\320\265, \320\260 "
-    "\320\276\321\202\320\275\320\276\321\210\320\265\320\275\320\270\320\265 \320\272 "
-    "\321\217\320\272\320\276\321\200\321\216 \321\203\320\261\320\270\321\200\320\260\320\265\321\202 "
-    "\320\274\320\260\321\201\321\210\321\202\320\260\320\261. \320\235\321\203\320\266\320\275\320\276 "
-    "\320\276\320\264\320\270\320\275 \321\200\320\260\320\267 "
-    "\320\267\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214 \320\262 "
-    "\321\200\320\260\320\267\320\264\320\265\320\273\320\265 "
-    "\302\253\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273"
-    "\321\214\320\275\320\276\302\273 \320\270 \320\277\320\276\321\202\320\276\320\274 "
-    "\320\277\321\200\320\276\320\262\320\265\321\200\320\270\321\202\321\214.",
-    "\320\241\320\272\320\260\320\275 %.5f  ->  \321\202\320\276\321\207\320\272\320\260 "
-    "\320\261\320\265\320\273\320\276\320\263\320\276 %.2f   (1 \321\202\320\276\321\207\320\272\320\260)",
-    "\320\241\320\272\320\260\320\275 %.5f  ->  \321\202\320\276\321\207\320\272\320\260 "
-    "\320\261\320\265\320\273\320\276\320\263\320\276 %.2f   (\321\202\320\276\321\207\320\265\320\272: %u)",
+    "\320\242\320\276\320\273\321\214\320\272\320\276 paper white -- \320\277\320\276\320\273\320\267\321\203"
+    "\320\275\320\276\320\272 \320\275\320\270\320\266\320\265 \320\270 \320\275\320\270\321\207\320\265\320\263"
+    "\320\276 \320\261\320\276\320\273\321\214\321\210\320\265. \320\222\320\265\321\200\320\275\320\276 \320\264"
+    "\320\273\321\217 \320\270\320\263\321\200\321\213, \321\207\321\214\321\217 \321\215\320\272\321\201\320\277"
+    "\320\276\320\267\320\270\321\206\320\270\321\217 \320\275\320\270\320\272\320\276\320\263\320\264\320\260"
+    " \320\275\320\265 \320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217, \320\270 \320\275\320\265"
+    "\320\262\320\265\321\200\320\275\320\276, \320\272\320\260\320\272 \321\202\320\276\320\273\321\214\320\272"
+    "\320\276 \320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217: \320\276\320\264\320\275\320\260"
+    " \320\272\320\276\320\275\321\201\321\202\320\260\320\275\321\202\320\260 \320\275\320\265 \320\277\320\276"
+    "\320\264\321\205\320\276\320\264\320\270\321\202 \320\270 \320\277\320\265\321\211\320\265\321\200\320\265"
+    ", \320\270 \320\277\320\276\320\273\321\216.\n\n\320\241\320\276\320\261\321\201\321\202\320\262\320\265"
+    "\320\275\320\275\320\260\321\217 \321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270"
+    "\321\217 \320\270\320\263\321\200\321\213 -- \321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217"
+    " \320\270\320\267 \321\202\320\265\320\272\321\201\321\202\321\203\321\200\321\213, \320\272\320\276\321\202"
+    "\320\276\321\200\321\203\321\216 \320\270\320\263\321\200\320\260 \320\277\320\265\321\200\320\265\320\264"
+    "\320\260\321\221\321\202 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\321\203"
+    ". \320\233\321\203\321\207\321\210\320\270\320\271 \320\270\320\267 \320\270\321\201\321\202\320\276\321\207"
+    "\320\275\320\270\320\272\320\276\320\262, \320\277\320\276\321\202\320\276\320\274\321\203 \321\207\321\202"
+    "\320\276 \321\200\320\265\321\210\320\260\320\265\321\202\321\201\321\217 \320\262\321\213\321\210\320\265"
+    " \320\277\320\276 \320\277\320\276\321\202\320\276\320\272\321\203 \320\270 \320\275\320\270\321\207\321\202"
+    "\320\276 \320\262 \321\215\321\202\320\276\320\274 \320\277\321\200\320\276\321\205\320\276\320\264\320\265"
+    " \320\265\321\221 \320\275\320\265 \321\201\320\264\320\262\320\270\320\275\320\265\321\202. \320\235\320\265"
+    " \320\272\320\260\320\266\320\264\320\260\321\217 \320\270\320\263\321\200\320\260 \320\265\321\221 \320\277"
+    "\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202.\n\n\320\221"
+    "\321\203\321\204\320\265\321\200, \320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213\320\271"
+    " \321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265\320\274"
+    " -- \320\264\320\273\321\217 \320\270\320\263\321\200, \320\272\320\276\321\202\320\276\321\200\321\213\320\265"
+    " \321\201\321\207\320\270\321\202\320\260\321\216\321\202 \321\215\320\272\321\201\320\277\320\276\320\267"
+    "\320\270\321\206\320\270\321\216 \320\270 \320\275\320\270\320\272\320\276\320\263\320\264\320\260 \320\275"
+    "\320\265 \320\277\320\265\321\200\320\265\320\264\320\260\321\216\321\202 \320\265\321\221 \320\264\320\260"
+    "\320\273\321\214\321\210\320\265. \320\224\320\276\320\263\320\260\320\264\320\272\320\260: \320\272\320\260"
+    "\320\275\320\264\320\270\320\264\320\260\321\202\321\213 \320\277\320\276\320\264\320\261\320\270\321\200"
+    "\320\260\321\216\321\202\321\201\321\217 \320\277\320\276 \321\204\320\276\321\200\320\274\320\265, \320\260"
+    " \320\276\321\202\320\275\320\276\321\210\320\265\320\275\320\270\320\265 \320\272 \321\217\320\272\320\276"
+    "\321\200\321\216 \321\203\320\261\320\270\321\200\320\260\320\265\321\202 \320\274\320\260\321\201\321\210"
+    "\321\202\320\260\320\261. \320\235\321\203\320\266\320\275\320\276 \320\276\320\264\320\270\320\275 \321\200"
+    "\320\260\320\267 \320\267\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214 \320\262 \321\200"
+    "\320\260\320\267\320\264\320\265\320\273\320\265 \302\253\320\255\320\272\321\201\320\277\320\265\321\200"
+    "\320\270\320\274\320\265\320\275\321\202\320\260\320\273\321\214\320\275\320\276\302\273 \320\270 \320\277"
+    "\320\276\321\202\320\276\320\274 \320\277\321\200\320\276\320\262\320\265\321\200\320\270\321\202\321\214"
+    ".",
+    "\320\241\320\272\320\260\320\275 %.5f  ->  \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273"
+    "\320\276\320\263\320\276 %.2f   (1 \321\202\320\276\321\207\320\272\320\260)",
+    "\320\241\320\272\320\260\320\275 %.5f  ->  \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273"
+    "\320\276\320\263\320\276 %.2f   (\321\202\320\276\321\207\320\265\320\272: %u)",
     "Paper white (\321\202\320\276\321\207\320\272\320\260 %d)",
     "Paper white",
-    "\320\242\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\320\264\320\273\321\217 \320\262\321\213\320\261\321\200\320\260\320\275\320\275\320\276\320\271 "
-    "\321\202\320\276\321\207\320\272\320\270 "
-    "\320\272\320\260\320\273\320\270\320\261\321\200\320\276\320\262\320\272\320\270 \320\270\320\273\320\270 -- "
-    "\320\261\320\265\320\267 \320\262\321\213\320\261\321\200\320\260\320\275\320\275\320\276\320\271 "
-    "\321\201\321\202\321\200\320\276\320\272\320\270 -- "
-    "\320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265, "
-    "\320\272\320\276\321\202\320\276\321\200\320\276\320\265 "
-    "\320\267\320\260\321\205\320\262\320\260\321\202\320\270\321\202 "
-    "\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\265\320\265 "
-    "\320\275\320\260\320\266\320\260\321\202\320\270\320\265 "
-    "\302\253\320\227\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214\302\273."
-    "\n\n\320\235\320\260\321\201\321\202\321\200\320\276\320\271\321\202\320\265, \320\277\320\276\320\272\320\260 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \320\267\320\264\320\265\321\201\321\214 "
-    "\320\275\320\265 \321\201\321\202\320\260\320\275\320\265\321\202 "
-    "\320\262\320\265\321\200\320\275\320\276\320\271, \320\267\320\260\321\202\320\265\320\274 "
-    "\320\227\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214. "
-    "\320\237\320\265\321\200\320\265\320\271\320\264\320\270\321\202\320\265 \320\262 "
-    "\321\201\320\276\320\262\321\201\320\265\320\274 \320\264\321\200\321\203\320\263\320\276\320\265 "
-    "\320\276\321\201\320\262\320\265\321\211\320\265\320\275\320\270\320\265 \320\270 "
-    "\320\277\320\276\320\262\321\202\320\276\321\200\320\270\321\202\320\265: \320\264\320\262\320\265 "
-    "\321\202\320\276\321\207\320\272\320\270 \321\204\320\270\320\272\321\201\320\270\321\200\321\203\321\216\321\202 "
-    "\321\200\320\265\320\260\320\273\321\214\320\275\321\203\321\216 "
-    "\320\267\320\260\320\262\320\270\321\201\320\270\320\274\320\276\321\201\321\202\321\214 "
-    "\320\261\321\203\321\204\320\265\321\200\320\260, \320\270 \321\202\320\276\321\207\320\272\320\260 "
-    "\320\261\320\265\320\273\320\276\320\263\320\276 \320\264\320\265\321\200\320\266\320\270\321\202\321\201\321\217 "
-    "\320\274\320\265\320\266\320\264\321\203 \320\275\320\270\320\274\320\270.",
+    "\320\242\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 \320\264\320\273"
+    "\321\217 \320\262\321\213\320\261\321\200\320\260\320\275\320\275\320\276\320\271 \321\202\320\276\321\207"
+    "\320\272\320\270 \320\272\320\260\320\273\320\270\320\261\321\200\320\276\320\262\320\272\320\270 \320\270"
+    "\320\273\320\270 -- \320\261\320\265\320\267 \320\262\321\213\320\261\321\200\320\260\320\275\320\275\320\276"
+    "\320\271 \321\201\321\202\321\200\320\276\320\272\320\270 -- \320\267\320\275\320\260\321\207\320\265\320\275"
+    "\320\270\320\265, \320\272\320\276\321\202\320\276\321\200\320\276\320\265 \320\267\320\260\321\205\320\262"
+    "\320\260\321\202\320\270\321\202 \321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\265\320\265"
+    " \320\275\320\260\320\266\320\260\321\202\320\270\320\265 \302\253\320\227\320\260\321\217\320\272\320\276"
+    "\321\200\320\270\321\202\321\214\302\273.\n\n\320\235\320\260\321\201\321\202\321\200\320\276\320\271\321\202"
+    "\320\265, \320\277\320\276\320\272\320\260 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260"
+    " \320\267\320\264\320\265\321\201\321\214 \320\275\320\265 \321\201\321\202\320\260\320\275\320\265\321\202"
+    " \320\262\320\265\321\200\320\275\320\276\320\271, \320\267\320\260\321\202\320\265\320\274 \320\227\320\260"
+    "\321\217\320\272\320\276\321\200\320\270\321\202\321\214. \320\237\320\265\321\200\320\265\320\271\320\264"
+    "\320\270\321\202\320\265 \320\262 \321\201\320\276\320\262\321\201\320\265\320\274 \320\264\321\200\321\203"
+    "\320\263\320\276\320\265 \320\276\321\201\320\262\320\265\321\211\320\265\320\275\320\270\320\265 \320\270"
+    " \320\277\320\276\320\262\321\202\320\276\321\200\320\270\321\202\320\265: \320\264\320\262\320\265 \321\202"
+    "\320\276\321\207\320\272\320\270 \321\204\320\270\320\272\321\201\320\270\321\200\321\203\321\216\321\202"
+    " \321\200\320\265\320\260\320\273\321\214\320\275\321\203\321\216 \320\267\320\260\320\262\320\270\321\201"
+    "\320\270\320\274\320\276\321\201\321\202\321\214 \320\261\321\203\321\204\320\265\321\200\320\260, \320\270"
+    " \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 \320\264\320\265"
+    "\321\200\320\266\320\270\321\202\321\201\321\217 \320\274\320\265\320\266\320\264\321\203 \320\275\320\270"
+    "\320\274\320\270.",
     "\320\237\320\276\320\277\321\200\320\260\320\262\320\272\320\260 (x \321\201\320\272\320\260\320\275)",
-    "\320\234\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214 \320\275\320\260 "
-    "\321\202\320\276\321\207\320\272\321\203 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\321\201\320\272\320\260\320\275\320\260 \320\270 "
-    "\321\200\320\265\320\263\321\203\320\273\321\217\321\202\320\276\321\200 \320\264\320\273\321\217 "
-    "\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\270 \320\274\320\265\320\266\320\264\321\203 "
-    "\321\202\320\276\321\207\320\272\320\260\320\274\320\270-\321\217\320\272\320\276\321\200\321\217\320\274\320\270:"
-    " \320\272\321\200\321\203\321\202\320\270\321\202\320\265, \320\277\320\276\320\272\320\260 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \320\275\320\265 "
-    "\321\201\321\202\320\260\320\275\320\265\321\202 \320\262\320\265\321\200\320\275\320\276\320\271 \320\262 "
-    "\321\202\320\265\320\272\321\203\321\211\320\265\320\274 \321\201\320\262\320\265\321\202\320\265, "
-    "\320\267\320\260\321\202\320\265\320\274 \320\275\320\260\320\266\320\274\320\270\321\202\320\265 "
-    "\302\253\320\227\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214\302\273 \320\262 "
-    "\321\200\320\260\320\267\320\264\320\265\320\273\320\265 "
-    "\302\253\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273"
-    "\321\214\320\275\320\276\302\273 -- \321\215\321\202\320\276 "
-    "\320\267\320\260\321\205\320\262\320\260\321\202\320\270\321\202 "
-    "\320\277\320\276\320\277\321\200\320\260\320\262\320\273\320\265\320\275\320\275\320\276\320\265 "
-    "\320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265 \320\272\320\260\320\272 "
-    "\320\275\320\276\320\262\321\203\321\216 \321\202\320\276\321\207\320\272\321\203 \320\270 "
-    "\321\201\320\261\321\200\320\276\321\201\320\270\321\202 \321\215\321\202\320\276 \320\275\320\260 1.",
-    "\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 "
-    "\320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216, \320\270 "
-    "\320\276\320\275\320\260 \321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217.",
-    "\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 \320\275\320\265 "
-    "\320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216. "
-    "\320\237\320\276\320\277\321\200\320\276\320\261\321\203\320\271\321\202\320\265 "
-    "\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265.",
-    "\320\236\320\266\320\270\320\264\320\260\320\275\320\270\320\265 \320\272\320\260\320\264\321\200\320\260...",
-    "\320\255\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200\321\213 "
-    "%.4f  ->  \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 %.2f%s",
-    "  (\321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\276: \320\262 \321\215\321\202\320\276\320\274 "
-    "\320\272\320\260\320\264\321\200\320\265 "
-    "\320\276\321\202\321\201\321\203\321\202\321\201\321\202\320\262\321\203\320\265\321\202)",
-    "\320\247\321\202\320\265\320\275\320\270\320\265 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\320\270...",
-    "\320\237\320\276\320\277\321\200\320\260\320\262\320\272\320\260 (x "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 "
-    "\320\270\320\263\321\200\321\213)",
-    "\320\234\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214 \320\275\320\260 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216, "
-    "\320\272\320\276\321\202\320\276\321\200\321\203\321\216 "
-    "\320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\270\320\273\320\260 "
-    "\320\270\320\263\321\200\320\260. 1.00x \320\261\320\265\321\200\321\221\321\202 \320\265\321\221 "
-    "\321\207\320\270\321\201\320\273\320\276 \320\272\320\260\320\272 \320\265\321\201\321\202\321\214, \320\270 "
-    "\320\267\320\264\320\265\321\201\321\214 \321\215\321\202\320\276 "
-    "\320\277\321\200\320\260\320\262\320\270\320\273\321\214\320\275\321\213\320\271 "
-    "\320\276\321\202\320\262\320\265\321\202.\n\n\320\255\321\202\320\276 \320\275\320\265 "
-    "\320\277\320\276\320\264\320\263\320\276\320\275\320\276\321\207\320\275\321\213\320\271 "
-    "\320\272\320\276\321\215\321\204\321\204\320\270\321\206\320\270\320\265\320\275\321\202. "
-    "\320\225\321\201\320\273\320\270 \320\270\320\263\321\200\320\265 \320\275\321\203\320\266\320\275\320\260 "
-    "\320\277\320\276\320\277\321\200\320\260\320\262\320\272\320\260 \320\264\320\260\320\273\320\265\320\272\320\276 "
-    "\320\276\321\202 1, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\262\321\213\320\263\320\273\321\217\320\264\320\265\321\202\321\214 "
-    "\320\262\320\265\321\200\320\275\320\276, \321\215\321\202\320\276 "
-    "\320\277\321\200\320\270\320\267\320\275\320\260\320\272 \321\202\320\276\320\263\320\276, "
-    "\321\207\321\202\320\276 \321\207\320\270\321\202\320\260\320\265\320\274\320\260\321\217 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\264\320\273\321\217 "
-    "\321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 "
-    "\320\275\320\265\320\262\320\265\321\200\320\275\320\260, \320\260 \320\275\320\265 "
-    "\321\202\320\276\320\263\320\276, \321\207\321\202\320\276 \320\270\320\263\321\200\320\265 "
-    "\320\275\321\203\320\266\320\275\320\260 \320\277\320\276\320\277\321\200\320\260\320\262\320\272\320\260. "
-    "\320\237\321\200\320\270\320\274\320\265\321\200\320\275\320\276 0.8-1.25 -- "
-    "\321\207\320\265\321\201\321\202\320\275\320\260\321\217 "
-    "\320\277\320\276\320\264\321\201\321\202\321\200\320\276\320\271\320\272\320\260; "
-    "\321\202\321\217\320\275\321\203\321\202\321\214\321\201\321\217 \320\272 4 "
-    "\320\267\320\275\320\260\321\207\320\270\321\202, \321\207\321\202\320\276 "
-    "\321\207\321\202\320\276-\321\202\320\276 \320\262\321\213\321\210\320\265 \320\277\320\276 "
-    "\320\277\320\276\321\202\320\276\320\272\321\203 \321\201\320\273\320\276\320\274\320\260\320\275\320\276 "
-    "\320\270 \321\215\321\202\320\276 \320\273\320\270\321\210\321\214 "
-    "\320\277\321\200\321\217\321\207\320\265\321\202 "
-    "\320\277\321\200\320\276\320\261\320\273\320\265\320\274\321\203.\n\n\320\222\320\260\321\210 "
-    "\321\200\321\203\321\207\320\275\320\276\320\271 paper white "
-    "\321\205\321\200\320\260\320\275\320\270\321\202\321\201\321\217 "
-    "\320\276\321\202\320\264\320\265\320\273\321\214\320\275\320\276 \320\270 "
-    "\320\262\320\265\321\200\320\275\321\221\321\202\321\201\321\217 "
-    "\320\275\320\265\321\202\321\200\320\276\320\275\321\203\321\202\321\213\320\274, "
-    "\320\265\321\201\320\273\320\270 "
-    "\320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\270\321\202\321\214 "
-    "\320\270\321\201\321\202\320\276\321\207\320\275\320\270\320\272 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\320\276.",
-    "\320\235\320\260 \321\207\321\202\320\276 \320\264\320\265\320\273\320\270\321\202\321\201\321\217 "
-    "\320\272\320\260\320\264\321\200 \320\264\320\276 \321\202\320\276\320\263\320\276, \320\272\320\260\320\272 "
-    "\320\265\320\263\320\276 \321\203\320\262\320\270\320\264\320\270\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214. \320\224\321\200\321\203\320\263\320\276\320\271 "
-    "\321\202\320\276\321\207\320\272\320\270 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\320\275\320\265\321\202; \321\215\321\202\320\276 \320\262\321\201\321\221. \320\222\321\213\321\210\320\265 1 "
-    "\320\277\320\265\321\200\320\265\320\264\320\260\320\262\320\260\320\265\320\274\320\260\321\217 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 "
-    "\321\202\320\265\320\274\320\275\320\265\320\265, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\321\201\320\262\320\265\321\202\320\260 \321\201\320\270\320\264\321\217\321\202 "
-    "\320\275\320\270\320\266\320\265 \320\275\320\260 \320\272\321\200\320\270\320\262\320\276\320\271.",
+    "\320\234\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214 \320\275\320\260 \321\202\320\276"
+    "\321\207\320\272\321\203 \320\261\320\265\320\273\320\276\320\263\320\276 \321\201\320\272\320\260\320\275"
+    "\320\260 \320\270 \321\200\320\265\320\263\321\203\320\273\321\217\321\202\320\276\321\200 \320\264\320\273"
+    "\321\217 \320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\270 \320\274\320\265\320\266"
+    "\320\264\321\203 \321\202\320\276\321\207\320\272\320\260\320\274\320\270-\321\217\320\272\320\276\321\200"
+    "\321\217\320\274\320\270: \320\272\321\200\321\203\321\202\320\270\321\202\320\265, \320\277\320\276\320\272"
+    "\320\260 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \320\275\320\265 \321\201\321\202"
+    "\320\260\320\275\320\265\321\202 \320\262\320\265\321\200\320\275\320\276\320\271 \320\262 \321\202\320\265"
+    "\320\272\321\203\321\211\320\265\320\274 \321\201\320\262\320\265\321\202\320\265, \320\267\320\260\321\202"
+    "\320\265\320\274 \320\275\320\260\320\266\320\274\320\270\321\202\320\265 \302\253\320\227\320\260\321\217"
+    "\320\272\320\276\321\200\320\270\321\202\321\214\302\273 \320\262 \321\200\320\260\320\267\320\264\320\265"
+    "\320\273\320\265 \302\253\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275"
+    "\321\202\320\260\320\273\321\214\320\275\320\276\302\273 -- \321\215\321\202\320\276 \320\267\320\260\321\205"
+    "\320\262\320\260\321\202\320\270\321\202 \320\277\320\276\320\277\321\200\320\260\320\262\320\273\320\265"
+    "\320\275\320\275\320\276\320\265 \320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265 \320\272"
+    "\320\260\320\272 \320\275\320\276\320\262\321\203\321\216 \321\202\320\276\321\207\320\272\321\203 \320\270"
+    " \321\201\320\261\321\200\320\276\321\201\320\270\321\202 \321\215\321\202\320\276 \320\275\320\260 1.",
+    "\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 \320\277\321\200\320\265\320\264\320\276\321\201"
+    "\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \321\215\320\272\321\201\320\277\320\276\320\267"
+    "\320\270\321\206\320\270\321\216, \320\270 \320\276\320\275\320\260 \321\207\320\270\321\202\320\260\320\265"
+    "\321\202\321\201\321\217.",
+    "\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 \320\275\320\265 \320\277\321\200\320\265\320\264"
+    "\320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \321\215\320\272\321\201\320\277"
+    "\320\276\320\267\320\270\321\206\320\270\321\216. \320\237\320\276\320\277\321\200\320\276\320\261\321\203"
+    "\320\271\321\202\320\265 \321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275"
+    "\320\270\320\265.",
+    "\320\236\320\266\320\270\320\264\320\260\320\275\320\270\320\265 \320\272\320\260\320\264\321\200\320\260"
+    "...",
+    "\320\255\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200"
+    "\321\213 %.4f  ->  \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276"
+    " %.2f%s",
+    "  (\321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\276: \320\262 \321\215\321\202\320\276\320\274"
+    " \320\272\320\260\320\264\321\200\320\265 \320\276\321\202\321\201\321\203\321\202\321\201\321\202\320\262"
+    "\321\203\320\265\321\202)",
+    "\320\247\321\202\320\265\320\275\320\270\320\265 \321\215\320\272\321\201\320\277\320\276\320\267\320\270"
+    "\321\206\320\270\320\270...",
+    "\320\237\320\276\320\277\321\200\320\260\320\262\320\272\320\260 (x \321\215\320\272\321\201\320\277\320\276"
+    "\320\267\320\270\321\206\320\270\321\217 \320\270\320\263\321\200\321\213)",
+    "\320\234\320\275\320\276\320\266\320\270\321\202\320\265\320\273\321\214 \320\275\320\260 \321\215\320\272"
+    "\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216, \320\272\320\276\321\202\320\276\321\200"
+    "\321\203\321\216 \320\277\321\200\320\265\320\264\320\276\321\201\321\202\320\260\320\262\320\270\320\273"
+    "\320\260 \320\270\320\263\321\200\320\260. 1.00x \320\261\320\265\321\200\321\221\321\202 \320\265\321\221"
+    " \321\207\320\270\321\201\320\273\320\276 \320\272\320\260\320\272 \320\265\321\201\321\202\321\214, \320\270"
+    " \320\267\320\264\320\265\321\201\321\214 \321\215\321\202\320\276 \320\277\321\200\320\260\320\262\320\270"
+    "\320\273\321\214\320\275\321\213\320\271 \320\276\321\202\320\262\320\265\321\202.\n\n\320\255\321\202\320\276"
+    " \320\275\320\265 \320\277\320\276\320\264\320\263\320\276\320\275\320\276\321\207\320\275\321\213\320\271"
+    " \320\272\320\276\321\215\321\204\321\204\320\270\321\206\320\270\320\265\320\275\321\202. \320\225\321\201"
+    "\320\273\320\270 \320\270\320\263\321\200\320\265 \320\275\321\203\320\266\320\275\320\260 \320\277\320\276"
+    "\320\277\321\200\320\260\320\262\320\272\320\260 \320\264\320\260\320\273\320\265\320\272\320\276 \320\276"
+    "\321\202 1, \321\207\321\202\320\276\320\261\321\213 \320\262\321\213\320\263\320\273\321\217\320\264\320\265"
+    "\321\202\321\214 \320\262\320\265\321\200\320\275\320\276, \321\215\321\202\320\276 \320\277\321\200\320\270"
+    "\320\267\320\275\320\260\320\272 \321\202\320\276\320\263\320\276, \321\207\321\202\320\276 \321\207\320\270"
+    "\321\202\320\260\320\265\320\274\320\260\321\217 \321\215\320\272\321\201\320\277\320\276\320\267\320\270"
+    "\321\206\320\270\321\217 \320\264\320\273\321\217 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200"
+    "\321\213 \320\275\320\265\320\262\320\265\321\200\320\275\320\260, \320\260 \320\275\320\265 \321\202\320\276"
+    "\320\263\320\276, \321\207\321\202\320\276 \320\270\320\263\321\200\320\265 \320\275\321\203\320\266\320\275"
+    "\320\260 \320\277\320\276\320\277\321\200\320\260\320\262\320\272\320\260. \320\237\321\200\320\270\320\274"
+    "\320\265\321\200\320\275\320\276 0.8-1.25 -- \321\207\320\265\321\201\321\202\320\275\320\260\321\217 \320\277"
+    "\320\276\320\264\321\201\321\202\321\200\320\276\320\271\320\272\320\260; \321\202\321\217\320\275\321\203"
+    "\321\202\321\214\321\201\321\217 \320\272 4 \320\267\320\275\320\260\321\207\320\270\321\202, \321\207\321\202"
+    "\320\276 \321\207\321\202\320\276-\321\202\320\276 \320\262\321\213\321\210\320\265 \320\277\320\276 \320\277"
+    "\320\276\321\202\320\276\320\272\321\203 \321\201\320\273\320\276\320\274\320\260\320\275\320\276 \320\270"
+    " \321\215\321\202\320\276 \320\273\320\270\321\210\321\214 \320\277\321\200\321\217\321\207\320\265\321\202"
+    " \320\277\321\200\320\276\320\261\320\273\320\265\320\274\321\203.\n\n\320\222\320\260\321\210 \321\200\321\203"
+    "\321\207\320\275\320\276\320\271 paper white \321\205\321\200\320\260\320\275\320\270\321\202\321\201\321\217"
+    " \320\276\321\202\320\264\320\265\320\273\321\214\320\275\320\276 \320\270 \320\262\320\265\321\200\320\275"
+    "\321\221\321\202\321\201\321\217 \320\275\320\265\321\202\321\200\320\276\320\275\321\203\321\202\321\213"
+    "\320\274, \320\265\321\201\320\273\320\270 \320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207"
+    "\320\270\321\202\321\214 \320\270\321\201\321\202\320\276\321\207\320\275\320\270\320\272 \320\276\320\261"
+    "\321\200\320\260\321\202\320\275\320\276.",
+    "\320\235\320\260 \321\207\321\202\320\276 \320\264\320\265\320\273\320\270\321\202\321\201\321\217 \320\272"
+    "\320\260\320\264\321\200 \320\264\320\276 \321\202\320\276\320\263\320\276, \320\272\320\260\320\272 \320\265"
+    "\320\263\320\276 \321\203\320\262\320\270\320\264\320\270\321\202 \320\274\320\276\320\264\320\265\320\273"
+    "\321\214. \320\224\321\200\321\203\320\263\320\276\320\271 \321\202\320\276\321\207\320\272\320\270 \320\261"
+    "\320\265\320\273\320\276\320\263\320\276 \320\275\320\265\321\202; \321\215\321\202\320\276 \320\262\321\201"
+    "\321\221. \320\222\321\213\321\210\320\265 1 \320\277\320\265\321\200\320\265\320\264\320\260\320\262\320\260"
+    "\320\265\320\274\320\260\321\217 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \321\202"
+    "\320\265\320\274\320\275\320\265\320\265, \321\202\320\260\320\272 \321\207\321\202\320\276 \321\201\320\262"
+    "\320\265\321\202\320\260 \321\201\320\270\320\264\321\217\321\202 \320\275\320\270\320\266\320\265 \320\275"
+    "\320\260 \320\272\321\200\320\270\320\262\320\276\320\271.",
     "\320\227\320\260\321\211\320\270\321\202\320\260 \321\201\320\262\320\265\321\202\320\276\320\262",
-    "\320\234\320\260\320\272\321\201\320\270\320\274\321\203\320\274, \320\275\320\260 "
-    "\320\272\320\276\321\202\320\276\321\200\321\213\320\271 \320\277\321\200\320\276\321\205\320\276\320\264 "
-    "\320\274\320\276\320\266\320\265\321\202 \321\201\320\264\320\262\320\270\320\275\321\203\321\202\321\214 "
-    "\320\273\321\216\320\261\320\276\320\271 \320\277\320\270\320\272\321\201\320\265\320\273\321\214, "
-    "\320\272\320\260\320\272 \320\272\321\200\320\260\321\202\320\275\320\276\320\265 "
-    "\321\202\320\276\320\263\320\276, \321\207\320\265\320\274 \320\276\320\275 \321\203\320\266\320\265 "
-    "\320\261\321\213\320\273, \320\262 \320\276\320\261\320\265 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\321\213 -- "
-    "\320\277\320\270\320\272\321\201\320\265\320\273\321\214 \320\275\320\265\320\273\321\214\320\267\321\217 "
-    "\320\276\321\201\320\262\320\265\321\202\320\273\320\270\321\202\321\214 "
-    "\321\201\320\270\320\273\321\214\320\275\320\265\320\265 \321\215\321\202\320\276\320\263\320\276 \320\270 "
-    "\320\267\320\260\321\202\320\265\320\274\320\275\320\270\321\202\321\214 "
-    "\321\201\320\270\320\273\321\214\320\275\320\265\320\265 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\320\276\320\271 "
-    "\320\262\320\265\320\273\320\270\321\207\320\270\320\275\321\213. "
-    "\320\230\321\201\321\202\320\276\321\207\320\275\320\270\320\272\320\270 \321\201\320\262\320\265\321\202\320\260 "
-    "-- \321\202\320\260\320\274, \320\263\320\264\320\265 \320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\320\274\320\265\320\275\321\214\321\210\320\265 \320\262\321\201\320\265\320\263\320\276 "
-    "\320\265\321\201\321\202\321\214 \321\207\321\202\320\276 "
-    "\321\201\320\272\320\260\320\267\320\260\321\202\321\214, \320\260 "
-    "\320\277\320\265\321\200\320\265\321\201\321\207\321\221\321\202 \320\265\321\221 "
-    "\320\276\321\202\320\262\320\265\321\202\320\260 \320\262\321\200\320\265\320\264\320\270\321\202 "
-    "\320\261\320\276\320\273\321\214\321\210\320\265 \320\262\321\201\320\265\320\263\320\276; 2x "
-    "\321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 "
-    "\320\264\320\265\321\202\320\260\320\273\320\270 \320\270 \320\275\320\265 \320\264\320\260\321\221\321\202 "
-    "\320\273\320\260\320\274\320\277\320\265 \320\264\320\275\320\265\320\262\320\275\320\276\320\263\320\276 "
-    "\321\201\320\262\320\265\321\202\320\260 "
-    "\320\277\321\200\320\265\320\262\321\200\320\260\321\202\320\270\321\202\321\214\321\201\321\217 \320\262 "
-    "\321\206\320\265\320\277\320\276\321\207\320\272\321\203 \321\206\320\262\320\265\321\202\320\275\321\213\321\205 "
-    "\321\217\321\207\320\265\320\265\320\272. "
-    "\320\237\320\276\320\262\321\213\321\210\320\260\320\271\321\202\320\265, "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \320\265\321\201\320\273\320\270 "
-    "\321\217\321\200\320\272\320\270\320\265 \320\276\320\261\320\273\320\260\321\201\321\202\320\270 "
-    "\320\262\321\213\320\263\320\273\321\217\320\264\321\217\321\202 "
-    "\320\276\320\261\321\200\320\265\320\267\320\260\320\275\320\275\321\213\320\274\320\270.",
-    "\320\241\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\320\270",
-    "\320\237\320\276\320\272\320\260\320\267\321\213\320\262\320\260\321\202\321\214 "
-    "\321\215\320\272\321\201\320\277\320\276\320\275\320\276\320\274\320\265\321\202\321\200 \320\275\320\260 "
-    "\321\215\320\272\321\200\320\260\320\275\320\265",
-    "\320\233\320\260\320\274\320\277\320\276\321\207\320\272\320\260 \320\262 \321\203\320\263\320\273\321\203: "
-    "\320\272\321\200\320\260\321\201\320\275\320\260\321\217 \320\264\320\273\321\217 "
-    "\321\202\320\265\320\274\320\275\320\276\321\202\321\213, "
-    "\320\267\320\265\320\273\321\221\320\275\320\260\321\217 \320\264\320\273\321\217 "
-    "\320\277\320\276\320\273\320\275\320\276\320\263\320\276 \321\201\320\262\320\265\321\202\320\260 \320\270 "
-    "\320\276\321\202\321\202\320\265\320\275\320\272\320\270 \320\274\320\265\320\266\320\264\321\203 "
-    "\320\275\320\270\320\274\320\270, \321\201 "
-    "\320\277\320\276\320\272\320\260\320\267\320\260\320\275\320\270\320\265\320\274 "
-    "\321\200\321\217\320\264\320\276\320\274.\n\n\320\242\320\260\320\272 \320\262\321\213 \321\201 "
-    "\320\276\320\264\320\275\320\276\320\263\320\276 \320\262\320\267\320\263\320\273\321\217\320\264\320\260 "
-    "\320\262\320\270\320\264\320\270\321\202\320\265, \321\207\321\202\320\276 "
-    "\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 "
-    "\320\236\320\242\320\241\320\233\320\225\320\226\320\230\320\222\320\220\320\225\320\242, \320\260 "
-    "\320\275\320\265 \320\277\321\200\320\276\321\201\321\202\320\276 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202. "
-    "\320\222\320\276\320\271\320\264\320\270\321\202\320\265 \320\262 \321\202\320\265\320\275\321\214 -- "
-    "\320\276\320\275\320\260 \320\264\320\276\320\273\320\266\320\275\320\260 \321\203\320\271\321\202\320\270 "
-    "\320\272 \320\272\321\200\320\260\321\201\320\275\320\276\320\274\321\203; "
-    "\320\262\321\213\320\271\320\264\320\270\321\202\320\265 -- \320\264\320\276\320\273\320\266\320\275\320\260 "
-    "\321\201\321\202\320\260\321\202\321\214 \320\267\320\265\320\273\321\221\320\275\320\276\320\271. "
-    "\320\225\321\201\320\273\320\270 \320\264\320\262\320\270\320\266\320\265\321\202\321\201\321\217 "
-    "\320\275\320\265 \321\202\321\203\320\264\320\260, \320\264\320\273\321\217 "
-    "\321\215\321\202\320\276\320\263\320\276 \320\265\321\201\321\202\321\214 "
-    "\302\253\320\247\320\270\321\201\320\273\320\276 \320\270\320\264\321\221\321\202 \320\262 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\321\203\321\216 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\321\203\302\273 "
-    "\320\275\320\270\320\266\320\265.\n\n\320\247\320\270\321\201\321\202\320\276 "
-    "\320\270\320\275\320\264\320\270\320\272\320\260\321\202\320\276\321\200. "
-    "\320\235\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202.",
-    "\320\227\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214 \320\267\320\264\320\265\321\201\321\214",
-    "\320\224\320\276\320\261\320\265\320\271\321\202\320\265\321\201\321\214 "
-    "\320\262\320\265\321\200\320\275\320\276\320\271 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\270 "
-    "\320\270 \320\275\320\260\320\266\320\274\320\270\321\202\320\265 \321\215\321\202\320\276 -- "
-    "\321\202\320\265\320\272\321\203\321\211\320\270\320\271 \320\262\320\270\320\264 "
-    "\320\267\320\260\321\205\320\262\320\260\321\202\320\270\321\202\321\201\321\217 \320\272\320\260\320\272 "
-    "\321\202\320\276\321\207\320\272\320\260. \320\224\320\273\321\217 "
-    "\320\277\320\265\321\200\320\262\320\276\320\271 \321\202\320\276\321\207\320\272\320\270 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\321\203\320\271\321\202\320\265 "
-    "\320\277\320\276\320\273\320\267\321\203\320\275\320\276\320\272 Paper white \320\262\321\213\321\210\320\265; "
-    "\320\264\320\273\321\217 \320\272\320\260\320\266\320\264\320\276\320\271 "
-    "\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\265\320\271 "
-    "\320\277\320\265\321\200\320\265\320\271\320\264\320\270\321\202\320\265 \320\262 "
-    "\320\264\321\200\321\203\320\263\320\276\320\271 \321\201\320\262\320\265\321\202 \320\270 "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\321\203\320\271\321\202\320\265 "
-    "\320\237\320\276\320\277\321\200\320\260\320\262\320\272\321\203, "
-    "\320\272\320\276\321\202\320\276\321\200\321\203\321\216 \321\215\321\202\320\276 "
-    "\320\267\320\260\321\202\320\265\320\274 "
-    "\320\262\320\277\320\265\321\207\321\221\321\202.\n\n\320\236\320\264\320\275\320\260 "
-    "\321\202\320\276\321\207\320\272\320\260 \320\272\320\260\320\273\320\270\320\261\321\200\321\203\320\265\321\202 "
-    "\320\276\321\202\320\275\320\276\321\210\320\265\320\275\320\270\320\265, \320\270 "
-    "\321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\320\264\320\260\320\273\321\214\321\210\320\265 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 "
-    "\320\267\320\260 \321\201\320\272\320\260\320\275\320\276\320\274. "
-    "\320\237\320\265\321\200\320\265\320\271\320\264\320\270\321\202\320\265 \320\262 "
-    "\321\201\320\276\320\262\321\201\320\265\320\274 \320\264\321\200\321\203\320\263\320\276\320\265 "
-    "\320\276\321\201\320\262\320\265\321\211\320\265\320\275\320\270\320\265 \320\270 "
-    "\320\275\320\260\320\266\320\274\320\270\321\202\320\265 \321\201\320\275\320\276\320\262\320\260: "
-    "\320\262\321\202\320\276\321\200\320\260\321\217 \321\202\320\276\321\207\320\272\320\260 "
-    "\321\204\320\270\320\272\321\201\320\270\321\200\321\203\320\265\321\202 "
-    "\321\200\320\265\320\260\320\273\321\214\320\275\321\203\321\216 \320\272\321\200\320\270\320\262\321\203\321\216 "
-    "\320\261\321\203\321\204\320\265\321\200\320\260, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\320\262\321\201\321\221 \320\274\320\265\320\266\320\264\321\203 \320\275\320\270\320\274\320\270 "
-    "\320\262\320\265\321\200\320\275\320\276, \320\260 \320\275\320\265 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\320\276\320\272\321\200\320\265\321\201\321\202\320\275\320\276\321\201\321\202\321\214 "
-    "\320\276\320\264\320\275\320\276\320\263\320\276 \321\217\320\272\320\276\321\200\321\217. \320\224\320\276 "
-    "\320\262\320\276\321\201\321\214\320\274\320\270.\n\n\320\242\320\260\320\261\320\273\320\270\321\206\320\260 "
-    "\320\277\321\200\320\270\320\262\321\217\320\267\320\260\320\275\320\260 \320\272 "
-    "\320\270\320\263\321\200\320\265 \320\270 \320\265\321\221 \320\274\320\276\320\266\320\275\320\276 "
-    "\320\264\320\265\320\273\320\270\321\202\321\214\321\201\321\217 -- \320\276\320\264\320\270\320\275 "
-    "\321\207\320\265\320\273\320\276\320\262\320\265\320\272 "
-    "\320\272\320\260\320\273\320\270\320\261\321\200\321\203\320\265\321\202 \320\270\320\263\321\200\321\203, "
-    "\320\270 \321\207\320\270\321\201\320\273\320\260 \321\202\320\265 \320\266\320\265 \320\264\320\273\321\217 "
-    "\320\262\321\201\320\265\321\205, \320\272\321\202\320\276 "
-    "\320\262\320\276\320\267\321\214\320\274\321\221\321\202 "
-    "\320\277\321\200\320\276\321\204\320\270\320\273\321\214.",
-    "(\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\320\275\320\260\320\261\320\273\321\216\320\264\320\260\320\265\321\202 -- "
-    "\321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\320\262\321\213\321\210\320\265 \320\261\320\265\321\200\321\221\321\202\321\201\321\217 \320\270\320\267 "
-    "\320\264\321\200\321\203\320\263\320\276\320\263\320\276 \320\274\320\265\321\201\321\202\320\260)",
+    "\320\234\320\260\320\272\321\201\320\270\320\274\321\203\320\274, \320\275\320\260 \320\272\320\276\321\202"
+    "\320\276\321\200\321\213\320\271 \320\277\321\200\320\276\321\205\320\276\320\264 \320\274\320\276\320\266"
+    "\320\265\321\202 \321\201\320\264\320\262\320\270\320\275\321\203\321\202\321\214 \320\273\321\216\320\261"
+    "\320\276\320\271 \320\277\320\270\320\272\321\201\320\265\320\273\321\214, \320\272\320\260\320\272 \320\272"
+    "\321\200\320\260\321\202\320\275\320\276\320\265 \321\202\320\276\320\263\320\276, \321\207\320\265\320\274"
+    " \320\276\320\275 \321\203\320\266\320\265 \320\261\321\213\320\273, \320\262 \320\276\320\261\320\265 \321\201"
+    "\321\202\320\276\321\200\320\276\320\275\321\213 -- \320\277\320\270\320\272\321\201\320\265\320\273\321\214"
+    " \320\275\320\265\320\273\321\214\320\267\321\217 \320\276\321\201\320\262\320\265\321\202\320\273\320\270"
+    "\321\202\321\214 \321\201\320\270\320\273\321\214\320\275\320\265\320\265 \321\215\321\202\320\276\320\263"
+    "\320\276 \320\270 \320\267\320\260\321\202\320\265\320\274\320\275\320\270\321\202\321\214 \321\201\320\270"
+    "\320\273\321\214\320\275\320\265\320\265 \320\276\320\261\321\200\320\260\321\202\320\275\320\276\320\271"
+    " \320\262\320\265\320\273\320\270\321\207\320\270\320\275\321\213. \320\230\321\201\321\202\320\276\321\207"
+    "\320\275\320\270\320\272\320\270 \321\201\320\262\320\265\321\202\320\260 -- \321\202\320\260\320\274, \320\263"
+    "\320\264\320\265 \320\274\320\276\320\264\320\265\320\273\320\270 \320\274\320\265\320\275\321\214\321\210"
+    "\320\265 \320\262\321\201\320\265\320\263\320\276 \320\265\321\201\321\202\321\214 \321\207\321\202\320\276"
+    " \321\201\320\272\320\260\320\267\320\260\321\202\321\214, \320\260 \320\277\320\265\321\200\320\265\321\201"
+    "\321\207\321\221\321\202 \320\265\321\221 \320\276\321\202\320\262\320\265\321\202\320\260 \320\262\321\200"
+    "\320\265\320\264\320\270\321\202 \320\261\320\276\320\273\321\214\321\210\320\265 \320\262\321\201\320\265"
+    "\320\263\320\276; 2x \321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 \320\264\320\265"
+    "\321\202\320\260\320\273\320\270 \320\270 \320\275\320\265 \320\264\320\260\321\221\321\202 \320\273\320\260"
+    "\320\274\320\277\320\265 \320\264\320\275\320\265\320\262\320\275\320\276\320\263\320\276 \321\201\320\262"
+    "\320\265\321\202\320\260 \320\277\321\200\320\265\320\262\321\200\320\260\321\202\320\270\321\202\321\214"
+    "\321\201\321\217 \320\262 \321\206\320\265\320\277\320\276\321\207\320\272\321\203 \321\206\320\262\320\265"
+    "\321\202\320\275\321\213\321\205 \321\217\321\207\320\265\320\265\320\272. \320\237\320\276\320\262\321\213"
+    "\321\210\320\260\320\271\321\202\320\265, \321\202\320\276\320\273\321\214\320\272\320\276 \320\265\321\201"
+    "\320\273\320\270 \321\217\321\200\320\272\320\270\320\265 \320\276\320\261\320\273\320\260\321\201\321\202"
+    "\320\270 \320\262\321\213\320\263\320\273\321\217\320\264\321\217\321\202 \320\276\320\261\321\200\320\265"
+    "\320\267\320\260\320\275\320\275\321\213\320\274\320\270.",
+    "\320\241\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 \321\215"
+    "\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\320\270",
+    "\320\237\320\276\320\272\320\260\320\267\321\213\320\262\320\260\321\202\321\214 \321\215\320\272\321\201"
+    "\320\277\320\276\320\275\320\276\320\274\320\265\321\202\321\200 \320\275\320\260 \321\215\320\272\321\200"
+    "\320\260\320\275\320\265",
+    "\320\233\320\260\320\274\320\277\320\276\321\207\320\272\320\260 \320\262 \321\203\320\263\320\273\321\203"
+    ": \320\272\321\200\320\260\321\201\320\275\320\260\321\217 \320\264\320\273\321\217 \321\202\320\265\320\274"
+    "\320\275\320\276\321\202\321\213, \320\267\320\265\320\273\321\221\320\275\320\260\321\217 \320\264\320\273"
+    "\321\217 \320\277\320\276\320\273\320\275\320\276\320\263\320\276 \321\201\320\262\320\265\321\202\320\260"
+    " \320\270 \320\276\321\202\321\202\320\265\320\275\320\272\320\270 \320\274\320\265\320\266\320\264\321\203"
+    " \320\275\320\270\320\274\320\270, \321\201 \320\277\320\276\320\272\320\260\320\267\320\260\320\275\320\270"
+    "\320\265\320\274 \321\200\321\217\320\264\320\276\320\274.\n\n\320\242\320\260\320\272 \320\262\321\213 "
+    "\321\201 \320\276\320\264\320\275\320\276\320\263\320\276 \320\262\320\267\320\263\320\273\321\217\320\264"
+    "\320\260 \320\262\320\270\320\264\320\270\321\202\320\265, \321\207\321\202\320\276 \321\201\320\272\320\260"
+    "\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 \320\236\320\242\320\241\320\233"
+    "\320\225\320\226\320\230\320\222\320\220\320\225\320\242, \320\260 \320\275\320\265 \320\277\321\200\320\276"
+    "\321\201\321\202\320\276 \321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202. \320\222\320\276"
+    "\320\271\320\264\320\270\321\202\320\265 \320\262 \321\202\320\265\320\275\321\214 -- \320\276\320\275\320\260"
+    " \320\264\320\276\320\273\320\266\320\275\320\260 \321\203\320\271\321\202\320\270 \320\272 \320\272\321\200"
+    "\320\260\321\201\320\275\320\276\320\274\321\203; \320\262\321\213\320\271\320\264\320\270\321\202\320\265"
+    " -- \320\264\320\276\320\273\320\266\320\275\320\260 \321\201\321\202\320\260\321\202\321\214 \320\267\320\265"
+    "\320\273\321\221\320\275\320\276\320\271. \320\225\321\201\320\273\320\270 \320\264\320\262\320\270\320\266"
+    "\320\265\321\202\321\201\321\217 \320\275\320\265 \321\202\321\203\320\264\320\260, \320\264\320\273\321\217"
+    " \321\215\321\202\320\276\320\263\320\276 \320\265\321\201\321\202\321\214 \302\253\320\247\320\270\321\201"
+    "\320\273\320\276 \320\270\320\264\321\221\321\202 \320\262 \320\276\320\261\321\200\320\260\321\202\320\275"
+    "\321\203\321\216 \321\201\321\202\320\276\321\200\320\276\320\275\321\203\302\273 \320\275\320\270\320\266"
+    "\320\265.\n\n\320\247\320\270\321\201\321\202\320\276 \320\270\320\275\320\264\320\270\320\272\320\260\321\202"
+    "\320\276\321\200. \320\235\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 \320\274\320\265\320\275"
+    "\321\217\320\265\321\202.",
+    "\320\227\320\260\321\217\320\272\320\276\321\200\320\270\321\202\321\214 \320\267\320\264\320\265\321\201"
+    "\321\214",
+    "\320\224\320\276\320\261\320\265\320\271\321\202\320\265\321\201\321\214 \320\262\320\265\321\200\320\275"
+    "\320\276\320\271 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\270 \320\270 \320\275\320\260"
+    "\320\266\320\274\320\270\321\202\320\265 \321\215\321\202\320\276 -- \321\202\320\265\320\272\321\203\321\211"
+    "\320\270\320\271 \320\262\320\270\320\264 \320\267\320\260\321\205\320\262\320\260\321\202\320\270\321\202"
+    "\321\201\321\217 \320\272\320\260\320\272 \321\202\320\276\321\207\320\272\320\260. \320\224\320\273\321\217"
+    " \320\277\320\265\321\200\320\262\320\276\320\271 \321\202\320\276\321\207\320\272\320\270 \320\270\321\201"
+    "\320\277\320\276\320\273\321\214\320\267\321\203\320\271\321\202\320\265 \320\277\320\276\320\273\320\267"
+    "\321\203\320\275\320\276\320\272 Paper white \320\262\321\213\321\210\320\265; \320\264\320\273\321\217 "
+    "\320\272\320\260\320\266\320\264\320\276\320\271 \321\201\320\273\320\265\320\264\321\203\321\216\321\211"
+    "\320\265\320\271 \320\277\320\265\321\200\320\265\320\271\320\264\320\270\321\202\320\265 \320\262 \320\264"
+    "\321\200\321\203\320\263\320\276\320\271 \321\201\320\262\320\265\321\202 \320\270 \320\270\321\201\320\277"
+    "\320\276\320\273\321\214\320\267\321\203\320\271\321\202\320\265 \320\237\320\276\320\277\321\200\320\260"
+    "\320\262\320\272\321\203, \320\272\320\276\321\202\320\276\321\200\321\203\321\216 \321\215\321\202\320\276"
+    " \320\267\320\260\321\202\320\265\320\274 \320\262\320\277\320\265\321\207\321\221\321\202.\n\n\320\236\320\264"
+    "\320\275\320\260 \321\202\320\276\321\207\320\272\320\260 \320\272\320\260\320\273\320\270\320\261\321\200"
+    "\321\203\320\265\321\202 \320\276\321\202\320\275\320\276\321\210\320\265\320\275\320\270\320\265, \320\270"
+    " \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 \320\264\320\260"
+    "\320\273\321\214\321\210\320\265 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 \320\267\320\260"
+    " \321\201\320\272\320\260\320\275\320\276\320\274. \320\237\320\265\321\200\320\265\320\271\320\264\320\270"
+    "\321\202\320\265 \320\262 \321\201\320\276\320\262\321\201\320\265\320\274 \320\264\321\200\321\203\320\263"
+    "\320\276\320\265 \320\276\321\201\320\262\320\265\321\211\320\265\320\275\320\270\320\265 \320\270 \320\275"
+    "\320\260\320\266\320\274\320\270\321\202\320\265 \321\201\320\275\320\276\320\262\320\260: \320\262\321\202"
+    "\320\276\321\200\320\260\321\217 \321\202\320\276\321\207\320\272\320\260 \321\204\320\270\320\272\321\201"
+    "\320\270\321\200\321\203\320\265\321\202 \321\200\320\265\320\260\320\273\321\214\320\275\321\203\321\216"
+    " \320\272\321\200\320\270\320\262\321\203\321\216 \320\261\321\203\321\204\320\265\321\200\320\260, \321\202"
+    "\320\260\320\272 \321\207\321\202\320\276 \320\262\321\201\321\221 \320\274\320\265\320\266\320\264\321\203"
+    " \320\275\320\270\320\274\320\270 \320\262\320\265\321\200\320\275\320\276, \320\260 \320\275\320\265 \321\202"
+    "\320\276\320\273\321\214\320\272\320\276 \320\276\320\272\321\200\320\265\321\201\321\202\320\275\320\276"
+    "\321\201\321\202\321\214 \320\276\320\264\320\275\320\276\320\263\320\276 \321\217\320\272\320\276\321\200"
+    "\321\217. \320\224\320\276 \320\262\320\276\321\201\321\214\320\274\320\270.\n\n\320\242\320\260\320\261"
+    "\320\273\320\270\321\206\320\260 \320\277\321\200\320\270\320\262\321\217\320\267\320\260\320\275\320\260"
+    " \320\272 \320\270\320\263\321\200\320\265 \320\270 \320\265\321\221 \320\274\320\276\320\266\320\275\320\276"
+    " \320\264\320\265\320\273\320\270\321\202\321\214\321\201\321\217 -- \320\276\320\264\320\270\320\275 \321\207"
+    "\320\265\320\273\320\276\320\262\320\265\320\272 \320\272\320\260\320\273\320\270\320\261\321\200\321\203"
+    "\320\265\321\202 \320\270\320\263\321\200\321\203, \320\270 \321\207\320\270\321\201\320\273\320\260 \321\202"
+    "\320\265 \320\266\320\265 \320\264\320\273\321\217 \320\262\321\201\320\265\321\205, \320\272\321\202\320\276"
+    " \320\262\320\276\320\267\321\214\320\274\321\221\321\202 \320\277\321\200\320\276\321\204\320\270\320\273"
+    "\321\214.",
+    "(\321\201\320\272\320\260\320\275\320\270\321\200\320\276\320\262\320\260\320\275\320\270\320\265 \321\202"
+    "\320\276\320\273\321\214\320\272\320\276 \320\275\320\260\320\261\320\273\321\216\320\264\320\260\320\265"
+    "\321\202 -- \321\202\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 \320\262"
+    "\321\213\321\210\320\265 \320\261\320\265\321\200\321\221\321\202\321\201\321\217 \320\270\320\267 \320\264"
+    "\321\200\321\203\320\263\320\276\320\263\320\276 \320\274\320\265\321\201\321\202\320\260)",
     "%s \321\201\320\272\320\260\320\275 %.4f  ->  \320\261\320\265\320\273\321\213\320\271 %.2f%s",
     "   [\320\277\321\200\320\260\320\262\320\272\320\260]",
-    "\320\251\321\221\320\273\320\272\320\275\320\270\321\202\320\265 \320\277\320\276 "
-    "\321\201\321\202\321\200\320\276\320\272\320\265, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\277\321\200\320\260\320\262\320\270\321\202\321\214 \320\265\321\221 "
-    "\320\277\320\276\320\273\320\267\321\203\320\275\320\272\320\276\320\274 \320\262\321\213\321\210\320\265; "
-    "\321\211\321\221\320\273\320\272\320\275\320\270\321\202\320\265 \321\201\320\275\320\276\320\262\320\260, "
-    "\321\207\321\202\320\276\320\261\321\213 \321\203\320\277\321\200\320\260\320\262\320\273\321\217\321\202\321\214 "
-    "\320\266\320\270\320\262\320\276\320\271 \321\202\320\276\321\207\320\272\320\276\320\271. > -- "
-    "\321\202\320\276\321\207\320\272\320\260, "
-    "\320\270\321\201\320\277\320\276\320\273\321\214\320\267\321\203\320\265\320\274\320\260\321\217 "
-    "\321\201\320\265\320\271\321\207\320\260\321\201.",
-    "\320\247\320\270\321\201\320\273\320\276 \320\270\320\264\321\221\321\202 \320\262 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\321\203\321\216 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\321\203",
-    "\320\237\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\270\321\202\320\265, "
-    "\320\265\321\201\320\273\320\270 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 "
-    "\321\203\321\205\321\203\320\264\321\210\320\260\320\265\321\202\321\201\321\217 \320\262 \321\202\321\203 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\321\203, \320\263\320\264\320\265 "
-    "\320\264\320\276\320\273\320\266\320\275\320\260 "
-    "\321\203\320\273\321\203\321\207\321\210\320\260\321\202\321\214\321\201\321\217. "
-    "\320\221\320\276\320\273\321\214\321\210\320\270\320\275\321\201\321\202\320\262\320\276 "
-    "\320\264\320\262\320\270\320\266\320\272\320\276\320\262 \321\205\321\200\320\260\320\275\321\217\321\202 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\216, "
-    "\320\272\320\276\321\202\320\276\321\200\320\260\321\217 \320\277\320\260\320\264\320\260\320\265\321\202 "
-    "\320\277\320\276 \320\274\320\265\321\200\320\265 \321\202\320\276\320\263\320\276, \320\272\320\260\320\272 "
-    "\321\201\321\206\320\265\320\275\320\260 \321\201\320\262\320\265\321\202\320\273\320\265\320\265\321\202; "
-    "\320\275\320\265\320\272\320\276\321\202\320\276\321\200\321\213\320\265 "
-    "\321\205\321\200\320\260\320\275\321\217\321\202 \320\276\320\261\321\200\320\260\321\202\320\275\321\203\321\216 "
-    "\320\262\320\265\320\273\320\270\321\207\320\270\320\275\321\203, \320\260 "
-    "\320\261\321\203\321\204\320\265\321\200, "
-    "\320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213\320\271 \320\277\320\276 "
-    "\321\204\320\276\321\200\320\274\320\265, \320\275\320\265 "
-    "\320\263\320\276\320\262\320\276\321\200\320\270\321\202, \320\272\320\260\320\272\321\203\321\216. "
-    "\320\224\320\276\320\261\320\260\320\262\321\214\321\202\320\265 \320\262\321\202\320\276\321\200\321\203\321\216 "
-    "\321\202\320\276\321\207\320\272\321\203-\321\217\320\272\320\276\321\200\321\214 \320\262 "
-    "\320\264\321\200\321\203\320\263\320\276\320\274 \321\201\320\262\320\265\321\202\320\265 -- \320\270 "
-    "\321\215\321\202\320\276 \321\200\320\265\321\210\320\270\321\202\321\201\321\217 \320\267\320\260 "
-    "\320\262\320\260\321\201, \320\260 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200 "
-    "\320\270\321\201\321\207\320\265\320\267\320\275\320\265\321\202.",
+    "\320\251\321\221\320\273\320\272\320\275\320\270\321\202\320\265 \320\277\320\276 \321\201\321\202\321\200"
+    "\320\276\320\272\320\265, \321\207\321\202\320\276\320\261\321\213 \320\277\321\200\320\260\320\262\320\270"
+    "\321\202\321\214 \320\265\321\221 \320\277\320\276\320\273\320\267\321\203\320\275\320\272\320\276\320\274"
+    " \320\262\321\213\321\210\320\265; \321\211\321\221\320\273\320\272\320\275\320\270\321\202\320\265 \321\201"
+    "\320\275\320\276\320\262\320\260, \321\207\321\202\320\276\320\261\321\213 \321\203\320\277\321\200\320\260"
+    "\320\262\320\273\321\217\321\202\321\214 \320\266\320\270\320\262\320\276\320\271 \321\202\320\276\321\207"
+    "\320\272\320\276\320\271. > -- \321\202\320\276\321\207\320\272\320\260, \320\270\321\201\320\277\320\276"
+    "\320\273\321\214\320\267\321\203\320\265\320\274\320\260\321\217 \321\201\320\265\320\271\321\207\320\260"
+    "\321\201.",
+    "\320\247\320\270\321\201\320\273\320\276 \320\270\320\264\321\221\321\202 \320\262 \320\276\320\261\321\200"
+    "\320\260\321\202\320\275\321\203\321\216 \321\201\321\202\320\276\321\200\320\276\320\275\321\203",
+    "\320\237\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\270\321\202\320\265, \320\265\321\201"
+    "\320\273\320\270 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \321\203\321\205\321\203"
+    "\320\264\321\210\320\260\320\265\321\202\321\201\321\217 \320\262 \321\202\321\203 \321\201\321\202\320\276"
+    "\321\200\320\276\320\275\321\203, \320\263\320\264\320\265 \320\264\320\276\320\273\320\266\320\275\320\260"
+    " \321\203\320\273\321\203\321\207\321\210\320\260\321\202\321\214\321\201\321\217. \320\221\320\276\320\273"
+    "\321\214\321\210\320\270\320\275\321\201\321\202\320\262\320\276 \320\264\320\262\320\270\320\266\320\272"
+    "\320\276\320\262 \321\205\321\200\320\260\320\275\321\217\321\202 \321\215\320\272\321\201\320\277\320\276"
+    "\320\267\320\270\321\206\320\270\321\216, \320\272\320\276\321\202\320\276\321\200\320\260\321\217 \320\277"
+    "\320\260\320\264\320\260\320\265\321\202 \320\277\320\276 \320\274\320\265\321\200\320\265 \321\202\320\276"
+    "\320\263\320\276, \320\272\320\260\320\272 \321\201\321\206\320\265\320\275\320\260 \321\201\320\262\320\265"
+    "\321\202\320\273\320\265\320\265\321\202; \320\275\320\265\320\272\320\276\321\202\320\276\321\200\321\213"
+    "\320\265 \321\205\321\200\320\260\320\275\321\217\321\202 \320\276\320\261\321\200\320\260\321\202\320\275"
+    "\321\203\321\216 \320\262\320\265\320\273\320\270\321\207\320\270\320\275\321\203, \320\260 \320\261\321\203"
+    "\321\204\320\265\321\200, \320\275\320\260\320\271\320\264\320\265\320\275\320\275\321\213\320\271 \320\277"
+    "\320\276 \321\204\320\276\321\200\320\274\320\265, \320\275\320\265 \320\263\320\276\320\262\320\276\321\200"
+    "\320\270\321\202, \320\272\320\260\320\272\321\203\321\216. \320\224\320\276\320\261\320\260\320\262\321\214"
+    "\321\202\320\265 \320\262\321\202\320\276\321\200\321\203\321\216 \321\202\320\276\321\207\320\272\321\203"
+    "-\321\217\320\272\320\276\321\200\321\214 \320\262 \320\264\321\200\321\203\320\263\320\276\320\274 \321\201"
+    "\320\262\320\265\321\202\320\265 -- \320\270 \321\215\321\202\320\276 \321\200\320\265\321\210\320\270\321\202"
+    "\321\201\321\217 \320\267\320\260 \320\262\320\260\321\201, \320\260 \320\277\320\260\321\200\320\260\320\274"
+    "\320\265\321\202\321\200 \320\270\321\201\321\207\320\265\320\267\320\275\320\265\321\202.",
     "\320\232\320\260\320\275\320\264\320\270\320\264\320\260\321\202\321\213",
-    "\320\277\320\276\320\272\320\260 \320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 "
-    "\320\277\320\276\320\264\320\276\321\210\320\273\320\276.",
-    "%zu. %s -- \320\265\321\211\321\221 \320\275\320\265 "
-    "\320\277\321\200\320\276\321\207\320\270\321\202\320\260\320\275",
+    "\320\277\320\276\320\272\320\260 \320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 \320\277"
+    "\320\276\320\264\320\276\321\210\320\273\320\276.",
+    "%zu. %s -- \320\265\321\211\321\221 \320\275\320\265 \320\277\321\200\320\276\321\207\320\270\321\202\320\260"
+    "\320\275",
     "%zu. %s = %.5f  (\320\262\320\270\320\264\320\265\320\275\320\276 %.5f..%.5f) %s",
     "\320\224\320\222\320\230\320\226\320\225\320\242\320\241\320\257",
-    "\320\277\320\276\320\272\320\260 \320\275\320\265\320\277\320\276\320\264\320\262\320\270\320\266\320\275\320\276",
-    "\320\237\321\200\320\276\320\271\320\264\320\270\321\202\320\265 \320\270\320\267 "
-    "\321\202\320\265\320\275\320\270 \320\275\320\260 \320\264\320\275\320\265\320\262\320\275\320\276\320\271 "
-    "\321\201\320\262\320\265\321\202. \320\235\320\260\321\201\321\202\320\276\321\217\321\211\320\260\321\217 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217 "
-    "\320\264\320\262\320\270\320\266\320\265\321\202\321\201\321\217. \320\242\320\260, \321\207\321\202\320\276 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \321\200\320\260\321\201\321\202\321\221\321\202, -- "
-    "\321\201\321\207\321\221\321\202\321\207\320\270\320\272, \320\260 \320\275\320\265 "
-    "\321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217.",
-    "\320\237\320\276\320\264\321\201\320\272\320\260\320\267\320\272\320\270 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270",
+    "\320\277\320\276\320\272\320\260 \320\275\320\265\320\277\320\276\320\264\320\262\320\270\320\266\320\275"
+    "\320\276",
+    "\320\237\321\200\320\276\320\271\320\264\320\270\321\202\320\265 \320\270\320\267 \321\202\320\265\320\275"
+    "\320\270 \320\275\320\260 \320\264\320\275\320\265\320\262\320\275\320\276\320\271 \321\201\320\262\320\265"
+    "\321\202. \320\235\320\260\321\201\321\202\320\276\321\217\321\211\320\260\321\217 \321\215\320\272\321\201"
+    "\320\277\320\276\320\267\320\270\321\206\320\270\321\217 \320\264\320\262\320\270\320\266\320\265\321\202"
+    "\321\201\321\217. \320\242\320\260, \321\207\321\202\320\276 \321\202\320\276\320\273\321\214\320\272\320\276"
+    " \321\200\320\260\321\201\321\202\321\221\321\202, -- \321\201\321\207\321\221\321\202\321\207\320\270\320\272"
+    ", \320\260 \320\275\320\265 \321\215\320\272\321\201\320\277\320\276\320\267\320\270\321\206\320\270\321\217"
+    ".",
+    "\320\237\320\276\320\264\321\201\320\272\320\260\320\267\320\272\320\270 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270",
     "\320\232\320\260\320\272 \320\262 \320\270\320\263\321\200\320\265",
-    "\320\237\321\200\320\270\320\275\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276 "
-    "\320\276\320\261\321\213\321\207\320\275\320\260\321\217",
-    "\320\237\321\200\320\270\320\275\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276 "
-    "\320\276\320\261\321\200\320\260\321\202\320\275\320\260\321\217",
+    "\320\237\321\200\320\270\320\275\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276"
+    " \320\276\320\261\321\213\321\207\320\275\320\260\321\217",
+    "\320\237\321\200\320\270\320\275\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276"
+    " \320\276\320\261\321\200\320\260\321\202\320\275\320\260\321\217",
     "\320\223\320\273\321\203\320\261\320\270\320\275\320\260",
-    "\320\222 \320\272\320\260\320\272\321\203\321\216 \321\201\321\202\320\276\321\200\320\276\320\275\321\203, "
-    "\320\272\320\260\320\272 \321\201\320\276\320\276\320\261\321\211\320\260\320\265\321\202\321\201\321\217 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270, \320\270\320\264\321\221\321\202 "
-    "\320\263\320\273\321\203\320\261\320\270\320\275\320\260. \320\230\320\263\321\200\320\260 "
-    "\320\267\320\260\321\217\320\262\320\273\321\217\320\265\321\202 \321\215\321\202\320\276 \320\262\320\276 "
-    "\321\204\320\273\320\260\320\263\320\260\321\205, \321\201 "
-    "\320\272\320\276\321\202\320\276\321\200\321\213\320\274\320\270 "
-    "\321\201\320\276\320\267\320\264\320\260\320\273\320\260 \321\201\320\262\320\276\320\271 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\321\213\320\271 DLSS feature, \320\270 "
-    "\321\201\320\273\320\265\320\264\320\276\320\262\320\260\321\202\321\214 \320\270\320\274 "
-    "\320\262\320\265\321\200\320\275\320\276 \320\277\320\276\321\207\321\202\320\270 "
-    "\320\262\321\201\320\265\320\263\320\264\320\260 -- \320\275\320\276 \320\270\320\263\321\200\321\203, "
-    "\320\272\320\276\321\202\320\276\321\200\320\260\321\217 "
-    "\320\267\320\260\321\217\320\262\320\273\321\217\320\265\321\202 "
-    "\320\275\320\265\320\262\320\265\321\200\320\275\320\276, \320\275\321\203\320\266\320\275\320\276 "
-    "\320\277\321\200\320\260\320\262\320\270\321\202\321\214 "
-    "\320\262\321\200\321\203\321\207\320\275\321\203\321\216.\n\n\320\225\321\201\320\273\320\270 "
-    "\320\277\321\200\320\276\321\205\320\276\320\264 \320\262\321\213\320\263\320\273\321\217\320\264\320\270\321\202 "
-    "\321\205\321\203\320\266\320\265 \320\262\321\201\320\265\320\263\320\276 \321\202\320\260\320\274, "
-    "\320\263\320\264\320\265 \320\263\320\265\320\276\320\274\320\265\321\202\321\200\320\270\321\217 "
-    "\320\262\321\201\321\202\321\200\320\265\321\207\320\260\320\265\321\202\321\201\321\217 \321\201 "
-    "\320\275\320\265\320\261\320\276\320\274, "
-    "\320\277\320\276\320\277\321\200\320\276\320\261\321\203\320\271\321\202\320\265 "
-    "\320\277\321\200\320\270\320\275\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276 "
-    "\320\264\321\200\321\203\320\263\320\276\320\271 \320\262\320\260\321\200\320\270\320\260\320\275\321\202.",
+    "\320\222 \320\272\320\260\320\272\321\203\321\216 \321\201\321\202\320\276\321\200\320\276\320\275\321\203"
+    ", \320\272\320\260\320\272 \321\201\320\276\320\276\320\261\321\211\320\260\320\265\321\202\321\201\321\217"
+    " \320\274\320\276\320\264\320\265\320\273\320\270, \320\270\320\264\321\221\321\202 \320\263\320\273\321\203"
+    "\320\261\320\270\320\275\320\260. \320\230\320\263\321\200\320\260 \320\267\320\260\321\217\320\262\320\273"
+    "\321\217\320\265\321\202 \321\215\321\202\320\276 \320\262\320\276 \321\204\320\273\320\260\320\263\320\260"
+    "\321\205, \321\201 \320\272\320\276\321\202\320\276\321\200\321\213\320\274\320\270 \321\201\320\276\320\267"
+    "\320\264\320\260\320\273\320\260 \321\201\320\262\320\276\320\271 \321\201\320\276\320\261\321\201\321\202"
+    "\320\262\320\265\320\275\320\275\321\213\320\271 DLSS feature, \320\270 \321\201\320\273\320\265\320\264"
+    "\320\276\320\262\320\260\321\202\321\214 \320\270\320\274 \320\262\320\265\321\200\320\275\320\276 \320\277"
+    "\320\276\321\207\321\202\320\270 \320\262\321\201\320\265\320\263\320\264\320\260 -- \320\275\320\276 \320\270"
+    "\320\263\321\200\321\203, \320\272\320\276\321\202\320\276\321\200\320\260\321\217 \320\267\320\260\321\217"
+    "\320\262\320\273\321\217\320\265\321\202 \320\275\320\265\320\262\320\265\321\200\320\275\320\276, \320\275"
+    "\321\203\320\266\320\275\320\276 \320\277\321\200\320\260\320\262\320\270\321\202\321\214 \320\262\321\200"
+    "\321\203\321\207\320\275\321\203\321\216.\n\n\320\225\321\201\320\273\320\270 \320\277\321\200\320\276\321\205"
+    "\320\276\320\264 \320\262\321\213\320\263\320\273\321\217\320\264\320\270\321\202 \321\205\321\203\320\266"
+    "\320\265 \320\262\321\201\320\265\320\263\320\276 \321\202\320\260\320\274, \320\263\320\264\320\265 \320\263"
+    "\320\265\320\276\320\274\320\265\321\202\321\200\320\270\321\217 \320\262\321\201\321\202\321\200\320\265"
+    "\321\207\320\260\320\265\321\202\321\201\321\217 \321\201 \320\275\320\265\320\261\320\276\320\274, \320\277"
+    "\320\276\320\277\321\200\320\276\320\261\321\203\320\271\321\202\320\265 \320\277\321\200\320\270\320\275"
+    "\321\203\320\264\320\270\321\202\320\265\320\273\321\214\320\275\320\276 \320\264\321\200\321\203\320\263"
+    "\320\276\320\271 \320\262\320\260\321\200\320\270\320\260\320\275\321\202.",
     "\320\232\320\276\321\200\321\200\320\265\320\272\321\206\320\270\321\217 UI",
-    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 "
-    "\321\203\321\207\320\270\321\202\321\213\320\262\320\260\321\202\321\214 \321\201\320\273\320\276\320\271 UI "
-    "\320\277\320\276\320\262\320\265\321\200\321\205 \320\272\320\260\320\264\321\200\320\260. "
-    "\320\222\320\272\320\273. -- \320\265\321\221 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\265 "
-    "\321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265 \320\270 "
-    "\320\277\321\200\320\260\320\262\320\270\320\273\321\214\320\275\320\276 "
-    "\320\262\321\201\320\265\320\263\320\264\320\260, \320\272\320\276\320\263\320\264\320\260 \320\264\320\276 "
-    "\320\275\320\265\321\221 \320\264\320\276\321\205\320\276\320\264\320\270\321\202 "
-    "\321\200\320\265\321\201\321\203\321\200\321\201 UI; "
-    "\320\262\321\213\320\272\320\273\321\216\321\207\320\270\321\202\320\265, \320\265\321\201\320\273\320\270 "
-    "\320\275\320\265\320\277\321\200\320\260\320\262\320\270\320\273\321\214\320\275\320\276 "
-    "\320\262\321\213\320\263\320\273\321\217\320\264\320\270\321\202 \321\201\320\260\320\274\320\260 "
-    "\320\272\320\276\321\200\321\200\320\265\320\272\321\206\320\270\321\217."
-    "\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270.",
+    "\320\237\320\276\320\267\320\262\320\276\320\273\321\217\320\265\321\202 \320\274\320\276\320\264\320\265"
+    "\320\273\320\270 \321\203\321\207\320\270\321\202\321\213\320\262\320\260\321\202\321\214 \321\201\320\273"
+    "\320\276\320\271 UI \320\277\320\276\320\262\320\265\321\200\321\205 \320\272\320\260\320\264\321\200\320\260"
+    ". \320\222\320\272\320\273. -- \320\265\321\221 \321\201\320\276\320\261\321\201\321\202\320\262\320\265"
+    "\320\275\320\275\320\276\320\265 \321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265"
+    " \320\270 \320\277\321\200\320\260\320\262\320\270\320\273\321\214\320\275\320\276 \320\262\321\201\320\265"
+    "\320\263\320\264\320\260, \320\272\320\276\320\263\320\264\320\260 \320\264\320\276 \320\275\320\265\321\221"
+    " \320\264\320\276\321\205\320\276\320\264\320\270\321\202 \321\200\320\265\321\201\321\203\321\200\321\201"
+    " UI; \320\262\321\213\320\272\320\273\321\216\321\207\320\270\321\202\320\265, \320\265\321\201\320\273\320\270"
+    " \320\275\320\265\320\277\321\200\320\260\320\262\320\270\320\273\321\214\320\275\320\276 \320\262\321\213"
+    "\320\263\320\273\321\217\320\264\320\270\321\202 \321\201\320\260\320\274\320\260 \320\272\320\276\321\200"
+    "\321\200\320\265\320\272\321\206\320\270\321\217.\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260"
+    "\320\265\321\202\321\201\321\217 \320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265"
+    " \320\274\320\276\320\264\320\265\320\273\320\270.",
     "\320\236\321\201\320\274\320\276\321\202\321\200",
     "\320\227\320\260\321\205\320\262\320\260\321\202...",
-    "\320\227\320\260\321\205\320\262\320\260\321\202\320\270\321\202\321\214 8 "
-    "\320\272\320\260\320\264\321\200\320\276\320\262",
-    "\320\227\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 "
-    "\320\262\320\276\321\201\320\265\320\274\321\214 "
-    "\320\277\320\276\321\201\320\273\320\265\320\264\320\276\320\262\320\260\321\202\320\265\320\273\321\214\320\275"
-    "\321\213\321\205 \320\272\320\260\320\264\321\200\320\276\320\262 "
-    "\320\264\320\262\320\260\320\266\320\264\321\213: \320\272\320\260\320\272 \320\270\321\205 "
-    "\320\262\321\213\320\264\320\260\320\273 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200 "
-    "\320\270 \320\265\321\211\321\221 \321\200\320\260\320\267 \320\277\320\276\321\201\320\273\320\265 "
-    "\320\277\321\200\320\270\320\274\320\265\320\275\320\265\320\275\320\270\321\217 "
-    "\320\277\321\200\320\260\320\262\320\272\320\270 \320\274\320\276\320\264\320\265\320\273\320\270. \320\222 "
-    "\320\277\320\260\320\277\320\272\321\203 dlssnr-capture \321\200\321\217\320\264\320\276\320\274 \321\201 "
-    "OptiScaler; \320\272\320\260\320\266\320\264\321\213\320\271 \320\267\320\260\320\277\321\203\321\201\320\272 "
-    "\320\277\320\265\321\200\320\265\320\267\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 "
-    "\320\277\321\200\320\265\320\264\321\213\320\264\321\203\321\211\320\270\320\271.",
-    "\320\220\320\262\321\202\320\276\320\267\320\260\321\205\320\262\320\260\321\202 \321\200\320\260\320\267 "
-    "\320\267\320\260 \321\201\320\265\321\201\321\201\320\270\321\216",
-    "\320\227\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 \320\276\320\264\320\270\320\275 "
-    "\321\201\320\276\320\263\320\273\320\260\321\201\320\276\320\262\320\260\320\275\320\275\321\213\320\271 "
-    "\320\275\320\260\320\261\320\276\321\200 \320\264\320\276/\320\277\320\276\321\201\320\273\320\265 "
-    "\320\260\320\262\321\202\320\276\320\274\320\260\321\202\320\270\321\207\320\265\321\201\320\272\320\270, "
-    "\320\261\320\265\320\267 \320\267\320\260\320\277\321\200\320\276\321\201\320\260. "
-    "\320\237\320\260\320\277\320\272\320\260 \320\276\321\207\320\270\321\211\320\260\320\265\321\202\321\201\321\217 "
-    "\320\277\321\200\320\270 \320\272\320\260\320\266\320\264\320\276\320\274 "
-    "\320\267\320\260\320\277\321\203\321\201\320\272\320\265, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\321\205\321\200\320\260\320\275\320\270\321\202 \320\276\320\264\320\275\321\203 "
-    "\321\201\320\265\321\201\321\201\320\270\321\216 \320\270 "
-    "\320\275\320\270\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 "
-    "\321\200\320\260\321\201\321\202\321\221\321\202.",
+    "\320\227\320\260\321\205\320\262\320\260\321\202\320\270\321\202\321\214 8 \320\272\320\260\320\264\321\200"
+    "\320\276\320\262",
+    "\320\227\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 \320\262\320\276\321\201"
+    "\320\265\320\274\321\214 \320\277\320\276\321\201\320\273\320\265\320\264\320\276\320\262\320\260\321\202"
+    "\320\265\320\273\321\214\320\275\321\213\321\205 \320\272\320\260\320\264\321\200\320\276\320\262 \320\264"
+    "\320\262\320\260\320\266\320\264\321\213: \320\272\320\260\320\272 \320\270\321\205 \320\262\321\213\320\264"
+    "\320\260\320\273 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200 \320\270 \320\265"
+    "\321\211\321\221 \321\200\320\260\320\267 \320\277\320\276\321\201\320\273\320\265 \320\277\321\200\320\270"
+    "\320\274\320\265\320\275\320\265\320\275\320\270\321\217 \320\277\321\200\320\260\320\262\320\272\320\270"
+    " \320\274\320\276\320\264\320\265\320\273\320\270. \320\222 \320\277\320\260\320\277\320\272\321\203 dls"
+    "snr-capture \321\200\321\217\320\264\320\276\320\274 \321\201 OptiScaler; \320\272\320\260\320\266\320\264"
+    "\321\213\320\271 \320\267\320\260\320\277\321\203\321\201\320\272 \320\277\320\265\321\200\320\265\320\267"
+    "\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 \320\277\321\200\320\265\320\264"
+    "\321\213\320\264\321\203\321\211\320\270\320\271.",
+    "\320\220\320\262\321\202\320\276\320\267\320\260\321\205\320\262\320\260\321\202 \321\200\320\260\320\267"
+    " \320\267\320\260 \321\201\320\265\321\201\321\201\320\270\321\216",
+    "\320\227\320\260\320\277\320\270\321\201\321\213\320\262\320\260\320\265\321\202 \320\276\320\264\320\270"
+    "\320\275 \321\201\320\276\320\263\320\273\320\260\321\201\320\276\320\262\320\260\320\275\320\275\321\213"
+    "\320\271 \320\275\320\260\320\261\320\276\321\200 \320\264\320\276/\320\277\320\276\321\201\320\273\320\265"
+    " \320\260\320\262\321\202\320\276\320\274\320\260\321\202\320\270\321\207\320\265\321\201\320\272\320\270"
+    ", \320\261\320\265\320\267 \320\267\320\260\320\277\321\200\320\276\321\201\320\260. \320\237\320\260\320\277"
+    "\320\272\320\260 \320\276\321\207\320\270\321\211\320\260\320\265\321\202\321\201\321\217 \320\277\321\200"
+    "\320\270 \320\272\320\260\320\266\320\264\320\276\320\274 \320\267\320\260\320\277\321\203\321\201\320\272"
+    "\320\265, \321\202\320\260\320\272 \321\207\321\202\320\276 \321\205\321\200\320\260\320\275\320\270\321\202"
+    " \320\276\320\264\320\275\321\203 \321\201\320\265\321\201\321\201\320\270\321\216 \320\270 \320\275\320\270"
+    "\320\272\320\276\320\263\320\264\320\260 \320\275\320\265 \321\200\320\260\321\201\321\202\321\221\321\202"
+    ".",
     "\320\243\320\264\320\265\321\200\320\266\320\260\321\202\321\214 \320\272\320\260\320\264\321\200",
-    "\320\227\320\260\320\274\320\276\321\200\320\260\320\266\320\270\320\262\320\260\320\265\321\202 "
-    "\320\272\320\260\320\264\321\200, \320\275\320\260 \320\272\320\276\321\202\320\276\321\200\320\276\320\274 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214. \320\237\320\276\320\272\320\260 \320\276\320\275 "
-    "\321\203\320\264\320\265\321\200\320\266\320\260\320\275, "
-    "\320\274\320\265\320\275\321\217\320\271\321\202\320\265 paper white, \321\201\320\270\320\273\321\213, "
-    "\320\276\320\261\321\200\320\260\321\202\320\270\320\274\321\213\320\271 "
-    "\321\200\320\265\320\266\320\270\320\274, \320\277\321\200\320\265\321\201\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270 -- \320\262\321\201\321\221, \321\207\321\202\320\276 "
-    "\320\275\320\270\320\266\320\265 \320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 "
-    "-- \320\270 \320\274\320\265\320\275\321\217\320\265\321\202\321\201\321\217 "
-    "\321\202\320\276\320\273\321\214\320\272\320\276 \321\215\321\202\320\260 "
-    "\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260; "
-    "\321\201\321\206\320\265\320\275\320\260 \320\275\320\265\321\202. "
-    "\320\241\320\276\321\207\320\265\321\202\320\260\320\265\321\202\321\201\321\217 \321\201 "
-    "\302\253\320\237\321\200\320\270\320\274\320\265\320\275\321\217\321\202\321\214 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214\302\273 \320\262\320\262\320\265\321\200\321\205\321\203: "
-    "\320\267\320\260\320\274\320\276\321\200\320\276\320\267\321\214\321\202\320\265 \320\272\320\260\320\264\321\200 "
-    "\320\270 \320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265 "
-    "\321\215\321\202\320\276, \321\207\321\202\320\276\320\261\321\213 "
-    "\321\203\320\262\320\270\320\264\320\265\321\202\321\214 \321\201 \320\275\320\270\320\274 \320\270 "
-    "\320\261\320\265\320\267 \320\275\320\265\320\263\320\276.\n\n\320\247\320\265\320\263\320\276 "
-    "\321\215\321\202\320\276 \320\275\320\265 \320\277\320\276\320\272\320\260\320\266\320\265\321\202: "
-    "\320\277\321\200\320\265\321\201\320\265\321\202\321\213 "
-    "\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 \320\270\320\273\320\270 "
-    "\321\207\321\202\320\276-\320\273\320\270\320\261\320\276 \320\262\321\213\321\210\320\265 "
-    "\321\215\321\202\320\276\320\263\320\276 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 "
-    "(\320\260\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200 \320\275\320\260 "
-    "\321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\275\320\276\320\274 "
-    "\320\272\320\260\320\264\321\200\320\265 \320\275\320\265 "
-    "\320\277\320\265\321\200\320\265\320\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201"
-    "\321\217), \320\260 \321\202\320\260\320\272\320\266\320\265 HUD \320\270 "
-    "\320\277\320\276\321\201\321\202\320\276\320\261\321\200\320\260\320\261\320\276\321\202\320\272\321\203 "
-    "\321\201\320\260\320\274\320\276\320\271 \320\270\320\263\321\200\321\213, "
-    "\320\272\320\276\321\202\320\276\321\200\321\213\320\265 \320\270\320\264\321\203\321\202 "
-    "\320\277\320\276\321\201\320\273\320\265 \320\270 "
-    "\320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\260\321\216\321\202 "
-    "\320\276\320\261\320\275\320\276\320\262\320\273\321\217\321\202\321\214\321\201\321\217. "
-    "\320\242\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263\320\276 "
-    "\320\277\320\265\321\200\320\265\321\201\321\202\320\260\321\221\321\202 "
-    "\320\270\320\267\320\274\320\265\321\200\321\217\321\202\321\214\321\201\321\217 \320\270 "
-    "\320\264\320\265\321\200\320\266\320\270\321\202 "
-    "\320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265, \321\202\320\260\320\272 "
-    "\321\207\321\202\320\276 \320\275\320\265 \320\274\320\276\320\266\320\265\321\202 "
-    "\321\203\320\277\320\273\321\213\321\202\321\214 \320\270 "
-    "\320\267\320\260\320\277\321\203\321\202\320\260\321\202\321\214 "
-    "\321\201\321\200\320\260\320\262\320\275\320\265\320\275\320\270\320\265."
-    "\n\n\320\227\320\260\320\272\321\200\320\276\320\271\321\202\320\265 "
-    "\320\277\320\260\320\275\320\265\320\273\321\214 -- \320\272\320\260\320\264\321\200 "
-    "\320\276\321\201\321\202\320\260\320\275\320\265\321\202\321\201\321\217 "
-    "\321\203\320\264\320\265\321\200\320\266\320\260\320\275\320\275\321\213\320\274. "
-    "\320\241\320\275\320\270\320\274\320\270\321\202\320\265 "
-    "\320\263\320\260\320\273\320\276\321\207\320\272\321\203, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\270\321\202\321\214.",
+    "\320\227\320\260\320\274\320\276\321\200\320\260\320\266\320\270\320\262\320\260\320\265\321\202 \320\272"
+    "\320\260\320\264\321\200, \320\275\320\260 \320\272\320\276\321\202\320\276\321\200\320\276\320\274 \321\200"
+    "\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\321\214"
+    ". \320\237\320\276\320\272\320\260 \320\276\320\275 \321\203\320\264\320\265\321\200\320\266\320\260\320\275"
+    ", \320\274\320\265\320\275\321\217\320\271\321\202\320\265 paper white, \321\201\320\270\320\273\321\213"
+    ", \320\276\320\261\321\200\320\260\321\202\320\270\320\274\321\213\320\271 \321\200\320\265\320\266\320\270"
+    "\320\274, \320\277\321\200\320\265\321\201\320\265\321\202 \320\274\320\276\320\264\320\265\320\273\320\270"
+    " -- \320\262\321\201\321\221, \321\207\321\202\320\276 \320\275\320\270\320\266\320\265 \320\260\320\277"
+    "\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 -- \320\270 \320\274\320\265\320\275\321\217"
+    "\320\265\321\202\321\201\321\217 \321\202\320\276\320\273\321\214\320\272\320\276 \321\215\321\202\320\260"
+    " \320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260; \321\201\321\206\320\265\320\275"
+    "\320\260 \320\275\320\265\321\202. \320\241\320\276\321\207\320\265\321\202\320\260\320\265\321\202\321\201"
+    "\321\217 \321\201 \302\253\320\237\321\200\320\270\320\274\320\265\320\275\321\217\321\202\321\214 \320\274"
+    "\320\276\320\264\320\265\320\273\321\214\302\273 \320\262\320\262\320\265\321\200\321\205\321\203: \320\267"
+    "\320\260\320\274\320\276\321\200\320\276\320\267\321\214\321\202\320\265 \320\272\320\260\320\264\321\200"
+    " \320\270 \320\277\320\265\321\200\320\265\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265"
+    " \321\215\321\202\320\276, \321\207\321\202\320\276\320\261\321\213 \321\203\320\262\320\270\320\264\320\265"
+    "\321\202\321\214 \321\201 \320\275\320\270\320\274 \320\270 \320\261\320\265\320\267 \320\275\320\265\320\263"
+    "\320\276.\n\n\320\247\320\265\320\263\320\276 \321\215\321\202\320\276 \320\275\320\265 \320\277\320\276"
+    "\320\272\320\260\320\266\320\265\321\202: \320\277\321\200\320\265\321\201\320\265\321\202\321\213 \320\260"
+    "\320\277\321\201\320\272\320\265\320\271\320\273\320\265\321\200\320\260 \320\270\320\273\320\270 \321\207"
+    "\321\202\320\276-\320\273\320\270\320\261\320\276 \320\262\321\213\321\210\320\265 \321\215\321\202\320\276"
+    "\320\263\320\276 \320\277\321\200\320\276\321\205\320\276\320\264\320\260 (\320\260\320\277\321\201\320\272"
+    "\320\265\320\271\320\273\320\265\321\200 \320\275\320\260 \321\203\320\264\320\265\321\200\320\266\320\260"
+    "\320\275\320\275\320\276\320\274 \320\272\320\260\320\264\321\200\320\265 \320\275\320\265 \320\277\320\265"
+    "\321\200\320\265\320\267\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202\321\201\321\217"
+    "), \320\260 \321\202\320\260\320\272\320\266\320\265 HUD \320\270 \320\277\320\276\321\201\321\202\320\276"
+    "\320\261\321\200\320\260\320\261\320\276\321\202\320\272\321\203 \321\201\320\260\320\274\320\276\320\271"
+    " \320\270\320\263\321\200\321\213, \320\272\320\276\321\202\320\276\321\200\321\213\320\265 \320\270\320\264"
+    "\321\203\321\202 \320\277\320\276\321\201\320\273\320\265 \320\270 \320\277\321\200\320\276\320\264\320\276"
+    "\320\273\320\266\320\260\321\216\321\202 \320\276\320\261\320\275\320\276\320\262\320\273\321\217\321\202"
+    "\321\214\321\201\321\217. \320\242\320\276\321\207\320\272\320\260 \320\261\320\265\320\273\320\276\320\263"
+    "\320\276 \320\277\320\265\321\200\320\265\321\201\321\202\320\260\321\221\321\202 \320\270\320\267\320\274"
+    "\320\265\321\200\321\217\321\202\321\214\321\201\321\217 \320\270 \320\264\320\265\321\200\320\266\320\270"
+    "\321\202 \320\267\320\275\320\260\321\207\320\265\320\275\320\270\320\265, \321\202\320\260\320\272 \321\207"
+    "\321\202\320\276 \320\275\320\265 \320\274\320\276\320\266\320\265\321\202 \321\203\320\277\320\273\321\213"
+    "\321\202\321\214 \320\270 \320\267\320\260\320\277\321\203\321\202\320\260\321\202\321\214 \321\201\321\200"
+    "\320\260\320\262\320\275\320\265\320\275\320\270\320\265.\n\n\320\227\320\260\320\272\321\200\320\276\320\271"
+    "\321\202\320\265 \320\277\320\260\320\275\320\265\320\273\321\214 -- \320\272\320\260\320\264\321\200 \320\276"
+    "\321\201\321\202\320\260\320\275\320\265\321\202\321\201\321\217 \321\203\320\264\320\265\321\200\320\266"
+    "\320\260\320\275\320\275\321\213\320\274. \320\241\320\275\320\270\320\274\320\270\321\202\320\265 \320\263"
+    "\320\260\320\273\320\276\321\207\320\272\321\203, \321\207\321\202\320\276\320\261\321\213 \320\277\321\200"
+    "\320\276\320\264\320\276\320\273\320\266\320\270\321\202\321\214.",
     "\320\222\321\213\320\272\320\273",
     "\320\221\320\276\320\272 \320\276 \320\261\320\276\320\272",
     "\320\250\321\202\320\276\321\200\320\272\320\260",
     "\320\241\321\200\320\260\320\262\320\275\320\265\320\275\320\270\320\265",
-    "\320\237\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202 "
-    "\320\277\321\200\320\276\321\205\320\276\320\264 \320\277\321\200\320\276\321\202\320\270\320\262 "
-    "\321\201\320\260\320\274\320\276\320\263\320\276 \321\201\320\265\320\261\321\217. \320\221\320\276\320\272 "
-    "\320\276 \320\261\320\276\320\272 \320\277\320\276\320\274\320\265\321\211\320\260\320\265\321\202 "
-    "\320\262\320\265\321\201\321\214 \320\272\320\260\320\264\321\200 \320\262 "
-    "\320\272\320\260\320\266\320\264\321\203\321\216 "
-    "\320\277\320\276\320\273\320\276\320\262\320\270\320\275\321\203; "
-    "\321\210\321\202\320\276\321\200\320\272\320\260 \321\200\320\265\320\266\320\265\321\202 "
-    "\320\276\320\264\320\270\320\275 \320\272\320\260\320\264\321\200 \320\277\320\276 "
-    "\321\200\320\260\320\267\320\264\320\265\320\273\320\270\321\202\320\265\320\273\321\216 \320\270 "
-    "\320\270\320\263\321\200\320\260\320\265\321\202 \320\272\320\260\320\272 "
-    "\320\276\320\261\321\213\321\207\320\275\320\276. \320\235\320\270 "
-    "\320\276\320\264\320\275\320\276\320\274\321\203 \320\275\320\265 \320\275\321\203\320\266\320\275\320\276 "
-    "\320\276\321\202\320\272\321\200\321\213\321\202\320\276\320\265 \320\274\320\265\320\275\321\216, "
-    "\321\207\321\202\320\276\320\261\321\213 "
-    "\320\277\321\200\320\276\320\264\320\276\320\273\320\266\320\260\321\202\321\214 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214.",
-    "\320\237\320\276\320\274\320\265\320\275\321\217\321\202\321\214 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\321\213",
+    "\320\237\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202 \320\277\321\200\320\276"
+    "\321\205\320\276\320\264 \320\277\321\200\320\276\321\202\320\270\320\262 \321\201\320\260\320\274\320\276"
+    "\320\263\320\276 \321\201\320\265\320\261\321\217. \320\221\320\276\320\272 \320\276 \320\261\320\276\320\272"
+    " \320\277\320\276\320\274\320\265\321\211\320\260\320\265\321\202 \320\262\320\265\321\201\321\214 \320\272"
+    "\320\260\320\264\321\200 \320\262 \320\272\320\260\320\266\320\264\321\203\321\216 \320\277\320\276\320\273"
+    "\320\276\320\262\320\270\320\275\321\203; \321\210\321\202\320\276\321\200\320\272\320\260 \321\200\320\265"
+    "\320\266\320\265\321\202 \320\276\320\264\320\270\320\275 \320\272\320\260\320\264\321\200 \320\277\320\276"
+    " \321\200\320\260\320\267\320\264\320\265\320\273\320\270\321\202\320\265\320\273\321\216 \320\270 \320\270"
+    "\320\263\321\200\320\260\320\265\321\202 \320\272\320\260\320\272 \320\276\320\261\321\213\321\207\320\275"
+    "\320\276. \320\235\320\270 \320\276\320\264\320\275\320\276\320\274\321\203 \320\275\320\265 \320\275\321\203"
+    "\320\266\320\275\320\276 \320\276\321\202\320\272\321\200\321\213\321\202\320\276\320\265 \320\274\320\265"
+    "\320\275\321\216, \321\207\321\202\320\276\320\261\321\213 \320\277\321\200\320\276\320\264\320\276\320\273"
+    "\320\266\320\260\321\202\321\214 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214.",
+    "\320\237\320\276\320\274\320\265\320\275\321\217\321\202\321\214 \321\201\321\202\320\276\321\200\320\276"
+    "\320\275\321\213",
     "\320\237\320\276\320\264\320\277\320\270\321\201\320\270",
-    "\320\240\320\270\321\201\321\203\320\265\321\202, \320\272\320\260\320\272\320\260\321\217 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\320\260 \320\272\320\260\320\272\320\260\321\217, \320\262 "
-    "\320\277\320\273\320\276\321\201\320\272\320\276\321\201\321\202\320\270 "
-    "\321\201\320\260\320\274\320\276\320\263\320\276 \320\272\320\260\320\264\321\200\320\260, "
-    "\321\202\320\260\320\272 \321\207\321\202\320\276 \320\270 "
-    "\321\201\320\272\321\200\320\270\320\275\321\210\320\276\321\202 \321\215\321\202\320\276 "
-    "\320\277\320\276\320\272\320\260\320\266\320\265\321\202. "
-    "\320\236\320\261\321\200\320\265\320\267\320\260\320\275\320\276 \320\277\320\276 "
-    "\321\201\321\202\320\276\321\200\320\276\320\275\320\260\320\274, \321\202\320\260\320\272 "
-    "\321\207\321\202\320\276 \321\210\321\202\320\276\321\200\320\272\320\260 "
-    "\320\276\321\202\320\272\321\200\321\213\320\262\320\260\320\265\321\202 \320\270 "
-    "\321\201\320\272\321\200\321\213\320\262\320\260\320\265\321\202 "
-    "\320\277\320\276\320\264\320\277\320\270\321\201\320\270 \321\200\320\276\320\262\320\275\320\276 "
-    "\321\202\320\260\320\272 \320\266\320\265, \320\272\320\260\320\272 "
-    "\320\270\320\267\320\276\320\261\321\200\320\260\320\266\320\265\320\275\320\270\321\217.",
+    "\320\240\320\270\321\201\321\203\320\265\321\202, \320\272\320\260\320\272\320\260\321\217 \321\201\321\202"
+    "\320\276\321\200\320\276\320\275\320\260 \320\272\320\260\320\272\320\260\321\217, \320\262 \320\277\320\273"
+    "\320\276\321\201\320\272\320\276\321\201\321\202\320\270 \321\201\320\260\320\274\320\276\320\263\320\276"
+    " \320\272\320\260\320\264\321\200\320\260, \321\202\320\260\320\272 \321\207\321\202\320\276 \320\270 \321\201"
+    "\320\272\321\200\320\270\320\275\321\210\320\276\321\202 \321\215\321\202\320\276 \320\277\320\276\320\272"
+    "\320\260\320\266\320\265\321\202. \320\236\320\261\321\200\320\265\320\267\320\260\320\275\320\276 \320\277"
+    "\320\276 \321\201\321\202\320\276\321\200\320\276\320\275\320\260\320\274, \321\202\320\260\320\272 \321\207"
+    "\321\202\320\276 \321\210\321\202\320\276\321\200\320\272\320\260 \320\276\321\202\320\272\321\200\321\213"
+    "\320\262\320\260\320\265\321\202 \320\270 \321\201\320\272\321\200\321\213\320\262\320\260\320\265\321\202"
+    " \320\277\320\276\320\264\320\277\320\270\321\201\320\270 \321\200\320\276\320\262\320\275\320\276 \321\202"
+    "\320\260\320\272 \320\266\320\265, \320\272\320\260\320\272 \320\270\320\267\320\276\320\261\321\200\320\260"
+    "\320\266\320\265\320\275\320\270\321\217.",
     "\320\240\320\260\320\267\320\274\320\265\321\200 \320\277\320\276\320\264\320\277\320\270\321\201\320\270",
     "\320\234\320\260\321\201\321\210\321\202\320\260\320\261",
     "\320\240\320\260\320\267\320\264\320\265\320\273\320\270\321\202\320\265\320\273\321\214",
-    "\320\237\321\200\320\276\320\272\321\201\320\270 (\321\207\321\202\320\276 "
-    "\320\262\320\270\320\264\320\270\321\202 \320\274\320\276\320\264\320\265\320\273\321\214)",
-    "\320\222\321\213\321\205\320\276\320\264 \320\274\320\276\320\264\320\265\320\273\320\270 "
-    "(\321\201\321\213\321\200\320\276\320\271)",
-    "\320\240\320\260\320\267\320\275\320\270\321\206\320\260 "
-    "(\321\203\321\201\320\270\320\273\320\265\320\275\320\275\320\260\321\217)",
+    "\320\237\321\200\320\276\320\272\321\201\320\270 (\321\207\321\202\320\276 \320\262\320\270\320\264\320\270"
+    "\321\202 \320\274\320\276\320\264\320\265\320\273\321\214)",
+    "\320\222\321\213\321\205\320\276\320\264 \320\274\320\276\320\264\320\265\320\273\320\270 (\321\201\321\213"
+    "\321\200\320\276\320\271)",
+    "\320\240\320\260\320\267\320\275\320\270\321\206\320\260 (\321\203\321\201\320\270\320\273\320\265\320\275"
+    "\320\275\320\260\321\217)",
     "\320\236\321\202\320\273\320\260\320\264\320\276\321\207\320\275\321\213\320\271 \320\262\320\270\320\264",
-    "\320\237\321\200\320\276\320\272\321\201\320\270 -- "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260, "
-    "\320\277\320\265\321\200\320\265\320\264\320\260\320\275\320\275\320\260\321\217 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270. \320\240\320\260\320\267\320\275\320\270\321\206\320\260 "
-    "\320\277\320\276\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202, \321\207\321\202\320\276 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\260 \321\201\320\260\320\274\320\276\320\274 "
-    "\320\264\320\265\320\273\320\265 \320\270\320\267\320\274\320\265\320\275\320\270\320\273\320\260, "
-    "\321\203\321\201\320\270\320\273\320\265\320\275\320\275\320\276\320\265 \320\262 "
-    "\320\264\320\262\320\260\320\264\321\206\320\260\321\202\321\214 \321\200\320\260\320\267 \320\270 "
-    "\321\206\320\265\320\275\321\202\321\200\320\270\321\200\320\276\320\262\320\260\320\275\320\275\320\276\320\265 "
-    "\320\275\320\260 \321\201\320\265\321\200\320\276\320\274.",
-    "\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273\321\214"
-    "\320\275\320\276",
-    "\320\236\320\261\320\260 \320\275\320\265 "
-    "\320\277\321\200\320\276\320\262\320\265\321\200\320\265\320\275\321\213. \320\236\320\275\320\270 "
-    "\321\201\321\203\321\211\320\265\321\201\321\202\320\262\321\203\321\216\321\202, "
-    "\321\207\321\202\320\276\320\261\321\213 "
-    "\320\277\321\200\320\276\320\262\320\265\321\200\320\270\321\202\321\214, "
-    "\320\274\320\276\320\266\320\265\321\202 \320\273\320\270 nvngx.dll "
-    "\321\201\320\260\320\274\320\276\320\263\320\276 \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260 "
-    "\320\267\320\260\320\277\321\203\321\201\320\272\320\260\321\202\321\214 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214, \321\207\321\202\320\276 "
-    "\321\203\320\261\321\200\320\260\320\273\320\276 \320\261\321\213 "
-    "\320\275\320\265\320\276\320\261\321\205\320\276\320\264\320\270\320\274\320\276\321\201\321\202\321\214 \320\262 "
-    "\320\272\320\276\320\277\320\270\320\270 \320\275\320\260 165 \320\234\320\221 "
-    "\321\200\321\217\320\264\320\276\320\274 \321\201 OptiScaler.",
-    "\320\236\320\277\321\200\320\276\321\201\320\270\321\202\321\214 "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200",
-    "\320\240\320\260\320\267 \320\267\320\260 \321\201\320\265\321\201\321\201\320\270\321\216 "
-    "\321\201\320\277\321\200\320\260\321\210\320\270\320\262\320\260\320\265\321\202 nvngx.dll "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260, \320\267\320\275\320\260\320\265\321\202 "
-    "\320\273\320\270 \320\276\320\275 \321\203\320\266\320\265 \320\274\320\276\320\264\320\265\320\273\321\214. "
-    "\320\237\320\270\321\210\320\265\321\202 \320\276\321\202\320\262\320\265\321\202 \320\262 "
-    "\320\273\320\276\320\263 \320\270 \320\261\320\276\320\273\321\214\321\210\320\265 "
-    "\320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202."
-    "\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260\320\265\321\202\321\201\321\217 "
-    "\320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265 "
-    "\320\274\320\276\320\264\320\265\320\273\320\270, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\320\264\320\265\320\271\321\201\321\202\320\262\321\203\320\265\321\202 \321\201\320\276 "
-    "\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\265\320\271 "
-    "\321\201\320\265\321\201\321\201\320\270\320\270.",
-    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\321\202\321\214 \321\207\320\265\321\200\320\265\320\267 "
-    "\320\264\321\200\320\260\320\271\320\262\320\265\321\200",
-    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202 "
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \321\207\320\265\321\200\320\265\320\267 nvngx.dll "
-    "\321\201\320\260\320\274\320\276\320\263\320\276 \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260 "
-    "\320\262\320\274\320\265\321\201\321\202\320\276 "
-    "\320\277\320\265\321\200\320\265\320\260\320\264\321\200\320\265\321\201\320\260\321\202\320\276\321\200\320\260 "
-    "-- \321\202\320\260\320\272, \320\272\320\260\320\272 "
-    "\320\262\321\213\320\267\321\213\320\262\320\260\320\265\321\202\321\201\321\217 \321\201\320\260\320\274 DLSS. "
-    "\320\225\321\201\320\273\320\270 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 "
-    "\321\201\320\276\320\262\320\277\320\260\320\264\320\260\320\265\321\202, "
-    "\320\277\320\265\321\200\320\265\320\260\320\264\321\200\320\265\321\201\320\260\321\202\320\276\321\200 "
-    "\320\275\320\265 "
-    "\320\275\321\203\320\266\320\265\320\275.\n\n\320\241\321\200\320\260\320\262\320\275\320\270\321\202\320\265, "
-    "\320\277\321\200\320\265\320\266\320\264\320\265 \321\207\320\265\320\274 "
-    "\320\264\320\276\320\262\320\265\321\200\321\217\321\202\321\214: "
-    "\320\262\320\272\320\273\321\216\321\207\320\270\321\202\320\265 "
-    "\320\241\321\200\320\260\320\262\320\275\320\265\320\275\320\270\320\265 \320\262\321\213\321\210\320\265 "
-    "\320\270 \320\277\320\276\320\270\321\211\320\270\321\202\320\265 "
-    "\321\200\320\260\320\267\320\275\320\270\321\206\321\203.",
+    "\320\237\321\200\320\276\320\272\321\201\320\270 -- \320\272\320\260\321\200\321\202\320\270\320\275\320\272"
+    "\320\260, \320\277\320\265\321\200\320\265\320\264\320\260\320\275\320\275\320\260\321\217 \320\274\320\276"
+    "\320\264\320\265\320\273\320\270. \320\240\320\260\320\267\320\275\320\270\321\206\320\260 \320\277\320\276"
+    "\320\272\320\260\320\267\321\213\320\262\320\260\320\265\321\202, \321\207\321\202\320\276 \320\274\320\276"
+    "\320\264\320\265\320\273\321\214 \320\275\320\260 \321\201\320\260\320\274\320\276\320\274 \320\264\320\265"
+    "\320\273\320\265 \320\270\320\267\320\274\320\265\320\275\320\270\320\273\320\260, \321\203\321\201\320\270"
+    "\320\273\320\265\320\275\320\275\320\276\320\265 \320\262 \320\264\320\262\320\260\320\264\321\206\320\260"
+    "\321\202\321\214 \321\200\320\260\320\267 \320\270 \321\206\320\265\320\275\321\202\321\200\320\270\321\200"
+    "\320\276\320\262\320\260\320\275\320\275\320\276\320\265 \320\275\320\260 \321\201\320\265\321\200\320\276"
+    "\320\274.",
+    "\320\255\320\272\321\201\320\277\320\265\321\200\320\270\320\274\320\265\320\275\321\202\320\260\320\273"
+    "\321\214\320\275\320\276",
+    "\320\236\320\261\320\260 \320\275\320\265 \320\277\321\200\320\276\320\262\320\265\321\200\320\265\320\275"
+    "\321\213. \320\236\320\275\320\270 \321\201\321\203\321\211\320\265\321\201\321\202\320\262\321\203\321\216"
+    "\321\202, \321\207\321\202\320\276\320\261\321\213 \320\277\321\200\320\276\320\262\320\265\321\200\320\270"
+    "\321\202\321\214, \320\274\320\276\320\266\320\265\321\202 \320\273\320\270 nvngx.dll \321\201\320\260\320\274"
+    "\320\276\320\263\320\276 \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260 \320\267\320\260"
+    "\320\277\321\203\321\201\320\272\320\260\321\202\321\214 \320\274\320\276\320\264\320\265\320\273\321\214"
+    ", \321\207\321\202\320\276 \321\203\320\261\321\200\320\260\320\273\320\276 \320\261\321\213 \320\275\320\265"
+    "\320\276\320\261\321\205\320\276\320\264\320\270\320\274\320\276\321\201\321\202\321\214 \320\262 \320\272"
+    "\320\276\320\277\320\270\320\270 \320\275\320\260 165 \320\234\320\221 \321\200\321\217\320\264\320\276\320\274"
+    " \321\201 OptiScaler.",
+    "\320\236\320\277\321\200\320\276\321\201\320\270\321\202\321\214 \320\264\321\200\320\260\320\271\320\262"
+    "\320\265\321\200",
+    "\320\240\320\260\320\267 \320\267\320\260 \321\201\320\265\321\201\321\201\320\270\321\216 \321\201\320\277"
+    "\321\200\320\260\321\210\320\270\320\262\320\260\320\265\321\202 nvngx.dll \320\264\321\200\320\260\320\271"
+    "\320\262\320\265\321\200\320\260, \320\267\320\275\320\260\320\265\321\202 \320\273\320\270 \320\276\320\275"
+    " \321\203\320\266\320\265 \320\274\320\276\320\264\320\265\320\273\321\214. \320\237\320\270\321\210\320\265"
+    "\321\202 \320\276\321\202\320\262\320\265\321\202 \320\262 \320\273\320\276\320\263 \320\270 \320\261\320\276"
+    "\320\273\321\214\321\210\320\265 \320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 \320\274"
+    "\320\265\320\275\321\217\320\265\321\202.\n\n\320\241\321\207\320\270\321\202\321\213\320\262\320\260\320\265"
+    "\321\202\321\201\321\217 \320\277\321\200\320\270 \321\201\320\261\320\276\321\200\320\272\320\265 \320\274"
+    "\320\276\320\264\320\265\320\273\320\270, \321\202\320\260\320\272 \321\207\321\202\320\276 \320\264\320\265"
+    "\320\271\321\201\321\202\320\262\321\203\320\265\321\202 \321\201\320\276 \321\201\320\273\320\265\320\264"
+    "\321\203\321\216\321\211\320\265\320\271 \321\201\320\265\321\201\321\201\320\270\320\270.",
+    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\321\202\321\214 \321\207\320\265\321\200\320\265"
+    "\320\267 \320\264\321\200\320\260\320\271\320\262\320\265\321\200",
+    "\320\227\320\260\320\277\321\203\321\201\320\272\320\260\320\265\321\202 \320\274\320\276\320\264\320\265"
+    "\320\273\321\214 \321\207\320\265\321\200\320\265\320\267 nvngx.dll \321\201\320\260\320\274\320\276\320\263"
+    "\320\276 \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260 \320\262\320\274\320\265\321\201"
+    "\321\202\320\276 \320\277\320\265\321\200\320\265\320\260\320\264\321\200\320\265\321\201\320\260\321\202"
+    "\320\276\321\200\320\260 -- \321\202\320\260\320\272, \320\272\320\260\320\272 \320\262\321\213\320\267\321\213"
+    "\320\262\320\260\320\265\321\202\321\201\321\217 \321\201\320\260\320\274 DLSS. \320\225\321\201\320\273"
+    "\320\270 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260 \321\201\320\276\320\262\320\277"
+    "\320\260\320\264\320\260\320\265\321\202, \320\277\320\265\321\200\320\265\320\260\320\264\321\200\320\265"
+    "\321\201\320\260\321\202\320\276\321\200 \320\275\320\265 \320\275\321\203\320\266\320\265\320\275.\n\n\320\241"
+    "\321\200\320\260\320\262\320\275\320\270\321\202\320\265, \320\277\321\200\320\265\320\266\320\264\320\265"
+    " \321\207\320\265\320\274 \320\264\320\276\320\262\320\265\321\200\321\217\321\202\321\214: \320\262\320\272"
+    "\320\273\321\216\321\207\320\270\321\202\320\265 \320\241\321\200\320\260\320\262\320\275\320\265\320\275"
+    "\320\270\320\265 \320\262\321\213\321\210\320\265 \320\270 \320\277\320\276\320\270\321\211\320\270\321\202"
+    "\320\265 \321\200\320\260\320\267\320\275\320\270\321\206\321\203.",
     "\320\222\320\275\320\265\321\210\320\275\320\270\320\271 \320\262\320\270\320\264",
     "\320\241\320\262\320\265\321\202\320\273\320\260\321\217 \320\277\320\260\320\275\320\265\320\273\321\214",
-    "\320\241\320\262\320\265\321\202\320\273\320\260\321\217 -- "
-    "\321\203\320\274\320\276\320\273\321\207\320\260\320\275\320\270\320\265. "
-    "\320\242\321\221\320\274\320\275\320\260\321\217 \320\277\320\260\320\273\320\270\321\202\321\200\320\260, "
-    "\320\277\320\276 \320\272\320\276\321\202\320\276\321\200\320\276\320\271 \321\215\321\202\320\260 "
-    "\320\277\320\260\320\275\320\265\320\273\321\214 "
-    "\320\270\320\267\320\275\320\260\321\207\320\260\320\273\321\214\320\275\320\276 "
-    "\320\276\321\204\320\276\321\200\320\274\320\273\321\217\320\273\320\260\321\201\321\214, "
-    "\320\264\320\260\320\262\320\260\320\273\320\260 "
-    "\320\277\321\200\320\270\320\263\320\273\321\203\321\210\321\221\320\275\320\275\320\276\320\274\321\203 "
-    "\321\202\320\265\320\272\321\201\321\202\321\203 \320\272\320\276\320\275\321\202\321\200\320\260\321\201\321\202 "
-    "2.65:1 \320\272 \321\204\320\276\320\275\321\203 \320\277\321\200\320\270 4.5:1, "
-    "\320\272\320\276\321\202\320\276\321\200\321\213\320\265 "
-    "\321\207\320\270\321\202\320\260\321\216\321\202\321\201\321\217 "
-    "\320\272\320\276\320\274\321\204\320\276\321\200\321\202\320\275\320\276, -- \320\260 "
-    "\320\276\320\262\320\265\321\200\320\273\320\265\320\271 \321\207\320\270\321\202\320\260\321\216\321\202 "
-    "\320\274\320\265\320\273\321\214\320\272\320\276\320\274, \320\277\320\276\320\262\320\265\321\200\321\205 "
-    "\320\264\320\262\320\270\320\266\321\203\321\211\320\265\320\271\321\201\321\217 "
-    "\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\270."
-    "\n\n\320\241\320\275\321\217\321\202\320\270\320\265 \320\263\320\260\320\273\320\276\321\207\320\272\320\270 "
-    "\320\262\320\276\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 "
-    "\321\206\320\262\320\265\321\202\320\260 \321\201\320\260\320\274\320\276\320\271 NVIDIA.",
-    "\320\246\320\262\320\265\321\202\320\260 "
-    "\320\277\321\200\320\276\320\270\320\267\320\262\320\276\320\264\320\270\321\202\320\265\320\273\321\217",
-    "\320\220\320\272\321\206\320\265\320\275\321\202 \320\277\320\260\320\275\320\265\320\273\320\270 "
-    "\321\201\320\273\320\265\320\264\321\203\320\265\321\202 \320\267\320\260 "
-    "\320\272\320\260\321\200\321\202\320\276\320\271, \320\275\320\260 "
-    "\320\272\320\276\321\202\320\276\321\200\320\276\320\271 \320\276\320\275\320\260 "
-    "\320\275\320\260\321\200\320\270\321\201\320\276\320\262\320\260\320\275\320\260: "
-    "\320\267\320\265\320\273\321\221\320\275\321\213\320\271 NVIDIA \320\275\320\260 GPU NVIDIA, "
-    "\320\272\321\200\320\260\321\201\320\275\321\213\320\271 AMD \320\275\320\260 AMD. "
-    "\320\241\320\275\320\270\320\274\320\270\321\202\320\265 "
-    "\320\263\320\260\320\273\320\276\321\207\320\272\321\203, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\262\320\265\320\267\320\264\320\265 \320\276\321\201\321\202\320\260\320\262\320\270\321\202\321\214 "
-    "\320\267\320\265\320\273\321\221\320\275\321\213\320\271.",
-    "\n\n\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\260 "
-    "\320\272\320\260\321\200\321\202\320\265 AMD.",
-    "\n\n\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 "
-    "\321\200\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\265 \320\275\320\260 "
-    "\320\272\320\260\321\200\321\202\320\265 AMD, \321\202\320\260\320\272 \321\207\321\202\320\276 "
-    "\320\267\320\264\320\265\321\201\321\214 \321\215\321\202\320\276 "
-    "\320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202.",
+    "\320\241\320\262\320\265\321\202\320\273\320\260\321\217 -- \321\203\320\274\320\276\320\273\321\207\320\260"
+    "\320\275\320\270\320\265. \320\242\321\221\320\274\320\275\320\260\321\217 \320\277\320\260\320\273\320\270"
+    "\321\202\321\200\320\260, \320\277\320\276 \320\272\320\276\321\202\320\276\321\200\320\276\320\271 \321\215"
+    "\321\202\320\260 \320\277\320\260\320\275\320\265\320\273\321\214 \320\270\320\267\320\275\320\260\321\207"
+    "\320\260\320\273\321\214\320\275\320\276 \320\276\321\204\320\276\321\200\320\274\320\273\321\217\320\273"
+    "\320\260\321\201\321\214, \320\264\320\260\320\262\320\260\320\273\320\260 \320\277\321\200\320\270\320\263"
+    "\320\273\321\203\321\210\321\221\320\275\320\275\320\276\320\274\321\203 \321\202\320\265\320\272\321\201"
+    "\321\202\321\203 \320\272\320\276\320\275\321\202\321\200\320\260\321\201\321\202 2.65:1 \320\272 \321\204"
+    "\320\276\320\275\321\203 \320\277\321\200\320\270 4.5:1, \320\272\320\276\321\202\320\276\321\200\321\213"
+    "\320\265 \321\207\320\270\321\202\320\260\321\216\321\202\321\201\321\217 \320\272\320\276\320\274\321\204"
+    "\320\276\321\200\321\202\320\275\320\276, -- \320\260 \320\276\320\262\320\265\321\200\320\273\320\265\320\271"
+    " \321\207\320\270\321\202\320\260\321\216\321\202 \320\274\320\265\320\273\321\214\320\272\320\276\320\274"
+    ", \320\277\320\276\320\262\320\265\321\200\321\205 \320\264\320\262\320\270\320\266\321\203\321\211\320\265"
+    "\320\271\321\201\321\217 \320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\270.\n\n\320\241\320\275"
+    "\321\217\321\202\320\270\320\265 \320\263\320\260\320\273\320\276\321\207\320\272\320\270 \320\262\320\276"
+    "\320\267\320\262\321\200\320\260\321\211\320\260\320\265\321\202 \321\206\320\262\320\265\321\202\320\260"
+    " \321\201\320\260\320\274\320\276\320\271 NVIDIA.",
+    "\320\246\320\262\320\265\321\202\320\260 \320\277\321\200\320\276\320\270\320\267\320\262\320\276\320\264"
+    "\320\270\321\202\320\265\320\273\321\217",
+    "\320\220\320\272\321\206\320\265\320\275\321\202 \320\277\320\260\320\275\320\265\320\273\320\270 \321\201"
+    "\320\273\320\265\320\264\321\203\320\265\321\202 \320\267\320\260 \320\272\320\260\321\200\321\202\320\276"
+    "\320\271, \320\275\320\260 \320\272\320\276\321\202\320\276\321\200\320\276\320\271 \320\276\320\275\320\260"
+    " \320\275\320\260\321\200\320\270\321\201\320\276\320\262\320\260\320\275\320\260: \320\267\320\265\320\273"
+    "\321\221\320\275\321\213\320\271 NVIDIA \320\275\320\260 GPU NVIDIA, \320\272\321\200\320\260\321\201\320\275"
+    "\321\213\320\271 AMD \320\275\320\260 AMD. \320\241\320\275\320\270\320\274\320\270\321\202\320\265 \320\263"
+    "\320\260\320\273\320\276\321\207\320\272\321\203, \321\207\321\202\320\276\320\261\321\213 \320\262\320\265"
+    "\320\267\320\264\320\265 \320\276\321\201\321\202\320\260\320\262\320\270\321\202\321\214 \320\267\320\265"
+    "\320\273\321\221\320\275\321\213\320\271.",
+    "\n\n\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 \321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\265\321\202 \320\275\320\260 \320\272\320\260\321\200\321\202\320\265 AMD.",
+    "\n\n\320\255\321\202\320\260 \320\270\320\263\321\200\320\260 \321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\265\321\202 \320\275\320\265 \320\275\320\260 \320\272\320\260\321\200\321\202\320\265 AMD, \321\202"
+    "\320\260\320\272 \321\207\321\202\320\276 \320\267\320\264\320\265\321\201\321\214 \321\215\321\202\320\276"
+    " \320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 \320\274\320\265\320\275\321\217\320\265"
+    "\321\202.",
     "\320\220\320\262\321\202\320\276 (Windows)",
     "\320\220\320\275\320\263\320\273\320\270\320\271\321\201\320\272\320\270\320\271",
-    "\320\237\320\276\321\200\321\202\321\203\320\263\320\260\320\273\321\214\321\201\320\272\320\270\320\271 "
-    "(\320\221\321\200\320\260\320\267\320\270\320\273\320\270\321\217)",
+    "\320\237\320\276\321\200\321\202\321\203\320\263\320\260\320\273\321\214\321\201\320\272\320\270\320\271"
+    " (\320\221\321\200\320\260\320\267\320\270\320\273\320\270\321\217)",
     "\320\240\321\203\321\201\321\201\320\272\320\270\320\271",
     "\320\232\320\276\321\200\320\265\320\271\321\201\320\272\320\270\320\271",
-    "\320\232\320\270\321\202\320\260\320\271\321\201\320\272\320\270\320\271 "
-    "(\321\203\320\277\321\200\320\276\321\211\321\221\320\275\320\275\321\213\320\271)",
+    "\320\232\320\270\321\202\320\260\320\271\321\201\320\272\320\270\320\271 (\321\203\320\277\321\200\320\276"
+    "\321\211\321\221\320\275\320\275\321\213\320\271)",
     "\320\230\321\201\320\277\320\260\320\275\321\201\320\272\320\270\320\271",
     "\320\235\320\265\320\274\320\265\321\206\320\272\320\270\320\271",
     "\320\257\320\267\321\213\320\272",
-    "\320\220\320\262\321\202\320\276 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 "
-    "\321\217\320\267\321\213\320\272\321\203 "
-    "\320\270\320\275\321\202\320\265\321\200\321\204\320\265\320\271\321\201\320\260 Windows. "
-    "\320\222\321\213\320\261\320\276\321\200 \320\267\320\264\320\265\321\201\321\214 "
-    "\320\274\320\265\320\275\321\217\320\265\321\202 \321\202\320\276\320\273\321\214\320\272\320\276 "
-    "\321\215\321\202\321\203 \320\277\320\260\320\275\320\265\320\273\321\214; "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\265 "
-    "\320\274\320\265\320\275\321\216 OptiScaler \320\276\321\201\321\202\320\260\321\221\321\202\321\201\321\217 "
-    "\320\260\320\275\320\263\320\273\320\270\320\271\321\201\320\272\320\270\320\274. "
-    "\320\257\320\267\321\213\320\272, \320\272\320\276\321\202\320\276\321\200\320\276\320\274\321\203 "
-    "\320\275\321\203\320\266\320\265\320\275 \321\201\320\262\320\276\320\271 "
-    "\321\210\321\200\320\270\321\204\321\202 "
-    "(\320\272\320\270\321\202\320\260\320\271\321\201\320\272\320\270\320\271, "
-    "\320\272\320\276\321\200\320\265\320\271\321\201\320\272\320\270\320\271), "
-    "\320\267\320\260\320\263\321\200\321\203\320\266\320\260\320\265\321\202 \320\265\320\263\320\276 "
-    "\320\270\320\267 Windows \320\275\320\260 "
-    "\321\201\320\273\320\265\320\264\321\203\321\216\321\211\320\265\320\274 "
-    "\320\272\320\260\320\264\321\200\320\265.",
+    "\320\220\320\262\321\202\320\276 \321\201\320\273\320\265\320\264\321\203\320\265\321\202 \321\217\320\267"
+    "\321\213\320\272\321\203 \320\270\320\275\321\202\320\265\321\200\321\204\320\265\320\271\321\201\320\260"
+    " Windows. \320\222\321\213\320\261\320\276\321\200 \320\267\320\264\320\265\321\201\321\214 \320\274\320\265"
+    "\320\275\321\217\320\265\321\202 \321\202\320\276\320\273\321\214\320\272\320\276 \321\215\321\202\321\203"
+    " \320\277\320\260\320\275\320\265\320\273\321\214; \321\201\320\276\320\261\321\201\321\202\320\262\320\265"
+    "\320\275\320\275\320\276\320\265 \320\274\320\265\320\275\321\216 OptiScaler \320\276\321\201\321\202\320\260"
+    "\321\221\321\202\321\201\321\217 \320\260\320\275\320\263\320\273\320\270\320\271\321\201\320\272\320\270"
+    "\320\274. \320\257\320\267\321\213\320\272, \320\272\320\276\321\202\320\276\321\200\320\276\320\274\321\203"
+    " \320\275\321\203\320\266\320\265\320\275 \321\201\320\262\320\276\320\271 \321\210\321\200\320\270\321\204"
+    "\321\202 (\320\272\320\270\321\202\320\260\320\271\321\201\320\272\320\270\320\271, \320\272\320\276\321\200"
+    "\320\265\320\271\321\201\320\272\320\270\320\271), \320\267\320\260\320\263\321\200\321\203\320\266\320\260"
+    "\320\265\321\202 \320\265\320\263\320\276 \320\270\320\267 Windows \320\275\320\260 \321\201\320\273\320\265"
+    "\320\264\321\203\321\216\321\211\320\265\320\274 \320\272\320\260\320\264\321\200\320\265.",
     "\320\240\320\260\320\267\320\274\320\265\321\200 \321\210\321\200\320\270\321\204\321\202\320\260",
-    "\320\242\320\276\320\273\321\214\320\272\320\276 \321\202\320\265\320\272\321\201\321\202 "
-    "\321\215\321\202\320\276\320\271 \320\277\320\260\320\275\320\265\320\273\320\270 -- "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\276\320\265 "
-    "\320\274\320\265\320\275\321\216 OptiScaler "
-    "\321\201\320\276\321\205\321\200\320\260\320\275\321\217\320\265\321\202 \321\201\320\262\320\276\320\271 [Menu] "
-    "FontSize.\n\n\320\250\320\270\321\200\320\270\320\275\320\260 \321\201\321\202\321\200\320\276\320\272 "
-    "\321\201\321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217 \320\276\321\202 "
-    "\321\200\320\260\320\267\320\274\320\265\321\200\320\260 \321\210\321\200\320\270\321\204\321\202\320\260, "
-    "\320\277\320\276\321\215\321\202\320\276\320\274\321\203 \321\201\320\270\320\273\321\214\320\275\320\276 "
-    "\320\262\321\213\321\210\320\265 1.5x \320\277\320\276\320\264\320\277\320\270\321\201\320\270 "
-    "\320\275\320\260\321\207\320\270\320\275\320\260\321\216\321\202 "
-    "\320\275\320\260\320\265\320\267\320\266\320\260\321\202\321\214 \320\275\320\260 "
-    "\320\267\320\275\320\260\321\207\320\265\320\275\320\270\321\217.",
-    "\320\241\320\261\321\200\320\276\321\201\320\270\321\202\321\214 \321\200\320\260\321\201\320\277\320\276\320"
-    "\273\320\276\320\266\320\265\320\275\320\270\320\265",
-    "\320\237\320\265\321\200\320\265\321\202\320\260\321\211\320\270\321\202\320\265 \320\277\320\260\320\275\320"
-    "\265\320\273\321\214 \320\267\320\260 \320\273\321\216\320\261\320\276\320\265 \320\274\320\265\321\201\321"
-    "\202\320\276 \320\265\321\221 \321\204\320\276\320\275\320\260, \321\207\321\202\320\276\320\261\321\213 \320"
-    "\277\320\265\321\200\320\265\320\274\320\265\321\201\321\202\320\270\321\202\321\214, \320\270\320\273\320\270"
-    " \320\277\320\276\321\202\321\217\320\275\320\270\321\202\320\265 \320\267\320\260 \320\272\321\200\320\260"
-    "\320\271 \320\273\320\270\320\261\320\276\n\320\277\321\200\320\260\320\262\321\213\320\271 \320\275\320\270"
-    "\320\266\320\275\320\270\320\271 \321\203\320\263\320\276\320\273, \321\207\321\202\320\276\320\261\321\213 "
-    "\320\270\320\267\320\274\320\265\320\275\320\270\321\202\321\214 \321\200\320\260\320\267\320\274\320\265\321"
-    "\200. \320\236\320\275\320\260 \320\274\320\276\320\266\320\265\321\202 \321\207\320\260\321\201\321\202\320"
-    "\270\321\207\320\275\320\276 \321\203\321\205\320\276\320\264\320\270\321\202\321\214 \320\267\320\260 \321"
-    "\215\320\272\321\200\320\260\320\275, \320\275\320\276 \320\277\320\276\320\273\320\276\321\201\320\260\n\320"
-    "\262\321\201\320\265\320\263\320\264\320\260 \320\276\321\201\321\202\320\260\321\221\321\202\321\201\321\217 "
-    "\320\262\320\270\320\264\320\270\320\274\320\276\320\271, \321\207\321\202\320\276\320\261\321\213 \320\265"
-    "\321\221 \320\274\320\276\320\266\320\275\320\276 \320\261\321\213\320\273\320\276 \321\201\321\205\320\262"
-    "\320\260\321\202\320\270\321\202\321\214. \320\237\320\276\320\267\320\270\321\206\320\270\321\217 \320\270 "
-    "\321\200\320\260\320\267\320\274\320\265\321\200 \320\267\320\260\320\277\320\276\320\274\320\270\320\275\320"
-    "\260\321\216\321\202\321\201\321\217 \320\264\320\273\321\217\n\321\215\321\202\320\276\320\271 \320\270\320"
-    "\263\321\200\321\213 \320\272\320\260\320\272 \320\264\320\276\320\273\321\217 \321\215\320\272\321\200\320"
-    "\260\320\275\320\260, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\262\320\276\320\267\320"
-    "\262\321\200\320\260\321\211\320\260\321\216\321\202\321\201\321\217 \320\277\321\200\320\270 \320\273\321\216"
-    "\320\261\320\276\320\274 \321\200\320\260\320\267\321\200\320\265\321\210\320\265\320\275\320\270\320\270.",
-    "\320\227\320\260\320\272\321\200\321\213\321\202\321\214 \320\277\320\260\320\275\320\265\320\273\321\214. "
-    "\320\225\321\221 \320\272\320\273\320\260\320\262\320\270\321\210\320\260 "
-    "\320\276\321\202\320\272\321\200\320\276\320\265\321\202 \320\265\321\221 "
-    "\321\201\320\275\320\276\320\262\320\260.",
-    "DLSS Frame Generation \320\270\320\263\321\200\321\213: \321\200\320\260\320\261\320\276\321\202\320\260\320"
-    "\265\321\202 \320\275\320\260 %dX",
-    "DLSS Frame Generation \320\270\320\263\321\200\321\213: \320\262\321\213\320\272\320\273\321\216\321\207\320"
-    "\265\320\275\320\260 \320\262 \320\262\320\270\320\264\320\265\320\276\320\275\320\260\321\201\321\202\321\200"
-    "\320\276\320\271\320\272\320\260\321\205 \320\270\320\263\321\200\321\213.",
-    "\320\243 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 \320\265\321\201\321\202\321\214 "
-    "\321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 NVIDIA DLSS Frame Gen"
-    "eration. \320\222\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265 \320\270 \320\262\321\213"
-    "\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265 \320\265\321\221\n\320\262 \320\262\320\270"
-    "\320\264\320\265\320\276\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260\321\205 \320"
-    "\270\320\263\321\200\321\213 \320\272\320\260\320\272 \320\276\320\261\321\213\321\207\320\275\320\276 -- \321"
-    "\201\321\202\321\200\320\276\320\272\320\260 \320\275\320\270\320\266\320\265 \320\274\320\265\320\275\321\217"
-    "\320\265\321\202 \321\202\320\276\320\273\321\214\320\272\320\276 \320\274\320\275\320\276\320\266\320\270\321"
-    "\202\320\265\320\273\321\214,\n\320\272\320\276\321\202\320\276\321\200\321\213\320\271 \320\270\320\263\321"
-    "\200\320\260 \320\267\320\260\320\277\321\200\320\260\321\210\320\270\320\262\320\260\320\265\321\202 \321\203"
-    " \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260.",
+    "\320\242\320\276\320\273\321\214\320\272\320\276 \321\202\320\265\320\272\321\201\321\202 \321\215\321\202"
+    "\320\276\320\271 \320\277\320\260\320\275\320\265\320\273\320\270 -- \321\201\320\276\320\261\321\201\321\202"
+    "\320\262\320\265\320\275\320\275\320\276\320\265 \320\274\320\265\320\275\321\216 OptiScaler \321\201\320\276"
+    "\321\205\321\200\320\260\320\275\321\217\320\265\321\202 \321\201\320\262\320\276\320\271 [Menu] FontSiz"
+    "e.\n\n\320\250\320\270\321\200\320\270\320\275\320\260 \321\201\321\202\321\200\320\276\320\272 \321\201"
+    "\321\207\320\270\321\202\320\260\320\265\321\202\321\201\321\217 \320\276\321\202 \321\200\320\260\320\267"
+    "\320\274\320\265\321\200\320\260 \321\210\321\200\320\270\321\204\321\202\320\260, \320\277\320\276\321\215"
+    "\321\202\320\276\320\274\321\203 \321\201\320\270\320\273\321\214\320\275\320\276 \320\262\321\213\321\210"
+    "\320\265 1.5x \320\277\320\276\320\264\320\277\320\270\321\201\320\270 \320\275\320\260\321\207\320\270\320\275"
+    "\320\260\321\216\321\202 \320\275\320\260\320\265\320\267\320\266\320\260\321\202\321\214 \320\275\320\260"
+    " \320\267\320\275\320\260\321\207\320\265\320\275\320\270\321\217.",
+    "\320\241\320\261\321\200\320\276\321\201\320\270\321\202\321\214 \321\200\320\260\321\201\320\277\320\276"
+    "\320\273\320\276\320\266\320\265\320\275\320\270\320\265",
+    "\320\237\320\265\321\200\320\265\321\202\320\260\321\211\320\270\321\202\320\265 \320\277\320\260\320\275"
+    "\320\265\320\273\321\214 \320\267\320\260 \320\273\321\216\320\261\320\276\320\265 \320\274\320\265\321\201"
+    "\321\202\320\276 \320\265\321\221 \321\204\320\276\320\275\320\260, \321\207\321\202\320\276\320\261\321\213"
+    " \320\277\320\265\321\200\320\265\320\274\320\265\321\201\321\202\320\270\321\202\321\214, \320\270\320\273"
+    "\320\270 \320\277\320\276\321\202\321\217\320\275\320\270\321\202\320\265 \320\267\320\260 \320\272\321\200"
+    "\320\260\320\271 \320\273\320\270\320\261\320\276\n\320\277\321\200\320\260\320\262\321\213\320\271 \320\275"
+    "\320\270\320\266\320\275\320\270\320\271 \321\203\320\263\320\276\320\273, \321\207\321\202\320\276\320\261"
+    "\321\213 \320\270\320\267\320\274\320\265\320\275\320\270\321\202\321\214 \321\200\320\260\320\267\320\274"
+    "\320\265\321\200. \320\236\320\275\320\260 \320\274\320\276\320\266\320\265\321\202 \321\207\320\260\321\201"
+    "\321\202\320\270\321\207\320\275\320\276 \321\203\321\205\320\276\320\264\320\270\321\202\321\214 \320\267"
+    "\320\260 \321\215\320\272\321\200\320\260\320\275, \320\275\320\276 \320\277\320\276\320\273\320\276\321\201"
+    "\320\260\n\320\262\321\201\320\265\320\263\320\264\320\260 \320\276\321\201\321\202\320\260\321\221\321\202"
+    "\321\201\321\217 \320\262\320\270\320\264\320\270\320\274\320\276\320\271, \321\207\321\202\320\276\320\261"
+    "\321\213 \320\265\321\221 \320\274\320\276\320\266\320\275\320\276 \320\261\321\213\320\273\320\276 \321\201"
+    "\321\205\320\262\320\260\321\202\320\270\321\202\321\214. \320\237\320\276\320\267\320\270\321\206\320\270"
+    "\321\217 \320\270 \321\200\320\260\320\267\320\274\320\265\321\200 \320\267\320\260\320\277\320\276\320\274"
+    "\320\270\320\275\320\260\321\216\321\202\321\201\321\217 \320\264\320\273\321\217\n\321\215\321\202\320\276"
+    "\320\271 \320\270\320\263\321\200\321\213 \320\272\320\260\320\272 \320\264\320\276\320\273\321\217 \321\215"
+    "\320\272\321\200\320\260\320\275\320\260, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \320\262"
+    "\320\276\320\267\320\262\321\200\320\260\321\211\320\260\321\216\321\202\321\201\321\217 \320\277\321\200"
+    "\320\270 \320\273\321\216\320\261\320\276\320\274 \321\200\320\260\320\267\321\200\320\265\321\210\320\265"
+    "\320\275\320\270\320\270.",
+    "\320\227\320\260\320\272\321\200\321\213\321\202\321\214 \320\277\320\260\320\275\320\265\320\273\321\214"
+    ". \320\225\321\221 \320\272\320\273\320\260\320\262\320\270\321\210\320\260 \320\276\321\202\320\272\321\200"
+    "\320\276\320\265\321\202 \320\265\321\221 \321\201\320\275\320\276\320\262\320\260.",
+    "DLSS Frame Generation \320\270\320\263\321\200\321\213: \321\200\320\260\320\261\320\276\321\202\320\260"
+    "\320\265\321\202 \320\275\320\260 %dX",
+    "DLSS Frame Generation \320\270\320\263\321\200\321\213: \320\262\321\213\320\272\320\273\321\216\321\207"
+    "\320\265\320\275\320\260 \320\262 \320\262\320\270\320\264\320\265\320\276\320\275\320\260\321\201\321\202"
+    "\321\200\320\276\320\271\320\272\320\260\321\205 \320\270\320\263\321\200\321\213.",
+    "\320\243 \321\215\321\202\320\276\320\271 \320\270\320\263\321\200\321\213 \320\265\321\201\321\202\321\214"
+    " \321\201\320\276\320\261\321\201\321\202\320\262\320\265\320\275\320\275\320\260\321\217 NVIDIA DLSS Fr"
+    "ame Generation. \320\222\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265 \320\270 \320\262"
+    "\321\213\320\272\320\273\321\216\321\207\320\260\320\271\321\202\320\265 \320\265\321\221\n\320\262 \320\262"
+    "\320\270\320\264\320\265\320\276\320\275\320\260\321\201\321\202\321\200\320\276\320\271\320\272\320\260"
+    "\321\205 \320\270\320\263\321\200\321\213 \320\272\320\260\320\272 \320\276\320\261\321\213\321\207\320\275"
+    "\320\276 -- \321\201\321\202\321\200\320\276\320\272\320\260 \320\275\320\270\320\266\320\265 \320\274\320\265"
+    "\320\275\321\217\320\265\321\202 \321\202\320\276\320\273\321\214\320\272\320\276 \320\274\320\275\320\276"
+    "\320\266\320\270\321\202\320\265\320\273\321\214,\n\320\272\320\276\321\202\320\276\321\200\321\213\320\271"
+    " \320\270\320\263\321\200\320\260 \320\267\320\260\320\277\321\200\320\260\321\210\320\270\320\262\320\260"
+    "\320\265\321\202 \321\203 \320\264\321\200\320\260\320\271\320\262\320\265\321\200\320\260.",
     "\320\230\320\263\321\200\320\260",
-    "\320\227\320\260\320\264\320\260\321\221\321\202, \321\201\320\272\320\276\320\273\321\214\320\272\320\276 "
-    "\320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213\321"
-    "\205 \320\272\320\260\320\264\321\200\320\276\320\262 DLSS-G \320\270\320\263\321\200\321\213 \320\262\321\201"
-    "\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \320\274\320\265\320\266\320\264\321\203 \321\200\320"
-    "\265\320\260\320\273\321\214\320\275\321\213\320\274\320\270.\n\302\253\320\230\320\263\321\200\320\260\302"
-    "\273 \320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \321\202\320\276, \321\207\321"
-    "\202\320\276 \321\203\320\272\320\260\320\267\320\260\320\275\320\276 \320\262 \320\274\320\265\320\275\321"
-    "\216 \321\201\320\260\320\274\320\276\320\271 \320\270\320\263\321\200\321\213. 2X \320\262\321\201\321\202"
-    "\320\260\320\262\320\273\321\217\320\265\321\202 \320\276\320\264\320\270\320\275, 3X\n-- \320\264\320\262\320"
-    "\260, \320\270 \321\202\320\260\320\272 \320\264\320\260\320\273\320\265\320\265. \320\224\320\273\321\217 3X "
-    "\320\270 4X \320\275\321\203\320\266\320\275\320\260 RTX 50-\320\271 \321\201\320\265\321\200\320\270\320\270 "
-    "-- \320\275\320\260 \320\264\321\200\321\203\320\263\320\270\321\205 \320\272\320\260\321\200\321\202\320\260"
-    "\321\205\n\320\264\321\200\320\260\320\271\320\262\320\265\321\200 \320\276\320\263\321\200\320\260\320\275"
-    "\320\270\321\207\320\270\320\262\320\260\320\265\321\202 2X, \321\207\321\202\320\276 \320\261\321\213 \320"
-    "\267\320\264\320\265\321\201\321\214 \320\275\320\270 \320\261\321\213\320\273\320\276 \320\262\321\213\320"
-    "\261\321\200\320\260\320\275\320\276.\n\n\320\235\320\265\320\264\320\276\321\201\321\202\321\203\320\277\320"
-    "\275\320\276, \320\277\320\276\320\272\320\260 \320\275\320\270\320\266\320\265 \320\262\320\272\320\273\321"
-    "\216\321\207\321\221\320\275 Multi -- \321\202\320\276\320\263\320\264\320\260 \320\272\320\276\320\273\320"
-    "\270\321\207\320\265\321\201\321\202\320\262\320\276 \320\262\321\213\320\261\320\270\321\200\320\260\320\265"
-    "\321\202 \320\264\321\200\320\260\320\271\320\262\320\265\321\200.",
+    "\320\227\320\260\320\264\320\260\321\221\321\202, \321\201\320\272\320\276\320\273\321\214\320\272\320\276"
+    " \320\264\320\276\320\277\320\276\320\273\320\275\320\270\321\202\320\265\320\273\321\214\320\275\321\213"
+    "\321\205 \320\272\320\260\320\264\321\200\320\276\320\262 DLSS-G \320\270\320\263\321\200\321\213 \320\262"
+    "\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \320\274\320\265\320\266\320\264\321\203"
+    " \321\200\320\265\320\260\320\273\321\214\320\275\321\213\320\274\320\270.\n\302\253\320\230\320\263\321\200"
+    "\320\260\302\273 \320\276\321\201\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \321\202\320\276"
+    ", \321\207\321\202\320\276 \321\203\320\272\320\260\320\267\320\260\320\275\320\276 \320\262 \320\274\320\265"
+    "\320\275\321\216 \321\201\320\260\320\274\320\276\320\271 \320\270\320\263\321\200\321\213. 2X \320\262\321\201"
+    "\321\202\320\260\320\262\320\273\321\217\320\265\321\202 \320\276\320\264\320\270\320\275, 3X\n-- \320\264"
+    "\320\262\320\260, \320\270 \321\202\320\260\320\272 \320\264\320\260\320\273\320\265\320\265. \320\224\320\273"
+    "\321\217 3X \320\270 4X \320\275\321\203\320\266\320\275\320\260 RTX 50-\320\271 \321\201\320\265\321\200"
+    "\320\270\320\270 -- \320\275\320\260 \320\264\321\200\321\203\320\263\320\270\321\205 \320\272\320\260\321\200"
+    "\321\202\320\260\321\205\n\320\264\321\200\320\260\320\271\320\262\320\265\321\200 \320\276\320\263\321\200"
+    "\320\260\320\275\320\270\321\207\320\270\320\262\320\260\320\265\321\202 2X, \321\207\321\202\320\276 \320\261"
+    "\321\213 \320\267\320\264\320\265\321\201\321\214 \320\275\320\270 \320\261\321\213\320\273\320\276 \320\262"
+    "\321\213\320\261\321\200\320\260\320\275\320\276.\n\n\320\235\320\265\320\264\320\276\321\201\321\202\321\203"
+    "\320\277\320\275\320\276, \320\277\320\276\320\272\320\260 \320\275\320\270\320\266\320\265 \320\262\320\272"
+    "\320\273\321\216\321\207\321\221\320\275 Multi -- \321\202\320\276\320\263\320\264\320\260 \320\272\320\276"
+    "\320\273\320\270\321\207\320\265\321\201\321\202\320\262\320\276 \320\262\321\213\320\261\320\270\321\200"
+    "\320\260\320\265\321\202 \320\264\321\200\320\260\320\271\320\262\320\265\321\200.",
     "\320\275\320\265\321\202 \321\204\320\260\320\271\320\273\320\260 nvngx.dll_dlssnr.dll",
     "nvngx.dll_dlssnr.dll \320\275\320\265 \320\267\320\260\320\263\321\200\321\203\320\266\320\260\320\265\321\202"
     "\321\201\321\217",
@@ -2309,948 +2113,860 @@ static const char* const kTable_ru[] = {
     "\321\201\320\277\320\276\321\200\321\202\320\276\320\262",
     "\321\217\320\264\321\200\320\276 NGX \320\275\320\265 \320\270\320\275\320\270\321\206\320\270\320\260\320\273"
     "\320\270\320\267\320\270\321\200\321\203\320\265\321\202\321\201\321\217",
-    "\321\203 \321\217\320\264\321\200\320\260 NGX \320\275\320\265\321\202 \320\277\320\260\321\200\320\260\320"
-    "\274\320\265\321\202\321\200\320\276\320\262 \320\262\320\276\320\267\320\274\320\276\320\266\320\275\320\276"
+    "\321\203 \321\217\320\264\321\200\320\260 NGX \320\275\320\265\321\202 \320\277\320\260\321\200\320\260\320\274"
+    "\320\265\321\202\321\200\320\276\320\262 \320\262\320\276\320\267\320\274\320\276\320\266\320\275\320\276"
     "\321\201\321\202\320\265\320\271",
     "\321\217\320\264\321\200\320\276 NGX \320\276\321\202\320\262\320\265\321\200\320\263\320\273\320\276 \321\201"
-    "\320\262\320\276\320\270 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\321\213 \320\262\320"
-    "\276\320\267\320\274\320\276\320\266\320\275\320\276\321\201\321\202\320\265\320\271",
-    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \320\262\321\213\320\264\320\265\320"
-    "\273\320\270\321\202\321\214 \320\277\321\200\320\276\320\274\320\265\320\266\321\203\321\202\320\276\321\207"
-    "\320\275\321\203\321\216 \321\202\320\265\320\272\321\201\321\202\321\203\321\200\321\203 \321\206\320\262\320"
-    "\265\321\202\320\260 \320\264\320\276 SR",
+    "\320\262\320\276\320\270 \320\277\320\260\321\200\320\260\320\274\320\265\321\202\321\200\321\213 \320\262"
+    "\320\276\320\267\320\274\320\276\320\266\320\275\320\276\321\201\321\202\320\265\320\271",
+    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \320\262\321\213\320\264\320\265"
+    "\320\273\320\270\321\202\321\214 \320\277\321\200\320\276\320\274\320\265\320\266\321\203\321\202\320\276"
+    "\321\207\320\275\321\203\321\216 \321\202\320\265\320\272\321\201\321\202\321\203\321\200\321\203 \321\206"
+    "\320\262\320\265\321\202\320\260 \320\264\320\276 SR",
     "nvngx_dlssnr.dll \320\275\320\265 \320\275\320\260\320\271\320\264\320\265\320\275 \321\200\321\217\320\264"
     "\320\276\320\274 \321\201 OptiScaler \320\270\320\273\320\270 \320\270\320\263\321\200\320\276\320\271",
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\265 \320\270\320\275\320\270\321\206\320\270\320"
-    "\260\320\273\320\270\320\267\320\270\321\200\321\203\320\265\321\202\321\201\321\217",
-    "\321\206\320\262\320\265\321\202\320\276\320\262\320\276\320\271 \320\272\320\276\320\264\320\265\320\272 \320"
-    "\275\320\265 \320\272\320\276\320\274\320\277\320\270\320\273\320\270\321\200\321\203\320\265\321\202\321\201"
-    "\321\217",
-    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \321\201\320\264\320\265\320\273\320"
-    "\260\321\202\321\214 \321\207\320\270\321\202\320\260\320\265\320\274\321\213\320\274\320\270 \320\263\320\273"
-    "\321\203\320\261\320\270\320\275\321\203 \320\270\320\273\320\270 \320\262\320\265\320\272\321\202\320\276\321"
-    "\200\321\213 \320\264\320\262\320\270\320\266\320\265\320\275\320\270\321\217 \320\270\320\263\321\200\321\213",
-    "\320\277\321\203\321\202\321\214 \321\207\320\265\321\200\320\265\320\267 \320\277\321\200\320\276\320\272\321"
-    "\201\320\270 \320\275\320\265 \321\201\320\274\320\276\320\263 \320\267\320\260\320\277\321\203\321\201\321"
-    "\202\320\270\321\202\321\214 \320\274\320\276\320\264\320\265\320\273\321\214",
-    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\276\321\202\320\272\320\260\320\267\320\260\320\273\320"
-    "\260\321\201\321\214 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214",
-    "%s \321\203\320\266\320\265 \320\264\320\265\320\273\320\260\320\265\321\202 \321\215\321\202\320\276 -- \321"
-    "\203\320\264\320\260\320\273\320\270\321\202\320\265 \320\265\320\263\320\276 \320\270\320\273\320\270 \320"
-    "\262\321\213\320\272\320\273\321\216\321\207\320\270\321\202\320\265 \321\215\321\202\320\276",
+    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\275\320\265 \320\270\320\275\320\270\321\206\320\270"
+    "\320\260\320\273\320\270\320\267\320\270\321\200\321\203\320\265\321\202\321\201\321\217",
+    "\321\206\320\262\320\265\321\202\320\276\320\262\320\276\320\271 \320\272\320\276\320\264\320\265\320\272"
+    " \320\275\320\265 \320\272\320\276\320\274\320\277\320\270\320\273\320\270\321\200\321\203\320\265\321\202"
+    "\321\201\321\217",
+    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \321\201\320\264\320\265\320\273"
+    "\320\260\321\202\321\214 \321\207\320\270\321\202\320\260\320\265\320\274\321\213\320\274\320\270 \320\263"
+    "\320\273\321\203\320\261\320\270\320\275\321\203 \320\270\320\273\320\270 \320\262\320\265\320\272\321\202"
+    "\320\276\321\200\321\213 \320\264\320\262\320\270\320\266\320\265\320\275\320\270\321\217 \320\270\320\263"
+    "\321\200\321\213",
+    "\320\277\321\203\321\202\321\214 \321\207\320\265\321\200\320\265\320\267 \320\277\321\200\320\276\320\272"
+    "\321\201\320\270 \320\275\320\265 \321\201\320\274\320\276\320\263 \320\267\320\260\320\277\321\203\321\201"
+    "\321\202\320\270\321\202\321\214 \320\274\320\276\320\264\320\265\320\273\321\214",
+    "\320\274\320\276\320\264\320\265\320\273\321\214 \320\276\321\202\320\272\320\260\320\267\320\260\320\273"
+    "\320\260\321\201\321\214 \321\200\320\260\320\261\320\276\321\202\320\260\321\202\321\214",
+    "%s \321\203\320\266\320\265 \320\264\320\265\320\273\320\260\320\265\321\202 \321\215\321\202\320\276 --"
+    " \321\203\320\264\320\260\320\273\320\270\321\202\320\265 \320\265\320\263\320\276 \320\270\320\273\320\270"
+    " \320\262\321\213\320\272\320\273\321\216\321\207\320\270\321\202\320\265 \321\215\321\202\320\276",
     "\320\275\320\265 \320\267\320\260\320\277\321\203\321\211\320\265\320\275\320\276",
-    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \320\262\321\213\320\264\320\265\320"
-    "\273\320\270\321\202\321\214 \320\261\321\203\321\204\320\265\321\200\321\213 \321\207\321\202\320\265\320\275"
-    "\320\270\321\217",
+    "\320\275\320\265 \321\203\320\264\320\260\320\273\320\276\321\201\321\214 \320\262\321\213\320\264\320\265"
+    "\320\273\320\270\321\202\321\214 \320\261\321\203\321\204\320\265\321\200\321\213 \321\207\321\202\320\265"
+    "\320\275\320\270\321\217",
     "\320\275\320\270 \320\276\320\264\320\270\320\275 \320\261\321\203\321\204\320\265\321\200 \321\215\321\202"
-    "\320\276\320\271 \320\270\320\263\321\200\321\213 \320\275\320\265 \320\277\320\276\321\205\320\276\320\266 "
-    "\320\277\320\276 \321\204\320\276\321\200\320\274\320\265 \320\275\320\260 \321\215\320\272\321\201\320\277"
+    "\320\276\320\271 \320\270\320\263\321\200\321\213 \320\275\320\265 \320\277\320\276\321\205\320\276\320\266"
+    " \320\277\320\276 \321\204\320\276\321\200\320\274\320\265 \320\275\320\260 \321\215\320\272\321\201\320\277"
     "\320\276\320\267\320\270\321\206\320\270\321\216",
+    "\320\244\321\200\320\260\320\275\321\206\321\203\320\267\321\201\320\272\320\270\320\271",
 };
 
 static const char* const kTable_ko[] = {
     "DLSS 5 \352\260\234\353\260\234\354\236\220 \354\273\250\355\212\270\353\241\244",
     "DLSS \354\274\254",
-    "\355\224\204\353\240\210\354\236\204 \354\203\235\354\204\261\354\235\264 \353\263\264\352\270\260 "
-    "\354\240\204\354\227\220 \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\354\235\230 "
-    "\355\224\204\353\240\210\354\236\204\354\227\220\354\204\234 \353\224\224\355\205\214\354\235\274\354\235\204 "
-    "\355\225\251\354\204\261\355\225\251\353\213\210\353\213\244.\n\nOptiScaler \354\230\206\354\227\220 \355\225\234 "
-    "\352\270\200\354\236\220\353\247\214 \353\213\244\353\245\270 \353\271\204\354\212\267\355\225\234 "
-    "\354\235\264\353\246\204\354\235\230 \355\214\214\354\235\274 \353\221\220 \352\260\234\352\260\200 "
-    "\355\225\204\354\232\224\355\225\251\353\213\210\353\213\244:\n  nvngx_dlssnr.dll       NVIDIA "
-    "\353\252\250\353\215\270(~165 MB) -- \354\247\201\354\240\221 \354\240\234\352\263\265\n  nvngx.dll_dlssnr.dll   "
-    "\355\217\254\354\233\214\353\215\224(~13 KB) -- \354\235\264 \355\214\250\355\202\244\354\247\200\354\227\220 "
-    "\355\217\254\355\225\250\n\353\254\270\354\204\234\355\231\224\353\220\230\354\247\200 "
-    "\354\225\212\354\225\230\352\263\240 \354\247\201\354\240\221 "
-    "\352\265\254\353\217\231\355\225\230\353\257\200\353\241\234 \354\235\264 \354\244\221 \354\226\264\353\212\220 "
-    "\352\262\203\353\217\204 \352\263\265\354\213\235 \354\247\200\354\233\220\353\220\230\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.",
-    "\354\206\214\354\212\244: DLSS5 Feeder(\354\235\264 \352\262\214\354\236\204\354\227\220 "
-    "\353\204\244\354\235\264\355\213\260\353\270\214 DLSS \354\227\206\354\235\214)",
+    "\355\224\204\353\240\210\354\236\204 \354\203\235\354\204\261\354\235\264 \353\263\264\352\270\260 \354\240\204"
+    "\354\227\220 \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\354\235\230 \355\224\204\353\240\210"
+    "\354\236\204\354\227\220\354\204\234 \353\224\224\355\205\214\354\235\274\354\235\204 \355\225\251\354\204\261"
+    "\355\225\251\353\213\210\353\213\244.\n\nOptiScaler \354\230\206\354\227\220 \355\225\234 \352\270\200\354\236\220"
+    "\353\247\214 \353\213\244\353\245\270 \353\271\204\354\212\267\355\225\234 \354\235\264\353\246\204\354\235\230"
+    " \355\214\214\354\235\274 \353\221\220 \352\260\234\352\260\200 \355\225\204\354\232\224\355\225\251\353\213\210"
+    "\353\213\244:\n  nvngx_dlssnr.dll       NVIDIA \353\252\250\353\215\270(~165 MB) -- \354\247\201\354\240\221"
+    " \354\240\234\352\263\265\n  nvngx.dll_dlssnr.dll   \355\217\254\354\233\214\353\215\224(~13 KB) -- \354\235\264"
+    " \355\214\250\355\202\244\354\247\200\354\227\220 \355\217\254\355\225\250\n\353\254\270\354\204\234\355\231\224"
+    "\353\220\230\354\247\200 \354\225\212\354\225\230\352\263\240 \354\247\201\354\240\221 \352\265\254\353\217\231"
+    "\355\225\230\353\257\200\353\241\234 \354\235\264 \354\244\221 \354\226\264\353\212\220 \352\262\203\353\217\204"
+    " \352\263\265\354\213\235 \354\247\200\354\233\220\353\220\230\354\247\200 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.",
+    "\354\206\214\354\212\244: DLSS5 Feeder(\354\235\264 \352\262\214\354\236\204\354\227\220 \353\204\244\354\235\264"
+    "\355\213\260\353\270\214 DLSS \354\227\206\354\235\214)",
     "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \354\236\220\354\262\264 DLSS\352\260\200 "
-    "\354\227\206\354\226\264 Neural Rendering\354\235\264 \353\266\231\354\235\204 evaluate "
-    "\355\230\270\354\266\234\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244. DLSS5 Feeder ReShade "
-    "\354\225\240\353\223\234\354\230\250\354\235\264 ReShade \354\236\220\354\262\264\354\235\230 "
-    "\352\271\212\354\235\264\354\231\200 \354\266\224\354\240\225 \353\252\250\354\205\230 "
-    "\353\262\241\355\204\260\353\241\234 \355\230\270\354\266\234\354\235\204 "
-    "\353\247\214\353\223\255\353\213\210\353\213\244.\n\n\354\266\224\354\240\225 \353\252\250\354\205\230 "
-    "\353\262\241\355\204\260\353\212\224 \352\262\214\354\236\204\354\235\230 \354\213\244\354\240\234 "
-    "\352\260\222\353\263\264\353\213\244 \352\261\260\354\271\240\354\226\264\354\204\234 -- \352\260\231\354\235\200 "
-    "\353\252\250\353\215\270\354\235\264\353\235\274\353\217\204 \353\204\244\354\235\264\355\213\260\353\270\214 "
-    "DLSS \352\262\214\354\236\204\353\263\264\353\213\244 \353\271\240\353\245\270 "
-    "\354\233\200\354\247\201\354\236\204\354\227\220\354\204\234 \352\263\240\354\212\244\355\214\205\354\235\264 "
-    "\353\247\216\352\263\240 \354\226\207\354\235\200 "
-    "\354\247\200\354\230\244\353\251\224\355\212\270\353\246\254\352\260\200 \353\215\224 "
-    "\353\266\200\353\223\234\353\237\254\354\233\214\354\247\221\353\213\210\353\213\244.",
-    "Lossless Scaling: \352\265\254\354\204\261\353\220\230\354\247\200 \354\225\212\354\235\214(OptiDLSS5-UI).",
+    "\354\227\206\354\226\264 Neural Rendering\354\235\264 \353\266\231\354\235\204 evaluate \355\230\270\354\266\234"
+    "\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244. DLSS5 Feeder ReShade \354\225\240\353\223\234"
+    "\354\230\250\354\235\264 ReShade \354\236\220\354\262\264\354\235\230 \352\271\212\354\235\264\354\231\200"
+    " \354\266\224\354\240\225 \353\252\250\354\205\230 \353\262\241\355\204\260\353\241\234 \355\230\270\354\266\234"
+    "\354\235\204 \353\247\214\353\223\255\353\213\210\353\213\244.\n\n\354\266\224\354\240\225 \353\252\250\354\205\230"
+    " \353\262\241\355\204\260\353\212\224 \352\262\214\354\236\204\354\235\230 \354\213\244\354\240\234 \352\260\222"
+    "\353\263\264\353\213\244 \352\261\260\354\271\240\354\226\264\354\204\234 -- \352\260\231\354\235\200 \353\252\250"
+    "\353\215\270\354\235\264\353\235\274\353\217\204 \353\204\244\354\235\264\355\213\260\353\270\214 DLSS \352\262\214"
+    "\354\236\204\353\263\264\353\213\244 \353\271\240\353\245\270 \354\233\200\354\247\201\354\236\204\354\227\220"
+    "\354\204\234 \352\263\240\354\212\244\355\214\205\354\235\264 \353\247\216\352\263\240 \354\226\207\354\235\200"
+    " \354\247\200\354\230\244\353\251\224\355\212\270\353\246\254\352\260\200 \353\215\224 \353\266\200\353\223\234"
+    "\353\237\254\354\233\214\354\247\221\353\213\210\353\213\244.",
+    "Lossless Scaling: \352\265\254\354\204\261\353\220\230\354\247\200 \354\225\212\354\235\214(OptiDLSS5-UI"
+    ").",
     "Lossless Scaling",
-    "\353\260\261\352\267\270\353\235\274\354\232\264\353\223\234\354\227\220\354\204\234 Lossless Scaling\354\235"
-    "\204 \354\213\244\355\226\211/\354\242\205\353\243\214\355\225\251\353\213\210\353\213\244(\355\212\270\353"
-    "\240\210\354\235\264\353\241\234 \354\265\234\354\206\214\355\231\224, \354\260\275 \355\221\234\354\213\234 "
-    "\354\227\206\354\235\214). \354\225\204\353\236\230\354\235\230 \355\231\234\354\204\261\354\235\204 \354\274"
-    "\234\353\217\204 \354\236\220\353\217\231\354\234\274\353\241\234 \354\213\244\355\226\211\353\220\251\353\213"
-    "\210\353\213\244.",
+    "\353\260\261\352\267\270\353\235\274\354\232\264\353\223\234\354\227\220\354\204\234 Lossless Scaling\354\235\204"
+    " \354\213\244\355\226\211/\354\242\205\353\243\214\355\225\251\353\213\210\353\213\244(\355\212\270\353\240\210"
+    "\354\235\264\353\241\234 \354\265\234\354\206\214\355\231\224, \354\260\275 \355\221\234\354\213\234 \354\227\206"
+    "\354\235\214). \354\225\204\353\236\230\354\235\230 \355\231\234\354\204\261\354\235\204 \354\274\234\353\217\204"
+    " \354\236\220\353\217\231\354\234\274\353\241\234 \354\213\244\355\226\211\353\220\251\353\213\210\353\213\244"
+    ".",
     "\355\231\234\354\204\261",
-    "Lossless Scaling \354\236\220\354\262\264 \354\240\204\354\227\255 \353\213\250\354\266\225\355\202\244\353"
-    "\241\234 \354\235\264 \352\262\214\354\236\204\354\235\230 Lossless Scaling Frame Generation\354\235\204 \354"
-    "\274\234\352\263\240 \353\201\225\353\213\210\353\213\244 -- \354\260\275\354\235\200 \355\221\234\354\213\234"
-    "\353\220\230\354\247\200 \354\225\212\354\234\274\353\251\260, \355\225\204\354\232\224\355\225\230\353\251"
-    "\264 \353\250\274\354\240\200 Lossless Scaling\354\235\204 \354\213\244\355\226\211\355\225\251\353\213\210"
-    "\353\213\244. \355\231\225\354\235\270\353\220\234 \354\213\244\354\240\234 \354\203\201\355\203\234\352\260"
-    "\200 \354\225\204\353\213\210\353\235\274 \353\247\210\354\247\200\353\247\211 \354\232\224\354\262\255\354"
-    "\235\204 \353\263\264\354\227\254\354\244\215\353\213\210\353\213\244.\n\n\354\235\264\352\262\203\354\235\204"
-    " \354\274\234\353\251\264 OptiScaler \354\236\220\354\262\264 Frame Generation\354\235\264 \352\272\274\354"
-    "\247\221\353\213\210\353\213\244: \355\224\204\353\240\210\354\236\204 \354\203\235\354\204\261\352\270\260 "
-    "\353\221\220 \352\260\234\353\212\224 \355\224\204\353\240\210\354\236\204\354\235\264 \352\262\271\354\271"
-    "\251\353\213\210\353\213\244.",
+    "Lossless Scaling \354\236\220\354\262\264 \354\240\204\354\227\255 \353\213\250\354\266\225\355\202\244\353\241\234"
+    " \354\235\264 \352\262\214\354\236\204\354\235\230 Lossless Scaling Frame Generation\354\235\204 \354\274\234"
+    "\352\263\240 \353\201\225\353\213\210\353\213\244 -- \354\260\275\354\235\200 \355\221\234\354\213\234\353\220\230"
+    "\354\247\200 \354\225\212\354\234\274\353\251\260, \355\225\204\354\232\224\355\225\230\353\251\264 \353\250\274"
+    "\354\240\200 Lossless Scaling\354\235\204 \354\213\244\355\226\211\355\225\251\353\213\210\353\213\244. "
+    "\355\231\225\354\235\270\353\220\234 \354\213\244\354\240\234 \354\203\201\355\203\234\352\260\200 \354\225\204"
+    "\353\213\210\353\235\274 \353\247\210\354\247\200\353\247\211 \354\232\224\354\262\255\354\235\204 \353\263\264"
+    "\354\227\254\354\244\215\353\213\210\353\213\244.\n\n\354\235\264\352\262\203\354\235\204 \354\274\234\353\251\264"
+    " OptiScaler \354\236\220\354\262\264 Frame Generation\354\235\264 \352\272\274\354\247\221\353\213\210\353\213\244"
+    ": \355\224\204\353\240\210\354\236\204 \354\203\235\354\204\261\352\270\260 \353\221\220 \352\260\234\353\212\224"
+    " \355\224\204\353\240\210\354\236\204\354\235\264 \352\262\271\354\271\251\353\213\210\353\213\244.",
     "\354\240\201\354\235\221\355\230\225: %d fps \354\234\240\354\247\200",
-    "\354\240\201\354\235\221\355\230\225 Frame Generation: Lossless Scaling\354\235\264 \354\235\264 "
-    "\353\252\251\355\221\234\353\245\274 \354\234\240\354\247\200\355\225\230\353\212\224 \353\215\260 "
-    "\355\225\204\354\232\224\355\225\234 \353\247\214\355\201\274\353\247\214 "
-    "\355\224\204\353\240\210\354\236\204\354\235\204 \354\203\235\354\204\261\355\225\251\353\213\210\353\213\244. "
-    "\353\252\251\355\221\234 \353\263\200\352\262\275(\353\230\220\353\212\224 \352\263\240\354\240\225 "
-    "\353\260\260\354\210\230\353\241\234 \354\240\204\355\231\230)\354\235\200 OptiDLSS5-UI\354\227\220\354\204\234 "
-    "\355\225\251\353\213\210\353\213\244. \354\235\264 \352\262\214\354\236\204\354\235\204 \354\240\204\354\232\251 "
-    "\354\240\204\354\262\264\355\231\224\353\251\264\354\235\264 \354\225\204\353\213\214 "
-    "\355\205\214\353\221\220\353\246\254 \354\227\206\353\212\224 \354\260\275 \353\230\220\353\212\224 \354\260\275 "
-    "\353\252\250\353\223\234\353\241\234 \354\213\244\355\226\211\355\225\264\354\225\274 "
-    "\355\225\251\353\213\210\353\213\244(DX12 \352\262\214\354\236\204\354\235\200 \353\263\264\355\206\265 "
-    "\354\226\264\353\212\220 \354\252\275\354\235\264\353\223\240 "
-    "\352\264\234\354\260\256\354\212\265\353\213\210\353\213\244).",
-    "\354\213\244\354\240\234 \355\224\204\353\240\210\354\236\204 \355\225\230\353\202\230\353\213\271 \354\203"
-    "\235\354\204\261\353\220\230\353\212\224 \355\224\204\353\240\210\354\236\204 \354\210\230. Lossless Scaling"
-    "\354\235\264 \354\235\264\353\257\270 \354\213\244\355\226\211 \354\244\221\354\235\264\353\251\264 \354\240"
-    "\201\354\232\251\354\235\204 \354\234\204\355\225\264 \354\236\240\352\271\220 \353\213\244\354\213\234 \354"
-    "\213\234\354\236\221\355\225\251\353\213\210\353\213\244 -- Frame Gen\354\235\264 1\354\264\210 \354\240\225"
-    "\353\217\204 \352\272\274\354\247\221\353\213\210\353\213\244. \354\235\264 \352\262\214\354\236\204\354\235"
-    "\204 \354\240\204\354\232\251 \354\240\204\354\262\264\355\231\224\353\251\264\354\235\264 \354\225\204\353"
-    "\213\214 \355\205\214\353\221\220\353\246\254 \354\227\206\353\212\224 \354\260\275 \353\230\220\353\212\224 "
-    "\354\260\275 \353\252\250\353\223\234\353\241\234 \354\213\244\355\226\211\355\225\264\354\225\274 \355\225"
-    "\251\353\213\210\353\213\244(DX12 \352\262\214\354\236\204\354\235\200 \353\263\264\355\206\265 \354\226\264"
+    "\354\240\201\354\235\221\355\230\225 Frame Generation: Lossless Scaling\354\235\264 \354\235\264 \353\252\251"
+    "\355\221\234\353\245\274 \354\234\240\354\247\200\355\225\230\353\212\224 \353\215\260 \355\225\204\354\232\224"
+    "\355\225\234 \353\247\214\355\201\274\353\247\214 \355\224\204\353\240\210\354\236\204\354\235\204 \354\203\235"
+    "\354\204\261\355\225\251\353\213\210\353\213\244. \353\252\251\355\221\234 \353\263\200\352\262\275(\353\230\220"
+    "\353\212\224 \352\263\240\354\240\225 \353\260\260\354\210\230\353\241\234 \354\240\204\355\231\230)\354\235\200"
+    " OptiDLSS5-UI\354\227\220\354\204\234 \355\225\251\353\213\210\353\213\244. \354\235\264 \352\262\214\354\236\204"
+    "\354\235\204 \354\240\204\354\232\251 \354\240\204\354\262\264\355\231\224\353\251\264\354\235\264 \354\225\204"
+    "\353\213\214 \355\205\214\353\221\220\353\246\254 \354\227\206\353\212\224 \354\260\275 \353\230\220\353\212\224"
+    " \354\260\275 \353\252\250\353\223\234\353\241\234 \354\213\244\355\226\211\355\225\264\354\225\274 \355\225\251"
+    "\353\213\210\353\213\244(DX12 \352\262\214\354\236\204\354\235\200 \353\263\264\355\206\265 \354\226\264"
     "\353\212\220 \354\252\275\354\235\264\353\223\240 \352\264\234\354\260\256\354\212\265\353\213\210\353\213\244"
     ").",
-    "\354\235\264\352\262\203\354\235\264 \354\213\244\355\226\211\353\220\230\353\212\224 \353\217\231\354\225\210 "
-    "\352\262\214\354\236\204 \354\236\220\354\262\264 DLSS Frame Generation\354\235\200 \352\272\274 "
-    "\353\221\220\354\204\270\354\232\224.",
+    "\354\213\244\354\240\234 \355\224\204\353\240\210\354\236\204 \355\225\230\353\202\230\353\213\271 \354\203\235"
+    "\354\204\261\353\220\230\353\212\224 \355\224\204\353\240\210\354\236\204 \354\210\230. Lossless Scaling"
+    "\354\235\264 \354\235\264\353\257\270 \354\213\244\355\226\211 \354\244\221\354\235\264\353\251\264 \354\240\201"
+    "\354\232\251\354\235\204 \354\234\204\355\225\264 \354\236\240\352\271\220 \353\213\244\354\213\234 \354\213\234"
+    "\354\236\221\355\225\251\353\213\210\353\213\244 -- Frame Gen\354\235\264 1\354\264\210 \354\240\225\353\217\204"
+    " \352\272\274\354\247\221\353\213\210\353\213\244. \354\235\264 \352\262\214\354\236\204\354\235\204 \354\240\204"
+    "\354\232\251 \354\240\204\354\262\264\355\231\224\353\251\264\354\235\264 \354\225\204\353\213\214 \355\205\214"
+    "\353\221\220\353\246\254 \354\227\206\353\212\224 \354\260\275 \353\230\220\353\212\224 \354\260\275 \353\252\250"
+    "\353\223\234\353\241\234 \354\213\244\355\226\211\355\225\264\354\225\274 \355\225\251\353\213\210\353\213\244"
+    "(DX12 \352\262\214\354\236\204\354\235\200 \353\263\264\355\206\265 \354\226\264\353\212\220 \354\252\275"
+    "\354\235\264\353\223\240 \352\264\234\354\260\256\354\212\265\353\213\210\353\213\244).",
+    "\354\235\264\352\262\203\354\235\264 \354\213\244\355\226\211\353\220\230\353\212\224 \353\217\231\354\225\210"
+    " \352\262\214\354\236\204 \354\236\220\354\262\264 DLSS Frame Generation\354\235\200 \352\272\274 \353\221\220"
+    "\354\204\270\354\232\224.",
     "\355\206\240\352\270\200 \355\202\244",
-    "\354\235\264 \355\214\250\353\204\220\354\235\204 \354\227\264\354\247\200 \354\225\212\352\263\240 Neural "
-    "Rendering\354\235\204 \355\206\240\352\270\200\355\225\251\353\213\210\353\213\244. "
-    "\353\262\204\355\212\274\354\235\204 \353\210\204\353\245\270 \353\213\244\354\235\214 "
-    "\354\233\220\355\225\230\353\212\224 \355\202\244\353\245\274 \353\210\204\353\245\264\354\204\270\354\232\224. "
-    "Escape\353\212\224 \354\267\250\354\206\214, Backspace\353\212\224 \355\225\264\354\240\234, R\354\235\200 "
-    "\354\264\210\352\270\260\355\231\224\354\236\205\353\213\210\353\213\244.",
+    "\354\235\264 \355\214\250\353\204\220\354\235\204 \354\227\264\354\247\200 \354\225\212\352\263\240 Neur"
+    "al Rendering\354\235\204 \355\206\240\352\270\200\355\225\251\353\213\210\353\213\244. \353\262\204\355\212\274"
+    "\354\235\204 \353\210\204\353\245\270 \353\213\244\354\235\214 \354\233\220\355\225\230\353\212\224 \355\202\244"
+    "\353\245\274 \353\210\204\353\245\264\354\204\270\354\232\224. Escape\353\212\224 \354\267\250\354\206\214"
+    ", Backspace\353\212\224 \355\225\264\354\240\234, R\354\235\200 \354\264\210\352\270\260\355\231\224\354\236\205"
+    "\353\213\210\353\213\244.",
     "\355\214\250\353\204\220 \355\202\244",
-    "\354\235\264 \355\214\250\353\204\220\354\235\204 \354\227\264\352\263\240 "
-    "\353\213\253\354\212\265\353\213\210\353\213\244. OptiScaler \354\236\220\354\262\264 \353\251\224\353\211\264 "
-    "\355\202\244\354\231\200 \353\263\204\352\260\234\353\235\274 \353\221\230\354\235\204 \355\225\250\352\273\230 "
-    "\353\235\204\354\232\260\352\261\260\353\202\230 \353\224\260\353\241\234 \353\235\204\354\232\270 \354\210\230 "
-    "\354\236\210\354\212\265\353\213\210\353\213\244.",
+    "\354\235\264 \355\214\250\353\204\220\354\235\204 \354\227\264\352\263\240 \353\213\253\354\212\265\353\213\210"
+    "\353\213\244. OptiScaler \354\236\220\354\262\264 \353\251\224\353\211\264 \355\202\244\354\231\200 \353\263\204"
+    "\352\260\234\353\235\274 \353\221\230\354\235\204 \355\225\250\352\273\230 \353\235\204\354\232\260\352\261\260"
+    "\353\202\230 \353\224\260\353\241\234 \353\235\204\354\232\270 \354\210\230 \354\236\210\354\212\265\353\213\210"
+    "\353\213\244.",
     "\353\252\250\353\215\270 \354\240\201\354\232\251",
-    "\353\252\250\353\215\270\354\235\230 \355\216\270\354\247\221\354\235\204 "
-    "\354\240\201\354\232\251\355\225\240\354\247\200 \354\227\254\353\266\200. \353\201\204\353\251\264 "
-    "\355\214\250\354\212\244\353\212\224 \352\263\204\354\206\215 "
-    "\354\213\244\355\226\211\353\220\230\353\251\264\354\204\234 \352\271\250\353\201\227\355\225\234 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \355\224\204\353\240\210\354\236\204\354\235\204 "
-    "\353\263\264\354\227\254\354\244\215\353\213\210\353\213\244 -- \352\267\270\353\236\230\354\204\234 "
-    "\352\262\200\354\202\254 \354\225\204\353\236\230\354\235\230 \355\224\204\353\240\210\354\236\204 "
-    "\352\263\240\354\240\225\352\263\274 \355\225\250\352\273\230 \355\224\204\353\240\210\354\236\204\354\235\204 "
-    "\354\226\274\353\246\254\352\263\240 \354\235\264\352\262\203\354\235\204 "
-    "\355\206\240\352\270\200\355\225\230\353\251\264 \352\260\231\354\235\200 "
-    "\355\224\204\353\240\210\354\236\204\354\235\204 Neural Rendering \354\234\240\353\254\264\353\241\234 "
-    "\353\271\204\352\265\220\355\225\240 \354\210\230 "
-    "\354\236\210\354\212\265\353\213\210\353\213\244.\n\354\235\274\353\260\230 \354\202\254\354\232\251 "
-    "\354\213\234\354\227\220\353\212\224 \354\274\234 \353\221\220\354\204\270\354\232\224.",
+    "\353\252\250\353\215\270\354\235\230 \355\216\270\354\247\221\354\235\204 \354\240\201\354\232\251\355\225\240"
+    "\354\247\200 \354\227\254\353\266\200. \353\201\204\353\251\264 \355\214\250\354\212\244\353\212\224 \352\263\204"
+    "\354\206\215 \354\213\244\355\226\211\353\220\230\353\251\264\354\204\234 \352\271\250\353\201\227\355\225\234"
+    " \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \355\224\204\353\240\210\354\236\204\354\235\204"
+    " \353\263\264\354\227\254\354\244\215\353\213\210\353\213\244 -- \352\267\270\353\236\230\354\204\234 \352\262\200"
+    "\354\202\254 \354\225\204\353\236\230\354\235\230 \355\224\204\353\240\210\354\236\204 \352\263\240\354\240\225"
+    "\352\263\274 \355\225\250\352\273\230 \355\224\204\353\240\210\354\236\204\354\235\204 \354\226\274\353\246\254"
+    "\352\263\240 \354\235\264\352\262\203\354\235\204 \355\206\240\352\270\200\355\225\230\353\251\264 \352\260\231"
+    "\354\235\200 \355\224\204\353\240\210\354\236\204\354\235\204 Neural Rendering \354\234\240\353\254\264\353\241\234"
+    " \353\271\204\352\265\220\355\225\240 \354\210\230 \354\236\210\354\212\265\353\213\210\353\213\244.\n\354\235\274"
+    "\353\260\230 \354\202\254\354\232\251 \354\213\234\354\227\220\353\212\224 \354\274\234 \353\221\220\354\204\270"
+    "\354\232\224.",
     "Super Resolution \354\235\264\354\240\204",
-    "\355\214\250\354\212\244\354\235\230 \354\234\204\354\271\230. \353\201\204\353\251\264 \354\233\220\353\236"
-    "\230 \354\234\204\354\271\230: \353\252\250\353\215\270\354\235\264 \354\231\204\354\204\261\353\220\234 \354"
-    "\227\205\354\212\244\354\274\200\354\235\274 \355\224\204\353\240\210\354\236\204\354\227\220\354\204\234 \354"
-    "\213\244\355\226\211\353\220\251\353\213\210\353\213\244. \354\274\234\353\251\264 SR\354\235\264 \352\263\247"
-    " \354\206\214\353\271\204\355\225\240 \354\203\211\354\203\201\354\227\220 \353\214\200\355\225\264 \353\240"
-    "\214\353\215\224 \355\225\264\354\203\201\353\217\204\354\227\220\354\204\234 \354\213\244\355\226\211\353\220"
-    "\230\353\257\200\353\241\234, SR\354\235\264 \354\235\264\353\257\270 \355\226\245\354\203\201\353\220\234 "
-    "\352\267\270\353\246\274\354\235\204 \353\210\204\354\240\201\355\225\230\352\263\240 \354\227\205\354\212\244"
-    "\354\274\200\354\235\274\355\225\251\353\213\210\353\213\244.\n\nRay Reconstruction\354\235\200 \355\225\255"
-    "\354\203\201 \354\227\205\354\212\244\354\274\200\354\235\274 \354\235\264\355\233\204 \352\262\275\353\241"
-    "\234\354\227\220 \353\202\250\354\212\265\353\213\210\353\213\244 -- \354\236\205\353\240\245 \352\263\204\354"
-    "\225\275\354\235\264 \353\213\244\353\246\205\353\213\210\353\213\244. \353\215\224 \355\201\260 \355\205\215"
-    "\354\212\244\354\262\230 \354\225\210\354\227\220 \355\214\250\353\224\251\353\220\234 \354\203\211\354\203"
-    "\201 \354\235\264\353\257\270\354\247\200\353\212\224 \354\213\244\354\240\234 \355\201\254\352\270\260\353"
-    "\241\234 \354\262\230\353\246\254\353\220\230\353\251\260, \353\252\250\354\204\234\353\246\254\354\227\220"
-    "\354\204\234 \354\230\244\355\224\204\354\205\213\353\220\234 \354\235\264\353\257\270\354\247\200\353\212\224"
-    " \354\227\254\354\240\204\355\236\210 \354\227\205\354\212\244\354\274\200\354\235\274 \354\235\264\355\233"
-    "\204\353\241\234 \353\220\230\353\217\214\354\225\204\352\260\221\353\213\210\353\213\244.\n\nD3D12\354\231"
-    "\200 \352\267\270 D3D11/Vulkan \353\270\214\353\246\254\354\247\200\353\247\214 \355\225\264\353\213\271; \353"
-    "\204\244\354\235\264\355\213\260\353\270\214 Vulkan\354\235\200 \354\235\264\354\240\204 \354\234\204\354\271"
-    "\230\353\245\274 \354\234\240\354\247\200\355\225\251\353\213\210\353\213\244.",
+    "\355\214\250\354\212\244\354\235\230 \354\234\204\354\271\230. \353\201\204\353\251\264 \354\233\220\353\236\230"
+    " \354\234\204\354\271\230: \353\252\250\353\215\270\354\235\264 \354\231\204\354\204\261\353\220\234 \354\227\205"
+    "\354\212\244\354\274\200\354\235\274 \355\224\204\353\240\210\354\236\204\354\227\220\354\204\234 \354\213\244"
+    "\355\226\211\353\220\251\353\213\210\353\213\244. \354\274\234\353\251\264 SR\354\235\264 \352\263\247 \354\206\214"
+    "\353\271\204\355\225\240 \354\203\211\354\203\201\354\227\220 \353\214\200\355\225\264 \353\240\214\353\215\224"
+    " \355\225\264\354\203\201\353\217\204\354\227\220\354\204\234 \354\213\244\355\226\211\353\220\230\353\257\200"
+    "\353\241\234, SR\354\235\264 \354\235\264\353\257\270 \355\226\245\354\203\201\353\220\234 \352\267\270\353\246\274"
+    "\354\235\204 \353\210\204\354\240\201\355\225\230\352\263\240 \354\227\205\354\212\244\354\274\200\354\235\274"
+    "\355\225\251\353\213\210\353\213\244.\n\nRay Reconstruction\354\235\200 \355\225\255\354\203\201 \354\227\205"
+    "\354\212\244\354\274\200\354\235\274 \354\235\264\355\233\204 \352\262\275\353\241\234\354\227\220 \353\202\250"
+    "\354\212\265\353\213\210\353\213\244 -- \354\236\205\353\240\245 \352\263\204\354\225\275\354\235\264 \353\213\244"
+    "\353\246\205\353\213\210\353\213\244. \353\215\224 \355\201\260 \355\205\215\354\212\244\354\262\230 \354\225\210"
+    "\354\227\220 \355\214\250\353\224\251\353\220\234 \354\203\211\354\203\201 \354\235\264\353\257\270\354\247\200"
+    "\353\212\224 \354\213\244\354\240\234 \355\201\254\352\270\260\353\241\234 \354\262\230\353\246\254\353\220\230"
+    "\353\251\260, \353\252\250\354\204\234\353\246\254\354\227\220\354\204\234 \354\230\244\355\224\204\354\205\213"
+    "\353\220\234 \354\235\264\353\257\270\354\247\200\353\212\224 \354\227\254\354\240\204\355\236\210 \354\227\205"
+    "\354\212\244\354\274\200\354\235\274 \354\235\264\355\233\204\353\241\234 \353\220\230\353\217\214\354\225\204"
+    "\352\260\221\353\213\210\353\213\244.\n\nD3D12\354\231\200 \352\267\270 D3D11/Vulkan \353\270\214\353\246\254"
+    "\354\247\200\353\247\214 \355\225\264\353\213\271; \353\204\244\354\235\264\355\213\260\353\270\214 Vulk"
+    "an\354\235\200 \354\235\264\354\240\204 \354\234\204\354\271\230\353\245\274 \354\234\240\354\247\200\355\225\251"
+    "\353\213\210\353\213\244.",
     "\354\235\264 \354\204\270\354\205\230\354\227\220\354\204\234 \352\272\274\354\247\220: %s.",
     "\353\213\244\354\213\234 \354\213\234\353\217\204",
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \354\213\244\355\226\211 \353\214\200\352\270\260 "
-    "\354\244\221.",
-    "DLSS5 Feeder \354\225\240\353\223\234\354\230\250\354\235\264 "
-    "\353\241\234\353\223\234\353\220\230\354\227\210\354\247\200\353\247\214 \354\225\204\354\247\201 DLSS "
-    "evaluate\353\245\274 \352\263\265\352\270\211\355\225\230\354\247\200 "
-    "\354\225\212\354\225\230\354\212\265\353\213\210\353\213\244 -- \352\262\214\354\236\204\354\227\220 "
-    "\353\223\244\354\226\264\352\260\204 \353\222\244\354\227\220\353\217\204 \354\235\264\352\262\203\354\235\264 "
-    "\354\202\254\353\235\274\354\247\200\354\247\200 \354\225\212\354\234\274\353\251\264 \352\262\214\354\236\204 "
-    "\355\217\264\353\215\224\354\235\230 dlss5-feed.log\354\227\220\354\204\234 \"technique MISSING\"\354\235\204 "
-    "\355\231\225\354\235\270\355\225\230\354\204\270\354\232\224.",
-    "\352\262\214\354\236\204 \354\236\220\354\262\264 \353\271\204\353\224\224\354\230\244 "
-    "\354\204\244\354\240\225\354\227\220\354\204\234 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\353\241\234 DLSS \353\230\220\353\212\224 "
-    "XeSS\353\245\274 \354\204\240\355\203\235\355\225\230\352\263\240 "
-    "\354\204\270\354\235\264\353\270\214\353\245\274 \353\266\210\353\237\254\354\231\200\354\225\274 "
-    "\355\225\251\353\213\210\353\213\244 -- \354\235\264\352\262\203(\352\263\274 OptiScaler "
-    "\354\240\204\354\262\264)\354\235\200 \353\251\224\353\211\264\354\227\220\354\204\234\353\212\224 "
-    "\354\213\244\355\226\211\353\220\230\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
-    "  (\353\252\250\353\215\270 \354\213\244\355\226\211 \354\244\221, \355\216\270\354\247\221 "
-    "\354\210\250\352\271\200)",
+    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \354\213\244\355\226\211 \353\214\200\352\270\260"
+    " \354\244\221.",
+    "DLSS5 Feeder \354\225\240\353\223\234\354\230\250\354\235\264 \353\241\234\353\223\234\353\220\230\354\227\210"
+    "\354\247\200\353\247\214 \354\225\204\354\247\201 DLSS evaluate\353\245\274 \352\263\265\352\270\211\355\225\230"
+    "\354\247\200 \354\225\212\354\225\230\354\212\265\353\213\210\353\213\244 -- \352\262\214\354\236\204\354\227\220"
+    " \353\223\244\354\226\264\352\260\204 \353\222\244\354\227\220\353\217\204 \354\235\264\352\262\203\354\235\264"
+    " \354\202\254\353\235\274\354\247\200\354\247\200 \354\225\212\354\234\274\353\251\264 \352\262\214\354\236\204"
+    " \355\217\264\353\215\224\354\235\230 dlss5-feed.log\354\227\220\354\204\234 \"technique MISSING\"\354\235\204"
+    " \355\231\225\354\235\270\355\225\230\354\204\270\354\232\224.",
+    "\352\262\214\354\236\204 \354\236\220\354\262\264 \353\271\204\353\224\224\354\230\244 \354\204\244\354\240\225"
+    "\354\227\220\354\204\234 \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\353\241\234 DLSS \353\230\220"
+    "\353\212\224 XeSS\353\245\274 \354\204\240\355\203\235\355\225\230\352\263\240 \354\204\270\354\235\264\353\270\214"
+    "\353\245\274 \353\266\210\353\237\254\354\231\200\354\225\274 \355\225\251\353\213\210\353\213\244 -- \354\235\264"
+    "\352\262\203(\352\263\274 OptiScaler \354\240\204\354\262\264)\354\235\200 \353\251\224\353\211\264\354\227\220"
+    "\354\204\234\353\212\224 \354\213\244\355\226\211\353\220\230\354\247\200 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.",
+    "  (\353\252\250\353\215\270 \354\213\244\355\226\211 \354\244\221, \355\216\270\354\247\221 \354\210\250"
+    "\352\271\200)",
     "\354\213\244\355\226\211 \354\244\221%s - \355\224\204\353\240\210\354\236\204\353\213\271 %.2f ms%s",
     " Vulkan \353\204\244\354\235\264\355\213\260\353\270\214\353\241\234",
-    "Vulkan \353\204\244\354\235\264\355\213\260\353\270\214\353\241\234 \354\213\244\355\226\211 \354\244\221 - %llu "
-    "\355\224\204\353\240\210\354\236\204%s",
+    "Vulkan \353\204\244\354\235\264\355\213\260\353\270\214\353\241\234 \354\213\244\355\226\211 \354\244\221"
+    " - %llu \355\224\204\353\240\210\354\236\204%s",
     "\354\213\244\355\226\211 \354\244\221.%s",
-    "\355\214\250\354\212\244 \354\240\204\354\262\264: \353\252\250\353\215\270\353\277\220 "
-    "\354\225\204\353\213\210\353\235\274 \354\212\244\355\205\214\354\235\264\354\247\225 "
-    "\353\263\265\354\202\254\354\231\200 resolve\352\271\214\354\247\200. \353\252\250\353\215\270\353\247\214 "
-    "\354\236\254\353\251\264 \354\210\253\354\236\220\352\260\200 \354\213\244\354\240\234\353\263\264\353\213\244 "
-    "\354\242\213\354\225\204 \353\263\264\354\236\205\353\213\210\353\213\244.\n\n\354\235\264 \354\260\275 "
-    "\355\225\230\353\213\250\354\235\230 \355\224\204\353\240\210\354\236\204 \354\213\234\352\260\204\352\263\274 "
-    "\353\271\204\352\265\220\355\225\264 \353\271\204\354\232\251\354\235\264 \354\226\274\353\247\210\353\202\230 "
-    "\353\223\234\353\212\224\354\247\200 \355\231\225\354\235\270\355\225\230\354\204\270\354\232\224.",
+    "\355\214\250\354\212\244 \354\240\204\354\262\264: \353\252\250\353\215\270\353\277\220 \354\225\204\353\213\210"
+    "\353\235\274 \354\212\244\355\205\214\354\235\264\354\247\225 \353\263\265\354\202\254\354\231\200 resol"
+    "ve\352\271\214\354\247\200. \353\252\250\353\215\270\353\247\214 \354\236\254\353\251\264 \354\210\253\354\236\220"
+    "\352\260\200 \354\213\244\354\240\234\353\263\264\353\213\244 \354\242\213\354\225\204 \353\263\264\354\236\205"
+    "\353\213\210\353\213\244.\n\n\354\235\264 \354\260\275 \355\225\230\353\213\250\354\235\230 \355\224\204"
+    "\353\240\210\354\236\204 \354\213\234\352\260\204\352\263\274 \353\271\204\352\265\220\355\225\264 \353\271\204"
+    "\354\232\251\354\235\264 \354\226\274\353\247\210\353\202\230 \353\223\234\353\212\224\354\247\200 \355\231\225"
+    "\354\235\270\355\225\230\354\204\270\354\232\224.",
     "\354\240\204\354\227\255 \354\273\250\355\212\270\353\241\244",
     "\352\265\254\354\241\260 \352\260\225\353\217\204",
-    "\355\224\204\353\240\210\354\236\204 \354\240\204\354\262\264\354\227\220 \353\214\200\355\225\234 "
-    "\353\252\250\353\215\270\354\235\230 \352\265\254\354\241\260 \355\225\251\354\204\261 \352\260\225\353\217\204.",
+    "\355\224\204\353\240\210\354\236\204 \354\240\204\354\262\264\354\227\220 \353\214\200\355\225\234 \353\252\250"
+    "\353\215\270\354\235\230 \352\265\254\354\241\260 \355\225\251\354\204\261 \352\260\225\353\217\204.",
     "\355\206\244 \352\260\225\353\217\204",
-    "\355\224\204\353\240\210\354\236\204 \354\240\204\354\262\264\354\227\220 \353\214\200\355\225\234 "
-    "\353\252\250\353\215\270\354\235\230 \355\206\244 \353\246\254\353\247\244\355\225\221 \352\260\225\353\217\204.",
+    "\355\224\204\353\240\210\354\236\204 \354\240\204\354\262\264\354\227\220 \353\214\200\355\225\234 \353\252\250"
+    "\353\215\270\354\235\230 \355\206\244 \353\246\254\353\247\244\355\225\221 \352\260\225\353\217\204.",
     "\353\252\250\353\215\270 \354\230\244\355\206\240\353\247\210\354\212\244\355\201\254",
-    "\355\224\204\353\240\210\354\236\204\354\235\204 \352\267\240\354\235\274\355\225\230\352\262\214 "
-    "\354\262\230\353\246\254\355\225\230\353\212\224 \353\214\200\354\213\240 \353\252\250\353\215\270\354\235\264 "
-    "\354\212\244\354\212\244\353\241\234 \355\224\274\353\266\200\353\245\274 \354\260\276\352\262\214 "
-    "\355\225\251\353\213\210\353\213\244.",
+    "\355\224\204\353\240\210\354\236\204\354\235\204 \352\267\240\354\235\274\355\225\230\352\262\214 \354\262\230"
+    "\353\246\254\355\225\230\353\212\224 \353\214\200\354\213\240 \353\252\250\353\215\270\354\235\264 \354\212\244"
+    "\354\212\244\353\241\234 \355\224\274\353\266\200\353\245\274 \354\260\276\352\262\214 \355\225\251\353\213\210"
+    "\353\213\244.",
     "\353\247\210\354\212\244\355\201\254 \355\221\234\354\213\234",
-    "NVIDIA \355\214\250\353\204\220\354\235\200 "
-    "\354\230\244\355\206\240\353\247\210\354\212\244\355\201\254\353\245\274 \355\224\204\353\240\210\354\236\204 "
-    "\354\234\204\354\227\220 \352\267\270\353\246\264 \354\210\230 \354\236\210\354\212\265\353\213\210\353\213\244. "
-    "\354\235\264 \355\217\254\355\201\254\352\260\200 \352\265\254\353\217\231\355\225\230\353\212\224 "
-    "\354\235\270\355\204\260\355\216\230\354\235\264\354\212\244\353\241\234\353\212\224 "
-    "\353\252\250\353\215\270\354\235\264 \353\247\210\354\212\244\355\201\254\353\245\274 "
-    "\353\217\214\353\240\244\354\243\274\354\247\200 \354\225\212\354\234\274\353\257\200\353\241\234 "
-    "\354\227\254\352\270\260\354\227\220 \355\221\234\354\213\234\355\225\240 \352\262\203\354\235\264 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244.",
-    "-1\354\235\200 \354\234\204 \354\240\204\354\227\255 \354\273\250\355\212\270\353\241\244\354\235\230 "
-    "\352\265\254\354\241\260 \352\260\225\353\217\204\353\245\274 \353\224\260\353\245\264\353\251\260 "
-    "\353\252\250\353\215\270 \354\236\220\354\262\264 "
-    "\352\270\260\353\263\270\352\260\222\354\236\205\353\213\210\353\213\244. 0 \354\235\264\354\203\201\354\235\200 "
-    "\353\247\210\354\212\244\355\201\254\353\220\234 \354\230\201\354\227\255\354\235\230 "
-    "\352\265\254\354\241\260\353\245\274 \353\202\230\353\250\270\354\247\200 "
-    "\355\224\204\353\240\210\354\236\204\352\263\274 \353\217\205\353\246\275\354\240\201\354\234\274\353\241\234 "
-    "\354\204\244\354\240\225\355\225\251\353\213\210\353\213\244.\n\n\353\252\250\353\215\270 "
-    "\354\230\244\355\206\240\353\247\210\354\212\244\355\201\254\352\260\200 \352\272\274\354\240\270 "
-    "\354\236\210\354\234\274\353\251\264 "
-    "\353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244 -- "
-    "\353\247\210\354\212\244\355\201\254\352\260\200 \354\227\206\354\234\274\353\251\264 "
-    "\353\213\244\353\223\254\354\235\204 \352\262\203\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244.",
+    "NVIDIA \355\214\250\353\204\220\354\235\200 \354\230\244\355\206\240\353\247\210\354\212\244\355\201\254"
+    "\353\245\274 \355\224\204\353\240\210\354\236\204 \354\234\204\354\227\220 \352\267\270\353\246\264 \354\210\230"
+    " \354\236\210\354\212\265\353\213\210\353\213\244. \354\235\264 \355\217\254\355\201\254\352\260\200 \352\265\254"
+    "\353\217\231\355\225\230\353\212\224 \354\235\270\355\204\260\355\216\230\354\235\264\354\212\244\353\241\234"
+    "\353\212\224 \353\252\250\353\215\270\354\235\264 \353\247\210\354\212\244\355\201\254\353\245\274 \353\217\214"
+    "\353\240\244\354\243\274\354\247\200 \354\225\212\354\234\274\353\257\200\353\241\234 \354\227\254\352\270\260"
+    "\354\227\220 \355\221\234\354\213\234\355\225\240 \352\262\203\354\235\264 \354\227\206\354\212\265\353\213\210"
+    "\353\213\244.",
+    "-1\354\235\200 \354\234\204 \354\240\204\354\227\255 \354\273\250\355\212\270\353\241\244\354\235\230 \352\265\254"
+    "\354\241\260 \352\260\225\353\217\204\353\245\274 \353\224\260\353\245\264\353\251\260 \353\252\250\353\215\270"
+    " \354\236\220\354\262\264 \352\270\260\353\263\270\352\260\222\354\236\205\353\213\210\353\213\244. 0 \354\235\264"
+    "\354\203\201\354\235\200 \353\247\210\354\212\244\355\201\254\353\220\234 \354\230\201\354\227\255\354\235\230"
+    " \352\265\254\354\241\260\353\245\274 \353\202\230\353\250\270\354\247\200 \355\224\204\353\240\210\354\236\204"
+    "\352\263\274 \353\217\205\353\246\275\354\240\201\354\234\274\353\241\234 \354\204\244\354\240\225\355\225\251"
+    "\353\213\210\353\213\244.\n\n\353\252\250\353\215\270 \354\230\244\355\206\240\353\247\210\354\212\244\355\201\254"
+    "\352\260\200 \352\272\274\354\240\270 \354\236\210\354\234\274\353\251\264 \353\271\204\355\231\234\354\204\261"
+    "\355\231\224\353\220\251\353\213\210\353\213\244 -- \353\247\210\354\212\244\355\201\254\352\260\200 \354\227\206"
+    "\354\234\274\353\251\264 \353\213\244\353\223\254\354\235\204 \352\262\203\354\235\264 \354\227\206\354\212\265"
+    "\353\213\210\353\213\244.",
     "\352\260\234\353\260\234\354\236\220 \353\247\210\354\212\244\355\202\271",
     "\353\247\210\354\212\244\355\201\254\353\223\244 \355\221\234\354\213\234",
-    "\354\230\244\353\270\214\354\240\235\355\212\270\353\263\204 \353\247\210\354\212\244\355\201\254\353\212\224 "
-    "\352\262\214\354\236\204 \354\236\220\354\262\264 \353\240\214\353\215\224\353\237\254\354\227\220\354\204\234 "
-    "\354\230\244\353\257\200\353\241\234 \354\235\264\352\262\203\354\235\200 NVIDIA "
-    "\354\240\204\354\232\251\354\234\274\353\241\234 \353\202\250\354\212\265\353\213\210\353\213\244 -- "
-    "\354\235\270\354\240\235\355\204\260\354\227\220\353\212\224 \353\247\210\354\212\244\355\202\271\355\225\240 "
-    "\354\230\244\353\270\214\354\240\235\355\212\270 \353\252\251\353\241\235\354\235\264 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244.",
+    "\354\230\244\353\270\214\354\240\235\355\212\270\353\263\204 \353\247\210\354\212\244\355\201\254\353\212\224"
+    " \352\262\214\354\236\204 \354\236\220\354\262\264 \353\240\214\353\215\224\353\237\254\354\227\220\354\204\234"
+    " \354\230\244\353\257\200\353\241\234 \354\235\264\352\262\203\354\235\200 NVIDIA \354\240\204\354\232\251"
+    "\354\234\274\353\241\234 \353\202\250\354\212\265\353\213\210\353\213\244 -- \354\235\270\354\240\235\355\204\260"
+    "\354\227\220\353\212\224 \353\247\210\354\212\244\355\202\271\355\225\240 \354\230\244\353\270\214\354\240\235"
+    "\355\212\270 \353\252\251\353\241\235\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244.",
     "\353\252\250\353\215\270",
     "\352\270\260\353\263\270",
     "\353\252\250\353\215\270 A",
     "\353\252\250\353\215\270 B",
     "\353\252\250\353\215\270 C",
-    "Super Resolution\354\235\264\353\202\230 Ray Reconstruction \355\224\204\353\246\254\354\205\213\352\263\274 "
-    "\352\260\231\354\235\200 \354\262\231\353\217\204\352\260\200 \354\225\204\353\213\231\353\213\210\353\213\244 -- "
-    "\352\260\231\354\235\200 \352\270\200\354\236\220\352\260\200 \354\227\254\352\270\260\354\204\234\353\212\224 "
-    "\353\213\244\353\245\270 "
-    "\354\235\230\353\257\270\354\236\205\353\213\210\353\213\244.\n\n\353\252\250\353\215\270\354\235\204 "
-    "\353\271\214\353\223\234\355\225\240 \353\225\214 \354\235\275\354\234\274\353\257\200\353\241\234 "
-    "\353\263\200\352\262\275\355\225\230\353\251\264 \354\236\240\354\213\234 \355\233\204 \353\213\244\354\213\234 "
-    "\353\271\214\353\223\234\353\220\251\353\213\210\353\213\244.",
+    "Super Resolution\354\235\264\353\202\230 Ray Reconstruction \355\224\204\353\246\254\354\205\213\352\263\274"
+    " \352\260\231\354\235\200 \354\262\231\353\217\204\352\260\200 \354\225\204\353\213\231\353\213\210\353\213\244"
+    " -- \352\260\231\354\235\200 \352\270\200\354\236\220\352\260\200 \354\227\254\352\270\260\354\204\234\353\212\224"
+    " \353\213\244\353\245\270 \354\235\230\353\257\270\354\236\205\353\213\210\353\213\244.\n\n\353\252\250\353\215\270"
+    "\354\235\204 \353\271\214\353\223\234\355\225\240 \353\225\214 \354\235\275\354\234\274\353\257\200\353\241\234"
+    " \353\263\200\352\262\275\355\225\230\353\251\264 \354\236\240\354\213\234 \355\233\204 \353\213\244\354\213\234"
+    " \353\271\214\353\223\234\353\220\251\353\213\210\353\213\244.",
     "\352\270\260\353\263\270(standard)",
     "Natural",
     "Cinematic",
     "\354\212\244\355\203\200\354\235\274",
-    "\353\252\250\353\215\270 \354\236\220\354\262\264\354\235\230 \354\262\230\353\246\254 "
-    "\355\224\204\353\241\234\355\225\204.\n\n\352\270\260\353\263\270(standard): \352\260\200\354\236\245 "
-    "\352\260\225\355\225\230\352\263\240 '\354\226\221\354\213\235\355\231\224'\353\220\230\354\226\264 "
-    "\353\263\264\354\235\264\352\270\260 \354\211\275\354\212\265\353\213\210\353\213\244.\nNatural: "
-    "\352\260\231\354\235\200 \353\224\224\355\205\214\354\235\274 \354\236\221\354\227\205\354\235\204 \353\215\224 "
-    "\353\266\200\353\223\234\353\237\275\352\262\214.\nCinematic: \352\264\221\355\203\235\352\263\274 "
-    "\352\263\274\354\262\230\353\246\254\353\245\274 \354\244\204\354\227\254 \354\230\201\355\231\224 "
-    "\352\260\231\354\235\200 \353\212\220\353\202\214.\n\n\354\235\264\353\246\204\354\235\200 \354\234\204 "
-    "\355\214\250\353\204\220 \353\235\274\353\262\250\352\263\274 \353\213\254\353\246\254 "
-    "\354\273\244\353\256\244\353\213\210\355\213\260 \355\205\214\354\212\244\355\212\270\354\227\220\354\204\234 "
-    "\354\231\224\354\212\265\353\213\210\353\213\244 -- NVIDIA\353\212\224 \354\235\264 "
-    "\354\273\250\355\212\270\353\241\244\354\235\230 \354\235\264\353\246\204\354\235\204 "
-    "\353\260\224\354\235\264\353\204\210\353\246\254\354\227\220 \353\213\264\354\247\200 "
-    "\354\225\212\354\225\230\354\212\265\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270 \354\236\220\354\262\264\354\235\230 \354\262\230\353\246\254 \355\224\204\353\241\234"
+    "\355\225\204.\n\n\352\270\260\353\263\270(standard): \352\260\200\354\236\245 \352\260\225\355\225\230\352\263\240"
+    " '\354\226\221\354\213\235\355\231\224'\353\220\230\354\226\264 \353\263\264\354\235\264\352\270\260 \354\211\275"
+    "\354\212\265\353\213\210\353\213\244.\nNatural: \352\260\231\354\235\200 \353\224\224\355\205\214\354\235\274"
+    " \354\236\221\354\227\205\354\235\204 \353\215\224 \353\266\200\353\223\234\353\237\275\352\262\214.\nCi"
+    "nematic: \352\264\221\355\203\235\352\263\274 \352\263\274\354\262\230\353\246\254\353\245\274 \354\244\204"
+    "\354\227\254 \354\230\201\355\231\224 \352\260\231\354\235\200 \353\212\220\353\202\214.\n\n\354\235\264"
+    "\353\246\204\354\235\200 \354\234\204 \355\214\250\353\204\220 \353\235\274\353\262\250\352\263\274 \353\213\254"
+    "\353\246\254 \354\273\244\353\256\244\353\213\210\355\213\260 \355\205\214\354\212\244\355\212\270\354\227\220"
+    "\354\204\234 \354\231\224\354\212\265\353\213\210\353\213\244 -- NVIDIA\353\212\224 \354\235\264 \354\273\250"
+    "\355\212\270\353\241\244\354\235\230 \354\235\264\353\246\204\354\235\204 \353\260\224\354\235\264\353\204\210"
+    "\353\246\254\354\227\220 \353\213\264\354\247\200 \354\225\212\354\225\230\354\212\265\353\213\210\353\213\244"
+    ".",
     "\352\260\225\353\217\204",
-    "\353\252\250\353\215\270 \353\202\264\353\266\200\354\227\220\354\204\234 "
-    "\354\240\201\354\232\251\353\220\230\353\212\224 \353\252\250\353\215\270 \354\236\220\354\262\264 "
-    "\352\260\225\353\217\204 \354\273\250\355\212\270\353\241\244. \354\234\204\354\235\230 \354\240\204\354\227\255 "
-    "\354\273\250\355\212\270\353\241\244\352\263\274, \352\262\260\352\263\274\353\245\274 "
-    "\353\202\230\354\244\221\354\227\220 \354\212\244\354\274\200\354\235\274\355\225\230\353\212\224 "
-    "\354\225\204\353\236\230\354\235\230 \353\224\224\355\205\214\354\235\274 "
-    "\352\260\225\353\217\204\354\231\200\353\212\224 \353\263\204\352\260\234\354\236\205\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270 \353\202\264\353\266\200\354\227\220\354\204\234 \354\240\201\354\232\251\353\220\230"
+    "\353\212\224 \353\252\250\353\215\270 \354\236\220\354\262\264 \352\260\225\353\217\204 \354\273\250\355\212\270"
+    "\353\241\244. \354\234\204\354\235\230 \354\240\204\354\227\255 \354\273\250\355\212\270\353\241\244\352\263\274"
+    ", \352\262\260\352\263\274\353\245\274 \353\202\230\354\244\221\354\227\220 \354\212\244\354\274\200\354\235\274"
+    "\355\225\230\353\212\224 \354\225\204\353\236\230\354\235\230 \353\224\224\355\205\214\354\235\274 \352\260\225"
+    "\353\217\204\354\231\200\353\212\224 \353\263\204\352\260\234\354\236\205\353\213\210\353\213\244.",
     "Frame Generation",
-    "Streamline\354\235\204 \355\206\265\355\225\234 NVIDIA \354\236\220\354\262\264 DLSS Frame Generation. "
-    "OptiFG\352\260\200 \354\225\204\353\213\231\353\213\210\353\213\244.",
-    "Streamline\354\235\230 numFramesToGenerate\353\245\274 \354\247\201\354\240\221 "
-    "\354\204\244\354\240\225\355\225\251\353\213\210\353\213\244 -- DLSS-G\352\260\200 \354\213\244\354\240\234 "
-    "\355\224\204\353\240\210\354\236\204 \354\202\254\354\235\264\354\227\220 \353\204\243\353\212\224 "
-    "\354\266\224\352\260\200 \355\224\204\353\240\210\354\236\204 \354\210\230. 2X\353\212\224 "
-    "\355\225\230\353\202\230, 3X\353\212\224 \353\221\230, \354\235\264\353\237\260 "
-    "\354\213\235\354\236\205\353\213\210\353\213\244. GPU\354\231\200 "
-    "\353\223\234\353\235\274\354\235\264\353\262\204\352\260\200 "
-    "\354\247\200\354\233\220\355\225\234\353\213\244\352\263\240 \353\263\264\352\263\240\355\225\230\353\212\224 "
-    "\352\260\222\354\234\274\353\241\234 "
-    "\354\240\234\355\225\234\353\220\251\353\213\210\353\213\244.\n\n\354\225\204\353\236\230 Multi\352\260\200 "
-    "\354\274\234\354\240\270 \354\236\210\354\234\274\353\251\264 "
-    "\353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244 -- "
-    "\352\267\270\353\225\214\353\212\224 \353\223\234\353\235\274\354\235\264\353\262\204\352\260\200 "
-    "\352\260\234\354\210\230\353\245\274 \354\240\225\355\225\251\353\213\210\353\213\244.",
+    "Streamline\354\235\204 \355\206\265\355\225\234 NVIDIA \354\236\220\354\262\264 DLSS Frame Generation. O"
+    "ptiFG\352\260\200 \354\225\204\353\213\231\353\213\210\353\213\244.",
+    "Streamline\354\235\230 numFramesToGenerate\353\245\274 \354\247\201\354\240\221 \354\204\244\354\240\225"
+    "\355\225\251\353\213\210\353\213\244 -- DLSS-G\352\260\200 \354\213\244\354\240\234 \355\224\204\353\240\210"
+    "\354\236\204 \354\202\254\354\235\264\354\227\220 \353\204\243\353\212\224 \354\266\224\352\260\200 \355\224\204"
+    "\353\240\210\354\236\204 \354\210\230. 2X\353\212\224 \355\225\230\353\202\230, 3X\353\212\224 \353\221\230"
+    ", \354\235\264\353\237\260 \354\213\235\354\236\205\353\213\210\353\213\244. GPU\354\231\200 \353\223\234"
+    "\353\235\274\354\235\264\353\262\204\352\260\200 \354\247\200\354\233\220\355\225\234\353\213\244\352\263\240"
+    " \353\263\264\352\263\240\355\225\230\353\212\224 \352\260\222\354\234\274\353\241\234 \354\240\234\355\225\234"
+    "\353\220\251\353\213\210\353\213\244.\n\n\354\225\204\353\236\230 Multi\352\260\200 \354\274\234\354\240\270"
+    " \354\236\210\354\234\274\353\251\264 \353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210"
+    "\353\213\244 -- \352\267\270\353\225\214\353\212\224 \353\223\234\353\235\274\354\235\264\353\262\204\352\260\200"
+    " \352\260\234\354\210\230\353\245\274 \354\240\225\355\225\251\353\213\210\353\213\244.",
     "Multi(\353\217\231\354\240\201 Frame Generation)",
-    "\352\263\240\354\240\225 2X/3X/4X \353\214\200\354\213\240 \354\225\204\353\236\230 FPS "
-    "\353\252\251\355\221\234\353\245\274 \354\234\240\354\247\200\355\225\230\353\217\204\353\241\235 NVIDIA "
-    "\353\223\234\353\235\274\354\235\264\353\262\204\352\260\200 "
-    "\355\224\204\353\240\210\354\236\204\353\247\210\353\213\244 \353\260\260\354\210\230\353\245\274 "
-    "\354\247\201\354\240\221 \354\241\260\354\240\210\355\225\230\352\262\214 \355\225\251\353\213\210\353\213\244.",
+    "\352\263\240\354\240\225 2X/3X/4X \353\214\200\354\213\240 \354\225\204\353\236\230 FPS \353\252\251\355\221\234"
+    "\353\245\274 \354\234\240\354\247\200\355\225\230\353\217\204\353\241\235 NVIDIA \353\223\234\353\235\274"
+    "\354\235\264\353\262\204\352\260\200 \355\224\204\353\240\210\354\236\204\353\247\210\353\213\244 \353\260\260"
+    "\354\210\230\353\245\274 \354\247\201\354\240\221 \354\241\260\354\240\210\355\225\230\352\262\214 \355\225\251"
+    "\353\213\210\353\213\244.",
     "DMFG FPS \353\252\251\355\221\234",
-    "0\354\235\200 \353\224\224\354\212\244\355\224\214\353\240\210\354\235\264 "
-    "\354\243\274\354\202\254\354\234\250\354\235\204 \354\236\220\353\217\231 "
-    "\352\260\220\354\247\200\355\225\251\353\213\210\353\213\244.",
-    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \354\236\220\354\262\264 NVIDIA DLSS Frame Gener"
-    "ation\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244.",
+    "0\354\235\200 \353\224\224\354\212\244\355\224\214\353\240\210\354\235\264 \354\243\274\354\202\254\354\234\250"
+    "\354\235\204 \354\236\220\353\217\231 \352\260\220\354\247\200\355\225\251\353\213\210\353\213\244.",
+    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \354\236\220\354\262\264 NVIDIA DLSS Frame"
+    " Generation\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244.",
     "\353\271\204\354\232\251",
     "\353\252\250\353\215\270 \355\214\250\354\212\244",
-    "\353\213\265\354\235\264 \355\225\251\354\204\261\353\220\230\352\270\260 \354\240\204\354\227\220 "
-    "\353\252\250\353\215\270\354\235\264 \354\213\244\355\226\211\353\220\230\353\212\224 \355\232\237\354\210\230. "
-    "\354\266\224\352\260\200 \353\240\210\354\235\264\354\226\264\353\247\210\353\213\244 \354\235\264\354\240\204 "
-    "\353\240\210\354\235\264\354\226\264\354\235\230 \354\266\234\353\240\245\354\235\204 \353\260\233\352\263\240 "
-    "\354\236\220\354\262\264 \354\213\234\352\260\204\354\240\201 "
-    "\355\236\210\354\212\244\355\206\240\353\246\254\353\245\274 "
-    "\354\234\240\354\247\200\355\225\251\353\213\210\353\213\244.\n\n\352\270\260\353\263\270 "
-    "\355\224\204\353\240\210\354\236\204\354\235\200 \352\267\270\353\214\200\353\241\234\354\235\264\352\263\240 "
-    "\355\225\251\354\204\261\354\235\200 \353\247\210\354\247\200\353\247\211\354\227\220 \355\225\234 \353\262\210 "
-    "\354\235\264\353\243\250\354\226\264\354\247\200\353\257\200\353\241\234 \354\203\211\354\203\201\352\263\274 "
-    "\354\240\204\353\213\254 \352\260\225\353\217\204\353\212\224 \353\210\204\354\240\201\353\220\230\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244 -- \355\225\230\354\247\200\353\247\214 "
-    "\353\252\250\353\215\270\354\227\220 \354\236\220\352\270\260 \354\266\234\353\240\245\354\235\204 "
-    "\355\226\245\354\203\201\354\213\234\355\202\244\353\235\274\352\263\240 "
-    "\354\232\224\352\265\254\355\225\230\353\212\224 \354\205\210\354\235\264\353\251\260, \354\235\264\353\212\224 "
-    "\355\225\231\354\212\265 \353\262\224\354\234\204 "
-    "\353\260\226\354\236\205\353\213\210\353\213\244.\n\n\353\271\204\354\232\251\354\235\200 "
-    "\352\261\260\354\235\230 \354\204\240\355\230\225\354\236\205\353\213\210\353\213\244: "
-    "\353\252\250\353\215\270\354\235\264 \355\214\250\354\212\244 \353\271\204\354\232\251\354\235\230 "
-    "\352\261\260\354\235\230 \354\240\204\353\266\200\354\235\264\352\263\240 "
-    "\353\240\210\354\235\264\354\226\264\353\247\210\353\213\244 \353\213\244\354\213\234 "
-    "\354\247\200\353\266\210\355\225\251\353\213\210\353\213\244. \354\235\264\355\233\204 "
-    "\353\240\210\354\235\264\354\226\264\353\212\224 "
-    "\354\210\230\353\240\264\355\225\230\353\251\264\354\204\234\353\217\204 \354\240\204\354\225\241\354\235\204 "
-    "\354\271\230\353\245\264\353\257\200\353\241\234 3\354\235\264 "
-    "\354\203\201\355\225\234\354\236\205\353\213\210\353\213\244.",
-    "\353\252\250\353\215\270 \353\271\204\354\232\251 %dx. \353\221\230\354\235\200 \354\242\205\354\242\205 "
-    "\353\215\224 \355\222\215\353\266\200\355\225\264 \353\263\264\354\235\264\352\263\240, \354\205\213\354\235\200 "
-    "\353\214\200\352\260\234 \353\210\210\354\227\220 \353\235\204\352\262\214 "
-    "\352\263\274\354\262\230\353\246\254\353\220\251\353\213\210\353\213\244.",
+    "\353\213\265\354\235\264 \355\225\251\354\204\261\353\220\230\352\270\260 \354\240\204\354\227\220 \353\252\250"
+    "\353\215\270\354\235\264 \354\213\244\355\226\211\353\220\230\353\212\224 \355\232\237\354\210\230. \354\266\224"
+    "\352\260\200 \353\240\210\354\235\264\354\226\264\353\247\210\353\213\244 \354\235\264\354\240\204 \353\240\210"
+    "\354\235\264\354\226\264\354\235\230 \354\266\234\353\240\245\354\235\204 \353\260\233\352\263\240 \354\236\220"
+    "\354\262\264 \354\213\234\352\260\204\354\240\201 \355\236\210\354\212\244\355\206\240\353\246\254\353\245\274"
+    " \354\234\240\354\247\200\355\225\251\353\213\210\353\213\244.\n\n\352\270\260\353\263\270 \355\224\204\353\240\210"
+    "\354\236\204\354\235\200 \352\267\270\353\214\200\353\241\234\354\235\264\352\263\240 \355\225\251\354\204\261"
+    "\354\235\200 \353\247\210\354\247\200\353\247\211\354\227\220 \355\225\234 \353\262\210 \354\235\264\353\243\250"
+    "\354\226\264\354\247\200\353\257\200\353\241\234 \354\203\211\354\203\201\352\263\274 \354\240\204\353\213\254"
+    " \352\260\225\353\217\204\353\212\224 \353\210\204\354\240\201\353\220\230\354\247\200 \354\225\212\354\212\265"
+    "\353\213\210\353\213\244 -- \355\225\230\354\247\200\353\247\214 \353\252\250\353\215\270\354\227\220 \354\236\220"
+    "\352\270\260 \354\266\234\353\240\245\354\235\204 \355\226\245\354\203\201\354\213\234\355\202\244\353\235\274"
+    "\352\263\240 \354\232\224\352\265\254\355\225\230\353\212\224 \354\205\210\354\235\264\353\251\260, \354\235\264"
+    "\353\212\224 \355\225\231\354\212\265 \353\262\224\354\234\204 \353\260\226\354\236\205\353\213\210\353\213\244"
+    ".\n\n\353\271\204\354\232\251\354\235\200 \352\261\260\354\235\230 \354\204\240\355\230\225\354\236\205\353\213\210"
+    "\353\213\244: \353\252\250\353\215\270\354\235\264 \355\214\250\354\212\244 \353\271\204\354\232\251\354\235\230"
+    " \352\261\260\354\235\230 \354\240\204\353\266\200\354\235\264\352\263\240 \353\240\210\354\235\264\354\226\264"
+    "\353\247\210\353\213\244 \353\213\244\354\213\234 \354\247\200\353\266\210\355\225\251\353\213\210\353\213\244"
+    ". \354\235\264\355\233\204 \353\240\210\354\235\264\354\226\264\353\212\224 \354\210\230\353\240\264\355\225\230"
+    "\353\251\264\354\204\234\353\217\204 \354\240\204\354\225\241\354\235\204 \354\271\230\353\245\264\353\257\200"
+    "\353\241\234 3\354\235\264 \354\203\201\355\225\234\354\236\205\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270 \353\271\204\354\232\251 %dx. \353\221\230\354\235\200 \354\242\205\354\242\205"
+    " \353\215\224 \355\222\215\353\266\200\355\225\264 \353\263\264\354\235\264\352\263\240, \354\205\213\354\235\200"
+    " \353\214\200\352\260\234 \353\210\210\354\227\220 \353\235\204\352\262\214 \352\263\274\354\262\230\353\246\254"
+    "\353\220\251\353\213\210\353\213\244.",
     "\354\236\220\353\217\231(\355\214\250\354\212\244 1 \354\203\201\354\206\215)",
     "\355\214\250\354\212\244 2 \353\252\250\353\215\270",
     "\355\214\250\354\212\244 2 \354\212\244\355\203\200\354\235\274",
     "\355\214\250\354\212\244 3 \353\252\250\353\215\270",
     "\355\214\250\354\212\244 3 \354\212\244\355\203\200\354\235\274",
-    "\354\235\264\355\233\204 \352\260\201 \353\240\210\354\235\264\354\226\264\352\260\200 "
-    "\354\213\244\355\226\211\355\225\240 \353\202\264\354\236\245 \355\224\204\353\241\234\355\225\204. "
-    "\352\260\231\354\235\200 NVIDIA \353\252\250\353\215\270 \355\214\214\354\235\274 \354\225\210\354\235\230 "
-    "\353\213\244\353\245\270 \355\224\204\353\241\234\355\225\204\354\235\204 \352\263\240\353\245\264\353\251\260 -- "
-    "\354\266\224\352\260\200\353\241\234 \353\241\234\353\223\234\353\220\230\353\212\224 \352\262\203\354\235\200 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244.\n\n\354\236\220\353\217\231\354\235\200 "
-    "\355\214\250\354\212\244 1\354\227\220 \354\204\244\354\240\225\353\220\234 \352\262\203\354\235\204 "
-    "\352\267\270\353\214\200\353\241\234 \354\213\244\355\226\211\355\225\234\353\213\244\353\212\224 "
-    "\353\234\273\354\236\205\353\213\210\353\213\244. \355\225\230\353\202\230\353\245\274 "
-    "\353\260\224\352\276\270\353\251\264 \352\267\270 \353\240\210\354\235\264\354\226\264\354\235\230 "
-    "feature\353\247\214, \352\267\270 \353\240\210\354\235\264\354\226\264\352\260\200 "
-    "\355\231\234\354\204\261\354\235\274 \353\225\214\353\247\214 \353\213\244\354\213\234 "
-    "\353\271\214\353\223\234\353\220\251\353\213\210\353\213\244.",
+    "\354\235\264\355\233\204 \352\260\201 \353\240\210\354\235\264\354\226\264\352\260\200 \354\213\244\355\226\211"
+    "\355\225\240 \353\202\264\354\236\245 \355\224\204\353\241\234\355\225\204. \352\260\231\354\235\200 NVI"
+    "DIA \353\252\250\353\215\270 \355\214\214\354\235\274 \354\225\210\354\235\230 \353\213\244\353\245\270 "
+    "\355\224\204\353\241\234\355\225\204\354\235\204 \352\263\240\353\245\264\353\251\260 -- \354\266\224\352\260\200"
+    "\353\241\234 \353\241\234\353\223\234\353\220\230\353\212\224 \352\262\203\354\235\200 \354\227\206\354\212\265"
+    "\353\213\210\353\213\244.\n\n\354\236\220\353\217\231\354\235\200 \355\214\250\354\212\244 1\354\227\220"
+    " \354\204\244\354\240\225\353\220\234 \352\262\203\354\235\204 \352\267\270\353\214\200\353\241\234 \354\213\244"
+    "\355\226\211\355\225\234\353\213\244\353\212\224 \353\234\273\354\236\205\353\213\210\353\213\244. \355\225\230"
+    "\353\202\230\353\245\274 \353\260\224\352\276\270\353\251\264 \352\267\270 \353\240\210\354\235\264\354\226\264"
+    "\354\235\230 feature\353\247\214, \352\267\270 \353\240\210\354\235\264\354\226\264\352\260\200 \355\231\234"
+    "\354\204\261\354\235\274 \353\225\214\353\247\214 \353\213\244\354\213\234 \353\271\214\353\223\234\353\220\251"
+    "\353\213\210\353\213\244.",
     "\353\252\250\353\215\270 \355\225\264\354\203\201\353\217\204",
-    "\353\252\250\353\215\270\354\235\264 \354\236\221\354\227\205\355\225\230\353\212\224 "
-    "\355\224\204\353\240\210\354\236\204\354\235\230 \353\271\204\354\234\250. \353\271\204\354\232\251\354\235\200 "
-    "\354\235\264 \352\260\222\354\235\230 \354\240\234\352\263\261\354\234\274\353\241\234 \354\244\204\354\226\264 "
-    "\354\240\210\353\260\230 \355\225\264\354\203\201\353\217\204\353\251\264 \354\213\234\352\260\204\354\235\264 "
-    "\354\225\275 1/4\354\236\205\353\213\210\353\213\244. 100 "
-    "\353\257\270\353\247\214\354\235\264\354\226\264\353\217\204 \355\224\204\353\240\210\354\236\204 "
-    "\354\236\220\354\262\264\353\212\224 \354\244\204\354\226\264\353\223\244\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244 -- \353\252\250\353\215\270\354\235\230 "
-    "\352\270\260\354\227\254\353\266\204\353\247\214 \354\236\221\352\262\214 \352\263\204\354\202\260\355\225\264 "
-    "\355\231\225\353\214\200\355\225\251\353\213\210\353\213\244. \355\225\270\353\223\244\354\235\204 "
-    "\353\206\223\354\235\204 \353\225\214 \354\240\201\354\232\251\353\220\230\353\251\260 "
-    "\354\233\200\354\247\201\354\235\264\353\212\224 \353\217\231\354\225\210\354\235\200 "
-    "\354\225\204\353\213\231\353\213\210\353\213\244.",
-    "\354\212\210\355\215\274\354\203\230\355\224\214\353\247\201 %.2fx: \353\252\250\353\215\270\354\235\264 "
-    "\353\204\244\354\235\264\355\213\260\353\270\214 \354\234\204\354\227\220\354\204\234 "
-    "\354\213\244\355\226\211\353\220\234 \353\222\244 \353\213\244\354\213\234 "
-    "\354\203\230\355\224\214\353\247\201\353\220\251\353\213\210\353\213\244. "
-    "\354\213\244\355\227\230\354\240\201\354\235\264\352\263\240 \353\271\204\354\214\211\353\213\210\353\213\244 -- "
-    "\354\213\234\352\260\204\354\235\264 \353\251\264\354\240\201\354\227\220 \353\271\204\353\241\200\355\225\264 "
-    "\353\212\230\354\226\264\353\202\251\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\264 \354\236\221\354\227\205\355\225\230\353\212\224 \355\224\204\353\240\210"
+    "\354\236\204\354\235\230 \353\271\204\354\234\250. \353\271\204\354\232\251\354\235\200 \354\235\264 \352\260\222"
+    "\354\235\230 \354\240\234\352\263\261\354\234\274\353\241\234 \354\244\204\354\226\264 \354\240\210\353\260\230"
+    " \355\225\264\354\203\201\353\217\204\353\251\264 \354\213\234\352\260\204\354\235\264 \354\225\275 1/4\354\236\205"
+    "\353\213\210\353\213\244. 100 \353\257\270\353\247\214\354\235\264\354\226\264\353\217\204 \355\224\204\353\240\210"
+    "\354\236\204 \354\236\220\354\262\264\353\212\224 \354\244\204\354\226\264\353\223\244\354\247\200 \354\225\212"
+    "\354\212\265\353\213\210\353\213\244 -- \353\252\250\353\215\270\354\235\230 \352\270\260\354\227\254\353\266\204"
+    "\353\247\214 \354\236\221\352\262\214 \352\263\204\354\202\260\355\225\264 \355\231\225\353\214\200\355\225\251"
+    "\353\213\210\353\213\244. \355\225\270\353\223\244\354\235\204 \353\206\223\354\235\204 \353\225\214 \354\240\201"
+    "\354\232\251\353\220\230\353\251\260 \354\233\200\354\247\201\354\235\264\353\212\224 \353\217\231\354\225\210"
+    "\354\235\200 \354\225\204\353\213\231\353\213\210\353\213\244.",
+    "\354\212\210\355\215\274\354\203\230\355\224\214\353\247\201 %.2fx: \353\252\250\353\215\270\354\235\264"
+    " \353\204\244\354\235\264\355\213\260\353\270\214 \354\234\204\354\227\220\354\204\234 \354\213\244\355\226\211"
+    "\353\220\234 \353\222\244 \353\213\244\354\213\234 \354\203\230\355\224\214\353\247\201\353\220\251\353\213\210"
+    "\353\213\244. \354\213\244\355\227\230\354\240\201\354\235\264\352\263\240 \353\271\204\354\214\211\353\213\210"
+    "\353\213\244 -- \354\213\234\352\260\204\354\235\264 \353\251\264\354\240\201\354\227\220 \353\271\204\353\241\200"
+    "\355\225\264 \353\212\230\354\226\264\353\202\251\353\213\210\353\213\244.",
     "\353\213\244\354\232\264\354\212\244\354\274\200\354\235\274\353\237\254",
-    "\353\252\250\353\215\270\354\235\230 \353\204\244\354\235\264\355\213\260\353\270\214 \354\235\264\354\203\201 "
-    "\353\213\265\354\235\204 \353\224\224\354\212\244\355\224\214\353\240\210\354\235\264 "
-    "\355\201\254\352\270\260\353\241\234 \355\217\211\352\267\240 \353\202\264\353\246\254\353\212\224 "
-    "\355\225\204\355\204\260 -- \354\212\210\355\215\274\354\203\230\355\224\214\353\247\201\354\235\204 "
-    "\353\205\270\354\235\264\354\246\210 \354\246\235\352\260\200\352\260\200 \354\225\204\353\213\214 "
-    "\352\260\220\354\206\214\353\241\234 \353\247\214\353\223\234\353\212\224 \352\262\203\354\235\264 "
-    "\353\260\224\353\241\234 \354\235\264\352\262\203\354\236\205\353\213\210\353\213\244. "
-    "\353\202\240\354\271\264\353\241\234\354\232\264 \355\225\204\355\204\260(Lanczos3, Kaiser3)\353\212\224 "
-    "\353\224\224\355\205\214\354\235\274\354\235\204 \352\260\200\354\236\245 \354\236\230 "
-    "\353\263\264\354\241\264\355\225\230\352\263\240, \353\266\200\353\223\234\353\237\254\354\232\264 "
-    "\355\225\204\355\204\260(Bicubic, Catmull-Rom)\353\212\224 \353\247\201\354\236\211\354\227\220 \353\215\224 "
-    "\352\264\200\353\214\200\355\225\251\353\213\210\353\213\244. Output Scaling "
-    "\353\213\244\354\232\264\354\212\244\354\274\200\354\235\274\353\237\254\354\231\200 "
-    "\353\263\204\352\260\234\353\235\274 \353\221\230\354\235\264 \353\213\244\353\245\264\352\262\214 "
-    "\353\217\231\354\213\234\354\227\220 \354\213\244\355\226\211\353\220\240 \354\210\230 "
-    "\354\236\210\354\212\265\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\230 \353\204\244\354\235\264\355\213\260\353\270\214 \354\235\264\354\203\201"
+    " \353\213\265\354\235\204 \353\224\224\354\212\244\355\224\214\353\240\210\354\235\264 \355\201\254\352\270\260"
+    "\353\241\234 \355\217\211\352\267\240 \353\202\264\353\246\254\353\212\224 \355\225\204\355\204\260 -- \354\212\210"
+    "\355\215\274\354\203\230\355\224\214\353\247\201\354\235\204 \353\205\270\354\235\264\354\246\210 \354\246\235"
+    "\352\260\200\352\260\200 \354\225\204\353\213\214 \352\260\220\354\206\214\353\241\234 \353\247\214\353\223\234"
+    "\353\212\224 \352\262\203\354\235\264 \353\260\224\353\241\234 \354\235\264\352\262\203\354\236\205\353\213\210"
+    "\353\213\244. \353\202\240\354\271\264\353\241\234\354\232\264 \355\225\204\355\204\260(Lanczos3, Kaiser"
+    "3)\353\212\224 \353\224\224\355\205\214\354\235\274\354\235\204 \352\260\200\354\236\245 \354\236\230 \353\263\264"
+    "\354\241\264\355\225\230\352\263\240, \353\266\200\353\223\234\353\237\254\354\232\264 \355\225\204\355\204\260"
+    "(Bicubic, Catmull-Rom)\353\212\224 \353\247\201\354\236\211\354\227\220 \353\215\224 \352\264\200\353\214\200"
+    "\355\225\251\353\213\210\353\213\244. Output Scaling \353\213\244\354\232\264\354\212\244\354\274\200\354\235\274"
+    "\353\237\254\354\231\200 \353\263\204\352\260\234\353\235\274 \353\221\230\354\235\264 \353\213\244\353\245\264"
+    "\352\262\214 \353\217\231\354\213\234\354\227\220 \354\213\244\355\226\211\353\220\240 \354\210\230 \354\236\210"
+    "\354\212\265\353\213\210\353\213\244.",
     "\355\201\264\353\236\230\354\213\235",
     "\353\247\244\354\271\255 \354\236\224\354\260\250",
     "\355\231\225\353\214\200",
-    "\353\252\250\353\215\270\354\235\264 \355\224\204\353\240\210\354\236\204 "
-    "\355\201\254\352\270\260\353\263\264\353\213\244 \354\236\221\352\262\214 "
-    "\354\213\244\355\226\211\353\220\230\354\227\210\354\235\204 \353\225\214 \354\236\221\354\227\205\354\235\204 "
-    "\353\213\244\354\213\234 \355\202\244\354\232\260\353\212\224 "
-    "\353\260\251\353\262\225.\n\n\355\201\264\353\236\230\354\213\235\354\235\200 "
-    "\353\252\250\353\215\270\354\235\230 \354\236\221\354\235\200 \352\267\270\353\246\274\354\235\204 "
-    "\354\240\204\354\262\264 \355\201\254\352\270\260 \355\224\204\353\240\210\354\236\204\354\227\220 "
-    "\354\247\201\354\240\221 \355\225\251\354\204\261\355\225\251\353\213\210\353\213\244. \353\221\230\354\235\200 "
-    "\354\266\225\354\206\214 \353\270\224\353\237\254\354\231\200 \353\252\250\353\215\270 \355\216\270\354\247\221 "
-    "\354\226\221\354\252\275\354\234\274\353\241\234 \353\213\244\353\245\264\352\263\240, "
-    "\355\225\251\354\204\261\354\235\200 \352\267\270 \353\221\230\354\235\204 "
-    "\352\265\254\353\266\204\355\225\230\354\247\200 "
-    "\353\252\273\355\225\251\353\213\210\353\213\244.\n\n100%\354\227\220\354\204\234\353\212\224 "
-    "\355\231\225\353\214\200\355\225\240 \352\262\203\354\235\264 \354\227\206\354\226\264 "
-    "\353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\264 \355\224\204\353\240\210\354\236\204 \355\201\254\352\270\260\353\263\264"
+    "\353\213\244 \354\236\221\352\262\214 \354\213\244\355\226\211\353\220\230\354\227\210\354\235\204 \353\225\214"
+    " \354\236\221\354\227\205\354\235\204 \353\213\244\354\213\234 \355\202\244\354\232\260\353\212\224 \353\260\251"
+    "\353\262\225.\n\n\355\201\264\353\236\230\354\213\235\354\235\200 \353\252\250\353\215\270\354\235\230 \354\236\221"
+    "\354\235\200 \352\267\270\353\246\274\354\235\204 \354\240\204\354\262\264 \355\201\254\352\270\260 \355\224\204"
+    "\353\240\210\354\236\204\354\227\220 \354\247\201\354\240\221 \355\225\251\354\204\261\355\225\251\353\213\210"
+    "\353\213\244. \353\221\230\354\235\200 \354\266\225\354\206\214 \353\270\224\353\237\254\354\231\200 \353\252\250"
+    "\353\215\270 \355\216\270\354\247\221 \354\226\221\354\252\275\354\234\274\353\241\234 \353\213\244\353\245\264"
+    "\352\263\240, \355\225\251\354\204\261\354\235\200 \352\267\270 \353\221\230\354\235\204 \352\265\254\353\266\204"
+    "\355\225\230\354\247\200 \353\252\273\355\225\251\353\213\210\353\213\244.\n\n100%\354\227\220\354\204\234"
+    "\353\212\224 \355\231\225\353\214\200\355\225\240 \352\262\203\354\235\264 \354\227\206\354\226\264 \353\271\204"
+    "\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244.",
     "\354\226\274\353\247\210\353\202\230 \353\260\230\354\230\201\353\220\230\353\212\224\352\260\200",
     "\353\224\224\355\205\214\354\235\274 \352\260\225\353\217\204",
     "\354\264\210\352\270\260\355\231\224",
-    "\355\224\204\353\240\210\354\236\204\354\235\264 \353\252\250\353\215\270\354\235\230 \352\267\270\353\246\274 "
-    "\354\252\275\354\234\274\353\241\234 \354\226\274\353\247\210\353\202\230 "
-    "\354\235\264\353\217\231\355\225\230\353\212\224\352\260\200. 0\354\235\200 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\352\260\200 \353\247\214\353\223\240 "
-    "\352\267\270\353\214\200\353\241\234\353\245\274 \353\217\214\353\240\244\354\244\215\353\213\210\353\213\244. "
-    "1\354\235\200 \353\252\250\353\215\270\354\235\230 \352\267\270\353\246\274\354\236\205\353\213\210\353\213\244. "
-    "1 \354\235\264\354\203\201\354\235\200 \352\260\231\354\235\200 \353\260\251\355\226\245\354\234\274\353\241\234 "
-    "\352\267\270 \353\204\210\353\250\270\352\271\214\354\247\200 \352\260\221\353\213\210\353\213\244.",
+    "\355\224\204\353\240\210\354\236\204\354\235\264 \353\252\250\353\215\270\354\235\230 \352\267\270\353\246\274"
+    " \354\252\275\354\234\274\353\241\234 \354\226\274\353\247\210\353\202\230 \354\235\264\353\217\231\355\225\230"
+    "\353\212\224\352\260\200. 0\354\235\200 \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\352\260\200"
+    " \353\247\214\353\223\240 \352\267\270\353\214\200\353\241\234\353\245\274 \353\217\214\353\240\244\354\244\215"
+    "\353\213\210\353\213\244. 1\354\235\200 \353\252\250\353\215\270\354\235\230 \352\267\270\353\246\274\354\236\205"
+    "\353\213\210\353\213\244. 1 \354\235\264\354\203\201\354\235\200 \352\260\231\354\235\200 \353\260\251\355\226\245"
+    "\354\234\274\353\241\234 \352\267\270 \353\204\210\353\250\270\352\271\214\354\247\200 \352\260\221\353\213\210"
+    "\353\213\244.",
     "\354\203\211\354\203\201 \352\260\225\353\217\204",
-    "\353\252\250\353\215\270\354\235\230 \354\203\211\354\235\264 \352\267\270 \353\271\233\352\263\274 "
-    "\355\225\250\352\273\230 \354\230\244\353\212\224\354\247\200 \354\227\254\353\266\200. 0\354\235\200 "
-    "\352\262\214\354\236\204 \354\236\220\354\262\264 \354\203\211\354\241\260\353\245\274 "
-    "\354\240\225\355\231\225\355\236\210 \354\234\240\354\247\200\355\225\251\353\213\210\353\213\244 -- "
-    "\353\252\250\353\223\240 \355\224\275\354\205\200\354\235\264 \354\233\220\353\236\230 "
-    "\354\203\211\354\235\264\352\263\240 \353\260\235\352\270\260\353\247\214 \353\252\250\353\215\270\354\235\230 "
-    "\355\214\220\353\213\250\354\235\204 \353\213\264\354\212\265\353\213\210\353\213\244. 1\354\235\200 "
-    "\353\252\250\353\215\270\354\235\230 \354\203\211\353\217\204 \352\267\270 \354\236\220\354\262\264 "
-    "\354\203\211\354\241\260\353\241\234 \352\260\200\354\240\270\354\230\244\353\220\230, \353\217\204\353\213\254 "
-    "\353\266\210\352\260\200\353\212\245\355\225\234 \352\262\203\354\235\204 "
-    "\354\232\224\352\265\254\355\225\230\354\247\200 \354\225\212\353\217\204\353\241\235 AP1\353\241\234 "
-    "\355\201\264\353\236\250\355\224\204\355\225\251\353\213\210\353\213\244.\n\n1 "
-    "\354\235\264\354\203\201\354\235\200 \352\263\274\355\217\254\355\231\224\353\220\251\353\213\210\353\213\244: "
-    "\354\203\211\354\241\260\353\212\224 \354\234\240\354\247\200\355\225\230\353\220\230 \353\215\224 "
-    "\354\204\240\353\252\205\355\225\264\354\247\200\352\263\240, \355\217\211\355\217\211\355\225\230\352\262\214 "
-    "\353\202\240\354\225\204\352\260\204 \354\226\274\353\243\251\354\234\274\353\241\234 "
-    "\355\201\264\353\246\254\355\225\221\353\220\230\353\212\224 \353\214\200\354\213\240 "
-    "\353\224\224\354\212\244\355\224\214\353\240\210\354\235\264\352\260\200 \353\263\264\354\227\254\354\244\204 "
-    "\354\210\230 \354\236\210\353\212\224 \352\260\200\354\236\245\354\236\220\353\246\254\354\227\220\354\204\234 "
-    "\353\241\244\354\230\244\355\224\204\355\225\251\353\213\210\353\213\244. 1\354\235\264 \353\252\250\353\215\270 "
-    "\354\236\220\354\262\264 \354\203\211\354\235\264\353\251\260, \355\216\200\354\271\230\353\245\274 "
-    "\354\233\220\355\225\230\353\251\264 \352\267\270 \353\204\210\353\250\270\353\241\234 "
-    "\353\257\270\354\204\270\354\232\224.",
+    "\353\252\250\353\215\270\354\235\230 \354\203\211\354\235\264 \352\267\270 \353\271\233\352\263\274 \355\225\250"
+    "\352\273\230 \354\230\244\353\212\224\354\247\200 \354\227\254\353\266\200. 0\354\235\200 \352\262\214\354\236\204"
+    " \354\236\220\354\262\264 \354\203\211\354\241\260\353\245\274 \354\240\225\355\231\225\355\236\210 \354\234\240"
+    "\354\247\200\355\225\251\353\213\210\353\213\244 -- \353\252\250\353\223\240 \355\224\275\354\205\200\354\235\264"
+    " \354\233\220\353\236\230 \354\203\211\354\235\264\352\263\240 \353\260\235\352\270\260\353\247\214 \353\252\250"
+    "\353\215\270\354\235\230 \355\214\220\353\213\250\354\235\204 \353\213\264\354\212\265\353\213\210\353\213\244"
+    ". 1\354\235\200 \353\252\250\353\215\270\354\235\230 \354\203\211\353\217\204 \352\267\270 \354\236\220\354\262\264"
+    " \354\203\211\354\241\260\353\241\234 \352\260\200\354\240\270\354\230\244\353\220\230, \353\217\204\353\213\254"
+    " \353\266\210\352\260\200\353\212\245\355\225\234 \352\262\203\354\235\204 \354\232\224\352\265\254\355\225\230"
+    "\354\247\200 \354\225\212\353\217\204\353\241\235 AP1\353\241\234 \355\201\264\353\236\250\355\224\204\355\225\251"
+    "\353\213\210\353\213\244.\n\n1 \354\235\264\354\203\201\354\235\200 \352\263\274\355\217\254\355\231\224"
+    "\353\220\251\353\213\210\353\213\244: \354\203\211\354\241\260\353\212\224 \354\234\240\354\247\200\355\225\230"
+    "\353\220\230 \353\215\224 \354\204\240\353\252\205\355\225\264\354\247\200\352\263\240, \355\217\211\355\217\211"
+    "\355\225\230\352\262\214 \353\202\240\354\225\204\352\260\204 \354\226\274\353\243\251\354\234\274\353\241\234"
+    " \355\201\264\353\246\254\355\225\221\353\220\230\353\212\224 \353\214\200\354\213\240 \353\224\224\354\212\244"
+    "\355\224\214\353\240\210\354\235\264\352\260\200 \353\263\264\354\227\254\354\244\204 \354\210\230 \354\236\210"
+    "\353\212\224 \352\260\200\354\236\245\354\236\220\353\246\254\354\227\220\354\204\234 \353\241\244\354\230\244"
+    "\355\224\204\355\225\251\353\213\210\353\213\244. 1\354\235\264 \353\252\250\353\215\270 \354\236\220\354\262\264"
+    " \354\203\211\354\235\264\353\251\260, \355\216\200\354\271\230\353\245\274 \354\233\220\355\225\230\353\251\264"
+    " \352\267\270 \353\204\210\353\250\270\353\241\234 \353\257\270\354\204\270\354\232\224.",
     "\354\203\211\354\203\201",
-    "\353\252\250\353\215\270\354\235\200 \354\231\204\354\204\261\353\220\234 sRGB "
-    "\354\235\270\354\275\224\353\224\251 \355\224\204\353\240\210\354\236\204\354\234\274\353\241\234 "
-    "\355\225\231\354\212\265\353\220\230\354\227\210\354\212\265\353\213\210\353\213\244. \354\235\264 "
-    "\354\204\244\354\240\225\353\223\244\354\235\200 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\354\235\230 \354\204\240\355\230\225 "
-    "\354\266\234\353\240\245\354\235\204 \353\252\250\353\215\270\354\235\264 "
-    "\354\225\214\354\225\204\353\263\264\353\212\224 \355\230\225\355\203\234\353\241\234 "
-    "\354\226\264\353\226\273\352\262\214 \353\247\244\355\225\221\355\225\240\354\247\200 "
-    "\352\262\260\354\240\225\355\225\251\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\200 \354\231\204\354\204\261\353\220\234 sRGB \354\235\270\354\275\224\353\224\251"
+    " \355\224\204\353\240\210\354\236\204\354\234\274\353\241\234 \355\225\231\354\212\265\353\220\230\354\227\210"
+    "\354\212\265\353\213\210\353\213\244. \354\235\264 \354\204\244\354\240\225\353\223\244\354\235\200 \354\227\205"
+    "\354\212\244\354\274\200\354\235\274\353\237\254\354\235\230 \354\204\240\355\230\225 \354\266\234\353\240\245"
+    "\354\235\204 \353\252\250\353\215\270\354\235\264 \354\225\214\354\225\204\353\263\264\353\212\224 \355\230\225"
+    "\355\203\234\353\241\234 \354\226\264\353\226\273\352\262\214 \353\247\244\355\225\221\355\225\240\354\247\200"
+    " \352\262\260\354\240\225\355\225\251\353\213\210\353\213\244.",
     "\353\201\224(\354\206\214\355\224\204\355\212\270 \353\213\210)",
     "Neutwo \355\224\204\353\241\235\354\213\234 + \355\225\251\354\204\261",
     "Neutwo \355\224\204\353\241\235\354\213\234 + \353\214\200\354\262\264",
-    "\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\224\204\353\241\235\354\213\234 + "
-    "\355\225\251\354\204\261",
-    "\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\224\204\353\241\235\354\213\234 + "
-    "\353\214\200\354\262\264",
+    "\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\224\204\353\241\235\354\213\234 + \355\225\251"
+    "\354\204\261",
+    "\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\224\204\353\241\235\354\213\234 + \353\214\200"
+    "\354\262\264",
     "\352\260\200\354\227\255 \355\224\204\353\241\235\354\213\234",
-    "\353\252\250\353\215\270\354\227\220 \353\254\264\354\227\207\354\235\204 "
-    "\353\263\264\354\227\254\354\243\274\352\263\240 \353\213\265\354\235\264 \354\226\264\353\226\273\352\262\214 "
-    "\353\217\214\354\225\204\354\230\244\353\212\224\352\260\200. "
-    "\354\213\244\355\227\230\354\240\201.\n\n\353\201\224(\354\206\214\355\224\204\355\212\270 \353\213\210): "
-    "\352\270\260\353\263\270\352\260\222\354\235\264\353\251\260 \354\235\264\354\240\204\352\263\274 "
-    "\353\260\224\354\235\264\355\212\270 \353\213\250\354\234\204\353\241\234 "
-    "\353\217\231\354\235\274\355\225\251\353\213\210\353\213\244. "
-    "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\353\245\274 \353\204\210\353\254\264 "
-    "\352\260\225\355\225\230\352\262\214 \353\210\214\353\237\254 \353\252\250\353\215\270\354\235\264 \352\267\270 "
-    "\354\225\210\354\235\230 \353\224\224\355\205\214\354\235\274\354\235\204 \354\202\264\353\246\254\354\247\200 "
-    "\353\252\273\355\225\251\353\213\210\353\213\244 -- \353\266\200\353\223\234\353\237\254\354\232\264 "
-    "\354\241\260\353\252\205 \354\236\245\353\251\264\354\227\220\354\204\234\353\212\224 "
-    "\352\264\234\354\260\256\352\263\240 \353\260\235\354\235\200 "
-    "\354\236\245\353\251\264\354\227\220\354\204\234\353\212\224 "
-    "\354\225\275\355\225\251\353\213\210\353\213\244.\n\nNeutwo \355\225\251\354\204\261: "
-    "\355\201\264\353\246\254\355\225\221 \354\227\206\353\212\224 \352\263\241\354\204\240\354\235\264\353\235\274 "
-    "\353\252\250\353\215\270\354\235\264 \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270 "
-    "\353\224\224\355\205\214\354\235\274\354\235\204 \353\263\264\352\263\240, \352\267\270 \354\234\204\354\235\230 "
-    "\353\252\250\353\223\240 \352\262\203(\352\260\225\353\217\204, "
-    "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270 \352\260\200\353\223\234, "
-    "\355\214\224\353\240\210\355\212\270)\354\235\264 \354\240\201\354\232\251\353\220\251\353\213\210\353\213\244. "
-    "\353\260\235\354\235\200 \354\236\245\353\251\264\354\227\220\354\204\234 "
-    "\354\235\264\352\270\260\354\247\200\353\247\214 \352\263\241\354\204\240\354\235\264 "
-    "\354\244\221\352\260\204\355\206\244\353\217\204 \354\225\225\354\266\225\355\225\264 "
-    "\353\266\200\353\223\234\353\237\254\354\232\264 \354\241\260\353\252\205 "
-    "\354\275\230\355\205\220\354\270\240\353\212\224 \353\201\224\353\263\264\353\213\244 \353\202\230\354\201\240 "
-    "\354\210\230 \354\236\210\354\212\265\353\213\210\353\213\244. \355\216\230\354\235\264\355\215\274 "
-    "\355\231\224\354\235\264\355\212\270\353\217\204 "
-    "\354\235\264\353\217\231\354\213\234\355\202\265\353\213\210\353\213\244 -- \354\240\204\355\231\230 \354\213\234 "
-    "\353\213\244\354\213\234 "
-    "\355\231\225\354\235\270\355\225\230\354\204\270\354\232\224."
-    "\n\n\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\225\251\354\204\261: "
-    "\354\215\250\354\225\274 \355\225\240 \352\262\203. \354\244\221\352\260\204\355\206\244\354\235\200 "
-    "\355\225\255\353\223\261 -- \352\261\260\352\270\260\354\204\234\353\212\224 \353\201\224\353\247\214\355\201\274 "
-    "\354\242\213\354\235\214 -- \354\235\264\352\263\240 \355\201\264\353\246\254\355\225\221 "
-    "\354\227\206\353\212\224 \353\241\244\354\235\200 "
-    "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\354\227\220\353\247\214 "
-    "\354\240\201\354\232\251\353\220\230\354\226\264, \353\201\224\354\235\264 \353\255\211\352\260\234\353\212\224 "
-    "\353\224\224\355\205\214\354\235\274\354\235\204 Neutwo\354\262\230\353\237\274 "
-    "\354\244\221\352\260\204\355\206\244\354\235\204 \355\217\254\352\270\260\355\225\230\354\247\200 "
-    "\354\225\212\352\263\240 \353\220\230\354\260\276\354\212\265\353\213\210\353\213\244. "
-    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\212\224 \352\261\260\354\235\230 "
-    "\354\235\264\353\217\231\355\225\230\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.\n\n\353\214\200\354\262\264: \354\233\220\354\213\234 "
-    "\353\252\250\353\215\270\354\235\204 \354\240\225\355\231\225\355\225\234 "
-    "\354\227\255\355\225\250\354\210\230\353\241\234 \353\260\224\353\241\234 "
-    "\353\220\230\353\217\214\353\246\254\353\251\260 \355\225\251\354\204\261\354\235\264 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244 -- \352\260\200\353\223\234\353\217\204 "
-    "\355\214\224\353\240\210\355\212\270\353\217\204 \352\260\225\353\217\204\353\217\204 \354\227\206\354\235\214. "
-    "\353\260\235\354\235\200 \352\264\221\354\233\220\354\235\264 \354\227\206\353\212\224 "
-    "\352\263\263\354\227\220\354\204\234\353\212\224 \354\225\204\353\246\204\353\213\265\354\247\200\353\247\214, "
-    "\352\264\221\354\233\220\354\235\200 \354\233\200\354\247\201\354\235\274 \353\225\214 "
-    "\353\262\210\354\251\215\354\236\205\353\213\210\353\213\244. \354\235\274\354\203\201 "
-    "\354\204\244\354\240\225\354\235\264 \354\225\204\353\213\214 "
-    "\352\270\260\354\244\200\354\232\251\354\236\205\353\213\210\353\213\244."
-    "\n\n\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \353\214\200\354\262\264: "
-    "\353\214\200\354\262\264\354\235\230 \354\233\220\354\213\234 \353\252\250\353\215\270\354\235\204 "
-    "\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \352\263\241\354\204\240\354\227\220 "
-    "\354\230\254\353\240\244 \353\262\210\354\251\215\354\236\204\354\235\264 "
-    "\354\226\264\353\224\224\354\227\220\353\202\230\352\260\200 \354\225\204\353\213\214 \354\247\204\354\247\234 "
-    "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\354\227\220\353\247\214 "
-    "\352\265\255\355\225\234\353\220\251\353\213\210\353\213\244. \353\214\200\354\262\264 "
-    "\353\224\224\355\205\214\354\235\274\354\235\230 \353\214\200\353\266\200\353\266\204\354\235\204 "
-    "\355\233\250\354\224\254 \354\225\210\354\240\225\354\240\201\354\234\274\353\241\234.",
+    "\353\252\250\353\215\270\354\227\220 \353\254\264\354\227\207\354\235\204 \353\263\264\354\227\254\354\243\274"
+    "\352\263\240 \353\213\265\354\235\264 \354\226\264\353\226\273\352\262\214 \353\217\214\354\225\204\354\230\244"
+    "\353\212\224\352\260\200. \354\213\244\355\227\230\354\240\201.\n\n\353\201\224(\354\206\214\355\224\204"
+    "\355\212\270 \353\213\210): \352\270\260\353\263\270\352\260\222\354\235\264\353\251\260 \354\235\264\354\240\204"
+    "\352\263\274 \353\260\224\354\235\264\355\212\270 \353\213\250\354\234\204\353\241\234 \353\217\231\354\235\274"
+    "\355\225\251\353\213\210\353\213\244. \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\353\245\274"
+    " \353\204\210\353\254\264 \352\260\225\355\225\230\352\262\214 \353\210\214\353\237\254 \353\252\250\353\215\270"
+    "\354\235\264 \352\267\270 \354\225\210\354\235\230 \353\224\224\355\205\214\354\235\274\354\235\204 \354\202\264"
+    "\353\246\254\354\247\200 \353\252\273\355\225\251\353\213\210\353\213\244 -- \353\266\200\353\223\234\353\237\254"
+    "\354\232\264 \354\241\260\353\252\205 \354\236\245\353\251\264\354\227\220\354\204\234\353\212\224 \352\264\234"
+    "\354\260\256\352\263\240 \353\260\235\354\235\200 \354\236\245\353\251\264\354\227\220\354\204\234\353\212\224"
+    " \354\225\275\355\225\251\353\213\210\353\213\244.\n\nNeutwo \355\225\251\354\204\261: \355\201\264\353\246\254"
+    "\355\225\221 \354\227\206\353\212\224 \352\263\241\354\204\240\354\235\264\353\235\274 \353\252\250\353\215\270"
+    "\354\235\264 \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270 \353\224\224\355\205\214\354\235\274"
+    "\354\235\204 \353\263\264\352\263\240, \352\267\270 \354\234\204\354\235\230 \353\252\250\353\223\240 \352\262\203"
+    "(\352\260\225\353\217\204, \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270 \352\260\200\353\223\234"
+    ", \355\214\224\353\240\210\355\212\270)\354\235\264 \354\240\201\354\232\251\353\220\251\353\213\210\353\213\244"
+    ". \353\260\235\354\235\200 \354\236\245\353\251\264\354\227\220\354\204\234 \354\235\264\352\270\260\354\247\200"
+    "\353\247\214 \352\263\241\354\204\240\354\235\264 \354\244\221\352\260\204\355\206\244\353\217\204 \354\225\225"
+    "\354\266\225\355\225\264 \353\266\200\353\223\234\353\237\254\354\232\264 \354\241\260\353\252\205 \354\275\230"
+    "\355\205\220\354\270\240\353\212\224 \353\201\224\353\263\264\353\213\244 \353\202\230\354\201\240 \354\210\230"
+    " \354\236\210\354\212\265\353\213\210\353\213\244. \355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264"
+    "\355\212\270\353\217\204 \354\235\264\353\217\231\354\213\234\355\202\265\353\213\210\353\213\244 -- \354\240\204"
+    "\355\231\230 \354\213\234 \353\213\244\354\213\234 \355\231\225\354\235\270\355\225\230\354\204\270\354\232\224"
+    ".\n\n\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \355\225\251\354\204\261: \354\215\250"
+    "\354\225\274 \355\225\240 \352\262\203. \354\244\221\352\260\204\355\206\244\354\235\200 \355\225\255\353\223\261"
+    " -- \352\261\260\352\270\260\354\204\234\353\212\224 \353\201\224\353\247\214\355\201\274 \354\242\213\354\235\214"
+    " -- \354\235\264\352\263\240 \355\201\264\353\246\254\355\225\221 \354\227\206\353\212\224 \353\241\244\354\235\200"
+    " \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\354\227\220\353\247\214 \354\240\201\354\232\251"
+    "\353\220\230\354\226\264, \353\201\224\354\235\264 \353\255\211\352\260\234\353\212\224 \353\224\224\355\205\214"
+    "\354\235\274\354\235\204 Neutwo\354\262\230\353\237\274 \354\244\221\352\260\204\355\206\244\354\235\204"
+    " \355\217\254\352\270\260\355\225\230\354\247\200 \354\225\212\352\263\240 \353\220\230\354\260\276\354\212\265"
+    "\353\213\210\353\213\244. \355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\212\224"
+    " \352\261\260\354\235\230 \354\235\264\353\217\231\355\225\230\354\247\200 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.\n\n\353\214\200\354\262\264: \354\233\220\354\213\234 \353\252\250\353\215\270\354\235\204"
+    " \354\240\225\355\231\225\355\225\234 \354\227\255\355\225\250\354\210\230\353\241\234 \353\260\224\353\241\234"
+    " \353\220\230\353\217\214\353\246\254\353\251\260 \355\225\251\354\204\261\354\235\264 \354\227\206\354\212\265"
+    "\353\213\210\353\213\244 -- \352\260\200\353\223\234\353\217\204 \355\214\224\353\240\210\355\212\270\353\217\204"
+    " \352\260\225\353\217\204\353\217\204 \354\227\206\354\235\214. \353\260\235\354\235\200 \352\264\221\354\233\220"
+    "\354\235\264 \354\227\206\353\212\224 \352\263\263\354\227\220\354\204\234\353\212\224 \354\225\204\353\246\204"
+    "\353\213\265\354\247\200\353\247\214, \352\264\221\354\233\220\354\235\200 \354\233\200\354\247\201\354\235\274"
+    " \353\225\214 \353\262\210\354\251\215\354\236\205\353\213\210\353\213\244. \354\235\274\354\203\201 \354\204\244"
+    "\354\240\225\354\235\264 \354\225\204\353\213\214 \352\270\260\354\244\200\354\232\251\354\236\205\353\213\210"
+    "\353\213\244.\n\n\355\225\230\354\235\264\353\270\214\353\246\254\353\223\234 \353\214\200\354\262\264: "
+    "\353\214\200\354\262\264\354\235\230 \354\233\220\354\213\234 \353\252\250\353\215\270\354\235\204 \355\225\230"
+    "\354\235\264\353\270\214\353\246\254\353\223\234 \352\263\241\354\204\240\354\227\220 \354\230\254\353\240\244"
+    " \353\262\210\354\251\215\354\236\204\354\235\264 \354\226\264\353\224\224\354\227\220\353\202\230\352\260\200"
+    " \354\225\204\353\213\214 \354\247\204\354\247\234 \355\225\230\354\235\264\353\235\274\354\235\264\355\212\270"
+    "\354\227\220\353\247\214 \352\265\255\355\225\234\353\220\251\353\213\210\353\213\244. \353\214\200\354\262\264"
+    " \353\224\224\355\205\214\354\235\274\354\235\230 \353\214\200\353\266\200\353\266\204\354\235\204 \355\233\250"
+    "\354\224\254 \354\225\210\354\240\225\354\240\201\354\234\274\353\241\234.",
     "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\247\214",
     "\352\262\214\354\236\204 \354\236\220\354\262\264 \353\205\270\354\266\234",
     "\354\212\244\354\272\224\354\235\264 \354\260\276\354\235\200 \353\262\204\355\215\274",
     "\355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270 \354\266\234\354\262\230",
-    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\247\214 -- \354\225\204\353\236\230 "
-    "\354\212\254\353\235\274\354\235\264\353\215\224\353\277\220\354\235\264\353\251\260 \352\267\270 "
-    "\354\231\270\354\227\220\353\212\224 \354\227\206\354\212\265\353\213\210\353\213\244. "
-    "\353\205\270\354\266\234\354\235\264 \354\240\210\353\214\200 \353\263\200\355\225\230\354\247\200 "
-    "\354\225\212\353\212\224 \352\262\214\354\236\204\354\227\220\353\212\224 \353\247\236\352\263\240, "
-    "\353\263\200\355\225\230\353\212\224 \354\210\234\352\260\204 \355\213\200\353\246\275\353\213\210\353\213\244: "
-    "\354\203\201\354\210\230 \355\225\230\353\202\230\352\260\200 \353\217\231\352\265\264\352\263\274 "
-    "\353\223\244\355\214\220\354\235\204 \353\252\250\353\221\220 \352\260\220\353\213\271\355\225\240 \354\210\230 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244.\n\n\352\262\214\354\236\204 \354\236\220\354\262\264 "
-    "\353\205\270\354\266\234 -- \352\262\214\354\236\204\354\235\264 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\354\227\220 \353\204\230\352\270\260\353\212\224 "
-    "\355\205\215\354\212\244\354\262\230\354\227\220\354\204\234 \354\235\275\354\212\265\353\213\210\353\213\244. "
-    "\354\203\201\353\245\230\354\227\220\354\204\234 \352\262\260\354\240\225\353\220\230\354\226\264 \354\235\264 "
-    "\355\214\250\354\212\244\352\260\200 \355\225\230\353\212\224 \354\226\264\353\226\244 \352\262\203\353\217\204 "
-    "\354\233\200\354\247\201\354\235\274 \354\210\230 \354\227\206\354\234\274\353\257\200\353\241\234 "
-    "\354\265\234\352\263\240\354\235\230 \354\266\234\354\262\230\354\236\205\353\213\210\353\213\244. "
-    "\353\252\250\353\223\240 \352\262\214\354\236\204\354\235\264 "
-    "\354\240\234\352\263\265\355\225\230\354\247\200\353\212\224 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.\n\n\354\212\244\354\272\224\354\235\264 "
-    "\354\260\276\354\235\200 \353\262\204\355\215\274 -- \353\205\270\354\266\234\354\235\204 "
-    "\352\263\204\354\202\260\355\225\230\354\247\200\353\247\214 \353\204\230\352\270\260\354\247\200 "
-    "\354\225\212\353\212\224 \352\262\214\354\236\204\354\232\251. "
-    "\354\266\224\354\270\241\354\236\205\353\213\210\353\213\244: \355\233\204\353\263\264\353\245\274 "
-    "\353\252\250\354\226\221\354\234\274\353\241\234 \353\247\244\354\271\255\355\225\230\352\263\240 "
-    "\354\225\265\354\273\244\354\235\230 \353\271\204\354\234\250\354\235\264 "
-    "\354\212\244\354\274\200\354\235\274\354\235\204 \354\203\201\354\207\204\355\225\251\353\213\210\353\213\244. "
-    "\354\213\244\355\227\230\354\240\201 \354\204\271\354\205\230\354\227\220\354\204\234 \355\225\234 \353\262\210 "
-    "\354\225\265\354\273\244\353\245\274 \354\236\241\352\263\240 \354\235\264\355\233\204 "
-    "\355\231\225\354\235\270\354\235\264 \355\225\204\354\232\224\355\225\251\353\213\210\353\213\244.",
-    "\354\212\244\354\272\224 %.5f  ->  \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270 %.2f "
-    "  (1 \355\217\254\354\235\270\355\212\270)",
-    "\354\212\244\354\272\224 %.5f  ->  \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270 %.2f "
-    "  (%u \355\217\254\354\235\270\355\212\270)",
-    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270(\355\217\254\354\235\270\355\212\270 "
-    "%d)",
+    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\247\214 -- \354\225\204\353\236\230"
+    " \354\212\254\353\235\274\354\235\264\353\215\224\353\277\220\354\235\264\353\251\260 \352\267\270 \354\231\270"
+    "\354\227\220\353\212\224 \354\227\206\354\212\265\353\213\210\353\213\244. \353\205\270\354\266\234\354\235\264"
+    " \354\240\210\353\214\200 \353\263\200\355\225\230\354\247\200 \354\225\212\353\212\224 \352\262\214\354\236\204"
+    "\354\227\220\353\212\224 \353\247\236\352\263\240, \353\263\200\355\225\230\353\212\224 \354\210\234\352\260\204"
+    " \355\213\200\353\246\275\353\213\210\353\213\244: \354\203\201\354\210\230 \355\225\230\353\202\230\352\260\200"
+    " \353\217\231\352\265\264\352\263\274 \353\223\244\355\214\220\354\235\204 \353\252\250\353\221\220 \352\260\220"
+    "\353\213\271\355\225\240 \354\210\230 \354\227\206\354\212\265\353\213\210\353\213\244.\n\n\352\262\214\354\236\204"
+    " \354\236\220\354\262\264 \353\205\270\354\266\234 -- \352\262\214\354\236\204\354\235\264 \354\227\205\354\212\244"
+    "\354\274\200\354\235\274\353\237\254\354\227\220 \353\204\230\352\270\260\353\212\224 \355\205\215\354\212\244"
+    "\354\262\230\354\227\220\354\204\234 \354\235\275\354\212\265\353\213\210\353\213\244. \354\203\201\353\245\230"
+    "\354\227\220\354\204\234 \352\262\260\354\240\225\353\220\230\354\226\264 \354\235\264 \355\214\250\354\212\244"
+    "\352\260\200 \355\225\230\353\212\224 \354\226\264\353\226\244 \352\262\203\353\217\204 \354\233\200\354\247\201"
+    "\354\235\274 \354\210\230 \354\227\206\354\234\274\353\257\200\353\241\234 \354\265\234\352\263\240\354\235\230"
+    " \354\266\234\354\262\230\354\236\205\353\213\210\353\213\244. \353\252\250\353\223\240 \352\262\214\354\236\204"
+    "\354\235\264 \354\240\234\352\263\265\355\225\230\354\247\200\353\212\224 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.\n\n\354\212\244\354\272\224\354\235\264 \354\260\276\354\235\200 \353\262\204\355\215\274 "
+    "-- \353\205\270\354\266\234\354\235\204 \352\263\204\354\202\260\355\225\230\354\247\200\353\247\214 \353\204\230"
+    "\352\270\260\354\247\200 \354\225\212\353\212\224 \352\262\214\354\236\204\354\232\251. \354\266\224\354\270\241"
+    "\354\236\205\353\213\210\353\213\244: \355\233\204\353\263\264\353\245\274 \353\252\250\354\226\221\354\234\274"
+    "\353\241\234 \353\247\244\354\271\255\355\225\230\352\263\240 \354\225\265\354\273\244\354\235\230 \353\271\204"
+    "\354\234\250\354\235\264 \354\212\244\354\274\200\354\235\274\354\235\204 \354\203\201\354\207\204\355\225\251"
+    "\353\213\210\353\213\244. \354\213\244\355\227\230\354\240\201 \354\204\271\354\205\230\354\227\220\354\204\234"
+    " \355\225\234 \353\262\210 \354\225\265\354\273\244\353\245\274 \354\236\241\352\263\240 \354\235\264\355\233\204"
+    " \355\231\225\354\235\270\354\235\264 \355\225\204\354\232\224\355\225\251\353\213\210\353\213\244.",
+    "\354\212\244\354\272\224 %.5f  ->  \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270"
+    " %.2f   (1 \355\217\254\354\235\270\355\212\270)",
+    "\354\212\244\354\272\224 %.5f  ->  \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270"
+    " %.2f   (%u \355\217\254\354\235\270\355\212\270)",
+    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270(\355\217\254\354\235\270\355\212\270"
+    " %d)",
     "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270",
-    "\354\204\240\355\203\235\355\225\234 \353\263\264\354\240\225 \355\217\254\354\235\270\355\212\270\354\235\230 "
-    "\355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270, \353\230\220\353\212\224 -- "
-    "\354\204\240\355\203\235\355\225\234 \355\226\211\354\235\264 \354\227\206\354\234\274\353\251\264 -- "
-    "\353\213\244\354\235\214 \354\225\265\354\273\244 \353\210\204\353\246\204\354\235\264 "
-    "\354\272\241\354\262\230\355\225\240 \352\260\222.\n\n\354\227\254\352\270\260\354\204\234 "
-    "\352\267\270\353\246\274\354\235\264 \353\247\236\354\225\204 \353\263\264\354\235\274 "
-    "\353\225\214\352\271\214\354\247\200 \354\241\260\354\240\225\355\225\234 \353\222\244 "
-    "\354\225\265\354\273\244\353\245\274 \353\210\204\353\245\264\354\204\270\354\232\224. \354\225\204\354\243\274 "
-    "\353\213\244\353\245\270 \354\241\260\353\252\205\354\234\274\353\241\234 \354\235\264\353\217\231\355\225\264 "
-    "\353\213\244\354\213\234 \355\225\230\354\204\270\354\232\224: \355\217\254\354\235\270\355\212\270 \353\221\220 "
-    "\352\260\234\352\260\200 \353\262\204\355\215\274\354\235\230 \354\213\244\354\240\234 "
-    "\352\264\200\352\263\204\353\245\274 \352\263\240\354\240\225\355\225\230\352\263\240 "
-    "\355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\352\260\200 \352\267\270 "
-    "\354\202\254\354\235\264\354\227\220\354\204\234 \354\234\240\354\247\200\353\220\251\353\213\210\353\213\244.",
+    "\354\204\240\355\203\235\355\225\234 \353\263\264\354\240\225 \355\217\254\354\235\270\355\212\270\354\235\230"
+    " \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270, \353\230\220\353\212\224 -- "
+    "\354\204\240\355\203\235\355\225\234 \355\226\211\354\235\264 \354\227\206\354\234\274\353\251\264 -- \353\213\244"
+    "\354\235\214 \354\225\265\354\273\244 \353\210\204\353\246\204\354\235\264 \354\272\241\354\262\230\355\225\240"
+    " \352\260\222.\n\n\354\227\254\352\270\260\354\204\234 \352\267\270\353\246\274\354\235\264 \353\247\236"
+    "\354\225\204 \353\263\264\354\235\274 \353\225\214\352\271\214\354\247\200 \354\241\260\354\240\225\355\225\234"
+    " \353\222\244 \354\225\265\354\273\244\353\245\274 \353\210\204\353\245\264\354\204\270\354\232\224. \354\225\204"
+    "\354\243\274 \353\213\244\353\245\270 \354\241\260\353\252\205\354\234\274\353\241\234 \354\235\264\353\217\231"
+    "\355\225\264 \353\213\244\354\213\234 \355\225\230\354\204\270\354\232\224: \355\217\254\354\235\270\355\212\270"
+    " \353\221\220 \352\260\234\352\260\200 \353\262\204\355\215\274\354\235\230 \354\213\244\354\240\234 \352\264\200"
+    "\352\263\204\353\245\274 \352\263\240\354\240\225\355\225\230\352\263\240 \355\231\224\354\235\264\355\212\270"
+    " \355\217\254\354\235\270\355\212\270\352\260\200 \352\267\270 \354\202\254\354\235\264\354\227\220\354\204\234"
+    " \354\234\240\354\247\200\353\220\251\353\213\210\353\213\244.",
     "\355\212\270\353\246\274(x \354\212\244\354\272\224)",
-    "\354\212\244\354\272\224 \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\354\227\220 "
-    "\352\263\261\355\225\230\353\212\224 \353\260\260\354\210\230\354\235\264\354\236\220 \354\225\265\354\273\244 "
-    "\355\217\254\354\235\270\355\212\270 \354\202\254\354\235\264\353\245\274 "
-    "\354\241\260\354\240\225\355\225\230\353\212\224 \354\273\250\355\212\270\353\241\244: \355\230\204\354\236\254 "
-    "\354\241\260\353\252\205\354\227\220\354\204\234 \352\267\270\353\246\274\354\235\264 \353\247\236\354\225\204 "
-    "\353\263\264\354\235\274 \353\225\214\352\271\214\354\247\200 \353\217\214\353\246\260 \353\222\244 "
-    "\354\213\244\355\227\230\354\240\201 \354\225\204\353\236\230\354\235\230 \354\225\265\354\273\244\353\245\274 "
-    "\353\210\204\353\245\264\354\204\270\354\232\224 -- \355\212\270\353\246\274\353\220\234 \352\260\222\354\235\264 "
-    "\354\203\210 \355\217\254\354\235\270\355\212\270\353\241\234 \354\272\241\354\262\230\353\220\230\352\263\240 "
-    "\354\235\264\352\262\203\354\235\200 1\353\241\234 "
-    "\354\264\210\352\270\260\355\231\224\353\220\251\353\213\210\353\213\244.",
-    "\354\235\264 \352\262\214\354\236\204\354\235\200 \353\205\270\354\266\234\354\235\204 "
-    "\354\240\234\352\263\265\355\225\230\353\251\260 \354\235\275\352\263\240 "
-    "\354\236\210\354\212\265\353\213\210\353\213\244.",
-    "\354\235\264 \352\262\214\354\236\204\354\235\200 \353\205\270\354\266\234\354\235\204 "
-    "\354\240\234\352\263\265\355\225\230\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244. "
-    "\353\214\200\354\213\240 \354\212\244\354\272\224\354\235\204 "
-    "\354\213\234\353\217\204\355\225\230\354\204\270\354\232\224.",
+    "\354\212\244\354\272\224 \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\354\227\220"
+    " \352\263\261\355\225\230\353\212\224 \353\260\260\354\210\230\354\235\264\354\236\220 \354\225\265\354\273\244"
+    " \355\217\254\354\235\270\355\212\270 \354\202\254\354\235\264\353\245\274 \354\241\260\354\240\225\355\225\230"
+    "\353\212\224 \354\273\250\355\212\270\353\241\244: \355\230\204\354\236\254 \354\241\260\353\252\205\354\227\220"
+    "\354\204\234 \352\267\270\353\246\274\354\235\264 \353\247\236\354\225\204 \353\263\264\354\235\274 \353\225\214"
+    "\352\271\214\354\247\200 \353\217\214\353\246\260 \353\222\244 \354\213\244\355\227\230\354\240\201 \354\225\204"
+    "\353\236\230\354\235\230 \354\225\265\354\273\244\353\245\274 \353\210\204\353\245\264\354\204\270\354\232\224"
+    " -- \355\212\270\353\246\274\353\220\234 \352\260\222\354\235\264 \354\203\210 \355\217\254\354\235\270\355\212\270"
+    "\353\241\234 \354\272\241\354\262\230\353\220\230\352\263\240 \354\235\264\352\262\203\354\235\200 1\353\241\234"
+    " \354\264\210\352\270\260\355\231\224\353\220\251\353\213\210\353\213\244.",
+    "\354\235\264 \352\262\214\354\236\204\354\235\200 \353\205\270\354\266\234\354\235\204 \354\240\234\352\263\265"
+    "\355\225\230\353\251\260 \354\235\275\352\263\240 \354\236\210\354\212\265\353\213\210\353\213\244.",
+    "\354\235\264 \352\262\214\354\236\204\354\235\200 \353\205\270\354\266\234\354\235\204 \354\240\234\352\263\265"
+    "\355\225\230\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244. \353\214\200\354\213\240 \354\212\244"
+    "\354\272\224\354\235\204 \354\213\234\353\217\204\355\225\230\354\204\270\354\232\224.",
     "\355\224\204\353\240\210\354\236\204 \353\214\200\352\270\260 \354\244\221...",
-    "\352\262\214\354\236\204 \353\205\270\354\266\234 %.4f  ->  \355\231\224\354\235\264\355\212\270 "
-    "\355\217\254\354\235\270\355\212\270 %.2f%s",
-    "  (\354\234\240\354\247\200: \354\235\264 \355\224\204\353\240\210\354\236\204\354\227\220\353\212\224 "
-    "\354\227\206\354\235\214)",
+    "\352\262\214\354\236\204 \353\205\270\354\266\234 %.4f  ->  \355\231\224\354\235\264\355\212\270 \355\217\254"
+    "\354\235\270\355\212\270 %.2f%s",
+    "  (\354\234\240\354\247\200: \354\235\264 \355\224\204\353\240\210\354\236\204\354\227\220\353\212\224 \354\227\206"
+    "\354\235\214)",
     "\353\205\270\354\266\234 \354\235\275\353\212\224 \354\244\221...",
     "\355\212\270\353\246\274(x \352\262\214\354\236\204 \353\205\270\354\266\234)",
-    "\352\262\214\354\236\204\354\235\264 \354\240\234\352\263\265\355\225\234 \353\205\270\354\266\234\354\227\220 "
-    "\352\263\261\355\225\230\353\212\224 \353\260\260\354\210\230. 1.00x\353\212\224 \352\267\270 "
-    "\354\210\253\354\236\220\353\245\274 \352\267\270\353\214\200\353\241\234 \354\223\260\353\251\260, "
-    "\354\227\254\352\270\260\354\204\234\353\212\224 \352\267\270\352\262\203\354\235\264 "
-    "\354\240\225\353\213\265\354\236\205\353\213\210\353\213\244.\n\n\354\235\264\352\262\203\354\235\200 "
-    "\353\263\264\354\240\225 \352\263\204\354\210\230\352\260\200 \354\225\204\353\213\231\353\213\210\353\213\244. "
-    "\353\247\236\354\225\204 \353\263\264\354\235\264\353\240\244\353\251\264 \355\212\270\353\246\274\354\235\264 "
-    "1\354\227\220\354\204\234 \353\251\200\354\226\264\354\225\274 \355\225\230\353\212\224 "
-    "\352\262\214\354\236\204\354\235\200 \354\235\275\352\263\240 \354\236\210\353\212\224 "
-    "\353\205\270\354\266\234\354\235\264 \352\267\270 \352\262\214\354\236\204\354\227\220 "
-    "\354\236\230\353\252\273\353\220\230\354\227\210\353\213\244\353\212\224 "
-    "\354\246\235\352\261\260\354\235\264\354\247\200, \352\262\214\354\236\204\354\235\264 "
-    "\355\212\270\353\246\274\354\235\204 \354\233\220\355\225\234\353\213\244\353\212\224 \353\234\273\354\235\264 "
-    "\354\225\204\353\213\231\353\213\210\353\213\244. \353\214\200\353\236\265 0.8~1.25\352\260\200 "
-    "\354\240\225\354\247\201\355\225\234 \355\212\234\353\213\235\354\235\264\352\263\240, 4\352\271\214\354\247\200 "
-    "\352\260\200\353\251\264 \354\203\201\353\245\230\354\235\230 \353\254\264\354\226\270\352\260\200\352\260\200 "
-    "\352\263\240\354\236\245\353\202\254\352\263\240 \354\235\264\352\262\203\354\235\264 "
-    "\354\210\250\352\270\260\352\263\240 \354\236\210\353\212\224 "
-    "\352\262\203\354\236\205\353\213\210\353\213\244.\n\n\354\210\230\353\217\231 "
-    "\355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\212\224 \353\224\260\353\241\234 "
-    "\353\263\264\352\264\200\353\220\230\354\226\264 \354\266\234\354\262\230\353\245\274 "
-    "\353\220\230\353\217\214\353\246\254\353\251\264 \352\267\270\353\214\200\353\241\234 "
-    "\353\217\214\354\225\204\354\230\265\353\213\210\353\213\244.",
-    "\353\252\250\353\215\270\354\235\264 \353\263\264\352\270\260 \354\240\204\354\227\220 "
-    "\355\224\204\353\240\210\354\236\204\354\235\204 \353\202\230\353\210\204\353\212\224 \352\260\222. "
-    "\353\213\244\353\245\270 \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\353\212\224 "
-    "\354\227\206\354\234\274\353\251\260 \354\235\264\352\262\203\354\235\264 "
-    "\354\240\204\353\266\200\354\236\205\353\213\210\353\213\244. 1 \354\235\264\354\203\201\354\235\264\353\251\264 "
-    "\353\204\230\352\262\250\354\247\200\353\212\224 \352\267\270\353\246\274\354\235\264 "
-    "\354\226\264\353\221\220\354\233\214\354\240\270 "
-    "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270\352\260\200 \352\263\241\354\204\240\354\235\230 "
-    "\354\225\204\353\236\230\354\252\275\354\227\220 \353\206\223\354\236\205\353\213\210\353\213\244.",
+    "\352\262\214\354\236\204\354\235\264 \354\240\234\352\263\265\355\225\234 \353\205\270\354\266\234\354\227\220"
+    " \352\263\261\355\225\230\353\212\224 \353\260\260\354\210\230. 1.00x\353\212\224 \352\267\270 \354\210\253"
+    "\354\236\220\353\245\274 \352\267\270\353\214\200\353\241\234 \354\223\260\353\251\260, \354\227\254\352\270\260"
+    "\354\204\234\353\212\224 \352\267\270\352\262\203\354\235\264 \354\240\225\353\213\265\354\236\205\353\213\210"
+    "\353\213\244.\n\n\354\235\264\352\262\203\354\235\200 \353\263\264\354\240\225 \352\263\204\354\210\230\352\260\200"
+    " \354\225\204\353\213\231\353\213\210\353\213\244. \353\247\236\354\225\204 \353\263\264\354\235\264\353\240\244"
+    "\353\251\264 \355\212\270\353\246\274\354\235\264 1\354\227\220\354\204\234 \353\251\200\354\226\264\354\225\274"
+    " \355\225\230\353\212\224 \352\262\214\354\236\204\354\235\200 \354\235\275\352\263\240 \354\236\210\353\212\224"
+    " \353\205\270\354\266\234\354\235\264 \352\267\270 \352\262\214\354\236\204\354\227\220 \354\236\230\353\252\273"
+    "\353\220\230\354\227\210\353\213\244\353\212\224 \354\246\235\352\261\260\354\235\264\354\247\200, \352\262\214"
+    "\354\236\204\354\235\264 \355\212\270\353\246\274\354\235\204 \354\233\220\355\225\234\353\213\244\353\212\224"
+    " \353\234\273\354\235\264 \354\225\204\353\213\231\353\213\210\353\213\244. \353\214\200\353\236\265 0.8"
+    "~1.25\352\260\200 \354\240\225\354\247\201\355\225\234 \355\212\234\353\213\235\354\235\264\352\263\240,"
+    " 4\352\271\214\354\247\200 \352\260\200\353\251\264 \354\203\201\353\245\230\354\235\230 \353\254\264\354\226\270"
+    "\352\260\200\352\260\200 \352\263\240\354\236\245\353\202\254\352\263\240 \354\235\264\352\262\203\354\235\264"
+    " \354\210\250\352\270\260\352\263\240 \354\236\210\353\212\224 \352\262\203\354\236\205\353\213\210\353\213\244"
+    ".\n\n\354\210\230\353\217\231 \355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270\353\212\224"
+    " \353\224\260\353\241\234 \353\263\264\352\264\200\353\220\230\354\226\264 \354\266\234\354\262\230\353\245\274"
+    " \353\220\230\353\217\214\353\246\254\353\251\264 \352\267\270\353\214\200\353\241\234 \353\217\214\354\225\204"
+    "\354\230\265\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\264 \353\263\264\352\270\260 \354\240\204\354\227\220 \355\224\204\353\240\210"
+    "\354\236\204\354\235\204 \353\202\230\353\210\204\353\212\224 \352\260\222. \353\213\244\353\245\270 \355\231\224"
+    "\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\353\212\224 \354\227\206\354\234\274\353\251\260"
+    " \354\235\264\352\262\203\354\235\264 \354\240\204\353\266\200\354\236\205\353\213\210\353\213\244. 1 \354\235\264"
+    "\354\203\201\354\235\264\353\251\264 \353\204\230\352\262\250\354\247\200\353\212\224 \352\267\270\353\246\274"
+    "\354\235\264 \354\226\264\353\221\220\354\233\214\354\240\270 \355\225\230\354\235\264\353\235\274\354\235\264"
+    "\355\212\270\352\260\200 \352\263\241\354\204\240\354\235\230 \354\225\204\353\236\230\354\252\275\354\227\220"
+    " \353\206\223\354\236\205\353\213\210\353\213\244.",
     "\355\225\230\354\235\264\353\235\274\354\235\264\355\212\270 \352\260\200\353\223\234",
-    "\355\214\250\354\212\244\352\260\200 \354\226\264\353\226\244 \355\224\275\354\205\200\354\235\264\353\223\240 "
-    "\354\233\220\353\236\230 \352\260\222\354\235\230 \353\260\260\354\210\230\353\241\234 "
-    "\354\226\221\353\260\251\355\226\245\354\234\274\353\241\234 \354\233\200\354\247\201\354\235\274 \354\210\230 "
-    "\354\236\210\353\212\224 \354\265\234\353\214\200\354\271\230 -- \355\224\275\354\205\200\354\235\200 "
-    "\354\235\264 \354\235\264\354\203\201 \353\260\235\354\225\204\354\247\200\352\261\260\353\202\230 \352\267\270 "
-    "\354\227\255\354\210\230 \354\235\264\354\203\201 \354\226\264\353\221\220\354\233\214\354\247\210 \354\210\230 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244. \352\264\221\354\233\220\354\235\200 "
-    "\353\252\250\353\215\270\354\235\264 \353\247\220\355\225\240 \352\262\203\354\235\264 \352\260\200\354\236\245 "
-    "\354\240\201\352\263\240 \353\213\265\354\235\204 "
-    "\354\236\254\354\212\244\354\274\200\354\235\274\355\225\230\353\251\264 \355\224\274\355\225\264\352\260\200 "
-    "\352\260\200\354\236\245 \355\201\260 \352\263\263\354\236\205\353\213\210\353\213\244; 2x\353\212\224 "
-    "\353\224\224\355\205\214\354\235\274\354\235\204 \354\234\240\354\247\200\355\225\230\353\251\264\354\204\234 "
-    "\355\230\225\352\264\221\353\223\261\354\235\264 \354\203\211\354\203\211\354\235\230 \354\271\270 "
-    "\354\244\204\353\241\234 \353\263\200\355\225\230\353\212\224 \352\262\203\354\235\204 "
-    "\353\247\211\354\212\265\353\213\210\353\213\244. \353\260\235\354\235\200 \354\230\201\354\227\255\354\235\264 "
-    "\354\236\230\353\240\244 \353\263\264\354\235\274 \353\225\214\353\247\214 "
-    "\354\230\254\353\246\254\354\204\270\354\232\224.",
+    "\355\214\250\354\212\244\352\260\200 \354\226\264\353\226\244 \355\224\275\354\205\200\354\235\264\353\223\240"
+    " \354\233\220\353\236\230 \352\260\222\354\235\230 \353\260\260\354\210\230\353\241\234 \354\226\221\353\260\251"
+    "\355\226\245\354\234\274\353\241\234 \354\233\200\354\247\201\354\235\274 \354\210\230 \354\236\210\353\212\224"
+    " \354\265\234\353\214\200\354\271\230 -- \355\224\275\354\205\200\354\235\200 \354\235\264 \354\235\264\354\203\201"
+    " \353\260\235\354\225\204\354\247\200\352\261\260\353\202\230 \352\267\270 \354\227\255\354\210\230 \354\235\264"
+    "\354\203\201 \354\226\264\353\221\220\354\233\214\354\247\210 \354\210\230 \354\227\206\354\212\265\353\213\210"
+    "\353\213\244. \352\264\221\354\233\220\354\235\200 \353\252\250\353\215\270\354\235\264 \353\247\220\355\225\240"
+    " \352\262\203\354\235\264 \352\260\200\354\236\245 \354\240\201\352\263\240 \353\213\265\354\235\204 \354\236\254"
+    "\354\212\244\354\274\200\354\235\274\355\225\230\353\251\264 \355\224\274\355\225\264\352\260\200 \352\260\200"
+    "\354\236\245 \355\201\260 \352\263\263\354\236\205\353\213\210\353\213\244; 2x\353\212\224 \353\224\224\355\205\214"
+    "\354\235\274\354\235\204 \354\234\240\354\247\200\355\225\230\353\251\264\354\204\234 \355\230\225\352\264\221"
+    "\353\223\261\354\235\264 \354\203\211\354\203\211\354\235\230 \354\271\270 \354\244\204\353\241\234 \353\263\200"
+    "\355\225\230\353\212\224 \352\262\203\354\235\204 \353\247\211\354\212\265\353\213\210\353\213\244. \353\260\235"
+    "\354\235\200 \354\230\201\354\227\255\354\235\264 \354\236\230\353\240\244 \353\263\264\354\235\274 \353\225\214"
+    "\353\247\214 \354\230\254\353\246\254\354\204\270\354\232\224.",
     "\353\205\270\354\266\234 \354\212\244\354\272\224",
     "\355\231\224\353\251\264\354\227\220 \353\205\270\354\266\234\352\263\204 \355\221\234\354\213\234",
-    "\353\252\250\354\204\234\353\246\254\354\235\230 \353\236\250\355\224\204: "
-    "\354\226\264\353\221\220\354\232\260\353\251\264 \353\271\250\352\260\225, \353\260\235\354\234\274\353\251\264 "
-    "\354\264\210\353\241\235, \352\267\270 \354\202\254\354\235\264\353\212\224 \354\244\221\352\260\204 "
-    "\354\203\211\354\241\260\354\235\264\353\251\260 \354\230\206\354\227\220 \354\210\230\354\271\230\352\260\200 "
-    "\355\221\234\354\213\234\353\220\251\353\213\210\353\213\244.\n\n\354\212\244\354\272\224\354\235\264 "
-    "\353\213\250\354\210\234\355\236\210 \354\213\244\355\226\211 \354\244\221\354\235\264 "
-    "\354\225\204\353\213\210\353\235\274 \354\266\224\354\240\201 \354\244\221\354\236\204\354\235\204 "
-    "\355\225\234\353\210\210\354\227\220 \353\263\264\353\212\224 "
-    "\353\260\251\353\262\225\354\236\205\353\213\210\353\213\244. \352\267\270\353\212\230\353\241\234 "
-    "\353\223\244\354\226\264\352\260\200\353\251\264 \353\271\250\352\260\225 \354\252\275\354\234\274\353\241\234, "
-    "\353\202\230\354\230\244\353\251\264 \354\264\210\353\241\235\354\234\274\353\241\234 \352\260\200\354\225\274 "
-    "\355\225\251\353\213\210\353\213\244. \353\260\230\353\214\200\353\241\234 "
-    "\354\233\200\354\247\201\354\235\264\353\251\264 \354\225\204\353\236\230 \"\354\210\253\354\236\220\352\260\200 "
-    "\353\260\230\353\214\200\353\241\234 \352\260\220\"\354\235\264 \352\267\270\352\262\203\354\235\204 "
-    "\354\234\204\355\225\234 "
-    "\352\262\203\354\236\205\353\213\210\353\213\244.\n\n\354\210\234\354\210\230\355\225\234 "
-    "\355\221\234\354\213\234\352\270\260\354\236\205\353\213\210\353\213\244. "
-    "\354\225\204\353\254\264\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.",
+    "\353\252\250\354\204\234\353\246\254\354\235\230 \353\236\250\355\224\204: \354\226\264\353\221\220\354\232\260"
+    "\353\251\264 \353\271\250\352\260\225, \353\260\235\354\234\274\353\251\264 \354\264\210\353\241\235, \352\267\270"
+    " \354\202\254\354\235\264\353\212\224 \354\244\221\352\260\204 \354\203\211\354\241\260\354\235\264\353\251\260"
+    " \354\230\206\354\227\220 \354\210\230\354\271\230\352\260\200 \355\221\234\354\213\234\353\220\251\353\213\210"
+    "\353\213\244.\n\n\354\212\244\354\272\224\354\235\264 \353\213\250\354\210\234\355\236\210 \354\213\244\355\226\211"
+    " \354\244\221\354\235\264 \354\225\204\353\213\210\353\235\274 \354\266\224\354\240\201 \354\244\221\354\236\204"
+    "\354\235\204 \355\225\234\353\210\210\354\227\220 \353\263\264\353\212\224 \353\260\251\353\262\225\354\236\205"
+    "\353\213\210\353\213\244. \352\267\270\353\212\230\353\241\234 \353\223\244\354\226\264\352\260\200\353\251\264"
+    " \353\271\250\352\260\225 \354\252\275\354\234\274\353\241\234, \353\202\230\354\230\244\353\251\264 \354\264\210"
+    "\353\241\235\354\234\274\353\241\234 \352\260\200\354\225\274 \355\225\251\353\213\210\353\213\244. \353\260\230"
+    "\353\214\200\353\241\234 \354\233\200\354\247\201\354\235\264\353\251\264 \354\225\204\353\236\230 \"\354\210\253"
+    "\354\236\220\352\260\200 \353\260\230\353\214\200\353\241\234 \352\260\220\"\354\235\264 \352\267\270\352\262\203"
+    "\354\235\204 \354\234\204\355\225\234 \352\262\203\354\236\205\353\213\210\353\213\244.\n\n\354\210\234\354\210\230"
+    "\355\225\234 \355\221\234\354\213\234\352\270\260\354\236\205\353\213\210\353\213\244. \354\225\204\353\254\264"
+    "\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244"
+    ".",
     "\354\227\254\352\270\260\354\227\220 \354\225\265\354\273\244",
-    "\352\267\270\353\246\274\354\235\204 \353\247\236\352\262\214 \353\247\214\353\223\240 \353\222\244 "
-    "\354\235\264\352\262\203\354\235\204 \353\210\204\353\245\264\354\204\270\354\232\224 -- \355\230\204\354\236\254 "
-    "\353\252\250\354\212\265\354\235\204 \355\217\254\354\235\270\355\212\270\353\241\234 "
-    "\354\272\241\354\262\230\355\225\251\353\213\210\353\213\244. \354\262\253 "
-    "\355\217\254\354\235\270\355\212\270\353\212\224 \354\234\204\354\235\230 \355\216\230\354\235\264\355\215\274 "
-    "\355\231\224\354\235\264\355\212\270 \354\212\254\353\235\274\354\235\264\353\215\224\353\245\274, "
-    "\354\235\264\355\233\204 \355\217\254\354\235\270\355\212\270\353\212\224 \353\213\244\353\245\270 "
-    "\354\241\260\353\252\205\354\234\274\353\241\234 \354\235\264\353\217\231\355\225\264 "
-    "\355\212\270\353\246\274\354\235\204 \354\223\260\353\251\264 \354\235\264\352\262\203\354\235\264 "
-    "\352\267\270\352\262\203\354\235\204 "
-    "\352\265\275\354\212\265\353\213\210\353\213\244.\n\n\355\217\254\354\235\270\355\212\270 "
-    "\355\225\230\353\202\230\352\260\200 \353\271\204\354\234\250\354\235\204 "
-    "\353\263\264\354\240\225\355\225\230\352\263\240 \352\267\270\353\225\214\353\266\200\355\204\260 "
-    "\355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270\352\260\200 "
-    "\354\212\244\354\272\224\354\235\204 \353\224\260\353\246\205\353\213\210\353\213\244. \354\225\204\354\243\274 "
-    "\353\213\244\353\245\270 \354\241\260\353\252\205\354\234\274\353\241\234 \352\260\200\354\204\234 "
-    "\353\213\244\354\213\234 \353\210\204\353\245\264\354\204\270\354\232\224: \353\221\220 \353\262\210\354\247\270 "
-    "\355\217\254\354\235\270\355\212\270\352\260\200 \353\262\204\355\215\274\354\235\230 \354\213\244\354\240\234 "
-    "\352\263\241\354\204\240\354\235\204 \352\263\240\354\240\225\355\225\264 \354\225\265\354\273\244 "
-    "\355\225\230\353\202\230 \352\267\274\354\262\230\353\247\214\354\235\264 \354\225\204\353\213\210\353\235\274 "
-    "\353\221\230 \354\202\254\354\235\264\354\235\230 \353\252\250\353\223\240 \352\262\203\354\235\264 "
-    "\353\247\236\352\262\214 \353\220\251\353\213\210\353\213\244. \354\265\234\353\214\200 "
-    "8\352\260\234.\n\n\355\221\234\353\212\224 \352\262\214\354\236\204\353\263\204\354\235\264\353\251\260 "
-    "\352\263\265\354\234\240\355\225\240 \354\210\230 \354\236\210\354\212\265\353\213\210\353\213\244 -- "
-    "\355\225\234 \354\202\254\353\236\214\354\235\264 \352\262\214\354\236\204\354\235\204 "
-    "\353\263\264\354\240\225\355\225\230\353\251\264 \355\224\204\353\241\234\355\225\204\354\235\204 "
-    "\352\260\200\354\240\270\352\260\200\353\212\224 \353\252\250\353\221\220\354\227\220\352\262\214 "
-    "\352\260\231\354\235\200 \354\210\253\354\236\220\354\236\205\353\213\210\353\213\244.",
-    "(\354\212\244\354\272\224\354\235\200 \354\247\200\354\274\234\353\263\264\352\270\260\353\247\214 "
-    "\355\225\251\353\213\210\353\213\244 -- \354\234\204\354\235\230 \355\231\224\354\235\264\355\212\270 "
-    "\355\217\254\354\235\270\355\212\270\353\212\224 \353\213\244\353\245\270 \352\263\263\354\227\220\354\204\234 "
-    "\354\230\265\353\213\210\353\213\244)",
+    "\352\267\270\353\246\274\354\235\204 \353\247\236\352\262\214 \353\247\214\353\223\240 \353\222\244 \354\235\264"
+    "\352\262\203\354\235\204 \353\210\204\353\245\264\354\204\270\354\232\224 -- \355\230\204\354\236\254 \353\252\250"
+    "\354\212\265\354\235\204 \355\217\254\354\235\270\355\212\270\353\241\234 \354\272\241\354\262\230\355\225\251"
+    "\353\213\210\353\213\244. \354\262\253 \355\217\254\354\235\270\355\212\270\353\212\224 \354\234\204\354\235\230"
+    " \355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270 \354\212\254\353\235\274\354\235\264"
+    "\353\215\224\353\245\274, \354\235\264\355\233\204 \355\217\254\354\235\270\355\212\270\353\212\224 \353\213\244"
+    "\353\245\270 \354\241\260\353\252\205\354\234\274\353\241\234 \354\235\264\353\217\231\355\225\264 \355\212\270"
+    "\353\246\274\354\235\204 \354\223\260\353\251\264 \354\235\264\352\262\203\354\235\264 \352\267\270\352\262\203"
+    "\354\235\204 \352\265\275\354\212\265\353\213\210\353\213\244.\n\n\355\217\254\354\235\270\355\212\270 \355\225\230"
+    "\353\202\230\352\260\200 \353\271\204\354\234\250\354\235\204 \353\263\264\354\240\225\355\225\230\352\263\240"
+    " \352\267\270\353\225\214\353\266\200\355\204\260 \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270"
+    "\355\212\270\352\260\200 \354\212\244\354\272\224\354\235\204 \353\224\260\353\246\205\353\213\210\353\213\244"
+    ". \354\225\204\354\243\274 \353\213\244\353\245\270 \354\241\260\353\252\205\354\234\274\353\241\234 \352\260\200"
+    "\354\204\234 \353\213\244\354\213\234 \353\210\204\353\245\264\354\204\270\354\232\224: \353\221\220 \353\262\210"
+    "\354\247\270 \355\217\254\354\235\270\355\212\270\352\260\200 \353\262\204\355\215\274\354\235\230 \354\213\244"
+    "\354\240\234 \352\263\241\354\204\240\354\235\204 \352\263\240\354\240\225\355\225\264 \354\225\265\354\273\244"
+    " \355\225\230\353\202\230 \352\267\274\354\262\230\353\247\214\354\235\264 \354\225\204\353\213\210\353\235\274"
+    " \353\221\230 \354\202\254\354\235\264\354\235\230 \353\252\250\353\223\240 \352\262\203\354\235\264 \353\247\236"
+    "\352\262\214 \353\220\251\353\213\210\353\213\244. \354\265\234\353\214\200 8\352\260\234.\n\n\355\221\234"
+    "\353\212\224 \352\262\214\354\236\204\353\263\204\354\235\264\353\251\260 \352\263\265\354\234\240\355\225\240"
+    " \354\210\230 \354\236\210\354\212\265\353\213\210\353\213\244 -- \355\225\234 \354\202\254\353\236\214\354\235\264"
+    " \352\262\214\354\236\204\354\235\204 \353\263\264\354\240\225\355\225\230\353\251\264 \355\224\204\353\241\234"
+    "\355\225\204\354\235\204 \352\260\200\354\240\270\352\260\200\353\212\224 \353\252\250\353\221\220\354\227\220"
+    "\352\262\214 \352\260\231\354\235\200 \354\210\253\354\236\220\354\236\205\353\213\210\353\213\244.",
+    "(\354\212\244\354\272\224\354\235\200 \354\247\200\354\274\234\353\263\264\352\270\260\353\247\214 \355\225\251"
+    "\353\213\210\353\213\244 -- \354\234\204\354\235\230 \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270"
+    "\355\212\270\353\212\224 \353\213\244\353\245\270 \352\263\263\354\227\220\354\204\234 \354\230\265\353\213\210"
+    "\353\213\244)",
     "%s \354\212\244\354\272\224 %.4f  ->  \355\231\224\354\235\264\355\212\270 %.2f%s",
     "   [\355\216\270\354\247\221 \354\244\221]",
-    "\355\226\211\354\235\204 \355\201\264\353\246\255\355\225\230\353\251\264 \354\234\204 "
-    "\354\212\254\353\235\274\354\235\264\353\215\224\353\241\234 \355\216\270\354\247\221\355\225\230\352\263\240, "
-    "\353\213\244\354\213\234 \355\201\264\353\246\255\355\225\230\353\251\264 \353\235\274\354\235\264\353\270\214 "
-    "\355\217\254\354\235\270\355\212\270\353\245\274 \354\240\234\354\226\264\355\225\251\353\213\210\353\213\244. "
-    ">\352\260\200 \354\247\200\352\270\210 \354\202\254\354\232\251 \354\244\221\354\235\270 "
-    "\355\217\254\354\235\270\355\212\270\354\236\205\353\213\210\353\213\244.",
+    "\355\226\211\354\235\204 \355\201\264\353\246\255\355\225\230\353\251\264 \354\234\204 \354\212\254\353\235\274"
+    "\354\235\264\353\215\224\353\241\234 \355\216\270\354\247\221\355\225\230\352\263\240, \353\213\244\354\213\234"
+    " \355\201\264\353\246\255\355\225\230\353\251\264 \353\235\274\354\235\264\353\270\214 \355\217\254\354\235\270"
+    "\355\212\270\353\245\274 \354\240\234\354\226\264\355\225\251\353\213\210\353\213\244. >\352\260\200 \354\247\200"
+    "\352\270\210 \354\202\254\354\232\251 \354\244\221\354\235\270 \355\217\254\354\235\270\355\212\270\354\236\205"
+    "\353\213\210\353\213\244.",
     "\354\210\253\354\236\220\352\260\200 \353\260\230\353\214\200\353\241\234 \352\260\220",
-    "\354\242\213\354\225\204\354\240\270\354\225\274 \355\225\240 \353\260\251\355\226\245\354\227\220\354\204\234 "
-    "\352\267\270\353\246\274\354\235\264 \353\202\230\353\271\240\354\247\200\353\251\264 "
-    "\354\235\264\352\262\203\354\235\204 \353\222\244\354\247\221\354\234\274\354\204\270\354\232\224. "
-    "\353\214\200\353\266\200\353\266\204\354\235\230 \354\227\224\354\247\204\354\235\200 "
-    "\354\236\245\353\251\264\354\235\264 \353\260\235\354\225\204\354\247\210\354\210\230\353\241\235 "
-    "\353\226\250\354\226\264\354\247\200\353\212\224 \353\205\270\354\266\234\354\235\204 "
-    "\354\240\200\354\236\245\355\225\230\352\263\240, \354\235\274\353\266\200\353\212\224 \352\267\270 "
-    "\354\227\255\354\210\230\353\245\274 \354\240\200\354\236\245\355\225\230\353\251\260, "
-    "\353\252\250\354\226\221\354\234\274\353\241\234 \354\260\276\354\235\200 \353\262\204\355\215\274\353\212\224 "
-    "\354\226\264\353\212\220 \354\252\275\354\235\270\354\247\200 \353\247\220\355\225\264\354\243\274\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244. \353\213\244\353\245\270 "
-    "\354\241\260\353\252\205\354\227\220\354\204\234 \353\221\220 \353\262\210\354\247\270 \354\225\265\354\273\244 "
-    "\355\217\254\354\235\270\355\212\270\353\245\274 \354\266\224\352\260\200\355\225\230\353\251\264 "
-    "\354\236\220\353\217\231\354\234\274\353\241\234 \352\262\260\354\240\225\353\220\230\354\226\264 "
-    "\354\235\264\352\262\203\354\235\264 \354\202\254\353\235\274\354\247\221\353\213\210\353\213\244.",
+    "\354\242\213\354\225\204\354\240\270\354\225\274 \355\225\240 \353\260\251\355\226\245\354\227\220\354\204\234"
+    " \352\267\270\353\246\274\354\235\264 \353\202\230\353\271\240\354\247\200\353\251\264 \354\235\264\352\262\203"
+    "\354\235\204 \353\222\244\354\247\221\354\234\274\354\204\270\354\232\224. \353\214\200\353\266\200\353\266\204"
+    "\354\235\230 \354\227\224\354\247\204\354\235\200 \354\236\245\353\251\264\354\235\264 \353\260\235\354\225\204"
+    "\354\247\210\354\210\230\353\241\235 \353\226\250\354\226\264\354\247\200\353\212\224 \353\205\270\354\266\234"
+    "\354\235\204 \354\240\200\354\236\245\355\225\230\352\263\240, \354\235\274\353\266\200\353\212\224 \352\267\270"
+    " \354\227\255\354\210\230\353\245\274 \354\240\200\354\236\245\355\225\230\353\251\260, \353\252\250\354\226\221"
+    "\354\234\274\353\241\234 \354\260\276\354\235\200 \353\262\204\355\215\274\353\212\224 \354\226\264\353\212\220"
+    " \354\252\275\354\235\270\354\247\200 \353\247\220\355\225\264\354\243\274\354\247\200 \354\225\212\354\212\265"
+    "\353\213\210\353\213\244. \353\213\244\353\245\270 \354\241\260\353\252\205\354\227\220\354\204\234 \353\221\220"
+    " \353\262\210\354\247\270 \354\225\265\354\273\244 \355\217\254\354\235\270\355\212\270\353\245\274 \354\266\224"
+    "\352\260\200\355\225\230\353\251\264 \354\236\220\353\217\231\354\234\274\353\241\234 \352\262\260\354\240\225"
+    "\353\220\230\354\226\264 \354\235\264\352\262\203\354\235\264 \354\202\254\353\235\274\354\247\221\353\213\210"
+    "\353\213\244.",
     "\355\233\204\353\263\264",
-    "\354\225\204\354\247\201 \354\235\274\354\271\230\355\225\230\353\212\224 \352\262\203\354\235\264 "
-    "\354\227\206\354\212\265\353\213\210\353\213\244.",
+    "\354\225\204\354\247\201 \354\235\274\354\271\230\355\225\230\353\212\224 \352\262\203\354\235\264 \354\227\206"
+    "\354\212\265\353\213\210\353\213\244.",
     "%zu. %s -- \354\225\204\354\247\201 \354\235\275\354\247\200 \354\225\212\354\235\214",
     "%zu. %s = %.5f  (\352\264\200\354\270\241 %.5f..%.5f) %s",
     "\354\233\200\354\247\201\354\236\204",
     "\354\225\204\354\247\201 \353\263\200\355\231\224 \354\227\206\354\235\214",
-    "\352\267\270\353\212\230\354\227\220\354\204\234 \355\226\207\353\271\233\354\234\274\353\241\234 "
-    "\352\261\270\354\226\264\352\260\200\354\204\270\354\232\224. \354\247\204\354\247\234 "
-    "\353\205\270\354\266\234\354\235\200 \354\233\200\354\247\201\354\236\205\353\213\210\353\213\244. "
-    "\354\230\244\353\245\264\352\270\260\353\247\214 \355\225\230\353\212\224 \352\262\203\354\235\200 "
-    "\354\271\264\354\232\264\355\204\260\354\235\264\354\247\200 \353\205\270\354\266\234\354\235\264 "
-    "\354\225\204\353\213\231\353\213\210\353\213\244.",
+    "\352\267\270\353\212\230\354\227\220\354\204\234 \355\226\207\353\271\233\354\234\274\353\241\234 \352\261\270"
+    "\354\226\264\352\260\200\354\204\270\354\232\224. \354\247\204\354\247\234 \353\205\270\354\266\234\354\235\200"
+    " \354\233\200\354\247\201\354\236\205\353\213\210\353\213\244. \354\230\244\353\245\264\352\270\260\353\247\214"
+    " \355\225\230\353\212\224 \352\262\203\354\235\200 \354\271\264\354\232\264\355\204\260\354\235\264\354\247\200"
+    " \353\205\270\354\266\234\354\235\264 \354\225\204\353\213\231\353\213\210\353\213\244.",
     "\352\260\200\354\235\264\353\223\234",
     "\352\262\214\354\236\204 \353\224\260\353\246\204",
     "\352\260\225\354\240\234 \354\235\274\353\260\230",
     "\352\260\225\354\240\234 \353\260\230\354\240\204",
     "\352\271\212\354\235\264",
-    "\352\271\212\354\235\264\352\260\200 \354\226\264\353\212\220 \353\260\251\355\226\245\354\235\270\354\247\200 "
-    "\353\252\250\353\215\270\354\227\220 \354\225\214\353\240\244\354\243\274\353\212\224 \354\204\244\354\240\225. "
-    "\352\262\214\354\236\204\354\235\264 \354\236\220\354\262\264 DLSS feature\353\245\274 \353\247\214\353\223\244 "
-    "\353\225\214\354\235\230 \355\224\214\353\236\230\352\267\270\353\241\234 \354\235\264\353\245\274 "
-    "\354\204\240\354\226\270\355\225\230\353\251\260, \352\267\270\352\262\203\354\235\204 "
-    "\353\224\260\353\245\264\353\212\224 \352\262\203\354\235\264 \352\261\260\354\235\230 \355\225\255\354\203\201 "
-    "\353\247\236\354\212\265\353\213\210\353\213\244 -- \355\225\230\354\247\200\353\247\214 \354\236\230\353\252\273 "
-    "\354\204\240\354\226\270\355\225\230\353\212\224 \352\262\214\354\236\204\354\235\200 \354\210\230\353\217\231 "
-    "\352\265\220\354\240\225\354\235\264 "
-    "\355\225\204\354\232\224\355\225\251\353\213\210\353\213\244."
-    "\n\n\354\247\200\354\230\244\353\251\224\355\212\270\353\246\254\354\231\200 \355\225\230\353\212\230\354\235\264 "
-    "\353\247\214\353\202\230\353\212\224 \352\263\263\354\227\220\354\204\234 \355\214\250\354\212\244\352\260\200 "
-    "\352\260\200\354\236\245 \353\202\230\353\271\240 \353\263\264\354\235\264\353\251\264 \353\213\244\353\245\270 "
-    "\354\252\275\354\235\204 \352\260\225\354\240\234\355\225\264 \353\263\264\354\204\270\354\232\224.",
+    "\352\271\212\354\235\264\352\260\200 \354\226\264\353\212\220 \353\260\251\355\226\245\354\235\270\354\247\200"
+    " \353\252\250\353\215\270\354\227\220 \354\225\214\353\240\244\354\243\274\353\212\224 \354\204\244\354\240\225"
+    ". \352\262\214\354\236\204\354\235\264 \354\236\220\354\262\264 DLSS feature\353\245\274 \353\247\214\353\223\244"
+    " \353\225\214\354\235\230 \355\224\214\353\236\230\352\267\270\353\241\234 \354\235\264\353\245\274 \354\204\240"
+    "\354\226\270\355\225\230\353\251\260, \352\267\270\352\262\203\354\235\204 \353\224\260\353\245\264\353\212\224"
+    " \352\262\203\354\235\264 \352\261\260\354\235\230 \355\225\255\354\203\201 \353\247\236\354\212\265\353\213\210"
+    "\353\213\244 -- \355\225\230\354\247\200\353\247\214 \354\236\230\353\252\273 \354\204\240\354\226\270\355\225\230"
+    "\353\212\224 \352\262\214\354\236\204\354\235\200 \354\210\230\353\217\231 \352\265\220\354\240\225\354\235\264"
+    " \355\225\204\354\232\224\355\225\251\353\213\210\353\213\244.\n\n\354\247\200\354\230\244\353\251\224\355\212\270"
+    "\353\246\254\354\231\200 \355\225\230\353\212\230\354\235\264 \353\247\214\353\202\230\353\212\224 \352\263\263"
+    "\354\227\220\354\204\234 \355\214\250\354\212\244\352\260\200 \352\260\200\354\236\245 \353\202\230\353\271\240"
+    " \353\263\264\354\235\264\353\251\264 \353\213\244\353\245\270 \354\252\275\354\235\204 \352\260\225\354\240\234"
+    "\355\225\264 \353\263\264\354\204\270\354\232\224.",
     "UI \353\263\264\354\240\225",
-    "\355\224\204\353\240\210\354\236\204 \354\234\204\354\227\220 \353\206\223\354\235\270 UI "
-    "\353\240\210\354\235\264\354\226\264\353\245\274 \353\252\250\353\215\270\354\235\264 "
-    "\352\263\240\353\240\244\355\225\230\352\262\214 \355\225\251\353\213\210\353\213\244. \354\274\254\354\235\264 "
-    "\353\252\250\353\215\270 \354\236\220\354\262\264 \352\270\260\353\263\270\352\260\222\354\235\264\353\251\260 UI "
-    "\353\246\254\354\206\214\354\212\244\352\260\200 \353\217\204\353\213\254\355\225\240 "
-    "\353\225\214\353\247\210\353\213\244 \353\247\236\354\212\265\353\213\210\353\213\244; \353\263\264\354\240\225 "
-    "\354\236\220\354\262\264\352\260\200 \354\236\230\353\252\273\353\220\230\354\226\264 "
-    "\353\263\264\354\235\264\353\251\264 "
-    "\353\201\204\354\204\270\354\232\224.\n\n\353\252\250\353\215\270\354\235\204 "
-    "\353\271\214\353\223\234\355\225\240 \353\225\214 \354\235\275\354\212\265\353\213\210\353\213\244.",
+    "\355\224\204\353\240\210\354\236\204 \354\234\204\354\227\220 \353\206\223\354\235\270 UI \353\240\210\354\235\264"
+    "\354\226\264\353\245\274 \353\252\250\353\215\270\354\235\264 \352\263\240\353\240\244\355\225\230\352\262\214"
+    " \355\225\251\353\213\210\353\213\244. \354\274\254\354\235\264 \353\252\250\353\215\270 \354\236\220\354\262\264"
+    " \352\270\260\353\263\270\352\260\222\354\235\264\353\251\260 UI \353\246\254\354\206\214\354\212\244\352\260\200"
+    " \353\217\204\353\213\254\355\225\240 \353\225\214\353\247\210\353\213\244 \353\247\236\354\212\265\353\213\210"
+    "\353\213\244; \353\263\264\354\240\225 \354\236\220\354\262\264\352\260\200 \354\236\230\353\252\273\353\220\230"
+    "\354\226\264 \353\263\264\354\235\264\353\251\264 \353\201\204\354\204\270\354\232\224.\n\n\353\252\250\353\215\270"
+    "\354\235\204 \353\271\214\353\223\234\355\225\240 \353\225\214 \354\235\275\354\212\265\353\213\210\353\213\244"
+    ".",
     "\352\262\200\354\202\254",
     "\354\272\241\354\262\230 \354\244\221...",
     "8\355\224\204\353\240\210\354\236\204 \354\272\241\354\262\230",
-    "\354\227\260\354\206\215 8\355\224\204\353\240\210\354\236\204\354\235\204 \353\221\220 \353\262\210 "
-    "\352\270\260\353\241\235\355\225\251\353\213\210\353\213\244: "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\352\260\200 \353\247\214\353\223\240 "
-    "\352\267\270\353\214\200\353\241\234\354\231\200 \353\252\250\353\215\270 \355\216\270\354\247\221\354\235\264 "
-    "\354\240\201\354\232\251\353\220\234 \353\222\244. OptiScaler \354\230\206 dlssnr-capture "
-    "\355\217\264\353\215\224\354\227\220 \354\240\200\354\236\245\353\220\230\353\251\260 \353\247\244 "
-    "\354\213\244\355\226\211\354\235\264 \354\235\264\354\240\204 \352\262\203\354\235\204 "
-    "\353\215\256\354\226\264\354\224\201\353\213\210\353\213\244.",
+    "\354\227\260\354\206\215 8\355\224\204\353\240\210\354\236\204\354\235\204 \353\221\220 \353\262\210 \352\270\260"
+    "\353\241\235\355\225\251\353\213\210\353\213\244: \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254"
+    "\352\260\200 \353\247\214\353\223\240 \352\267\270\353\214\200\353\241\234\354\231\200 \353\252\250\353\215\270"
+    " \355\216\270\354\247\221\354\235\264 \354\240\201\354\232\251\353\220\234 \353\222\244. OptiScaler \354\230\206"
+    " dlssnr-capture \355\217\264\353\215\224\354\227\220 \354\240\200\354\236\245\353\220\230\353\251\260 \353\247\244"
+    " \354\213\244\355\226\211\354\235\264 \354\235\264\354\240\204 \352\262\203\354\235\204 \353\215\256\354\226\264"
+    "\354\224\201\353\213\210\353\213\244.",
     "\354\204\270\354\205\230\353\213\271 \355\225\234 \353\262\210 \354\236\220\353\217\231 \354\272\241\354\262\230",
-    "\354\225\204\353\254\264\353\217\204 \354\232\224\354\262\255\355\225\230\354\247\200 "
-    "\354\225\212\354\225\204\353\217\204 \353\247\244\354\271\255\353\220\234 \354\240\204/\355\233\204 "
-    "\354\204\270\355\212\270 \355\225\230\353\202\230\353\245\274 \354\236\220\353\217\231\354\234\274\353\241\234 "
-    "\352\270\260\353\241\235\355\225\251\353\213\210\353\213\244. \355\217\264\353\215\224\353\212\224 "
-    "\354\213\244\355\226\211\353\247\210\353\213\244 \353\271\204\354\233\214\354\240\270 \355\225\234 "
-    "\354\204\270\354\205\230\353\247\214 \353\213\264\352\263\240 \354\273\244\354\247\200\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.",
+    "\354\225\204\353\254\264\353\217\204 \354\232\224\354\262\255\355\225\230\354\247\200 \354\225\212\354\225\204"
+    "\353\217\204 \353\247\244\354\271\255\353\220\234 \354\240\204/\355\233\204 \354\204\270\355\212\270 \355\225\230"
+    "\353\202\230\353\245\274 \354\236\220\353\217\231\354\234\274\353\241\234 \352\270\260\353\241\235\355\225\251"
+    "\353\213\210\353\213\244. \355\217\264\353\215\224\353\212\224 \354\213\244\355\226\211\353\247\210\353\213\244"
+    " \353\271\204\354\233\214\354\240\270 \355\225\234 \354\204\270\354\205\230\353\247\214 \353\213\264\352\263\240"
+    " \354\273\244\354\247\200\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
     "\355\224\204\353\240\210\354\236\204 \352\263\240\354\240\225",
-    "\353\252\250\353\215\270\354\235\264 \354\236\221\354\227\205\355\225\230\353\212\224 "
-    "\355\224\204\353\240\210\354\236\204\354\235\204 \354\226\274\353\246\275\353\213\210\353\213\244. "
-    "\352\263\240\354\240\225 \354\244\221\354\227\220\353\212\224 \355\216\230\354\235\264\355\215\274 "
-    "\355\231\224\354\235\264\355\212\270, \352\260\225\353\217\204, \352\260\200\354\227\255 "
-    "\353\252\250\353\223\234, \353\252\250\353\215\270 \355\224\204\353\246\254\354\205\213 -- "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \354\225\204\353\236\230\354\235\230 "
-    "\353\254\264\354\227\207\354\235\264\353\223\240 -- \354\235\204 \353\260\224\352\276\270\353\251\264 "
-    "\352\267\270 \354\204\244\354\240\225\353\247\214 \354\233\200\354\247\201\354\235\264\352\263\240 "
-    "\354\236\245\353\251\264\354\235\200 \354\233\200\354\247\201\354\235\264\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244. \354\203\201\353\213\250\354\235\230 \"\353\252\250\353\215\270 "
-    "\354\240\201\354\232\251\"\352\263\274 \354\247\235\354\235\204 \354\235\264\353\243\271\353\213\210\353\213\244: "
-    "\355\224\204\353\240\210\354\236\204\354\235\204 \354\226\274\353\246\260 \353\222\244 "
-    "\352\267\270\352\262\203\354\235\204 \355\206\240\352\270\200\355\225\264 \354\234\240\353\254\264\353\245\274 "
-    "\353\271\204\352\265\220\355\225\230\354\204\270\354\232\224.\n\n\353\263\264\354\227\254\354\244\204 "
-    "\354\210\230 \354\227\206\353\212\224 \352\262\203: \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 "
-    "\355\224\204\353\246\254\354\205\213\354\235\264\353\202\230 \354\235\264 \355\214\250\354\212\244 "
-    "\354\203\201\353\245\230\354\235\230 "
-    "\353\254\264\354\227\207\354\235\264\353\223\240(\352\263\240\354\240\225\353\220\234 "
-    "\355\224\204\353\240\210\354\236\204\354\227\220\354\204\234\353\212\224 "
-    "\354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\352\260\200 \353\213\244\354\213\234 "
-    "\354\213\244\355\226\211\353\220\230\354\247\200 \354\225\212\354\235\214), \352\267\270\353\246\254\352\263\240 "
-    "\354\235\264 \353\222\244\354\227\220 \354\213\244\355\226\211\353\220\230\353\251\260 \352\263\204\354\206\215 "
-    "\352\260\261\354\213\240\353\220\230\353\212\224 \352\262\214\354\236\204 \354\236\220\354\262\264 "
-    "HUD\354\231\200 \355\233\204\354\262\230\353\246\254. \355\231\224\354\235\264\355\212\270 "
-    "\355\217\254\354\235\270\355\212\270\353\212\224 \354\270\241\354\240\225\354\235\204 "
-    "\353\251\210\354\266\224\352\263\240 \352\260\222\354\235\204 \354\234\240\354\247\200\355\225\264 "
-    "\355\221\234\353\245\230\355\225\230\353\251\260 \353\271\204\352\265\220\353\245\274 "
-    "\355\230\274\353\236\200\354\213\234\355\202\244\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.\n\n\355\214\250\353\204\220\354\235\204 "
-    "\353\213\253\354\225\204\353\217\204 \352\263\240\354\240\225\354\235\200 "
-    "\354\234\240\354\247\200\353\220\251\353\213\210\353\213\244. \354\262\264\355\201\254\353\245\274 "
-    "\355\225\264\354\240\234\355\225\230\353\251\264 \354\236\254\352\260\234\353\220\251\353\213\210\353\213\244.",
+    "\353\252\250\353\215\270\354\235\264 \354\236\221\354\227\205\355\225\230\353\212\224 \355\224\204\353\240\210"
+    "\354\236\204\354\235\204 \354\226\274\353\246\275\353\213\210\353\213\244. \352\263\240\354\240\225 \354\244\221"
+    "\354\227\220\353\212\224 \355\216\230\354\235\264\355\215\274 \355\231\224\354\235\264\355\212\270, \352\260\225"
+    "\353\217\204, \352\260\200\354\227\255 \353\252\250\353\223\234, \353\252\250\353\215\270 \355\224\204\353\246\254"
+    "\354\205\213 -- \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254 \354\225\204\353\236\230\354\235\230"
+    " \353\254\264\354\227\207\354\235\264\353\223\240 -- \354\235\204 \353\260\224\352\276\270\353\251\264 \352\267\270"
+    " \354\204\244\354\240\225\353\247\214 \354\233\200\354\247\201\354\235\264\352\263\240 \354\236\245\353\251\264"
+    "\354\235\200 \354\233\200\354\247\201\354\235\264\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244"
+    ". \354\203\201\353\213\250\354\235\230 \"\353\252\250\353\215\270 \354\240\201\354\232\251\"\352\263\274"
+    " \354\247\235\354\235\204 \354\235\264\353\243\271\353\213\210\353\213\244: \355\224\204\353\240\210\354\236\204"
+    "\354\235\204 \354\226\274\353\246\260 \353\222\244 \352\267\270\352\262\203\354\235\204 \355\206\240\352\270\200"
+    "\355\225\264 \354\234\240\353\254\264\353\245\274 \353\271\204\352\265\220\355\225\230\354\204\270\354\232\224"
+    ".\n\n\353\263\264\354\227\254\354\244\204 \354\210\230 \354\227\206\353\212\224 \352\262\203: \354\227\205"
+    "\354\212\244\354\274\200\354\235\274\353\237\254 \355\224\204\353\246\254\354\205\213\354\235\264\353\202\230"
+    " \354\235\264 \355\214\250\354\212\244 \354\203\201\353\245\230\354\235\230 \353\254\264\354\227\207\354\235\264"
+    "\353\223\240(\352\263\240\354\240\225\353\220\234 \355\224\204\353\240\210\354\236\204\354\227\220\354\204\234"
+    "\353\212\224 \354\227\205\354\212\244\354\274\200\354\235\274\353\237\254\352\260\200 \353\213\244\354\213\234"
+    " \354\213\244\355\226\211\353\220\230\354\247\200 \354\225\212\354\235\214), \352\267\270\353\246\254\352\263\240"
+    " \354\235\264 \353\222\244\354\227\220 \354\213\244\355\226\211\353\220\230\353\251\260 \352\263\204\354\206\215"
+    " \352\260\261\354\213\240\353\220\230\353\212\224 \352\262\214\354\236\204 \354\236\220\354\262\264 HUD\354\231\200"
+    " \355\233\204\354\262\230\353\246\254. \355\231\224\354\235\264\355\212\270 \355\217\254\354\235\270\355\212\270"
+    "\353\212\224 \354\270\241\354\240\225\354\235\204 \353\251\210\354\266\224\352\263\240 \352\260\222\354\235\204"
+    " \354\234\240\354\247\200\355\225\264 \355\221\234\353\245\230\355\225\230\353\251\260 \353\271\204\352\265\220"
+    "\353\245\274 \355\230\274\353\236\200\354\213\234\355\202\244\354\247\200 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.\n\n\355\214\250\353\204\220\354\235\204 \353\213\253\354\225\204\353\217\204 \352\263\240\354\240\225"
+    "\354\235\200 \354\234\240\354\247\200\353\220\251\353\213\210\353\213\244. \354\262\264\355\201\254\353\245\274"
+    " \355\225\264\354\240\234\355\225\230\353\251\264 \354\236\254\352\260\234\353\220\251\353\213\210\353\213\244"
+    ".",
     "\353\201\224",
     "\353\202\230\353\236\200\355\236\210",
     "\354\231\200\354\235\264\355\224\204",
     "\353\271\204\352\265\220",
-    "\355\214\250\354\212\244\353\245\274 \354\236\220\352\270\260 \354\236\220\354\213\240\352\263\274 "
-    "\353\271\204\352\265\220\355\225\264 \353\263\264\354\227\254\354\244\215\353\213\210\353\213\244. "
-    "\353\202\230\353\236\200\355\236\210\353\212\224 \352\260\201 \354\240\210\353\260\230\354\227\220 "
-    "\355\224\204\353\240\210\354\236\204 \354\240\204\354\262\264\353\245\274 \353\204\243\352\263\240, "
-    "\354\231\200\354\235\264\355\224\204\353\212\224 \353\266\204\355\225\240\354\204\240\354\227\220\354\204\234 "
-    "\355\224\204\353\240\210\354\236\204 \355\225\230\353\202\230\353\245\274 \354\236\230\353\235\274 "
-    "\354\240\225\354\203\201 \354\236\254\354\203\235\355\225\251\353\213\210\353\213\244. \353\221\230 \353\213\244 "
-    "\352\263\204\354\206\215 \353\217\231\354\236\221\355\225\230\353\212\224 \353\215\260 "
-    "\353\251\224\353\211\264\352\260\200 \354\227\264\353\240\244 \354\236\210\354\235\204 "
-    "\355\225\204\354\232\224\353\212\224 \354\227\206\354\212\265\353\213\210\353\213\244.",
+    "\355\214\250\354\212\244\353\245\274 \354\236\220\352\270\260 \354\236\220\354\213\240\352\263\274 \353\271\204"
+    "\352\265\220\355\225\264 \353\263\264\354\227\254\354\244\215\353\213\210\353\213\244. \353\202\230\353\236\200"
+    "\355\236\210\353\212\224 \352\260\201 \354\240\210\353\260\230\354\227\220 \355\224\204\353\240\210\354\236\204"
+    " \354\240\204\354\262\264\353\245\274 \353\204\243\352\263\240, \354\231\200\354\235\264\355\224\204\353\212\224"
+    " \353\266\204\355\225\240\354\204\240\354\227\220\354\204\234 \355\224\204\353\240\210\354\236\204 \355\225\230"
+    "\353\202\230\353\245\274 \354\236\230\353\235\274 \354\240\225\354\203\201 \354\236\254\354\203\235\355\225\251"
+    "\353\213\210\353\213\244. \353\221\230 \353\213\244 \352\263\204\354\206\215 \353\217\231\354\236\221\355\225\230"
+    "\353\212\224 \353\215\260 \353\251\224\353\211\264\352\260\200 \354\227\264\353\240\244 \354\236\210\354\235\204"
+    " \355\225\204\354\232\224\353\212\224 \354\227\206\354\212\265\353\213\210\353\213\244.",
     "\354\242\214\354\232\260 \353\260\224\352\276\270\352\270\260",
     "\353\235\274\353\262\250",
-    "\354\226\264\353\212\220 \354\252\275\354\235\264 \354\226\264\353\212\220 \354\252\275\354\235\270\354\247\200 "
-    "\355\224\204\353\240\210\354\236\204 \354\236\220\354\262\264 \355\217\211\353\251\264\354\227\220 "
-    "\352\267\270\353\240\244 \354\212\244\355\201\254\353\246\260\354\203\267\354\227\220\353\217\204 "
-    "\353\202\250\354\212\265\353\213\210\353\213\244. \354\252\275\353\263\204\353\241\234 "
-    "\355\201\264\353\246\275\353\220\230\354\226\264 \354\231\200\354\235\264\355\224\204\352\260\200 "
-    "\354\235\264\353\257\270\354\247\200\354\231\200 \353\230\221\352\260\231\354\235\264 "
-    "\353\235\274\353\262\250\354\235\204 \353\223\234\353\237\254\353\202\264\352\263\240 "
-    "\354\210\250\352\271\201\353\213\210\353\213\244.",
+    "\354\226\264\353\212\220 \354\252\275\354\235\264 \354\226\264\353\212\220 \354\252\275\354\235\270\354\247\200"
+    " \355\224\204\353\240\210\354\236\204 \354\236\220\354\262\264 \355\217\211\353\251\264\354\227\220 \352\267\270"
+    "\353\240\244 \354\212\244\355\201\254\353\246\260\354\203\267\354\227\220\353\217\204 \353\202\250\354\212\265"
+    "\353\213\210\353\213\244. \354\252\275\353\263\204\353\241\234 \355\201\264\353\246\275\353\220\230\354\226\264"
+    " \354\231\200\354\235\264\355\224\204\352\260\200 \354\235\264\353\257\270\354\247\200\354\231\200 \353\230\221"
+    "\352\260\231\354\235\264 \353\235\274\353\262\250\354\235\204 \353\223\234\353\237\254\353\202\264\352\263\240"
+    " \354\210\250\352\271\201\353\213\210\353\213\244.",
     "\353\235\274\353\262\250 \355\201\254\352\270\260",
     "\354\244\214",
     "\353\266\204\355\225\240",
-    "\355\224\204\353\241\235\354\213\234(\353\252\250\353\215\270\354\235\264 \353\263\264\353\212\224 \352\262\203)",
+    "\355\224\204\353\241\235\354\213\234(\353\252\250\353\215\270\354\235\264 \353\263\264\353\212\224 \352\262\203"
+    ")",
     "\353\252\250\353\215\270 \354\266\234\353\240\245(\354\233\220\354\213\234)",
     "\354\260\250\354\235\264(\354\246\235\355\217\255)",
     "\353\224\224\353\262\204\352\267\270 \353\267\260",
-    "\355\224\204\353\241\235\354\213\234\353\212\224 \353\252\250\353\215\270\354\227\220 "
-    "\353\204\230\352\262\250\354\247\200\353\212\224 \352\267\270\353\246\274\354\236\205\353\213\210\353\213\244. "
-    "\354\260\250\354\235\264\353\212\224 \353\252\250\353\215\270\354\235\264 \354\213\244\354\240\234\353\241\234 "
-    "\353\260\224\352\276\274 \352\262\203\354\235\204 20\353\260\260 \354\246\235\355\217\255\355\225\264 "
-    "\355\232\214\354\203\211\354\235\204 \354\244\221\354\213\254\354\234\274\353\241\234 "
-    "\353\263\264\354\227\254\354\244\215\353\213\210\353\213\244.",
+    "\355\224\204\353\241\235\354\213\234\353\212\224 \353\252\250\353\215\270\354\227\220 \353\204\230\352\262\250"
+    "\354\247\200\353\212\224 \352\267\270\353\246\274\354\236\205\353\213\210\353\213\244. \354\260\250\354\235\264"
+    "\353\212\224 \353\252\250\353\215\270\354\235\264 \354\213\244\354\240\234\353\241\234 \353\260\224\352\276\274"
+    " \352\262\203\354\235\204 20\353\260\260 \354\246\235\355\217\255\355\225\264 \355\232\214\354\203\211\354\235\204"
+    " \354\244\221\354\213\254\354\234\274\353\241\234 \353\263\264\354\227\254\354\244\215\353\213\210\353\213\244"
+    ".",
     "\354\213\244\355\227\230\354\240\201",
-    "\353\221\230 \353\213\244 \352\262\200\354\246\235\353\220\230\354\247\200 "
-    "\354\225\212\354\225\230\354\212\265\353\213\210\353\213\244. \353\223\234\353\235\274\354\235\264\353\262\204 "
-    "\354\236\220\354\262\264 nvngx.dll\354\235\264 \353\252\250\353\215\270\354\235\204 "
-    "\353\224\224\354\212\244\355\214\250\354\271\230\355\225\240 \354\210\230 \354\236\210\353\212\224\354\247\200 "
-    "\354\213\234\355\227\230\355\225\230\352\270\260 \354\234\204\355\225\264 "
-    "\354\241\264\354\236\254\355\225\230\353\251\260, \353\220\234\353\213\244\353\251\264 OptiScaler "
-    "\354\230\206\354\235\230 165 MB \354\202\254\353\263\270\354\235\264 \355\225\204\354\232\224 "
-    "\354\227\206\354\226\264\354\247\221\353\213\210\353\213\244.",
+    "\353\221\230 \353\213\244 \352\262\200\354\246\235\353\220\230\354\247\200 \354\225\212\354\225\230\354\212\265"
+    "\353\213\210\353\213\244. \353\223\234\353\235\274\354\235\264\353\262\204 \354\236\220\354\262\264 nvng"
+    "x.dll\354\235\264 \353\252\250\353\215\270\354\235\204 \353\224\224\354\212\244\355\214\250\354\271\230\355\225\240"
+    " \354\210\230 \354\236\210\353\212\224\354\247\200 \354\213\234\355\227\230\355\225\230\352\270\260 \354\234\204"
+    "\355\225\264 \354\241\264\354\236\254\355\225\230\353\251\260, \353\220\234\353\213\244\353\251\264 Opti"
+    "Scaler \354\230\206\354\235\230 165 MB \354\202\254\353\263\270\354\235\264 \355\225\204\354\232\224 \354\227\206"
+    "\354\226\264\354\247\221\353\213\210\353\213\244.",
     "\353\223\234\353\235\274\354\235\264\353\262\204 \355\203\220\354\203\211",
-    "\354\204\270\354\205\230\353\213\271 \355\225\234 \353\262\210 "
-    "\353\223\234\353\235\274\354\235\264\353\262\204\354\235\230 nvngx.dll\354\227\220 "
-    "\353\252\250\353\215\270\354\235\204 \354\235\264\353\257\270 \354\225\204\353\212\224\354\247\200 "
-    "\353\254\273\354\212\265\353\213\210\353\213\244. \353\213\265\354\235\204 \353\241\234\352\267\270\354\227\220 "
-    "\354\223\260\352\263\240 \352\267\270 \354\231\270\354\227\220\353\212\224 "
-    "\354\225\204\353\254\264\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 "
-    "\354\225\212\354\212\265\353\213\210\353\213\244.\n\n\353\252\250\353\215\270\354\235\204 "
-    "\353\271\214\353\223\234\355\225\240 \353\225\214 \354\235\275\354\234\274\353\257\200\353\241\234 "
-    "\353\213\244\354\235\214 \354\204\270\354\205\230\353\266\200\355\204\260 "
-    "\354\240\201\354\232\251\353\220\251\353\213\210\353\213\244.",
+    "\354\204\270\354\205\230\353\213\271 \355\225\234 \353\262\210 \353\223\234\353\235\274\354\235\264\353\262\204"
+    "\354\235\230 nvngx.dll\354\227\220 \353\252\250\353\215\270\354\235\204 \354\235\264\353\257\270 \354\225\204"
+    "\353\212\224\354\247\200 \353\254\273\354\212\265\353\213\210\353\213\244. \353\213\265\354\235\204 \353\241\234"
+    "\352\267\270\354\227\220 \354\223\260\352\263\240 \352\267\270 \354\231\270\354\227\220\353\212\224 \354\225\204"
+    "\353\254\264\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 \354\225\212\354\212\265\353\213\210"
+    "\353\213\244.\n\n\353\252\250\353\215\270\354\235\204 \353\271\214\353\223\234\355\225\240 \353\225\214 "
+    "\354\235\275\354\234\274\353\257\200\353\241\234 \353\213\244\354\235\214 \354\204\270\354\205\230\353\266\200"
+    "\355\204\260 \354\240\201\354\232\251\353\220\251\353\213\210\353\213\244.",
     "\353\223\234\353\235\274\354\235\264\353\262\204\353\245\274 \355\206\265\355\225\264 \354\213\244\355\226\211",
-    "\355\217\254\354\233\214\353\215\224 \353\214\200\354\213\240 \353\223\234\353\235\274\354\235\264\353\262\204 "
-    "\354\236\220\354\262\264 nvngx.dll\353\241\234 \353\252\250\353\215\270\354\235\204 "
-    "\352\265\254\353\217\231\355\225\251\353\213\210\353\213\244 -- DLSS \354\236\220\354\262\264\352\260\200 "
-    "\355\230\270\354\266\234\353\220\230\353\212\224 \353\260\251\354\213\235\354\236\205\353\213\210\353\213\244. "
-    "\352\267\270\353\246\274\354\235\264 \354\235\274\354\271\230\355\225\230\353\251\264 "
-    "\355\217\254\354\233\214\353\215\224\353\212\224 "
-    "\353\266\210\355\225\204\354\232\224\355\225\251\353\213\210\353\213\244.\n\n\353\257\277\352\270\260 "
-    "\354\240\204\354\227\220 \353\271\204\352\265\220\355\225\230\354\204\270\354\232\224: \354\234\204\354\235\230 "
-    "\353\271\204\352\265\220\353\245\274 \354\274\234\352\263\240 \354\260\250\354\235\264\353\245\274 "
-    "\354\260\276\354\225\204\353\263\264\354\204\270\354\232\224.",
+    "\355\217\254\354\233\214\353\215\224 \353\214\200\354\213\240 \353\223\234\353\235\274\354\235\264\353\262\204"
+    " \354\236\220\354\262\264 nvngx.dll\353\241\234 \353\252\250\353\215\270\354\235\204 \352\265\254\353\217\231"
+    "\355\225\251\353\213\210\353\213\244 -- DLSS \354\236\220\354\262\264\352\260\200 \355\230\270\354\266\234"
+    "\353\220\230\353\212\224 \353\260\251\354\213\235\354\236\205\353\213\210\353\213\244. \352\267\270\353\246\274"
+    "\354\235\264 \354\235\274\354\271\230\355\225\230\353\251\264 \355\217\254\354\233\214\353\215\224\353\212\224"
+    " \353\266\210\355\225\204\354\232\224\355\225\251\353\213\210\353\213\244.\n\n\353\257\277\352\270\260 \354\240\204"
+    "\354\227\220 \353\271\204\352\265\220\355\225\230\354\204\270\354\232\224: \354\234\204\354\235\230 \353\271\204"
+    "\352\265\220\353\245\274 \354\274\234\352\263\240 \354\260\250\354\235\264\353\245\274 \354\260\276\354\225\204"
+    "\353\263\264\354\204\270\354\232\224.",
     "\354\231\270\352\264\200",
     "\353\260\235\354\235\200 \355\214\250\353\204\220",
-    "\353\260\235\354\235\214\354\235\264 \352\270\260\353\263\270\354\236\205\353\213\210\353\213\244. \354\235\264 "
-    "\355\214\250\353\204\220\354\235\264 \354\233\220\353\236\230 \353\263\270\353\234\254 "
-    "\354\226\264\353\221\220\354\232\264 \355\214\224\353\240\210\355\212\270\353\212\224 \355\235\220\353\246\260 "
-    "\355\205\215\354\212\244\355\212\270\353\245\274 \353\260\260\352\262\275 \353\214\200\353\271\204 "
-    "2.65:1\354\227\220 \353\221\220\354\227\210\353\212\224\353\215\260, \355\216\270\355\225\230\352\262\214 "
-    "\354\235\275\355\236\210\353\212\224 4.5:1\354\227\220 \353\252\273 "
-    "\353\257\270\354\271\251\353\213\210\353\213\244 -- \354\230\244\353\262\204\353\240\210\354\235\264\353\212\224 "
-    "\354\233\200\354\247\201\354\235\264\353\212\224 \352\267\270\353\246\274 \354\234\204\354\227\220\354\204\234 "
-    "\355\225\234\353\210\210\354\227\220 \354\235\275\353\212\224 "
-    "\352\262\203\354\236\205\353\213\210\353\213\244.\n\n\354\262\264\355\201\254\353\245\274 "
-    "\355\225\264\354\240\234\355\225\230\353\251\264 NVIDIA \354\236\220\354\262\264 "
-    "\354\203\211\354\203\201\354\234\274\353\241\234 \353\217\214\354\225\204\352\260\221\353\213\210\353\213\244.",
+    "\353\260\235\354\235\214\354\235\264 \352\270\260\353\263\270\354\236\205\353\213\210\353\213\244. \354\235\264"
+    " \355\214\250\353\204\220\354\235\264 \354\233\220\353\236\230 \353\263\270\353\234\254 \354\226\264\353\221\220"
+    "\354\232\264 \355\214\224\353\240\210\355\212\270\353\212\224 \355\235\220\353\246\260 \355\205\215\354\212\244"
+    "\355\212\270\353\245\274 \353\260\260\352\262\275 \353\214\200\353\271\204 2.65:1\354\227\220 \353\221\220"
+    "\354\227\210\353\212\224\353\215\260, \355\216\270\355\225\230\352\262\214 \354\235\275\355\236\210\353\212\224"
+    " 4.5:1\354\227\220 \353\252\273 \353\257\270\354\271\251\353\213\210\353\213\244 -- \354\230\244\353\262\204"
+    "\353\240\210\354\235\264\353\212\224 \354\233\200\354\247\201\354\235\264\353\212\224 \352\267\270\353\246\274"
+    " \354\234\204\354\227\220\354\204\234 \355\225\234\353\210\210\354\227\220 \354\235\275\353\212\224 \352\262\203"
+    "\354\236\205\353\213\210\353\213\244.\n\n\354\262\264\355\201\254\353\245\274 \355\225\264\354\240\234\355\225\230"
+    "\353\251\264 NVIDIA \354\236\220\354\262\264 \354\203\211\354\203\201\354\234\274\353\241\234 \353\217\214"
+    "\354\225\204\352\260\221\353\213\210\353\213\244.",
     "\354\240\234\354\241\260\354\202\254 \354\203\211\354\203\201",
-    "\355\214\250\353\204\220\354\235\230 \352\260\225\354\241\260\354\203\211\354\235\200 "
-    "\352\267\270\353\240\244\354\247\200\353\212\224 \354\271\264\353\223\234\353\245\274 "
-    "\353\224\260\353\246\205\353\213\210\353\213\244: NVIDIA GPU\354\227\220\354\204\234\353\212\224 NVIDIA "
-    "\354\264\210\353\241\235, AMD\354\227\220\354\204\234\353\212\224 AMD \353\271\250\352\260\225. "
-    "\354\226\264\353\224\224\354\204\234\353\202\230 \354\264\210\353\241\235\354\235\204 "
-    "\354\234\240\354\247\200\355\225\230\353\240\244\353\251\264 \354\262\264\355\201\254\353\245\274 "
-    "\355\225\264\354\240\234\355\225\230\354\204\270\354\232\224.",
-    "\n\n\354\235\264 \352\262\214\354\236\204\354\235\200 AMD \354\271\264\353\223\234\354\227\220\354\204\234 "
-    "\354\213\244\355\226\211 \354\244\221\354\236\205\353\213\210\353\213\244.",
-    "\n\n\354\235\264 \352\262\214\354\236\204\354\235\200 AMD \354\271\264\353\223\234\354\227\220\354\204\234 "
-    "\354\213\244\355\226\211 \354\244\221\354\235\264 \354\225\204\353\213\210\353\257\200\353\241\234 "
-    "\354\227\254\352\270\260\354\204\234\353\212\224 \354\225\204\353\254\264\352\262\203\353\217\204 "
-    "\353\260\224\353\200\214\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
+    "\355\214\250\353\204\220\354\235\230 \352\260\225\354\241\260\354\203\211\354\235\200 \352\267\270\353\240\244"
+    "\354\247\200\353\212\224 \354\271\264\353\223\234\353\245\274 \353\224\260\353\246\205\353\213\210\353\213\244"
+    ": NVIDIA GPU\354\227\220\354\204\234\353\212\224 NVIDIA \354\264\210\353\241\235, AMD\354\227\220\354\204\234"
+    "\353\212\224 AMD \353\271\250\352\260\225. \354\226\264\353\224\224\354\204\234\353\202\230 \354\264\210"
+    "\353\241\235\354\235\204 \354\234\240\354\247\200\355\225\230\353\240\244\353\251\264 \354\262\264\355\201\254"
+    "\353\245\274 \355\225\264\354\240\234\355\225\230\354\204\270\354\232\224.",
+    "\n\n\354\235\264 \352\262\214\354\236\204\354\235\200 AMD \354\271\264\353\223\234\354\227\220\354\204\234"
+    " \354\213\244\355\226\211 \354\244\221\354\236\205\353\213\210\353\213\244.",
+    "\n\n\354\235\264 \352\262\214\354\236\204\354\235\200 AMD \354\271\264\353\223\234\354\227\220\354\204\234"
+    " \354\213\244\355\226\211 \354\244\221\354\235\264 \354\225\204\353\213\210\353\257\200\353\241\234 \354\227\254"
+    "\352\270\260\354\204\234\353\212\224 \354\225\204\353\254\264\352\262\203\353\217\204 \353\260\224\353\200\214"
+    "\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
     "\354\236\220\353\217\231(Windows)",
     "\354\230\201\354\226\264",
     "\355\217\254\353\245\264\355\210\254\352\260\210\354\226\264(\353\270\214\353\235\274\354\247\210)",
@@ -3260,777 +2976,742 @@ static const char* const kTable_ko[] = {
     "\354\212\244\355\216\230\354\235\270\354\226\264",
     "\353\217\205\354\235\274\354\226\264",
     "\354\226\270\354\226\264",
-    "\354\236\220\353\217\231\354\235\200 Windows \355\221\234\354\213\234 \354\226\270\354\226\264\353\245\274 "
-    "\353\224\260\353\246\205\353\213\210\353\213\244. \354\227\254\352\270\260\354\204\234 "
-    "\352\263\240\354\240\225\355\225\230\353\251\264 \354\235\264 \355\214\250\353\204\220\353\247\214 "
-    "\353\260\224\353\200\214\353\251\260, OptiScaler \354\236\220\354\262\264 \353\251\224\353\211\264\353\212\224 "
-    "\354\230\201\354\226\264\353\241\234 \353\202\250\354\212\265\353\213\210\353\213\244. \354\236\220\354\262\264 "
-    "\355\217\260\355\212\270\352\260\200 \355\225\204\354\232\224\355\225\234 "
-    "\354\226\270\354\226\264(\354\244\221\352\265\255\354\226\264, \355\225\234\352\265\255\354\226\264)\353\212\224 "
-    "\353\213\244\354\235\214 \355\224\204\353\240\210\354\236\204\354\227\220 Windows\354\227\220\354\204\234 "
-    "\355\217\260\355\212\270\353\245\274 \353\266\210\353\237\254\354\230\265\353\213\210\353\213\244.",
+    "\354\236\220\353\217\231\354\235\200 Windows \355\221\234\354\213\234 \354\226\270\354\226\264\353\245\274"
+    " \353\224\260\353\246\205\353\213\210\353\213\244. \354\227\254\352\270\260\354\204\234 \352\263\240\354\240\225"
+    "\355\225\230\353\251\264 \354\235\264 \355\214\250\353\204\220\353\247\214 \353\260\224\353\200\214\353\251\260"
+    ", OptiScaler \354\236\220\354\262\264 \353\251\224\353\211\264\353\212\224 \354\230\201\354\226\264\353\241\234"
+    " \353\202\250\354\212\265\353\213\210\353\213\244. \354\236\220\354\262\264 \355\217\260\355\212\270\352\260\200"
+    " \355\225\204\354\232\224\355\225\234 \354\226\270\354\226\264(\354\244\221\352\265\255\354\226\264, \355\225\234"
+    "\352\265\255\354\226\264)\353\212\224 \353\213\244\354\235\214 \355\224\204\353\240\210\354\236\204\354\227\220"
+    " Windows\354\227\220\354\204\234 \355\217\260\355\212\270\353\245\274 \353\266\210\353\237\254\354\230\265"
+    "\353\213\210\353\213\244.",
     "\352\270\200\352\274\264 \355\201\254\352\270\260",
-    "\354\235\264 \355\214\250\353\204\220\354\235\230 \355\205\215\354\212\244\355\212\270\353\247\214 -- OptiScaler "
-    "\354\236\220\354\262\264 \353\251\224\353\211\264\353\212\224 [Menu] FontSize\353\245\274 "
-    "\354\234\240\354\247\200\355\225\251\353\213\210\353\213\244.\n\n\355\226\211 "
-    "\353\204\210\353\271\204\353\212\224 \352\270\200\352\274\264 \355\201\254\352\270\260\354\227\220\354\204\234 "
-    "\352\263\204\354\202\260\353\220\230\353\257\200\353\241\234 1.5x\353\245\274 \355\201\254\352\262\214 "
-    "\353\204\230\354\234\274\353\251\264 \353\235\274\353\262\250\354\235\264 \352\260\222\352\263\274 "
-    "\352\262\271\354\271\230\352\270\260 \354\213\234\354\236\221\355\225\251\353\213\210\353\213\244.",
+    "\354\235\264 \355\214\250\353\204\220\354\235\230 \355\205\215\354\212\244\355\212\270\353\247\214 -- Op"
+    "tiScaler \354\236\220\354\262\264 \353\251\224\353\211\264\353\212\224 [Menu] FontSize\353\245\274 \354\234\240"
+    "\354\247\200\355\225\251\353\213\210\353\213\244.\n\n\355\226\211 \353\204\210\353\271\204\353\212\224 \352\270\200"
+    "\352\274\264 \355\201\254\352\270\260\354\227\220\354\204\234 \352\263\204\354\202\260\353\220\230\353\257\200"
+    "\353\241\234 1.5x\353\245\274 \355\201\254\352\262\214 \353\204\230\354\234\274\353\251\264 \353\235\274"
+    "\353\262\250\354\235\264 \352\260\222\352\263\274 \352\262\271\354\271\230\352\270\260 \354\213\234\354\236\221"
+    "\355\225\251\353\213\210\353\213\244.",
     "\353\240\210\354\235\264\354\225\204\354\233\203 \354\264\210\352\270\260\355\231\224",
-    "\355\214\250\353\204\220 \353\260\260\352\262\275\354\235\230 \354\225\204\353\254\264 \352\263\263\354\235"
-    "\264\353\202\230 \353\201\214\354\226\264\354\204\234 \354\230\256\352\270\260\352\261\260\353\202\230, \352"
-    "\260\200\354\236\245\354\236\220\353\246\254 \353\230\220\353\212\224 \354\230\244\353\245\270\354\252\275 "
-    "\354\225\204\353\236\230 \353\252\250\354\204\234\353\246\254\353\245\274 \353\201\214\354\226\264\354\204\234"
-    "\n\355\201\254\352\270\260\353\245\274 \354\241\260\354\240\210\355\225\240 \354\210\230 \354\236\210\354\212"
-    "\265\353\213\210\353\213\244. \355\231\224\353\251\264 \353\260\226\354\234\274\353\241\234 \354\235\274\353"
-    "\266\200 \353\202\230\352\260\210 \354\210\230 \354\236\210\354\247\200\353\247\214, \354\236\241\354\235\204 "
-    "\354\210\230 \354\236\210\353\212\224 \353\235\240\353\212\224 \355\225\255\354\203\201\n\353\263\264\354\235"
-    "\264\352\262\214 \353\202\250\354\212\265\353\213\210\353\213\244. \354\234\204\354\271\230\354\231\200 \355"
-    "\201\254\352\270\260\353\212\224 \354\235\264 \352\262\214\354\236\204\354\227\220 \353\214\200\355\225\264 "
-    "\355\231\224\353\251\264 \353\271\204\354\234\250\353\241\234 \352\270\260\354\226\265\353\220\230\353\257\200"
-    "\353\241\234 \354\226\264\353\226\244 \355\225\264\354\203\201\353\217\204\354\227\220\354\204\234\353\217\204"
-    "\n\352\267\270\353\214\200\353\241\234 \353\217\214\354\225\204\354\230\265\353\213\210\353\213\244.",
-    "\355\214\250\353\204\220\354\235\204 \353\213\253\354\212\265\353\213\210\353\213\244. "
-    "\353\213\250\354\266\225\355\202\244\353\241\234 \353\213\244\354\213\234 \354\227\264 \354\210\230 "
-    "\354\236\210\354\212\265\353\213\210\353\213\244.",
-    "\352\262\214\354\236\204\354\235\230 DLSS Frame Generation: %dX\353\241\234 \354\213\244\355\226\211 \354\244"
-    "\221",
+    "\355\214\250\353\204\220 \353\260\260\352\262\275\354\235\230 \354\225\204\353\254\264 \352\263\263\354\235\264"
+    "\353\202\230 \353\201\214\354\226\264\354\204\234 \354\230\256\352\270\260\352\261\260\353\202\230, \352\260\200"
+    "\354\236\245\354\236\220\353\246\254 \353\230\220\353\212\224 \354\230\244\353\245\270\354\252\275 \354\225\204"
+    "\353\236\230 \353\252\250\354\204\234\353\246\254\353\245\274 \353\201\214\354\226\264\354\204\234\n\355\201\254"
+    "\352\270\260\353\245\274 \354\241\260\354\240\210\355\225\240 \354\210\230 \354\236\210\354\212\265\353\213\210"
+    "\353\213\244. \355\231\224\353\251\264 \353\260\226\354\234\274\353\241\234 \354\235\274\353\266\200 \353\202\230"
+    "\352\260\210 \354\210\230 \354\236\210\354\247\200\353\247\214, \354\236\241\354\235\204 \354\210\230 \354\236\210"
+    "\353\212\224 \353\235\240\353\212\224 \355\225\255\354\203\201\n\353\263\264\354\235\264\352\262\214 \353\202\250"
+    "\354\212\265\353\213\210\353\213\244. \354\234\204\354\271\230\354\231\200 \355\201\254\352\270\260\353\212\224"
+    " \354\235\264 \352\262\214\354\236\204\354\227\220 \353\214\200\355\225\264 \355\231\224\353\251\264 \353\271\204"
+    "\354\234\250\353\241\234 \352\270\260\354\226\265\353\220\230\353\257\200\353\241\234 \354\226\264\353\226\244"
+    " \355\225\264\354\203\201\353\217\204\354\227\220\354\204\234\353\217\204\n\352\267\270\353\214\200\353\241\234"
+    " \353\217\214\354\225\204\354\230\265\353\213\210\353\213\244.",
+    "\355\214\250\353\204\220\354\235\204 \353\213\253\354\212\265\353\213\210\353\213\244. \353\213\250\354\266\225"
+    "\355\202\244\353\241\234 \353\213\244\354\213\234 \354\227\264 \354\210\230 \354\236\210\354\212\265\353\213\210"
+    "\353\213\244.",
+    "\352\262\214\354\236\204\354\235\230 DLSS Frame Generation: %dX\353\241\234 \354\213\244\355\226\211 \354\244\221",
     "\352\262\214\354\236\204\354\235\230 DLSS Frame Generation: \352\262\214\354\236\204 \353\271\204\353\224\224"
-    "\354\230\244 \354\204\244\354\240\225\354\227\220\354\204\234 \352\272\274\354\240\270 \354\236\210\354\235"
-    "\214.",
-    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \354\236\220\354\262\264 NVIDIA DLSS Frame Gener"
-    "ation\354\235\264 \354\236\210\354\212\265\353\213\210\353\213\244. \355\217\211\354\206\214\354\262\230\353"
-    "\237\274 \352\262\214\354\236\204 \353\271\204\353\224\224\354\230\244\n\354\204\244\354\240\225\354\227\220"
-    "\354\204\234 \354\274\234\352\263\240 \353\201\204\354\204\270\354\232\224 -- \354\225\204\353\236\230 \354"
-    "\244\204\354\235\200 \352\262\214\354\236\204\354\235\264 \353\223\234\353\235\274\354\235\264\353\262\204\354"
-    "\227\220 \354\232\224\354\262\255\355\225\230\353\212\224 \353\260\260\354\210\230\353\247\214\n\353\260\224"
-    "\352\277\211\353\213\210\353\213\244.",
+    "\354\230\244 \354\204\244\354\240\225\354\227\220\354\204\234 \352\272\274\354\240\270 \354\236\210\354\235\214"
+    ".",
+    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \354\236\220\354\262\264 NVIDIA DLSS Frame"
+    " Generation\354\235\264 \354\236\210\354\212\265\353\213\210\353\213\244. \355\217\211\354\206\214\354\262\230"
+    "\353\237\274 \352\262\214\354\236\204 \353\271\204\353\224\224\354\230\244\n\354\204\244\354\240\225\354\227\220"
+    "\354\204\234 \354\274\234\352\263\240 \353\201\204\354\204\270\354\232\224 -- \354\225\204\353\236\230 \354\244\204"
+    "\354\235\200 \352\262\214\354\236\204\354\235\264 \353\223\234\353\235\274\354\235\264\353\262\204\354\227\220"
+    " \354\232\224\354\262\255\355\225\230\353\212\224 \353\260\260\354\210\230\353\247\214\n\353\260\224\352\277\211"
+    "\353\213\210\353\213\244.",
     "\352\262\214\354\236\204",
-    "\352\262\214\354\236\204\354\235\230 DLSS-G\352\260\200 \354\213\244\354\240\234 \355\224\204\353\240\210\354"
-    "\236\204 \354\202\254\354\235\264\354\227\220 \353\204\243\353\212\224 \354\266\224\352\260\200 \355\224\204"
+    "\352\262\214\354\236\204\354\235\230 DLSS-G\352\260\200 \354\213\244\354\240\234 \355\224\204\353\240\210"
+    "\354\236\204 \354\202\254\354\235\264\354\227\220 \353\204\243\353\212\224 \354\266\224\352\260\200 \355\224\204"
     "\353\240\210\354\236\204 \354\210\230\353\245\274 \353\215\256\354\226\264\354\224\201\353\213\210\353\213\244"
-    ".\n\"\352\262\214\354\236\204\"\354\235\200 \352\262\214\354\236\204 \354\236\220\354\262\264 \353\251\224\353"
-    "\211\264\354\235\230 \354\204\244\354\240\225\354\235\204 \352\267\270\353\214\200\353\241\234 \353\221\241"
-    "\353\213\210\353\213\244. 2X\353\212\224 \355\225\230\353\202\230, 3X\353\212\224\n\353\221\230\354\235\204 "
-    "\353\204\243\353\212\224 \354\213\235\354\236\205\353\213\210\353\213\244. 3X\354\231\200 4X\354\227\220\353"
-    "\212\224 RTX 50 \354\213\234\353\246\254\354\246\210\352\260\200 \355\225\204\354\232\224\355\225\251\353\213"
-    "\210\353\213\244 -- \353\213\244\353\245\270 \354\271\264\353\223\234\353\212\224\n\354\227\254\352\270\260"
-    "\354\204\234 \353\254\264\354\227\207\354\235\204 \352\263\240\353\245\264\353\223\240 \353\223\234\353\235"
-    "\274\354\235\264\353\262\204\352\260\200 2X\353\241\234 \354\240\234\355\225\234\355\225\251\353\213\210\353"
-    "\213\244.\n\n\354\225\204\353\236\230 Multi\352\260\200 \354\274\234\354\240\270 \354\236\210\354\234\274\353"
-    "\251\264 \353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244 -- \352\267\270"
-    "\353\225\214\353\212\224 \353\223\234\353\235\274\354\235\264\353\262\204\352\260\200 \352\260\234\354\210\230"
-    "\353\245\274 \354\240\225\355\225\251\353\213\210\353\213\244.",
+    ".\n\"\352\262\214\354\236\204\"\354\235\200 \352\262\214\354\236\204 \354\236\220\354\262\264 \353\251\224"
+    "\353\211\264\354\235\230 \354\204\244\354\240\225\354\235\204 \352\267\270\353\214\200\353\241\234 \353\221\241"
+    "\353\213\210\353\213\244. 2X\353\212\224 \355\225\230\353\202\230, 3X\353\212\224\n\353\221\230\354\235\204"
+    " \353\204\243\353\212\224 \354\213\235\354\236\205\353\213\210\353\213\244. 3X\354\231\200 4X\354\227\220"
+    "\353\212\224 RTX 50 \354\213\234\353\246\254\354\246\210\352\260\200 \355\225\204\354\232\224\355\225\251"
+    "\353\213\210\353\213\244 -- \353\213\244\353\245\270 \354\271\264\353\223\234\353\212\224\n\354\227\254\352\270\260"
+    "\354\204\234 \353\254\264\354\227\207\354\235\204 \352\263\240\353\245\264\353\223\240 \353\223\234\353\235\274"
+    "\354\235\264\353\262\204\352\260\200 2X\353\241\234 \354\240\234\355\225\234\355\225\251\353\213\210\353\213\244"
+    ".\n\n\354\225\204\353\236\230 Multi\352\260\200 \354\274\234\354\240\270 \354\236\210\354\234\274\353\251\264"
+    " \353\271\204\355\231\234\354\204\261\355\231\224\353\220\251\353\213\210\353\213\244 -- \352\267\270\353\225\214"
+    "\353\212\224 \353\223\234\353\235\274\354\235\264\353\262\204\352\260\200 \352\260\234\354\210\230\353\245\274"
+    " \354\240\225\355\225\251\353\213\210\353\213\244.",
     "nvngx.dll_dlssnr.dll\354\235\264 \354\227\206\354\212\265\353\213\210\353\213\244",
-    "nvngx.dll_dlssnr.dll\354\235\204 \353\266\210\353\237\254\354\230\244\354\247\200 \353\252\273\355\226\210\354"
-    "\212\265\353\213\210\353\213\244",
-    "forwarder\354\227\220 \355\225\204\354\232\224\355\225\234 export\352\260\200 \354\227\206\354\212\265\353\213"
-    "\210\353\213\244",
-    "NGX \354\275\224\354\226\264\353\245\274 \354\264\210\352\270\260\355\231\224\355\225\230\354\247\200 \353\252"
-    "\273\355\226\210\354\212\265\353\213\210\353\213\244",
-    "NGX \354\275\224\354\226\264\354\227\220 \352\270\260\353\212\245 \353\247\244\352\260\234\353\263\200\354\210"
-    "\230\352\260\200 \354\227\206\354\212\265\353\213\210\353\213\244",
-    "NGX \354\275\224\354\226\264\352\260\200 \352\270\260\353\212\245 \353\247\244\352\260\234\353\263\200\354\210"
-    "\230\353\245\274 \352\261\260\353\266\200\355\226\210\354\212\265\353\213\210\353\213\244",
-    "SR \354\235\264\354\240\204 \354\203\211\354\203\201 \354\212\244\355\205\214\354\235\264\354\247\225 \355\205"
-    "\215\354\212\244\354\262\230\353\245\274 \355\225\240\353\213\271\355\225\230\354\247\200 \353\252\273\355\226"
-    "\210\354\212\265\353\213\210\353\213\244",
-    "OptiScaler\353\202\230 \352\262\214\354\236\204 \354\230\206\354\227\220\354\204\234 nvngx_dlssnr.dll\354\235"
-    "\204 \354\260\276\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
+    "nvngx.dll_dlssnr.dll\354\235\204 \353\266\210\353\237\254\354\230\244\354\247\200 \353\252\273\355\226\210"
+    "\354\212\265\353\213\210\353\213\244",
+    "forwarder\354\227\220 \355\225\204\354\232\224\355\225\234 export\352\260\200 \354\227\206\354\212\265\353\213\210"
+    "\353\213\244",
+    "NGX \354\275\224\354\226\264\353\245\274 \354\264\210\352\270\260\355\231\224\355\225\230\354\247\200 \353\252\273"
+    "\355\226\210\354\212\265\353\213\210\353\213\244",
+    "NGX \354\275\224\354\226\264\354\227\220 \352\270\260\353\212\245 \353\247\244\352\260\234\353\263\200\354\210\230"
+    "\352\260\200 \354\227\206\354\212\265\353\213\210\353\213\244",
+    "NGX \354\275\224\354\226\264\352\260\200 \352\270\260\353\212\245 \353\247\244\352\260\234\353\263\200\354\210\230"
+    "\353\245\274 \352\261\260\353\266\200\355\226\210\354\212\265\353\213\210\353\213\244",
+    "SR \354\235\264\354\240\204 \354\203\211\354\203\201 \354\212\244\355\205\214\354\235\264\354\247\225 \355\205\215"
+    "\354\212\244\354\262\230\353\245\274 \355\225\240\353\213\271\355\225\230\354\247\200 \353\252\273\355\226\210"
+    "\354\212\265\353\213\210\353\213\244",
+    "OptiScaler\353\202\230 \352\262\214\354\236\204 \354\230\206\354\227\220\354\204\234 nvngx_dlssnr.dll\354\235\204"
+    " \354\260\276\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
     "\353\252\250\353\215\270\354\235\204 \354\264\210\352\270\260\355\231\224\355\225\230\354\247\200 \353\252\273"
     "\355\226\210\354\212\265\353\213\210\353\213\244",
     "\354\203\211\354\203\201 \354\275\224\353\215\261\354\235\204 \354\273\264\355\214\214\354\235\274\355\225\230"
     "\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
-    "\352\262\214\354\236\204\354\235\230 \352\271\212\354\235\264 \353\230\220\353\212\224 \353\252\250\354\205"
-    "\230 \353\262\241\355\204\260\353\245\274 \354\235\275\354\235\204 \354\210\230 \354\236\210\352\262\214 \353"
-    "\247\214\353\223\244\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
+    "\352\262\214\354\236\204\354\235\230 \352\271\212\354\235\264 \353\230\220\353\212\224 \353\252\250\354\205\230"
+    " \353\262\241\355\204\260\353\245\274 \354\235\275\354\235\204 \354\210\230 \354\236\210\352\262\214 \353\247\214"
+    "\353\223\244\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
     "\355\224\204\353\241\235\354\213\234 \352\262\275\353\241\234\354\227\220\354\204\234 \353\252\250\353\215\270"
     "\354\235\204 \354\213\244\355\226\211\355\225\230\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210"
     "\353\213\244",
     "\353\252\250\353\215\270\354\235\264 \354\213\244\355\226\211\354\235\204 \352\261\260\353\266\200\355\226\210"
     "\354\212\265\353\213\210\353\213\244",
-    "%s\354\235\264(\352\260\200) \354\235\264\353\257\270 \354\235\264 \354\236\221\354\227\205\354\235\204 \355"
-    "\225\230\352\263\240 \354\236\210\354\212\265\353\213\210\353\213\244 -- \352\267\270\352\262\203\354\235\204 "
-    "\354\240\234\352\261\260\355\225\230\352\261\260\353\202\230 \354\235\264\352\262\203\354\235\204 \353\201\204"
+    "%s\354\235\264(\352\260\200) \354\235\264\353\257\270 \354\235\264 \354\236\221\354\227\205\354\235\204 "
+    "\355\225\230\352\263\240 \354\236\210\354\212\265\353\213\210\353\213\244 -- \352\267\270\352\262\203\354\235\204"
+    " \354\240\234\352\261\260\355\225\230\352\261\260\353\202\230 \354\235\264\352\262\203\354\235\204 \353\201\204"
     "\354\204\270\354\232\224",
     "\354\213\234\354\236\221\353\220\230\354\247\200 \354\225\212\354\235\214",
     "\353\246\254\353\223\234\353\260\261 \353\262\204\355\215\274\353\245\274 \355\225\240\353\213\271\355\225\230"
     "\354\247\200 \353\252\273\355\226\210\354\212\265\353\213\210\353\213\244",
-    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \353\205\270\354\266\234 \352\260\222\354\262"
-    "\230\353\237\274 \354\203\235\352\270\264 \353\262\204\355\215\274\352\260\200 \354\227\206\354\212\265\353"
-    "\213\210\353\213\244",
+    "\354\235\264 \352\262\214\354\236\204\354\227\220\353\212\224 \353\205\270\354\266\234 \352\260\222\354\262\230"
+    "\353\237\274 \354\203\235\352\270\264 \353\262\204\355\215\274\352\260\200 \354\227\206\354\212\265\353\213\210"
+    "\353\213\244",
+    "\355\224\204\353\236\221\354\212\244\354\226\264",
 };
 
 static const char* const kTable_zh_CN[] = {
     "DLSS 5 \345\274\200\345\217\221\350\200\205\346\216\247\345\210\266",
     "DLSS \345\274\200\345\220\257",
-    "\345\234\250\345\270\247\347\224\237\346\210\220\347\234\213\345\210\260\344\271\213\345\211\215\357\274\214\345"
-    "\234\250\350\266\205\351\207\207\346\240\267\345\231\250\347\232\204\347\224\273\351\235\242\344\270\255\345\220"
-    "\210\346\210\220\347\273\206\350\212\202\343\200\202\n\n\351\234\200\350\246\201 OptiScaler "
-    "\346\227\201\350\276\271\346\234\211\344\270\244\344\270\252\345\220\215\345\255\227\347\233\270\350\277\221\343"
-    "\200\201\345\217\252\345\267\256\344\270\200\344\270\252\345\255\227\347\254\246\347\232\204\346\226\207\344\273"
-    "\266\357\274\232\n  nvngx_dlssnr.dll       NVIDIA \347\232\204\346\250\241\345\236\213\357\274\210\347\272\246 "
-    "165 MB\357\274\211-- \347\224\261\344\275\240\346\217\220\344\276\233\n  nvngx.dll_dlssnr.dll   "
-    "\350\275\254\345\217\221\345\231\250\357\274\210\347\272\246 13 KB\357\274\211-- "
-    "\351\232\217\346\234\254\345\214\205\346\217\220\344\276\233\n\346\234\252\345\205\254\345\274\200\346\226\207\346"
-    "\241\243\344\270\224\347\233\264\346\216\245\351\251\261\345\212\250\357\274\214\345\233\240\346\255\244\350\277"
-    "\231\344\272\233\351\203\275\344\270\215\345\217\227\345\256\230\346\226\271\346\224\257\346\214\201\343\200\202",
-    "\346\235\245\346\272\220\357\274\232DLSS5 "
-    "Feeder\357\274\210\346\255\244\346\270\270\346\210\217\346\262\241\346\234\211\345\216\237\347\224\237 "
-    "DLSS\357\274\211",
-    "\346\255\244\346\270\270\346\210\217\346\262\241\346\234\211\350\207\252\345\270\246\347\232\204 "
-    "DLSS\357\274\214\346\211\200\344\273\245\346\262\241\346\234\211\345\217\257\344\276\233\347\245\236\347\273\217"
-    "\346\270\262\346\237\223\351\231\204\347\235\200\347\232\204 evaluate \350\260\203\347\224\250\343\200\202DLSS5 "
-    "Feeder \350\277\231\344\270\252 ReShade \346\217\222\344\273\266\346\224\271\347\224\250 ReShade "
-    "\350\207\252\345\267\261\347\232\204\346\267\261\345\272\246\345\222\214\344\274\260\347\256\227\347\232\204\350"
-    "\277\220\345\212\250\347\237\242\351\207\217\346\235\245\346\236\204\351\200\240\344\270\200\344\270\252\343\200"
-    "\202\n\n\344\274\260\347\256\227\347\232\204\350\277\220\345\212\250\347\237\242\351\207\217\346\257\224\346\270"
-    "\270\346\210\217\347\234\237\345\256\236\347\232\204\346\233\264\347\262\227\347\263\231 -- "
-    "\344\270\216\345\216\237\347\224\237 DLSS "
-    "\346\270\270\346\210\217\347\224\250\345\220\214\344\270\200\346\250\241\345\236\213\347\233\270\346\257\224\357"
-    "\274\214\345\277\253\351\200\237\350\277\220\345\212\250\346\227\266\351\207\215\345\275\261\346\233\264\345\244"
-    "\232\357\274\214\347\273\206\345\260\217\345\207\240\344\275\225\344\275\223\344\271\237\346\233\264\350\275\257"
-    "\343\200\202",
+    "\345\234\250\345\270\247\347\224\237\346\210\220\347\234\213\345\210\260\344\271\213\345\211\215\357\274\214"
+    "\345\234\250\350\266\205\351\207\207\346\240\267\345\231\250\347\232\204\347\224\273\351\235\242\344\270\255"
+    "\345\220\210\346\210\220\347\273\206\350\212\202\343\200\202\n\n\351\234\200\350\246\201 OptiScaler \346\227\201"
+    "\350\276\271\346\234\211\344\270\244\344\270\252\345\220\215\345\255\227\347\233\270\350\277\221\343\200\201"
+    "\345\217\252\345\267\256\344\270\200\344\270\252\345\255\227\347\254\246\347\232\204\346\226\207\344\273\266"
+    "\357\274\232\n  nvngx_dlssnr.dll       NVIDIA \347\232\204\346\250\241\345\236\213\357\274\210\347\272\246"
+    " 165 MB\357\274\211-- \347\224\261\344\275\240\346\217\220\344\276\233\n  nvngx.dll_dlssnr.dll   \350\275\254"
+    "\345\217\221\345\231\250\357\274\210\347\272\246 13 KB\357\274\211-- \351\232\217\346\234\254\345\214\205"
+    "\346\217\220\344\276\233\n\346\234\252\345\205\254\345\274\200\346\226\207\346\241\243\344\270\224\347\233\264"
+    "\346\216\245\351\251\261\345\212\250\357\274\214\345\233\240\346\255\244\350\277\231\344\272\233\351\203\275"
+    "\344\270\215\345\217\227\345\256\230\346\226\271\346\224\257\346\214\201\343\200\202",
+    "\346\235\245\346\272\220\357\274\232DLSS5 Feeder\357\274\210\346\255\244\346\270\270\346\210\217\346\262\241"
+    "\346\234\211\345\216\237\347\224\237 DLSS\357\274\211",
+    "\346\255\244\346\270\270\346\210\217\346\262\241\346\234\211\350\207\252\345\270\246\347\232\204 DLSS\357\274\214"
+    "\346\211\200\344\273\245\346\262\241\346\234\211\345\217\257\344\276\233\347\245\236\347\273\217\346\270\262"
+    "\346\237\223\351\231\204\347\235\200\347\232\204 evaluate \350\260\203\347\224\250\343\200\202DLSS5 Feed"
+    "er \350\277\231\344\270\252 ReShade \346\217\222\344\273\266\346\224\271\347\224\250 ReShade \350\207\252"
+    "\345\267\261\347\232\204\346\267\261\345\272\246\345\222\214\344\274\260\347\256\227\347\232\204\350\277\220"
+    "\345\212\250\347\237\242\351\207\217\346\235\245\346\236\204\351\200\240\344\270\200\344\270\252\343\200\202"
+    "\n\n\344\274\260\347\256\227\347\232\204\350\277\220\345\212\250\347\237\242\351\207\217\346\257\224\346\270\270"
+    "\346\210\217\347\234\237\345\256\236\347\232\204\346\233\264\347\262\227\347\263\231 -- \344\270\216\345\216\237"
+    "\347\224\237 DLSS \346\270\270\346\210\217\347\224\250\345\220\214\344\270\200\346\250\241\345\236\213\347\233\270"
+    "\346\257\224\357\274\214\345\277\253\351\200\237\350\277\220\345\212\250\346\227\266\351\207\215\345\275\261"
+    "\346\233\264\345\244\232\357\274\214\347\273\206\345\260\217\345\207\240\344\275\225\344\275\223\344\271\237"
+    "\346\233\264\350\275\257\343\200\202",
     "Lossless Scaling\357\274\232\346\234\252\351\205\215\347\275\256\357\274\210OptiDLSS5-UI\357\274\211\343\200\202",
     "Lossless Scaling",
-    "\345\234\250\345\220\216\345\217\260\345\220\257\345\212\250/\345\205\263\351\227\255 Lossless Scaling\357\274"
-    "\210\346\234\200\345\260\217\345\214\226\345\210\260\346\211\230\347\233\230\357\274\214\344\270\215\346\230"
-    "\276\347\244\272\347\252\227\345\217\243\357\274\211\343\200\202\346\211\223\345\274\200\344\270\213\346\226"
-    "\271\347\232\204\342\200\234\345\220\257\347\224\250\342\200\235\344\271\237\344\274\232\346\233\277\344\275"
-    "\240\345\220\257\345\212\250\345\256\203\343\200\202",
+    "\345\234\250\345\220\216\345\217\260\345\220\257\345\212\250/\345\205\263\351\227\255 Lossless Scaling\357\274\210"
+    "\346\234\200\345\260\217\345\214\226\345\210\260\346\211\230\347\233\230\357\274\214\344\270\215\346\230\276"
+    "\347\244\272\347\252\227\345\217\243\357\274\211\343\200\202\346\211\223\345\274\200\344\270\213\346\226\271"
+    "\347\232\204\342\200\234\345\220\257\347\224\250\342\200\235\344\271\237\344\274\232\346\233\277\344\275\240"
+    "\345\220\257\345\212\250\345\256\203\343\200\202",
     "\345\220\257\347\224\250",
-    "\351\200\232\350\277\207 Lossless Scaling \350\207\252\345\267\261\347\232\204\345\205\250\345\261\200\347\203"
-    "\255\351\224\256\344\270\272\346\234\254\346\270\270\346\210\217\345\274\200\345\205\263\345\256\203\347\232"
-    "\204\345\270\247\347\224\237\346\210\220 -- \344\270\215\344\274\232\346\230\276\347\244\272\347\252\227\345"
-    "\217\243\357\274\214\345\277\205\350\246\201\346\227\266\344\274\232\345\205\210\345\220\257\345\212\250 Lossl"
-    "ess Scaling\343\200\202\346\230\276\347\244\272\347\232\204\346\230\257\346\234\200\345\220\216\344\270\200"
+    "\351\200\232\350\277\207 Lossless Scaling \350\207\252\345\267\261\347\232\204\345\205\250\345\261\200\347\203\255"
+    "\351\224\256\344\270\272\346\234\254\346\270\270\346\210\217\345\274\200\345\205\263\345\256\203\347\232\204"
+    "\345\270\247\347\224\237\346\210\220 -- \344\270\215\344\274\232\346\230\276\347\244\272\347\252\227\345\217\243"
+    "\357\274\214\345\277\205\350\246\201\346\227\266\344\274\232\345\205\210\345\220\257\345\212\250 Lossles"
+    "s Scaling\343\200\202\346\230\276\347\244\272\347\232\204\346\230\257\346\234\200\345\220\216\344\270\200"
     "\346\254\241\350\257\267\346\261\202\357\274\214\344\270\215\346\230\257\347\241\256\350\256\244\350\277\207"
-    "\347\232\204\345\256\236\346\227\266\347\212\266\346\200\201\343\200\202\n\n\345\274\200\345\220\257\346\255"
-    "\244\351\241\271\344\274\232\345\205\263\351\227\255 OptiScaler \350\207\252\345\270\246\347\232\204\345\270"
-    "\247\347\224\237\346\210\220\357\274\232\344\270\244\344\270\252\345\270\247\347\224\237\346\210\220\345\231"
-    "\250\345\220\214\346\227\266\350\277\220\350\241\214\344\274\232\345\217\240\345\212\240\345\220\204\350\207"
-    "\252\347\232\204\345\270\247\343\200\202",
+    "\347\232\204\345\256\236\346\227\266\347\212\266\346\200\201\343\200\202\n\n\345\274\200\345\220\257\346\255\244"
+    "\351\241\271\344\274\232\345\205\263\351\227\255 OptiScaler \350\207\252\345\270\246\347\232\204\345\270\247"
+    "\347\224\237\346\210\220\357\274\232\344\270\244\344\270\252\345\270\247\347\224\237\346\210\220\345\231\250"
+    "\345\220\214\346\227\266\350\277\220\350\241\214\344\274\232\345\217\240\345\212\240\345\220\204\350\207\252"
+    "\347\232\204\345\270\247\343\200\202",
     "\350\207\252\351\200\202\345\272\224\357\274\232\347\273\264\346\214\201 %d fps",
-    "\350\207\252\351\200\202\345\272\224\345\270\247\347\224\237\346\210\220\357\274\232Lossless Scaling "
-    "\345\217\252\347\224\237\346\210\220\347\273\264\346\214\201\346\255\244\347\233\256\346\240\207\346\211\200\351"
-    "\234\200\347\232\204\345\270\247\346\225\260\343\200\202\345\234\250 OptiDLSS5-UI "
-    "\344\270\255\346\233\264\346\224\271\347\233\256\346\240\207\357\274\210\346\210\226\346\224\271\344\270\272\345"
-    "\233\272\345\256\232\345\200\215\346\225\260\357\274\211\343\200\202\350\246\201\346\261\202\346\255\244\346\270"
-    "\270\346\210\217\344\273\245\346\227\240\350\276\271\346\241\206\346\210\226\347\252\227\345\217\243\346\250\241"
-    "\345\274\217\350\277\220\350\241\214\357\274\214\350\200\214\344\270\215\346\230\257\347\213\254\345\215\240\345"
-    "\205\250\345\261\217\357\274\210DX12 "
-    "\346\270\270\346\210\217\351\200\232\345\270\270\344\270\244\350\200\205\347\232\206\345\217\257\357\274\211\343"
-    "\200\202",
-    "\346\257\217\344\270\252\347\234\237\345\256\236\345\270\247\347\224\237\346\210\220\347\232\204\345\270\247"
-    "\346\225\260\343\200\202\345\246\202\346\236\234 Lossless Scaling \345\267\262\345\234\250\350\277\220\350\241"
-    "\214\357\274\214\345\256\203\344\274\232\347\237\255\346\232\202\351\207\215\345\220\257\344\273\245\345\272"
-    "\224\347\224\250 -- \345\270\247\347\224\237\346\210\220\344\274\232\344\270\255\346\226\255\347\272\246\344"
-    "\270\200\347\247\222\343\200\202\350\246\201\346\261\202\346\255\244\346\270\270\346\210\217\344\273\245\346"
-    "\227\240\350\276\271\346\241\206\346\210\226\347\252\227\345\217\243\346\250\241\345\274\217\350\277\220\350"
-    "\241\214\357\274\214\350\200\214\344\270\215\346\230\257\347\213\254\345\215\240\345\205\250\345\261\217\357"
-    "\274\210DX12 \346\270\270\346\210\217\351\200\232\345\270\270\344\270\244\350\200\205\347\232\206\345\217\257"
+    "\350\207\252\351\200\202\345\272\224\345\270\247\347\224\237\346\210\220\357\274\232Lossless Scaling \345\217\252"
+    "\347\224\237\346\210\220\347\273\264\346\214\201\346\255\244\347\233\256\346\240\207\346\211\200\351\234\200"
+    "\347\232\204\345\270\247\346\225\260\343\200\202\345\234\250 OptiDLSS5-UI \344\270\255\346\233\264\346\224\271"
+    "\347\233\256\346\240\207\357\274\210\346\210\226\346\224\271\344\270\272\345\233\272\345\256\232\345\200\215"
+    "\346\225\260\357\274\211\343\200\202\350\246\201\346\261\202\346\255\244\346\270\270\346\210\217\344\273\245"
+    "\346\227\240\350\276\271\346\241\206\346\210\226\347\252\227\345\217\243\346\250\241\345\274\217\350\277\220"
+    "\350\241\214\357\274\214\350\200\214\344\270\215\346\230\257\347\213\254\345\215\240\345\205\250\345\261\217"
+    "\357\274\210DX12 \346\270\270\346\210\217\351\200\232\345\270\270\344\270\244\350\200\205\347\232\206\345\217\257"
     "\357\274\211\343\200\202",
-    "\350\277\220\350\241\214\346\234\237\351\227\264\350\257\267\344\277\235\346\214\201\346\270\270\346\210\217\350"
-    "\207\252\345\267\261\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\345\205\263\351\227\255\343\200\202",
+    "\346\257\217\344\270\252\347\234\237\345\256\236\345\270\247\347\224\237\346\210\220\347\232\204\345\270\247"
+    "\346\225\260\343\200\202\345\246\202\346\236\234 Lossless Scaling \345\267\262\345\234\250\350\277\220\350\241\214"
+    "\357\274\214\345\256\203\344\274\232\347\237\255\346\232\202\351\207\215\345\220\257\344\273\245\345\272\224"
+    "\347\224\250 -- \345\270\247\347\224\237\346\210\220\344\274\232\344\270\255\346\226\255\347\272\246\344\270\200"
+    "\347\247\222\343\200\202\350\246\201\346\261\202\346\255\244\346\270\270\346\210\217\344\273\245\346\227\240"
+    "\350\276\271\346\241\206\346\210\226\347\252\227\345\217\243\346\250\241\345\274\217\350\277\220\350\241\214"
+    "\357\274\214\350\200\214\344\270\215\346\230\257\347\213\254\345\215\240\345\205\250\345\261\217\357\274\210"
+    "DX12 \346\270\270\346\210\217\351\200\232\345\270\270\344\270\244\350\200\205\347\232\206\345\217\257\357\274\211"
+    "\343\200\202",
+    "\350\277\220\350\241\214\346\234\237\351\227\264\350\257\267\344\277\235\346\214\201\346\270\270\346\210\217"
+    "\350\207\252\345\267\261\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\345\205\263\351\227\255\343\200\202",
     "\345\210\207\346\215\242\351\224\256",
-    "\344\270\215\346\211\223\345\274\200\346\255\244\351\235\242\346\235\277\345\215\263\345\217\257\345\210\207\346"
-    "\215\242\347\245\236\347\273\217\346\270\262\346\237\223\343\200\202\346\214\211\344\270\213\346\214\211\351\222"
-    "\256\357\274\214\345\206\215\346\214\211\344\275\240\346\203\263\350\246\201\347\232\204\351\224\256\343\200\202Es"
-    "cape \345\217\226\346\266\210\357\274\214Backspace \350\247\243\351\231\244\347\273\221\345\256\232\357\274\214R "
-    "\351\207\215\347\275\256\343\200\202",
+    "\344\270\215\346\211\223\345\274\200\346\255\244\351\235\242\346\235\277\345\215\263\345\217\257\345\210\207"
+    "\346\215\242\347\245\236\347\273\217\346\270\262\346\237\223\343\200\202\346\214\211\344\270\213\346\214\211"
+    "\351\222\256\357\274\214\345\206\215\346\214\211\344\275\240\346\203\263\350\246\201\347\232\204\351\224\256"
+    "\343\200\202Escape \345\217\226\346\266\210\357\274\214Backspace \350\247\243\351\231\244\347\273\221\345\256\232"
+    "\357\274\214R \351\207\215\347\275\256\343\200\202",
     "\351\235\242\346\235\277\351\224\256",
-    "\346\211\223\345\274\200\345\222\214\345\205\263\351\227\255\346\255\244\351\235\242\346\235\277\343\200\202\347"
-    "\213\254\347\253\213\344\272\216 OptiScaler "
-    "\350\207\252\345\267\261\347\232\204\350\217\234\345\215\225\351\224\256\357\274\214\345\233\240\346\255\244\344"
-    "\270\244\350\200\205\345\217\257\344\273\245\345\220\214\346\227\266\346\211\223\345\274\200\346\210\226\345\220"
-    "\204\350\207\252\346\211\223\345\274\200\343\200\202",
+    "\346\211\223\345\274\200\345\222\214\345\205\263\351\227\255\346\255\244\351\235\242\346\235\277\343\200\202"
+    "\347\213\254\347\253\213\344\272\216 OptiScaler \350\207\252\345\267\261\347\232\204\350\217\234\345\215\225"
+    "\351\224\256\357\274\214\345\233\240\346\255\244\344\270\244\350\200\205\345\217\257\344\273\245\345\220\214"
+    "\346\227\266\346\211\223\345\274\200\346\210\226\345\220\204\350\207\252\346\211\223\345\274\200\343\200\202",
     "\345\272\224\347\224\250\346\250\241\345\236\213",
-    "\346\230\257\345\220\246\345\272\224\347\224\250\346\250\241\345\236\213\347\232\204\344\277\256\346\224\271\343"
-    "\200\202\345\205\263\351\227\255\346\227\266\346\230\276\347\244\272\345\271\262\345\207\200\347\232\204\350\266"
-    "\205\351\207\207\346\240\267\345\231\250\347\224\273\351\235\242\357\274\214\345\220\214\346\227\266\351\200\232"
-    "\351\201\223\344\273\215\345\234\250\350\277\220\350\241\214 -- "
-    "\345\233\240\346\255\244\351\205\215\345\220\210\342\200\234\346\243\200\346\237\245\342\200\235\344\270\213\347"
-    "\232\204\342\200\234\345\206\273\347\273\223\347\224\273\351\235\242\342\200\235\357\274\214\344\275\240\345\217"
-    "\257\344\273\245\345\206\273\347\273\223\344\270\200\345\270\247\345\271\266\345\210\207\346\215\242\346\255\244"
-    "\351\241\271\357\274\214\346\257\224\350\276\203\345\220\214\344\270\200\345\270\247\346\234\211\346\227\240\347"
-    "\245\236\347\273\217\346\270\262\346\237\223\347\232\204\346\225\210\346\236\234\343\200\202\n\346\255\243\345\270"
-    "\270\344\275\277\347\224\250\350\257\267\344\277\235\346\214\201\345\274\200\345\220\257\343\200\202",
+    "\346\230\257\345\220\246\345\272\224\347\224\250\346\250\241\345\236\213\347\232\204\344\277\256\346\224\271"
+    "\343\200\202\345\205\263\351\227\255\346\227\266\346\230\276\347\244\272\345\271\262\345\207\200\347\232\204"
+    "\350\266\205\351\207\207\346\240\267\345\231\250\347\224\273\351\235\242\357\274\214\345\220\214\346\227\266"
+    "\351\200\232\351\201\223\344\273\215\345\234\250\350\277\220\350\241\214 -- \345\233\240\346\255\244\351\205\215"
+    "\345\220\210\342\200\234\346\243\200\346\237\245\342\200\235\344\270\213\347\232\204\342\200\234\345\206\273"
+    "\347\273\223\347\224\273\351\235\242\342\200\235\357\274\214\344\275\240\345\217\257\344\273\245\345\206\273"
+    "\347\273\223\344\270\200\345\270\247\345\271\266\345\210\207\346\215\242\346\255\244\351\241\271\357\274\214"
+    "\346\257\224\350\276\203\345\220\214\344\270\200\345\270\247\346\234\211\346\227\240\347\245\236\347\273\217"
+    "\346\270\262\346\237\223\347\232\204\346\225\210\346\236\234\343\200\202\n\346\255\243\345\270\270\344\275\277"
+    "\347\224\250\350\257\267\344\277\235\346\214\201\345\274\200\345\220\257\343\200\202",
     "\345\234\250\350\266\205\345\210\206\350\276\250\347\216\207\344\271\213\345\211\215",
     "\351\200\232\351\201\223\346\211\200\345\244\204\347\232\204\344\275\215\347\275\256\343\200\202\345\205\263"
     "\351\227\255\344\270\272\345\216\237\345\247\213\344\275\215\347\275\256\357\274\232\346\250\241\345\236\213"
     "\345\234\250\345\256\214\346\210\220\346\224\276\345\244\247\347\232\204\347\224\273\351\235\242\344\270\212"
     "\350\277\220\350\241\214\343\200\202\345\274\200\345\220\257\345\210\231\345\234\250\346\270\262\346\237\223"
-    "\345\210\206\350\276\250\347\216\207\344\270\213\343\200\201\345\257\271 SR \345\215\263\345\260\206\346\266"
-    "\210\350\264\271\347\232\204\351\242\234\350\211\262\350\277\220\350\241\214\357\274\214\344\272\216\346\230"
-    "\257 SR \347\264\257\347\247\257\345\271\266\346\224\276\345\244\247\347\232\204\346\230\257\345\267\262\347"
-    "\273\217\345\242\236\345\274\272\350\277\207\347\232\204\347\224\273\351\235\242\343\200\202\n\n\345\205\211"
-    "\347\272\277\351\207\215\345\273\272\345\247\213\347\273\210\347\225\231\345\234\250\346\224\276\345\244\247"
-    "\344\271\213\345\220\216\347\232\204\350\267\257\345\276\204 -- \345\256\203\347\232\204\350\276\223\345\205"
-    "\245\346\230\257\345\217\246\344\270\200\345\245\227\347\272\246\345\256\232\343\200\202\345\270\246\345\241"
-    "\253\345\205\205\345\234\260\346\224\276\345\234\250\346\233\264\345\244\247\347\272\271\347\220\206\351\207"
-    "\214\347\232\204\351\242\234\350\211\262\345\233\276\345\203\217\344\274\232\346\214\211\345\256\236\351\231"
-    "\205\345\260\272\345\257\270\345\244\204\347\220\206\357\274\233\347\233\270\345\257\271\350\247\222\350\220"
-    "\275\346\234\211\345\201\217\347\247\273\347\232\204\344\273\215\344\274\232\351\200\200\345\233\236\345\210"
-    "\260\346\224\276\345\244\247\344\271\213\345\220\216\343\200\202\n\n\344\273\205\351\231\220 D3D12 \345\217"
-    "\212\345\205\266 D3D11/Vulkan \346\241\245\346\216\245\357\274\233\345\216\237\347\224\237 Vulkan \344\277\235"
-    "\346\214\201\346\227\247\344\275\215\347\275\256\343\200\202",
+    "\345\210\206\350\276\250\347\216\207\344\270\213\343\200\201\345\257\271 SR \345\215\263\345\260\206\346\266\210"
+    "\350\264\271\347\232\204\351\242\234\350\211\262\350\277\220\350\241\214\357\274\214\344\272\216\346\230\257"
+    " SR \347\264\257\347\247\257\345\271\266\346\224\276\345\244\247\347\232\204\346\230\257\345\267\262\347\273\217"
+    "\345\242\236\345\274\272\350\277\207\347\232\204\347\224\273\351\235\242\343\200\202\n\n\345\205\211\347\272\277"
+    "\351\207\215\345\273\272\345\247\213\347\273\210\347\225\231\345\234\250\346\224\276\345\244\247\344\271\213"
+    "\345\220\216\347\232\204\350\267\257\345\276\204 -- \345\256\203\347\232\204\350\276\223\345\205\245\346\230\257"
+    "\345\217\246\344\270\200\345\245\227\347\272\246\345\256\232\343\200\202\345\270\246\345\241\253\345\205\205"
+    "\345\234\260\346\224\276\345\234\250\346\233\264\345\244\247\347\272\271\347\220\206\351\207\214\347\232\204"
+    "\351\242\234\350\211\262\345\233\276\345\203\217\344\274\232\346\214\211\345\256\236\351\231\205\345\260\272"
+    "\345\257\270\345\244\204\347\220\206\357\274\233\347\233\270\345\257\271\350\247\222\350\220\275\346\234\211"
+    "\345\201\217\347\247\273\347\232\204\344\273\215\344\274\232\351\200\200\345\233\236\345\210\260\346\224\276"
+    "\345\244\247\344\271\213\345\220\216\343\200\202\n\n\344\273\205\351\231\220 D3D12 \345\217\212\345\205\266"
+    " D3D11/Vulkan \346\241\245\346\216\245\357\274\233\345\216\237\347\224\237 Vulkan \344\277\235\346\214\201"
+    "\346\227\247\344\275\215\347\275\256\343\200\202",
     "\346\234\254\346\254\241\344\274\232\350\257\235\345\267\262\345\205\263\351\227\255\357\274\232%s\343\200\202",
     "\351\207\215\350\257\225",
     "\347\255\211\345\276\205\350\266\205\351\207\207\346\240\267\345\231\250\350\277\220\350\241\214\343\200\202",
-    "DLSS5 Feeder "
-    "\346\217\222\344\273\266\345\267\262\345\212\240\350\275\275\357\274\214\344\275\206\345\260\232\346\234\252\346"
-    "\217\220\344\276\233 DLSS evaluate -- "
-    "\345\246\202\346\236\234\350\277\233\345\205\245\346\270\270\346\210\217\345\220\216\344\273\215\346\234\252\346"
-    "\266\210\345\244\261\357\274\214\350\257\267\345\234\250\346\270\270\346\210\217\346\226\207\344\273\266\345\244"
-    "\271\347\232\204 dlss5-feed.log \344\270\255\346\237\245\346\211\276 \"technique MISSING\"\343\200\202",
-    "\351\234\200\350\246\201\345\234\250\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\350\247\206\351"
-    "\242\221\350\256\276\347\275\256\344\270\255\351\200\211\346\213\251 DLSS \346\210\226 XeSS "
-    "\344\275\234\344\270\272\350\266\205\351\207\207\346\240\267\345\231\250\357\274\214\345\271\266\345\267\262\350"
-    "\275\275\345\205\245\345\255\230\346\241\243 -- \346\255\244\351\241\271\357\274\210\344\273\245\345\217\212 "
-    "OptiScaler "
-    "\347\232\204\345\205\266\344\275\231\351\203\250\345\210\206\357\274\211\345\234\250\350\217\234\345\215\225\344"
-    "\270\255\344\270\215\350\277\220\350\241\214\343\200\202",
-    "  "
-    "\357\274\210\346\250\241\345\236\213\350\277\220\350\241\214\344\270\255\357\274\214\344\277\256\346\224\271\345"
-    "\267\262\351\232\220\350\227\217\357\274\211",
+    "DLSS5 Feeder \346\217\222\344\273\266\345\267\262\345\212\240\350\275\275\357\274\214\344\275\206\345\260\232"
+    "\346\234\252\346\217\220\344\276\233 DLSS evaluate -- \345\246\202\346\236\234\350\277\233\345\205\245\346\270\270"
+    "\346\210\217\345\220\216\344\273\215\346\234\252\346\266\210\345\244\261\357\274\214\350\257\267\345\234\250"
+    "\346\270\270\346\210\217\346\226\207\344\273\266\345\244\271\347\232\204 dlss5-feed.log \344\270\255\346\237\245"
+    "\346\211\276 \"technique MISSING\"\343\200\202",
+    "\351\234\200\350\246\201\345\234\250\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\350\247\206"
+    "\351\242\221\350\256\276\347\275\256\344\270\255\351\200\211\346\213\251 DLSS \346\210\226 XeSS \344\275\234"
+    "\344\270\272\350\266\205\351\207\207\346\240\267\345\231\250\357\274\214\345\271\266\345\267\262\350\275\275"
+    "\345\205\245\345\255\230\346\241\243 -- \346\255\244\351\241\271\357\274\210\344\273\245\345\217\212 Opt"
+    "iScaler \347\232\204\345\205\266\344\275\231\351\203\250\345\210\206\357\274\211\345\234\250\350\217\234"
+    "\345\215\225\344\270\255\344\270\215\350\277\220\350\241\214\343\200\202",
+    "  \357\274\210\346\250\241\345\236\213\350\277\220\350\241\214\344\270\255\357\274\214\344\277\256\346\224\271"
+    "\345\267\262\351\232\220\350\227\217\357\274\211",
     "\350\277\220\350\241\214\344\270\255%s - \346\257\217\345\270\247 %.2f ms%s",
     " \345\216\237\347\224\237\350\277\220\350\241\214\344\272\216 Vulkan",
     "\345\216\237\347\224\237\350\277\220\350\241\214\344\272\216 Vulkan - %llu \345\270\247%s",
     "\350\277\220\350\241\214\344\270\255\343\200\202%s",
-    "\346\225\264\344\270\252\351\200\232\351\201\223\357\274\232\346\232\202\345\255\230\346\213\267\350\264\235\345"
-    "\222\214 "
-    "resolve\357\274\214\344\273\245\345\217\212\346\250\241\345\236\213\346\234\254\350\272\253\343\200\202\345\217"
-    "\252\350\256\241\346\227\266\346\250\241\345\236\213\344\274\232\350\256\251\346\225\260\345\255\227\345\245\275"
-    "\347\234\213\343\200\202\n\n\344\270\216\346\234\254\347\252\227\345\217\243\345\272\225\351\203\250\347\232\204"
-    "\345\270\247\346\227\266\351\227\264\345\257\271\346\257\224\357\274\214\347\234\213\347\234\213\345\256\203\350"
-    "\212\261\344\272\206\344\275\240\345\244\232\345\260\221\343\200\202",
+    "\346\225\264\344\270\252\351\200\232\351\201\223\357\274\232\346\232\202\345\255\230\346\213\267\350\264\235"
+    "\345\222\214 resolve\357\274\214\344\273\245\345\217\212\346\250\241\345\236\213\346\234\254\350\272\253"
+    "\343\200\202\345\217\252\350\256\241\346\227\266\346\250\241\345\236\213\344\274\232\350\256\251\346\225\260"
+    "\345\255\227\345\245\275\347\234\213\343\200\202\n\n\344\270\216\346\234\254\347\252\227\345\217\243\345\272\225"
+    "\351\203\250\347\232\204\345\270\247\346\227\266\351\227\264\345\257\271\346\257\224\357\274\214\347\234\213"
+    "\347\234\213\345\256\203\350\212\261\344\272\206\344\275\240\345\244\232\345\260\221\343\200\202",
     "\345\205\250\345\261\200\346\216\247\345\210\266",
     "\347\273\223\346\236\204\345\274\272\345\272\246",
-    "\346\250\241\345\236\213\345\234\250\346\225\264\345\271\205\347\224\273\351\235\242\344\270\212\347\232\204\347"
-    "\273\223\346\236\204\345\220\210\346\210\220\345\274\272\345\272\246\343\200\202",
+    "\346\250\241\345\236\213\345\234\250\346\225\264\345\271\205\347\224\273\351\235\242\344\270\212\347\232\204"
+    "\347\273\223\346\236\204\345\220\210\346\210\220\345\274\272\345\272\246\343\200\202",
     "\350\211\262\350\260\203\345\274\272\345\272\246",
-    "\346\250\241\345\236\213\345\234\250\346\225\264\345\271\205\347\224\273\351\235\242\344\270\212\347\232\204\350"
-    "\211\262\350\260\203\351\207\215\346\230\240\345\260\204\345\274\272\345\272\246\343\200\202",
+    "\346\250\241\345\236\213\345\234\250\346\225\264\345\271\205\347\224\273\351\235\242\344\270\212\347\232\204"
+    "\350\211\262\350\260\203\351\207\215\346\230\240\345\260\204\345\274\272\345\272\246\343\200\202",
     "\346\250\241\345\236\213\350\207\252\345\212\250\351\201\256\347\275\251",
-    "\350\256\251\346\250\241\345\236\213\350\207\252\345\267\261\346\211\276\345\207\272\347\232\256\350\202\244\357"
-    "\274\214\350\200\214\344\270\215\346\230\257\345\257\271\346\225\264\345\271\205\347\224\273\351\235\242\344\270"
-    "\200\350\247\206\345\220\214\344\273\201\343\200\202",
+    "\350\256\251\346\250\241\345\236\213\350\207\252\345\267\261\346\211\276\345\207\272\347\232\256\350\202\244"
+    "\357\274\214\350\200\214\344\270\215\346\230\257\345\257\271\346\225\264\345\271\205\347\224\273\351\235\242"
+    "\344\270\200\350\247\206\345\220\214\344\273\201\343\200\202",
     "\346\230\276\347\244\272\351\201\256\347\275\251",
-    "NVIDIA "
-    "\347\232\204\351\235\242\346\235\277\345\217\257\344\273\245\346\212\212\350\207\252\345\212\250\351\201\256\347"
-    "\275\251\347\224\273\345\234\250\347\224\273\351\235\242\344\270\212\343\200\202\346\250\241\345\236\213\344\270"
-    "\215\344\274\232\351\200\232\350\277\207\346\234\254\345\210\206\346\224\257\351\251\261\345\212\250\347\232\204"
-    "\346\216\245\345\217\243\344\272\244\345\233\236\351\201\256\347\275\251\357\274\214\346\211\200\344\273\245\350"
-    "\277\231\351\207\214\346\262\241\346\234\211\345\217\257\346\230\276\347\244\272\347\232\204\345\206\205\345\256"
-    "\271\343\200\202",
-    "-1 "
-    "\350\241\250\347\244\272\350\267\237\351\232\217\344\270\212\346\226\271\345\205\250\345\261\200\346\216\247\345"
-    "\210\266\347\232\204\347\273\223\346\236\204\345\274\272\345\272\246\357\274\214\344\271\237\346\230\257\346\250"
-    "\241\345\236\213\350\207\252\345\267\261\347\232\204\351\273\230\350\256\244\345\200\274\343\200\2020 "
-    "\345\217\212\344\273\245\344\270\212\345\210\231\347\213\254\347\253\213\344\272\216\347\224\273\351\235\242\345"
-    "\205\266\344\275\231\351\203\250\345\210\206\350\256\276\347\275\256\351\201\256\347\275\251\345\214\272\345\237"
-    "\237\347\232\204\347\273\223\346\236\204\343\200\202\n\n\346\250\241\345\236\213\350\207\252\345\212\250\351\201"
-    "\256\347\275\251\345\205\263\351\227\255\346\227\266\347\201\260\346\230\276 -- "
-    "\346\262\241\346\234\211\351\201\256\347\275\251\345\260\261\346\227\240\344\273\216\345\241\221\351\200\240\343"
-    "\200\202",
+    "NVIDIA \347\232\204\351\235\242\346\235\277\345\217\257\344\273\245\346\212\212\350\207\252\345\212\250\351\201\256"
+    "\347\275\251\347\224\273\345\234\250\347\224\273\351\235\242\344\270\212\343\200\202\346\250\241\345\236\213"
+    "\344\270\215\344\274\232\351\200\232\350\277\207\346\234\254\345\210\206\346\224\257\351\251\261\345\212\250"
+    "\347\232\204\346\216\245\345\217\243\344\272\244\345\233\236\351\201\256\347\275\251\357\274\214\346\211\200"
+    "\344\273\245\350\277\231\351\207\214\346\262\241\346\234\211\345\217\257\346\230\276\347\244\272\347\232\204"
+    "\345\206\205\345\256\271\343\200\202",
+    "-1 \350\241\250\347\244\272\350\267\237\351\232\217\344\270\212\346\226\271\345\205\250\345\261\200\346\216\247"
+    "\345\210\266\347\232\204\347\273\223\346\236\204\345\274\272\345\272\246\357\274\214\344\271\237\346\230\257"
+    "\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\351\273\230\350\256\244\345\200\274\343\200\202"
+    "0 \345\217\212\344\273\245\344\270\212\345\210\231\347\213\254\347\253\213\344\272\216\347\224\273\351\235\242"
+    "\345\205\266\344\275\231\351\203\250\345\210\206\350\256\276\347\275\256\351\201\256\347\275\251\345\214\272"
+    "\345\237\237\347\232\204\347\273\223\346\236\204\343\200\202\n\n\346\250\241\345\236\213\350\207\252\345\212\250"
+    "\351\201\256\347\275\251\345\205\263\351\227\255\346\227\266\347\201\260\346\230\276 -- \346\262\241\346\234\211"
+    "\351\201\256\347\275\251\345\260\261\346\227\240\344\273\216\345\241\221\351\200\240\343\200\202",
     "\345\274\200\345\217\221\350\200\205\351\201\256\347\275\251",
     "\346\230\276\347\244\272\351\201\256\347\275\251",
-    "\351\200\220\347\211\251\344\275\223\351\201\256\347\275\251\346\235\245\350\207\252\346\270\270\346\210\217\350"
-    "\207\252\345\267\261\347\232\204\346\270\262\346\237\223\345\231\250\357\274\214\346\211\200\344\273\245\346\255"
-    "\244\351\241\271\344\273\205 NVIDIA \345\217\257\347\224\250 -- "
-    "\346\263\250\345\205\245\345\231\250\346\262\241\346\234\211\345\217\257\351\201\256\347\275\251\347\232\204\347"
-    "\211\251\344\275\223\345\210\227\350\241\250\343\200\202",
+    "\351\200\220\347\211\251\344\275\223\351\201\256\347\275\251\346\235\245\350\207\252\346\270\270\346\210\217"
+    "\350\207\252\345\267\261\347\232\204\346\270\262\346\237\223\345\231\250\357\274\214\346\211\200\344\273\245"
+    "\346\255\244\351\241\271\344\273\205 NVIDIA \345\217\257\347\224\250 -- \346\263\250\345\205\245\345\231\250"
+    "\346\262\241\346\234\211\345\217\257\351\201\256\347\275\251\347\232\204\347\211\251\344\275\223\345\210\227"
+    "\350\241\250\343\200\202",
     "\346\250\241\345\236\213",
     "\351\273\230\350\256\244",
     "\346\250\241\345\236\213 A",
     "\346\250\241\345\236\213 B",
     "\346\250\241\345\236\213 C",
-    "\344\270\216\350\266\205\345\210\206\350\276\250\347\216\207\346\210\226\345\205\211\347\272\277\351\207\215\345"
-    "\273\272\351\242\204\350\256\276\344\270\215\346\230\257\345\220\214\344\270\200\345\260\272\345\272\246 -- "
-    "\345\220\214\344\270\200\345\255\227\346\257\215\345\234\250\350\277\231\351\207\214\345\220\253\344\271\211\344"
-    "\270\215\345\220\214\343\200\202\n\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266\350"
-    "\257\273\345\217\226\357\274\214\345\233\240\346\255\244\346\233\264\346\224\271\345\220\216\344\274\232\345\234"
-    "\250\347\211\207\345\210\273\345\220\216\351\207\215\345\273\272\343\200\202",
+    "\344\270\216\350\266\205\345\210\206\350\276\250\347\216\207\346\210\226\345\205\211\347\272\277\351\207\215"
+    "\345\273\272\351\242\204\350\256\276\344\270\215\346\230\257\345\220\214\344\270\200\345\260\272\345\272\246"
+    " -- \345\220\214\344\270\200\345\255\227\346\257\215\345\234\250\350\277\231\351\207\214\345\220\253\344\271\211"
+    "\344\270\215\345\220\214\343\200\202\n\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266"
+    "\350\257\273\345\217\226\357\274\214\345\233\240\346\255\244\346\233\264\346\224\271\345\220\216\344\274\232"
+    "\345\234\250\347\211\207\345\210\273\345\220\216\351\207\215\345\273\272\343\200\202",
     "\351\273\230\350\256\244\357\274\210standard\357\274\211",
     "Natural",
     "Cinematic",
     "\351\243\216\346\240\274",
-    "\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\345\244\204\347\220\206\351\205\215\347\275\256\343"
-    "\200\202\n\n\351\273\230\350\256\244\357\274\210standard\357\274\211\357\274\232\346\234\200\345\274\272\357\274"
-    "\214\344\271\237\346\234\200\345\256\271\346\230\223\346\230\276\345\276\227\342\200\234\351\243\216\346\240\274"
-    "\345\214\226\342\200\235\343\200\202\nNatural\357\274\232\345\220\214\346\240\267\347\232\204\347\273\206\350\212"
-    "\202\345\244\204\347\220\206\357\274\214\346\211\213\346\263\225\346\233\264\350\275\273\343\200\202\nCinematic"
-    "\357\274\232\345\207\217\345\274\261\345\205\211\346\263\275\345\222\214\350\277\207\345\272\246\345\244\204\347"
-    "\220\206\357\274\214\350\216\267\345\276\227\347\224\265\345\275\261\346\204\237\343\200\202\n\n\350\277\231\344"
-    "\272\233\345\220\215\347\247\260\346\235\245\350\207\252\347\244\276\345\214\272\346\265\213\350\257\225\357\274"
-    "\214\344\270\215\345\220\214\344\272\216\344\270\212\346\226\271\347\232\204\351\235\242\346\235\277\346\240\207"
-    "\347\255\276 -- NVIDIA "
-    "\347\232\204\344\272\214\350\277\233\345\210\266\346\226\207\344\273\266\351\207\214\346\262\241\346\234\211\344"
-    "\270\272\346\255\244\346\216\247\345\210\266\351\241\271\346\217\220\344\276\233\345\220\215\347\247\260\343\200"
-    "\202",
+    "\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\345\244\204\347\220\206\351\205\215\347\275\256"
+    "\343\200\202\n\n\351\273\230\350\256\244\357\274\210standard\357\274\211\357\274\232\346\234\200\345\274\272"
+    "\357\274\214\344\271\237\346\234\200\345\256\271\346\230\223\346\230\276\345\276\227\342\200\234\351\243\216"
+    "\346\240\274\345\214\226\342\200\235\343\200\202\nNatural\357\274\232\345\220\214\346\240\267\347\232\204"
+    "\347\273\206\350\212\202\345\244\204\347\220\206\357\274\214\346\211\213\346\263\225\346\233\264\350\275\273"
+    "\343\200\202\nCinematic\357\274\232\345\207\217\345\274\261\345\205\211\346\263\275\345\222\214\350\277\207"
+    "\345\272\246\345\244\204\347\220\206\357\274\214\350\216\267\345\276\227\347\224\265\345\275\261\346\204\237"
+    "\343\200\202\n\n\350\277\231\344\272\233\345\220\215\347\247\260\346\235\245\350\207\252\347\244\276\345\214\272"
+    "\346\265\213\350\257\225\357\274\214\344\270\215\345\220\214\344\272\216\344\270\212\346\226\271\347\232\204"
+    "\351\235\242\346\235\277\346\240\207\347\255\276 -- NVIDIA \347\232\204\344\272\214\350\277\233\345\210\266"
+    "\346\226\207\344\273\266\351\207\214\346\262\241\346\234\211\344\270\272\346\255\244\346\216\247\345\210\266"
+    "\351\241\271\346\217\220\344\276\233\345\220\215\347\247\260\343\200\202",
     "\345\274\272\345\272\246",
-    "\346\250\241\345\236\213\350\207\252\350\272\253\347\232\204\345\274\272\345\272\246\346\216\247\345\210\266\357"
-    "\274\214\345\234\250\346\250\241\345\236\213\345\206\205\351\203\250\347\224\237\346\225\210\343\200\202\344\270"
-    "\215\345\220\214\344\272\216\344\270\212\346\226\271\347\232\204\345\205\250\345\261\200\346\216\247\345\210\266"
-    "\357\274\214\344\271\237\344\270\215\345\220\214\344\272\216\344\270\213\346\226\271\345\234\250\344\271\213\345"
-    "\220\216\347\274\251\346\224\276\347\273\223\346\236\234\347\232\204\347\273\206\350\212\202\345\274\272\345\272"
-    "\246\343\200\202",
+    "\346\250\241\345\236\213\350\207\252\350\272\253\347\232\204\345\274\272\345\272\246\346\216\247\345\210\266"
+    "\357\274\214\345\234\250\346\250\241\345\236\213\345\206\205\351\203\250\347\224\237\346\225\210\343\200\202"
+    "\344\270\215\345\220\214\344\272\216\344\270\212\346\226\271\347\232\204\345\205\250\345\261\200\346\216\247"
+    "\345\210\266\357\274\214\344\271\237\344\270\215\345\220\214\344\272\216\344\270\213\346\226\271\345\234\250"
+    "\344\271\213\345\220\216\347\274\251\346\224\276\347\273\223\346\236\234\347\232\204\347\273\206\350\212\202"
+    "\345\274\272\345\272\246\343\200\202",
     "\345\270\247\347\224\237\346\210\220",
-    "NVIDIA \350\207\252\345\267\261\347\232\204 DLSS "
-    "\345\270\247\347\224\237\346\210\220\357\274\214\351\200\232\350\277\207 "
-    "Streamline\343\200\202\344\270\215\346\230\257 OptiFG\343\200\202",
-    "\347\233\264\346\216\245\350\256\276\347\275\256 Streamline \347\232\204 numFramesToGenerate -- DLSS-G "
-    "\345\234\250\347\234\237\345\256\236\345\270\247\344\271\213\351\227\264\346\217\222\345\205\245\345\244\232\345"
-    "\260\221\351\242\235\345\244\226\347\232\204\345\270\247\343\200\2022X "
-    "\346\217\222\345\205\245\344\270\200\345\270\247\357\274\2143X "
-    "\346\217\222\345\205\245\344\270\244\345\270\247\357\274\214\344\273\245\346\255\244\347\261\273\346\216\250\343"
-    "\200\202\344\270\212\351\231\220\345\217\226\345\206\263\344\272\216\344\275\240\347\232\204 GPU "
-    "\345\222\214\351\251\261\345\212\250\346\212\245\345\221\212\347\232\204\346\224\257\346\214\201\350\203\275\345"
-    "\212\233\343\200\202\n\n\344\270\213\346\226\271\347\232\204 Multi "
-    "\345\274\200\345\220\257\346\227\266\347\201\260\346\230\276 -- "
-    "\351\202\243\346\227\266\347\224\261\351\251\261\345\212\250\345\206\263\345\256\232\346\225\260\351\207\217\343"
-    "\200\202",
+    "NVIDIA \350\207\252\345\267\261\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\357\274\214\351\200\232"
+    "\350\277\207 Streamline\343\200\202\344\270\215\346\230\257 OptiFG\343\200\202",
+    "\347\233\264\346\216\245\350\256\276\347\275\256 Streamline \347\232\204 numFramesToGenerate -- DLSS-G \345\234\250"
+    "\347\234\237\345\256\236\345\270\247\344\271\213\351\227\264\346\217\222\345\205\245\345\244\232\345\260\221"
+    "\351\242\235\345\244\226\347\232\204\345\270\247\343\200\2022X \346\217\222\345\205\245\344\270\200\345\270\247"
+    "\357\274\2143X \346\217\222\345\205\245\344\270\244\345\270\247\357\274\214\344\273\245\346\255\244\347\261\273"
+    "\346\216\250\343\200\202\344\270\212\351\231\220\345\217\226\345\206\263\344\272\216\344\275\240\347\232\204"
+    " GPU \345\222\214\351\251\261\345\212\250\346\212\245\345\221\212\347\232\204\346\224\257\346\214\201\350\203\275"
+    "\345\212\233\343\200\202\n\n\344\270\213\346\226\271\347\232\204 Multi \345\274\200\345\220\257\346\227\266"
+    "\347\201\260\346\230\276 -- \351\202\243\346\227\266\347\224\261\351\251\261\345\212\250\345\206\263\345\256\232"
+    "\346\225\260\351\207\217\343\200\202",
     "Multi\357\274\210\345\212\250\346\200\201\345\270\247\347\224\237\346\210\220\357\274\211",
-    "\350\256\251 NVIDIA "
-    "\351\251\261\345\212\250\351\200\220\345\270\247\350\207\252\350\241\214\350\260\203\346\225\264\345\200\215\346"
-    "\225\260\357\274\214\344\273\245\347\273\264\346\214\201\344\270\213\346\226\271\347\232\204 FPS "
-    "\347\233\256\346\240\207 -- \350\200\214\344\270\215\346\230\257\345\233\272\345\256\232\347\232\204 "
-    "2X/3X/4X\343\200\202",
+    "\350\256\251 NVIDIA \351\251\261\345\212\250\351\200\220\345\270\247\350\207\252\350\241\214\350\260\203"
+    "\346\225\264\345\200\215\346\225\260\357\274\214\344\273\245\347\273\264\346\214\201\344\270\213\346\226\271"
+    "\347\232\204 FPS \347\233\256\346\240\207 -- \350\200\214\344\270\215\346\230\257\345\233\272\345\256\232"
+    "\347\232\204 2X/3X/4X\343\200\202",
     "DMFG FPS \347\233\256\346\240\207",
-    "0 "
-    "\350\241\250\347\244\272\350\207\252\345\212\250\346\243\200\346\265\213\346\230\276\347\244\272\345\231\250\347"
-    "\232\204\345\210\267\346\226\260\347\216\207\343\200\202",
-    "\346\255\244\346\270\270\346\210\217\346\262\241\346\234\211\350\207\252\345\270\246\347\232\204 NVIDIA DLSS "
-    "\345\270\247\347\224\237\346\210\220\343\200\202",
+    "0 \350\241\250\347\244\272\350\207\252\345\212\250\346\243\200\346\265\213\346\230\276\347\244\272\345\231\250"
+    "\347\232\204\345\210\267\346\226\260\347\216\207\343\200\202",
+    "\346\255\244\346\270\270\346\210\217\346\262\241\346\234\211\350\207\252\345\270\246\347\232\204 NVIDIA "
+    "DLSS \345\270\247\347\224\237\346\210\220\343\200\202",
     "\345\274\200\351\224\200",
     "\346\250\241\345\236\213\351\200\232\351\201\223\346\225\260",
-    "\346\250\241\345\236\213\345\234\250\345\220\210\346\210\220\347\255\224\346\241\210\344\271\213\345\211\215\350"
-    "\277\220\350\241\214\345\244\232\345\260\221\346\254\241\343\200\202\346\257\217\344\270\252\351\242\235\345\244"
-    "\226\345\261\202\346\216\245\346\224\266\344\270\212\344\270\200\345\261\202\347\232\204\350\276\223\345\207\272"
-    "\357\274\214\345\271\266\344\277\235\347\225\231\350\207\252\345\267\261\347\232\204\346\227\266\351\227\264\345"
-    "\216\206\345\217\262\343\200\202\n\n\345\237\272\347\241\200\347\224\273\351\235\242\344\270\215\345\217\227\345"
-    "\275\261\345\223\215\357\274\214\345\220\210\346\210\220\345\217\252\345\234\250\346\234\200\345\220\216\350\277"
-    "\233\350\241\214\344\270\200\346\254\241\357\274\214\346\211\200\344\273\245\351\242\234\350\211\262\345\222\214"
-    "\344\274\240\351\200\222\345\274\272\345\272\246\344\270\215\344\274\232\345\217\240\345\212\240 -- "
-    "\344\275\206\350\277\231\346\230\257\345\234\250\350\246\201\346\261\202\346\250\241\345\236\213\345\242\236\345"
-    "\274\272\350\207\252\345\267\261\347\232\204\350\276\223\345\207\272\357\274\214\350\277\231\350\266\205\345\207"
-    "\272\344\272\206\345\256\203\347\232\204\350\256\255\347\273\203\350\214\203\345\233\264\343\200\202\n\n\345\274"
-    "\200\351\224\200\345\207\240\344\271\216\346\230\257\347\272\277\346\200\247\347\232\204\357\274\232\346\250\241"
-    "\345\236\213\345\207\240\344\271\216\346\230\257\351\200\232\351\201\223\347\232\204\345\205\250\351\203\250\345"
-    "\274\200\351\224\200\357\274\214\346\257\217\344\270\200\345\261\202\351\203\275\350\246\201\345\206\215\344\273"
-    "\230\344\270\200\346\254\241\343\200\202\344\270\211\346\230\257\344\270\212\351\231\220\357\274\214\345\233\240"
-    "\344\270\272\345\220\216\351\235\242\347\232\204\345\261\202\344\274\232\346\224\266\346\225\233\357\274\214\345"
-    "\215\264\344\273\215\350\246\201\344\273\230\345\205\250\344\273\267\343\200\202",
-    "%dx "
-    "\346\250\241\345\236\213\345\274\200\351\224\200\343\200\202\344\270\244\345\261\202\345\270\270\345\270\270\346"
-    "\230\276\345\276\227\346\233\264\344\270\260\345\257\214\357\274\233\344\270\211\345\261\202\351\200\232\345\270"
-    "\270\346\230\216\346\230\276\350\277\207\345\272\246\345\244\204\347\220\206\343\200\202",
+    "\346\250\241\345\236\213\345\234\250\345\220\210\346\210\220\347\255\224\346\241\210\344\271\213\345\211\215"
+    "\350\277\220\350\241\214\345\244\232\345\260\221\346\254\241\343\200\202\346\257\217\344\270\252\351\242\235"
+    "\345\244\226\345\261\202\346\216\245\346\224\266\344\270\212\344\270\200\345\261\202\347\232\204\350\276\223"
+    "\345\207\272\357\274\214\345\271\266\344\277\235\347\225\231\350\207\252\345\267\261\347\232\204\346\227\266"
+    "\351\227\264\345\216\206\345\217\262\343\200\202\n\n\345\237\272\347\241\200\347\224\273\351\235\242\344\270\215"
+    "\345\217\227\345\275\261\345\223\215\357\274\214\345\220\210\346\210\220\345\217\252\345\234\250\346\234\200"
+    "\345\220\216\350\277\233\350\241\214\344\270\200\346\254\241\357\274\214\346\211\200\344\273\245\351\242\234"
+    "\350\211\262\345\222\214\344\274\240\351\200\222\345\274\272\345\272\246\344\270\215\344\274\232\345\217\240"
+    "\345\212\240 -- \344\275\206\350\277\231\346\230\257\345\234\250\350\246\201\346\261\202\346\250\241\345\236\213"
+    "\345\242\236\345\274\272\350\207\252\345\267\261\347\232\204\350\276\223\345\207\272\357\274\214\350\277\231"
+    "\350\266\205\345\207\272\344\272\206\345\256\203\347\232\204\350\256\255\347\273\203\350\214\203\345\233\264"
+    "\343\200\202\n\n\345\274\200\351\224\200\345\207\240\344\271\216\346\230\257\347\272\277\346\200\247\347\232\204"
+    "\357\274\232\346\250\241\345\236\213\345\207\240\344\271\216\346\230\257\351\200\232\351\201\223\347\232\204"
+    "\345\205\250\351\203\250\345\274\200\351\224\200\357\274\214\346\257\217\344\270\200\345\261\202\351\203\275"
+    "\350\246\201\345\206\215\344\273\230\344\270\200\346\254\241\343\200\202\344\270\211\346\230\257\344\270\212"
+    "\351\231\220\357\274\214\345\233\240\344\270\272\345\220\216\351\235\242\347\232\204\345\261\202\344\274\232"
+    "\346\224\266\346\225\233\357\274\214\345\215\264\344\273\215\350\246\201\344\273\230\345\205\250\344\273\267"
+    "\343\200\202",
+    "%dx \346\250\241\345\236\213\345\274\200\351\224\200\343\200\202\344\270\244\345\261\202\345\270\270\345\270\270"
+    "\346\230\276\345\276\227\346\233\264\344\270\260\345\257\214\357\274\233\344\270\211\345\261\202\351\200\232"
+    "\345\270\270\346\230\216\346\230\276\350\277\207\345\272\246\345\244\204\347\220\206\343\200\202",
     "\350\207\252\345\212\250\357\274\210\347\273\247\346\211\277\347\254\254 1 \351\200\232\351\201\223\357\274\211",
     "\347\254\254 2 \351\200\232\351\201\223\346\250\241\345\236\213",
     "\347\254\254 2 \351\200\232\351\201\223\351\243\216\346\240\274",
     "\347\254\254 3 \351\200\232\351\201\223\346\250\241\345\236\213",
     "\347\254\254 3 \351\200\232\351\201\223\351\243\216\346\240\274",
-    "\345\220\216\347\273\255\346\257\217\344\270\200\345\261\202\350\277\220\350\241\214\345\223\252\344\270\252\345"
-    "\206\205\347\275\256\351\205\215\347\275\256\343\200\202\345\256\203\344\273\254\345\234\250\345\220\214\344\270"
-    "\200\344\270\252 NVIDIA "
-    "\346\250\241\345\236\213\346\226\207\344\273\266\345\206\205\351\200\211\346\213\251\344\270\215\345\220\214\347"
-    "\232\204\351\205\215\347\275\256 -- "
-    "\344\270\215\344\274\232\351\242\235\345\244\226\345\212\240\350\275\275\344\273\273\344\275\225\344\270\234\350"
-    "\245\277\343\200\202\n\n\350\207\252\345\212\250\350\241\250\347\244\272\350\257\245\345\261\202\350\277\220\350"
-    "\241\214\347\254\254 1 "
-    "\351\200\232\351\201\223\346\211\200\350\256\276\347\232\204\345\206\205\345\256\271\343\200\202\346\233\264\346"
-    "\224\271\344\270\200\351\241\271\345\217\252\351\207\215\345\273\272\350\257\245\345\261\202\347\232\204 "
-    "feature\357\274\214\344\270\224\344\273\205\345\234\250\350\257\245\345\261\202\346\264\273\345\212\250\346\227"
-    "\266\343\200\202",
+    "\345\220\216\347\273\255\346\257\217\344\270\200\345\261\202\350\277\220\350\241\214\345\223\252\344\270\252"
+    "\345\206\205\347\275\256\351\205\215\347\275\256\343\200\202\345\256\203\344\273\254\345\234\250\345\220\214"
+    "\344\270\200\344\270\252 NVIDIA \346\250\241\345\236\213\346\226\207\344\273\266\345\206\205\351\200\211"
+    "\346\213\251\344\270\215\345\220\214\347\232\204\351\205\215\347\275\256 -- \344\270\215\344\274\232\351\242\235"
+    "\345\244\226\345\212\240\350\275\275\344\273\273\344\275\225\344\270\234\350\245\277\343\200\202\n\n\350\207\252"
+    "\345\212\250\350\241\250\347\244\272\350\257\245\345\261\202\350\277\220\350\241\214\347\254\254 1 \351\200\232"
+    "\351\201\223\346\211\200\350\256\276\347\232\204\345\206\205\345\256\271\343\200\202\346\233\264\346\224\271"
+    "\344\270\200\351\241\271\345\217\252\351\207\215\345\273\272\350\257\245\345\261\202\347\232\204 feature"
+    "\357\274\214\344\270\224\344\273\205\345\234\250\350\257\245\345\261\202\346\264\273\345\212\250\346\227\266"
+    "\343\200\202",
     "\346\250\241\345\236\213\345\210\206\350\276\250\347\216\207",
-    "\346\250\241\345\236\213\345\234\250\345\244\232\345\244\247\346\257\224\344\276\213\347\232\204\347\224\273\351"
-    "\235\242\344\270\212\345\267\245\344\275\234\343\200\202\345\274\200\351\224\200\351\232\217\346\255\244\345\200"
-    "\274\347\232\204\345\271\263\346\226\271\344\270\213\351\231\215\357\274\214\346\211\200\344\273\245\344\270\200"
-    "\345\215\212\345\210\206\350\276\250\347\216\207\345\244\247\347\272\246\346\230\257\345\233\233\345\210\206\344"
-    "\271\213\344\270\200\347\232\204\346\227\266\351\227\264\343\200\202\344\275\216\344\272\216 100 "
-    "\346\227\266\347\224\273\351\235\242\346\234\254\350\272\253\344\273\216\344\270\215\347\274\251\345\260\217 -- "
-    "\345\217\252\346\234\211\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\350\264\241\347\214\256\344"
-    "\273\245\345\260\217\345\260\272\345\257\270\350\256\241\347\256\227\345\206\215\346\224\276\345\244\247\343\200"
-    "\202\346\235\276\345\274\200\346\273\221\345\235\227\346\227\266\345\272\224\347\224\250\357\274\214\346\213\226"
-    "\345\212\250\346\227\266\344\270\215\345\272\224\347\224\250\343\200\202",
-    "\350\266\205\351\207\207\346\240\267 "
-    "%."
-    "2fx\357\274\232\346\250\241\345\236\213\345\234\250\351\253\230\344\272\216\345\216\237\347\224\237\347\232\204"
-    "\345\210\206\350\276\250\347\216\207\350\277\220\350\241\214\357\274\214\345\206\215\351\207\207\346\240\267\345"
-    "\233\236\346\235\245\343\200\202\345\256\236\351\252\214\346\200\247\344\270\224\345\274\200\351\224\200\345\244"
-    "\247 -- \346\227\266\351\227\264\351\232\217\351\235\242\347\247\257\345\242\236\351\225\277\343\200\202",
+    "\346\250\241\345\236\213\345\234\250\345\244\232\345\244\247\346\257\224\344\276\213\347\232\204\347\224\273"
+    "\351\235\242\344\270\212\345\267\245\344\275\234\343\200\202\345\274\200\351\224\200\351\232\217\346\255\244"
+    "\345\200\274\347\232\204\345\271\263\346\226\271\344\270\213\351\231\215\357\274\214\346\211\200\344\273\245"
+    "\344\270\200\345\215\212\345\210\206\350\276\250\347\216\207\345\244\247\347\272\246\346\230\257\345\233\233"
+    "\345\210\206\344\271\213\344\270\200\347\232\204\346\227\266\351\227\264\343\200\202\344\275\216\344\272\216"
+    " 100 \346\227\266\347\224\273\351\235\242\346\234\254\350\272\253\344\273\216\344\270\215\347\274\251\345\260\217"
+    " -- \345\217\252\346\234\211\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\350\264\241\347\214\256"
+    "\344\273\245\345\260\217\345\260\272\345\257\270\350\256\241\347\256\227\345\206\215\346\224\276\345\244\247"
+    "\343\200\202\346\235\276\345\274\200\346\273\221\345\235\227\346\227\266\345\272\224\347\224\250\357\274\214"
+    "\346\213\226\345\212\250\346\227\266\344\270\215\345\272\224\347\224\250\343\200\202",
+    "\350\266\205\351\207\207\346\240\267 %.2fx\357\274\232\346\250\241\345\236\213\345\234\250\351\253\230\344\272\216"
+    "\345\216\237\347\224\237\347\232\204\345\210\206\350\276\250\347\216\207\350\277\220\350\241\214\357\274\214"
+    "\345\206\215\351\207\207\346\240\267\345\233\236\346\235\245\343\200\202\345\256\236\351\252\214\346\200\247"
+    "\344\270\224\345\274\200\351\224\200\345\244\247 -- \346\227\266\351\227\264\351\232\217\351\235\242\347\247\257"
+    "\345\242\236\351\225\277\343\200\202",
     "\347\274\251\345\260\217\346\273\244\351\225\234",
-    "\346\212\212\346\250\241\345\236\213\351\253\230\344\272\216\345\216\237\347\224\237\347\232\204\347\255\224\346"
-    "\241\210\345\271\263\345\235\207\345\233\236\346\230\276\347\244\272\345\260\272\345\257\270\347\232\204\346\273"
-    "\244\351\225\234 -- "
-    "\346\255\243\346\230\257\345\256\203\350\256\251\350\266\205\351\207\207\346\240\267\345\270\246\346\235\245\346"
-    "\233\264\345\260\221\350\200\214\351\235\236\346\233\264\345\244\232\347\232\204\345\231\252\347\202\271\343\200"
-    "\202\346\233\264\351\224\220\345\210\251\347\232\204\346\273\244\351\225\234\357\274\210Lanczos3\343\200\201Kaiser"
-    "3\357\274\211\344\277\235\347\225\231\346\234\200\345\244\232\347\273\206\350\212\202\357\274\233\346\233\264\346"
-    "\237\224\345\222\214\347\232\204\357\274\210Bicubic\343\200\201Catmull-"
-    "Rom\357\274\211\345\257\271\346\214\257\351\223\203\346\233\264\346\270\251\345\222\214\343\200\202\347\213\254"
-    "\347\253\213\344\272\216\350\276\223\345\207\272\347\274\251\346\224\276\347\232\204\347\274\251\345\260\217\346"
-    "\273\244\351\225\234\357\274\214\346\211\200\344\273\245\344\270\244\350\200\205\345\217\257\344\273\245\344\270"
-    "\215\345\220\214\345\271\266\345\220\214\346\227\266\350\277\220\350\241\214\343\200\202",
+    "\346\212\212\346\250\241\345\236\213\351\253\230\344\272\216\345\216\237\347\224\237\347\232\204\347\255\224"
+    "\346\241\210\345\271\263\345\235\207\345\233\236\346\230\276\347\244\272\345\260\272\345\257\270\347\232\204"
+    "\346\273\244\351\225\234 -- \346\255\243\346\230\257\345\256\203\350\256\251\350\266\205\351\207\207\346\240\267"
+    "\345\270\246\346\235\245\346\233\264\345\260\221\350\200\214\351\235\236\346\233\264\345\244\232\347\232\204"
+    "\345\231\252\347\202\271\343\200\202\346\233\264\351\224\220\345\210\251\347\232\204\346\273\244\351\225\234"
+    "\357\274\210Lanczos3\343\200\201Kaiser3\357\274\211\344\277\235\347\225\231\346\234\200\345\244\232\347\273\206"
+    "\350\212\202\357\274\233\346\233\264\346\237\224\345\222\214\347\232\204\357\274\210Bicubic\343\200\201C"
+    "atmull-Rom\357\274\211\345\257\271\346\214\257\351\223\203\346\233\264\346\270\251\345\222\214\343\200\202"
+    "\347\213\254\347\253\213\344\272\216\350\276\223\345\207\272\347\274\251\346\224\276\347\232\204\347\274\251"
+    "\345\260\217\346\273\244\351\225\234\357\274\214\346\211\200\344\273\245\344\270\244\350\200\205\345\217\257"
+    "\344\273\245\344\270\215\345\220\214\345\271\266\345\220\214\346\227\266\350\277\220\350\241\214\343\200\202",
     "\347\273\217\345\205\270",
     "\345\214\271\351\205\215\346\256\213\345\267\256",
     "\346\224\276\345\244\247\346\226\271\345\274\217",
-    "\346\250\241\345\236\213\345\234\250\344\275\216\344\272\216\347\224\273\351\235\242\345\260\272\345\257\270\350"
-    "\277\220\350\241\214\346\227\266\357\274\214\345\246\202\344\275\225\346\212\212\345\256\203\347\232\204\346\210"
-    "\220\346\236\234\346\224\276\345\244\247\345\233\236\346\235\245\343\200\202\n\n\347\273\217\345\205\270\346\226"
-    "\271\345\274\217\346\212\212\346\250\241\345\236\213\347\232\204\345\260\217\345\233\276\347\233\264\346\216\245"
-    "\344\270\216\345\205\250\345\260\272\345\257\270\347\224\273\351\235\242\345\220\210\346\210\220\343\200\202\344"
-    "\270\244\350\200\205\347\232\204\345\267\256\345\274\202\346\227\242\346\234\211\347\274\251\345\260\217\347\232"
-    "\204\346\250\241\347\263\212\357\274\214\344\271\237\346\234\211\346\250\241\345\236\213\347\232\204\344\277\256"
-    "\346\224\271\357\274\214\350\200\214\345\220\210\346\210\220\346\227\240\346\263\225\345\214\272\345\210\206\345"
-    "\256\203\344\273\254\343\200\202\n\n\345\234\250 100% "
-    "\346\227\266\347\201\260\346\230\276\357\274\214\345\233\240\344\270\272\346\262\241\346\234\211\351\234\200\350"
-    "\246\201\346\224\276\345\244\247\347\232\204\345\206\205\345\256\271\343\200\202",
+    "\346\250\241\345\236\213\345\234\250\344\275\216\344\272\216\347\224\273\351\235\242\345\260\272\345\257\270"
+    "\350\277\220\350\241\214\346\227\266\357\274\214\345\246\202\344\275\225\346\212\212\345\256\203\347\232\204"
+    "\346\210\220\346\236\234\346\224\276\345\244\247\345\233\236\346\235\245\343\200\202\n\n\347\273\217\345\205\270"
+    "\346\226\271\345\274\217\346\212\212\346\250\241\345\236\213\347\232\204\345\260\217\345\233\276\347\233\264"
+    "\346\216\245\344\270\216\345\205\250\345\260\272\345\257\270\347\224\273\351\235\242\345\220\210\346\210\220"
+    "\343\200\202\344\270\244\350\200\205\347\232\204\345\267\256\345\274\202\346\227\242\346\234\211\347\274\251"
+    "\345\260\217\347\232\204\346\250\241\347\263\212\357\274\214\344\271\237\346\234\211\346\250\241\345\236\213"
+    "\347\232\204\344\277\256\346\224\271\357\274\214\350\200\214\345\220\210\346\210\220\346\227\240\346\263\225"
+    "\345\214\272\345\210\206\345\256\203\344\273\254\343\200\202\n\n\345\234\250 100% \346\227\266\347\201\260"
+    "\346\230\276\357\274\214\345\233\240\344\270\272\346\262\241\346\234\211\351\234\200\350\246\201\346\224\276"
+    "\345\244\247\347\232\204\345\206\205\345\256\271\343\200\202",
     "\350\220\275\345\210\260\347\224\273\351\235\242\344\270\212\347\232\204\346\257\224\344\276\213",
     "\347\273\206\350\212\202\345\274\272\345\272\246",
     "\351\207\215\347\275\256",
-    "\347\224\273\351\235\242\345\220\221\346\250\241\345\236\213\347\232\204\345\233\276\345\203\217\347\247\273\345"
-    "\212\250\345\244\232\345\260\221\343\200\2020 "
-    "\345\216\237\346\240\267\350\277\224\345\233\236\350\266\205\351\207\207\346\240\267\345\231\250\347\232\204\350"
-    "\276\223\345\207\272\343\200\2021 "
-    "\346\230\257\346\250\241\345\236\213\347\232\204\345\233\276\345\203\217\343\200\202\351\253\230\344\272\216 1 "
-    "\345\210\231\346\262\277\345\220\214\344\270\200\346\226\271\345\220\221\347\273\247\347\273\255\350\266\212\350"
-    "\277\207\345\256\203\343\200\202",
+    "\347\224\273\351\235\242\345\220\221\346\250\241\345\236\213\347\232\204\345\233\276\345\203\217\347\247\273"
+    "\345\212\250\345\244\232\345\260\221\343\200\2020 \345\216\237\346\240\267\350\277\224\345\233\236\350\266\205"
+    "\351\207\207\346\240\267\345\231\250\347\232\204\350\276\223\345\207\272\343\200\2021 \346\230\257\346\250\241"
+    "\345\236\213\347\232\204\345\233\276\345\203\217\343\200\202\351\253\230\344\272\216 1 \345\210\231\346\262\277"
+    "\345\220\214\344\270\200\346\226\271\345\220\221\347\273\247\347\273\255\350\266\212\350\277\207\345\256\203"
+    "\343\200\202",
     "\351\242\234\350\211\262\345\274\272\345\272\246",
-    "\346\250\241\345\236\213\347\232\204\351\242\234\350\211\262\346\230\257\345\220\246\351\232\217\345\256\203\347"
-    "\232\204\344\272\256\345\272\246\344\270\200\350\265\267\345\210\260\346\235\245\343\200\2020 "
-    "\347\262\276\347\241\256\344\277\235\347\225\231\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\350"
-    "\211\262\347\233\270 -- "
-    "\346\257\217\344\270\252\345\203\217\347\264\240\351\203\275\346\230\257\345\216\237\345\247\213\351\242\234\350"
-    "\211\262\357\274\214\345\217\252\346\234\211\344\272\256\345\272\246\346\211\277\350\275\275\346\250\241\345\236"
-    "\213\347\232\204\345\210\244\346\226\255\343\200\2021 "
-    "\344\271\237\345\270\246\346\235\245\346\250\241\345\236\213\347\232\204\351\242\234\350\211\262\357\274\214\344"
-    "\275\277\347\224\250\345\256\203\350\207\252\345\267\261\347\232\204\350\211\262\347\233\270\357\274\214\345\271"
-    "\266\351\222\263\345\210\266\345\210\260 AP1 "
-    "\345\206\205\357\274\214\344\270\215\344\274\232\350\257\267\346\261\202\346\227\240\346\263\225\345\210\260\350"
-    "\276\276\347\232\204\351\242\234\350\211\262\343\200\202\n\n\351\253\230\344\272\216 1 "
-    "\344\274\232\350\277\207\351\245\261\345\222\214\357\274\232\351\242\234\350\211\262\344\277\235\346\214\201\350"
-    "\211\262\347\233\270\344\275\206\346\233\264\351\262\234\350\211\263\357\274\214\345\271\266\345\234\250\346\230"
-    "\276\347\244\272\345\231\250\350\203\275\346\230\276\347\244\272\347\232\204\350\276\271\347\274\230\345\271\263"
-    "\346\273\221\346\273\232\350\220\275\357\274\214\350\200\214\344\270\215\346\230\257\350\243\201\345\210\207\346"
-    "\210\220\344\270\200\347\211\207\345\271\263\345\235\246\347\232\204\350\277\207\346\233\235\345\214\272\345\237"
-    "\237\343\200\2021 "
-    "\346\230\257\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\351\242\234\350\211\262\357\274\233\346"
-    "\203\263\350\246\201\346\233\264\345\206\262\345\207\273\345\260\261\350\266\212\350\277\207\345\256\203\343\200"
-    "\202",
+    "\346\250\241\345\236\213\347\232\204\351\242\234\350\211\262\346\230\257\345\220\246\351\232\217\345\256\203"
+    "\347\232\204\344\272\256\345\272\246\344\270\200\350\265\267\345\210\260\346\235\245\343\200\2020 \347\262\276"
+    "\347\241\256\344\277\235\347\225\231\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\350\211\262"
+    "\347\233\270 -- \346\257\217\344\270\252\345\203\217\347\264\240\351\203\275\346\230\257\345\216\237\345\247\213"
+    "\351\242\234\350\211\262\357\274\214\345\217\252\346\234\211\344\272\256\345\272\246\346\211\277\350\275\275"
+    "\346\250\241\345\236\213\347\232\204\345\210\244\346\226\255\343\200\2021 \344\271\237\345\270\246\346\235\245"
+    "\346\250\241\345\236\213\347\232\204\351\242\234\350\211\262\357\274\214\344\275\277\347\224\250\345\256\203"
+    "\350\207\252\345\267\261\347\232\204\350\211\262\347\233\270\357\274\214\345\271\266\351\222\263\345\210\266"
+    "\345\210\260 AP1 \345\206\205\357\274\214\344\270\215\344\274\232\350\257\267\346\261\202\346\227\240\346\263\225"
+    "\345\210\260\350\276\276\347\232\204\351\242\234\350\211\262\343\200\202\n\n\351\253\230\344\272\216 1 \344\274\232"
+    "\350\277\207\351\245\261\345\222\214\357\274\232\351\242\234\350\211\262\344\277\235\346\214\201\350\211\262"
+    "\347\233\270\344\275\206\346\233\264\351\262\234\350\211\263\357\274\214\345\271\266\345\234\250\346\230\276"
+    "\347\244\272\345\231\250\350\203\275\346\230\276\347\244\272\347\232\204\350\276\271\347\274\230\345\271\263"
+    "\346\273\221\346\273\232\350\220\275\357\274\214\350\200\214\344\270\215\346\230\257\350\243\201\345\210\207"
+    "\346\210\220\344\270\200\347\211\207\345\271\263\345\235\246\347\232\204\350\277\207\346\233\235\345\214\272"
+    "\345\237\237\343\200\2021 \346\230\257\346\250\241\345\236\213\350\207\252\345\267\261\347\232\204\351\242\234"
+    "\350\211\262\357\274\233\346\203\263\350\246\201\346\233\264\345\206\262\345\207\273\345\260\261\350\266\212"
+    "\350\277\207\345\256\203\343\200\202",
     "\351\242\234\350\211\262",
-    "\346\250\241\345\236\213\346\230\257\345\234\250\346\234\200\347\273\210\347\232\204 sRGB "
-    "\347\274\226\347\240\201\347\224\273\351\235\242\344\270\212\350\256\255\347\273\203\347\232\204\343\200\202\350"
-    "\277\231\344\272\233\350\256\276\347\275\256\345\206\263\345\256\232\350\266\205\351\207\207\346\240\267\345\231"
-    "\250\347\232\204\347\272\277\346\200\247\350\276\223\345\207\272\345\246\202\344\275\225\346\230\240\345\260\204"
-    "\344\270\272\345\256\203\350\203\275\350\257\206\345\210\253\347\232\204\345\206\205\345\256\271\343\200\202",
+    "\346\250\241\345\236\213\346\230\257\345\234\250\346\234\200\347\273\210\347\232\204 sRGB \347\274\226\347\240\201"
+    "\347\224\273\351\235\242\344\270\212\350\256\255\347\273\203\347\232\204\343\200\202\350\277\231\344\272\233"
+    "\350\256\276\347\275\256\345\206\263\345\256\232\350\266\205\351\207\207\346\240\267\345\231\250\347\232\204"
+    "\347\272\277\346\200\247\350\276\223\345\207\272\345\246\202\344\275\225\346\230\240\345\260\204\344\270\272"
+    "\345\256\203\350\203\275\350\257\206\345\210\253\347\232\204\345\206\205\345\256\271\343\200\202",
     "\345\205\263\351\227\255\357\274\210\350\275\257\346\213\220\347\202\271\357\274\211",
     "Neutwo \344\273\243\347\220\206 + \345\220\210\346\210\220",
     "Neutwo \344\273\243\347\220\206 + \346\233\277\346\215\242",
     "\346\267\267\345\220\210\344\273\243\347\220\206 + \345\220\210\346\210\220",
     "\346\267\267\345\220\210\344\273\243\347\220\206 + \346\233\277\346\215\242",
     "\345\217\257\351\200\206\344\273\243\347\220\206",
-    "\347\273\231\346\250\241\345\236\213\347\234\213\344\273\200\344\271\210\357\274\214\344\273\245\345\217\212\345"
-    "\256\203\347\232\204\347\255\224\346\241\210\345\246\202\344\275\225\345\233\236\346\235\245\343\200\202\345\256"
-    "\236\351\252\214\346\200\247\343\200\202\n\n\345\205\263\351\227\255\357\274\210\350\275\257\346\213\220\347\202"
-    "\271\357\274\211\357\274\232\351\273\230\350\256\244\345\200\274\357\274\214\344\270\216\344\273\245\345\211\215"
-    "\351\200\220\345\255\227\350\212\202\347\233\270\345\220\214\343\200\202\345\256\203\346\212\212\351\253\230\345"
-    "\205\211\345\216\213\345\276\227\345\244\252\347\213\240\357\274\214\346\250\241\345\236\213\346\227\240\346\263"
-    "\225\350\247\243\346\236\220\345\205\266\344\270\255\347\232\204\347\273\206\350\212\202 -- "
-    "\346\237\224\345\205\211\345\234\272\346\231\257\346\262\241\351\227\256\351\242\230\357\274\214\346\230\216\344"
-    "\272\256\345\234\272\346\231\257\350\276\203\345\274\261\343\200\202\n\nNeutwo "
-    "\345\220\210\346\210\220\357\274\232\344\270\200\346\235\241\344\270\215\350\243\201\345\210\207\347\232\204\346"
-    "\233\262\347\272\277\357\274\214\346\211\200\344\273\245\346\250\241\345\236\213\350\203\275\347\234\213\345\210"
-    "\260\351\253\230\345\205\211\347\273\206\350\212\202\357\274\214\347\204\266\345\220\216\345\272\224\347\224\250"
-    "\345\205\266\344\270\212\347\232\204\344\270\200\345\210\207\357\274\210\345\274\272\345\272\246\343\200\201\351"
-    "\253\230\345\205\211\344\277\235\346\212\244\343\200\201\350\260\203\350\211\262\346\235\277\357\274\211\343\200"
-    "\202\346\230\216\344\272\256\345\234\272\346\231\257\345\215\240\344\274\230\357\274\214\344\275\206\346\233\262"
-    "\347\272\277\344\271\237\345\216\213\347\274\251\344\272\206\344\270\255\351\227\264\350\260\203\357\274\214\346"
-    "\211\200\344\273\245\346\237\224\345\205\211\345\206\205\345\256\271\345\217\257\350\203\275\346\257\224\345\205"
-    "\263\351\227\255\346\233\264\345\267\256\343\200\202\345\256\203\350\277\230\344\274\232\346\224\271\345\217\230"
-    "\347\272\270\347\231\275 -- "
-    "\345\210\207\346\215\242\346\227\266\350\257\267\351\207\215\346\226\260\346\243\200\346\237\245\343\200\202\n\n"
-    "\346\267\267\345\220\210\345\220\210\346\210\220\357\274\232\345\272\224\350\257\245\347\224\250\347\232\204\351"
-    "\202\243\344\270\252\343\200\202\344\270\255\351\227\264\350\260\203\344\277\235\346\214\201\346\201\222\347\255"
-    "\211 -- \351\202\243\351\207\214\344\270\216\345\205\263\351\227\255\344\270\200\346\240\267\345\245\275 -- "
-    "\345\217\252\345\234\250\351\253\230\345\205\211\345\244\204\344\275\277\347\224\250\344\270\215\350\243\201\345"
-    "\210\207\347\232\204\346\273\232\350\220\275\357\274\214\345\233\240\346\255\244\346\211\276\345\233\236\344\272"
-    "\206\345\205\263\351\227\255\346\211\200\345\216\213\346\216\211\347\232\204\347\273\206\350\212\202\357\274\214"
-    "\345\217\210\344\270\215\345\203\217 Neutwo "
-    "\351\202\243\346\240\267\347\211\272\347\211\262\344\270\255\351\227\264\350\260\203\343\200\202\345\207\240\344"
-    "\271\216\344\270\215\346\224\271\345\217\230\347\272\270\347\231\275\343\200\202\n\n\346\233\277\346\215\242\357"
-    "\274\232\345\216\237\345\247\213\346\250\241\345\236\213\350\276\223\345\207\272\347\233\264\346\216\245\347\273"
-    "\217\347\262\276\347\241\256\351\200\206\345\217\230\346\215\242\350\277\224\345\233\236\357\274\214\344\270\215"
-    "\345\201\232\345\220\210\346\210\220 -- "
-    "\346\262\241\346\234\211\344\277\235\346\212\244\343\200\201\346\262\241\346\234\211\350\260\203\350\211\262\346"
-    "\235\277\343\200\201\346\262\241\346\234\211\345\274\272\345\272\246\343\200\202\346\262\241\346\234\211\345\274"
-    "\272\345\205\211\347\232\204\345\234\260\346\226\271\347\276\216\344\270\215\350\203\234\346\224\266\357\274\214"
-    "\344\275\206\345\274\272\345\205\211\345\234\250\350\277\220\345\212\250\346\227\266\344\274\232\351\227\252\347"
-    "\203\201\343\200\202\346\230\257\345\217\202\350\200\203\357\274\214\344\270\215\346\230\257\346\227\245\345\270"
-    "\270\350\256\276\347\275\256\343\200\202\n\n\346\267\267\345\220\210\346\233\277\346\215\242\357\274\232\346\233"
-    "\277\346\215\242\347\232\204\345\216\237\345\247\213\346\250\241\345\236\213\346\224\276\345\234\250\346\267\267"
-    "\345\220\210\346\233\262\347\272\277\344\270\212\357\274\214\351\227\252\347\203\201\345\217\252\351\231\220\344"
-    "\272\216\347\234\237\346\255\243\347\232\204\351\253\230\345\205\211\350\200\214\344\270\215\346\230\257\345\210"
-    "\260\345\244\204\351\203\275\346\234\211\343\200\202\344\277\235\347\225\231\346\233\277\346\215\242\347\232\204"
-    "\345\244\247\351\203\250\345\210\206\347\273\206\350\212\202\357\274\214\347\250\263\345\256\232\345\276\227\345"
-    "\244\232\343\200\202",
+    "\347\273\231\346\250\241\345\236\213\347\234\213\344\273\200\344\271\210\357\274\214\344\273\245\345\217\212"
+    "\345\256\203\347\232\204\347\255\224\346\241\210\345\246\202\344\275\225\345\233\236\346\235\245\343\200\202"
+    "\345\256\236\351\252\214\346\200\247\343\200\202\n\n\345\205\263\351\227\255\357\274\210\350\275\257\346\213\220"
+    "\347\202\271\357\274\211\357\274\232\351\273\230\350\256\244\345\200\274\357\274\214\344\270\216\344\273\245"
+    "\345\211\215\351\200\220\345\255\227\350\212\202\347\233\270\345\220\214\343\200\202\345\256\203\346\212\212"
+    "\351\253\230\345\205\211\345\216\213\345\276\227\345\244\252\347\213\240\357\274\214\346\250\241\345\236\213"
+    "\346\227\240\346\263\225\350\247\243\346\236\220\345\205\266\344\270\255\347\232\204\347\273\206\350\212\202"
+    " -- \346\237\224\345\205\211\345\234\272\346\231\257\346\262\241\351\227\256\351\242\230\357\274\214\346\230\216"
+    "\344\272\256\345\234\272\346\231\257\350\276\203\345\274\261\343\200\202\n\nNeutwo \345\220\210\346\210\220"
+    "\357\274\232\344\270\200\346\235\241\344\270\215\350\243\201\345\210\207\347\232\204\346\233\262\347\272\277"
+    "\357\274\214\346\211\200\344\273\245\346\250\241\345\236\213\350\203\275\347\234\213\345\210\260\351\253\230"
+    "\345\205\211\347\273\206\350\212\202\357\274\214\347\204\266\345\220\216\345\272\224\347\224\250\345\205\266"
+    "\344\270\212\347\232\204\344\270\200\345\210\207\357\274\210\345\274\272\345\272\246\343\200\201\351\253\230"
+    "\345\205\211\344\277\235\346\212\244\343\200\201\350\260\203\350\211\262\346\235\277\357\274\211\343\200\202"
+    "\346\230\216\344\272\256\345\234\272\346\231\257\345\215\240\344\274\230\357\274\214\344\275\206\346\233\262"
+    "\347\272\277\344\271\237\345\216\213\347\274\251\344\272\206\344\270\255\351\227\264\350\260\203\357\274\214"
+    "\346\211\200\344\273\245\346\237\224\345\205\211\345\206\205\345\256\271\345\217\257\350\203\275\346\257\224"
+    "\345\205\263\351\227\255\346\233\264\345\267\256\343\200\202\345\256\203\350\277\230\344\274\232\346\224\271"
+    "\345\217\230\347\272\270\347\231\275 -- \345\210\207\346\215\242\346\227\266\350\257\267\351\207\215\346\226\260"
+    "\346\243\200\346\237\245\343\200\202\n\n\346\267\267\345\220\210\345\220\210\346\210\220\357\274\232\345\272\224"
+    "\350\257\245\347\224\250\347\232\204\351\202\243\344\270\252\343\200\202\344\270\255\351\227\264\350\260\203"
+    "\344\277\235\346\214\201\346\201\222\347\255\211 -- \351\202\243\351\207\214\344\270\216\345\205\263\351\227\255"
+    "\344\270\200\346\240\267\345\245\275 -- \345\217\252\345\234\250\351\253\230\345\205\211\345\244\204\344\275\277"
+    "\347\224\250\344\270\215\350\243\201\345\210\207\347\232\204\346\273\232\350\220\275\357\274\214\345\233\240"
+    "\346\255\244\346\211\276\345\233\236\344\272\206\345\205\263\351\227\255\346\211\200\345\216\213\346\216\211"
+    "\347\232\204\347\273\206\350\212\202\357\274\214\345\217\210\344\270\215\345\203\217 Neutwo \351\202\243"
+    "\346\240\267\347\211\272\347\211\262\344\270\255\351\227\264\350\260\203\343\200\202\345\207\240\344\271\216"
+    "\344\270\215\346\224\271\345\217\230\347\272\270\347\231\275\343\200\202\n\n\346\233\277\346\215\242\357\274\232"
+    "\345\216\237\345\247\213\346\250\241\345\236\213\350\276\223\345\207\272\347\233\264\346\216\245\347\273\217"
+    "\347\262\276\347\241\256\351\200\206\345\217\230\346\215\242\350\277\224\345\233\236\357\274\214\344\270\215"
+    "\345\201\232\345\220\210\346\210\220 -- \346\262\241\346\234\211\344\277\235\346\212\244\343\200\201\346\262\241"
+    "\346\234\211\350\260\203\350\211\262\346\235\277\343\200\201\346\262\241\346\234\211\345\274\272\345\272\246"
+    "\343\200\202\346\262\241\346\234\211\345\274\272\345\205\211\347\232\204\345\234\260\346\226\271\347\276\216"
+    "\344\270\215\350\203\234\346\224\266\357\274\214\344\275\206\345\274\272\345\205\211\345\234\250\350\277\220"
+    "\345\212\250\346\227\266\344\274\232\351\227\252\347\203\201\343\200\202\346\230\257\345\217\202\350\200\203"
+    "\357\274\214\344\270\215\346\230\257\346\227\245\345\270\270\350\256\276\347\275\256\343\200\202\n\n\346\267\267"
+    "\345\220\210\346\233\277\346\215\242\357\274\232\346\233\277\346\215\242\347\232\204\345\216\237\345\247\213"
+    "\346\250\241\345\236\213\346\224\276\345\234\250\346\267\267\345\220\210\346\233\262\347\272\277\344\270\212"
+    "\357\274\214\351\227\252\347\203\201\345\217\252\351\231\220\344\272\216\347\234\237\346\255\243\347\232\204"
+    "\351\253\230\345\205\211\350\200\214\344\270\215\346\230\257\345\210\260\345\244\204\351\203\275\346\234\211"
+    "\343\200\202\344\277\235\347\225\231\346\233\277\346\215\242\347\232\204\345\244\247\351\203\250\345\210\206"
+    "\347\273\206\350\212\202\357\274\214\347\250\263\345\256\232\345\276\227\345\244\232\343\200\202",
     "\344\273\205\347\272\270\347\231\275",
     "\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\346\233\235\345\205\211",
     "\346\211\253\346\217\217\346\211\276\345\210\260\347\232\204\347\274\223\345\206\262\345\214\272",
     "\347\231\275\347\202\271\346\235\245\346\272\220",
-    "\344\273\205\347\272\270\347\231\275 -- "
-    "\345\217\252\346\234\211\344\270\213\346\226\271\347\232\204\346\273\221\345\235\227\357\274\214\345\210\253\346"
-    "\227\240\345\205\266\344\273\226\343\200\202\351\200\202\345\220\210\346\233\235\345\205\211\344\273\216\344\270"
-    "\215\345\217\230\345\214\226\347\232\204\346\270\270\346\210\217\357\274\214\344\270\200\346\227\246\345\217\230"
-    "\345\214\226\345\260\261\351\224\231\344\272\206\357\274\232\344\270\200\344\270\252\345\270\270\346\225\260\346"
-    "\227\240\346\263\225\345\220\214\346\227\266\351\200\202\345\272\224\346\264\236\347\251\264\345\222\214\345\216"
-    "\237\351\207\216\343\200\202\n\n\346\270\270\346\210\217\350\207\252\345\267\261\347\232\204\346\233\235\345\205"
-    "\211 -- "
-    "\344\273\216\346\270\270\346\210\217\344\272\244\347\273\231\350\266\205\351\207\207\346\240\267\345\231\250\347"
-    "\232\204\347\272\271\347\220\206\350\257\273\345\217\226\343\200\202\350\277\231\346\230\257\346\234\200\345\245"
-    "\275\347\232\204\346\235\245\346\272\220\357\274\214\345\233\240\344\270\272\345\256\203\345\234\250\344\270\212"
-    "\346\270\270\345\206\263\345\256\232\357\274\214\346\234\254\351\200\232\351\201\223\345\201\232\347\232\204\344"
-    "\273\273\344\275\225\344\272\213\351\203\275\345\212\250\344\270\215\344\272\206\345\256\203\343\200\202\345\271"
-    "\266\351\235\236\346\257\217\344\270\252\346\270\270\346\210\217\351\203\275\346\217\220\344\276\233\343\200\202\n"
-    "\n\346\211\253\346\217\217\346\211\276\345\210\260\347\232\204\347\274\223\345\206\262\345\214\272 -- "
-    "\347\224\250\344\272\216\351\202\243\344\272\233\350\256\241\347\256\227\344\272\206\346\233\235\345\205\211\345"
-    "\215\264\344\273\216\344\270\215\344\274\240\351\200\222\347\232\204\346\270\270\346\210\217\343\200\202\345\261"
-    "\236\344\272\216\347\214\234\346\265\213\357\274\232\345\200\231\351\200\211\346\214\211\345\275\242\347\212\266"
-    "\345\214\271\351\205\215\357\274\214\351\224\232\347\202\271\347\232\204\346\257\224\347\216\207\346\212\265\346"
-    "\266\210\345\260\272\345\272\246\343\200\202\351\234\200\350\246\201\345\234\250\342\200\234\345\256\236\351\252"
-    "\214\346\200\247\342\200\235\351\203\250\345\210\206\351\224\232\345\256\232\344\270\200\346\254\241\357\274\214"
-    "\344\271\213\345\220\216\346\243\200\346\237\245\343\200\202",
-    "\346\211\253\346\217\217 %.5f  ->  \347\231\275\347\202\271 %.2f   \357\274\2101 "
-    "\344\270\252\347\202\271\357\274\211",
-    "\346\211\253\346\217\217 %.5f  ->  \347\231\275\347\202\271 %.2f   \357\274\210%u "
-    "\344\270\252\347\202\271\357\274\211",
+    "\344\273\205\347\272\270\347\231\275 -- \345\217\252\346\234\211\344\270\213\346\226\271\347\232\204\346\273\221"
+    "\345\235\227\357\274\214\345\210\253\346\227\240\345\205\266\344\273\226\343\200\202\351\200\202\345\220\210"
+    "\346\233\235\345\205\211\344\273\216\344\270\215\345\217\230\345\214\226\347\232\204\346\270\270\346\210\217"
+    "\357\274\214\344\270\200\346\227\246\345\217\230\345\214\226\345\260\261\351\224\231\344\272\206\357\274\232"
+    "\344\270\200\344\270\252\345\270\270\346\225\260\346\227\240\346\263\225\345\220\214\346\227\266\351\200\202"
+    "\345\272\224\346\264\236\347\251\264\345\222\214\345\216\237\351\207\216\343\200\202\n\n\346\270\270\346\210\217"
+    "\350\207\252\345\267\261\347\232\204\346\233\235\345\205\211 -- \344\273\216\346\270\270\346\210\217\344\272\244"
+    "\347\273\231\350\266\205\351\207\207\346\240\267\345\231\250\347\232\204\347\272\271\347\220\206\350\257\273"
+    "\345\217\226\343\200\202\350\277\231\346\230\257\346\234\200\345\245\275\347\232\204\346\235\245\346\272\220"
+    "\357\274\214\345\233\240\344\270\272\345\256\203\345\234\250\344\270\212\346\270\270\345\206\263\345\256\232"
+    "\357\274\214\346\234\254\351\200\232\351\201\223\345\201\232\347\232\204\344\273\273\344\275\225\344\272\213"
+    "\351\203\275\345\212\250\344\270\215\344\272\206\345\256\203\343\200\202\345\271\266\351\235\236\346\257\217"
+    "\344\270\252\346\270\270\346\210\217\351\203\275\346\217\220\344\276\233\343\200\202\n\n\346\211\253\346\217\217"
+    "\346\211\276\345\210\260\347\232\204\347\274\223\345\206\262\345\214\272 -- \347\224\250\344\272\216\351\202\243"
+    "\344\272\233\350\256\241\347\256\227\344\272\206\346\233\235\345\205\211\345\215\264\344\273\216\344\270\215"
+    "\344\274\240\351\200\222\347\232\204\346\270\270\346\210\217\343\200\202\345\261\236\344\272\216\347\214\234"
+    "\346\265\213\357\274\232\345\200\231\351\200\211\346\214\211\345\275\242\347\212\266\345\214\271\351\205\215"
+    "\357\274\214\351\224\232\347\202\271\347\232\204\346\257\224\347\216\207\346\212\265\346\266\210\345\260\272"
+    "\345\272\246\343\200\202\351\234\200\350\246\201\345\234\250\342\200\234\345\256\236\351\252\214\346\200\247"
+    "\342\200\235\351\203\250\345\210\206\351\224\232\345\256\232\344\270\200\346\254\241\357\274\214\344\271\213"
+    "\345\220\216\346\243\200\346\237\245\343\200\202",
+    "\346\211\253\346\217\217 %.5f  ->  \347\231\275\347\202\271 %.2f   \357\274\2101 \344\270\252\347\202\271"
+    "\357\274\211",
+    "\346\211\253\346\217\217 %.5f  ->  \347\231\275\347\202\271 %.2f   \357\274\210%u \344\270\252\347\202\271"
+    "\357\274\211",
     "\347\272\270\347\231\275\357\274\210\347\254\254 %d \347\202\271\357\274\211",
     "\347\272\270\347\231\275",
-    "\346\211\200\351\200\211\346\240\241\345\207\206\347\202\271\347\232\204\347\231\275\347\202\271\357\274\214\346"
-    "\210\226\350\200\205 -- \346\234\252\351\200\211\344\270\255\344\273\273\344\275\225\350\241\214\346\227\266 -- "
-    "\344\270\213\344\270\200\346\254\241\346\214\211\344\270\213\342\200\234\351\224\232\345\256\232\342\200\235\345"
-    "\260\206\346\215\225\350\216\267\347\232\204\345\200\274\343\200\202\n\n\350\260\203\345\210\260\346\255\244\345"
-    "\244\204\347\224\273\351\235\242\347\234\213\350\265\267\346\235\245\346\255\243\347\241\256\357\274\214\347\204"
-    "\266\345\220\216\351\224\232\345\256\232\343\200\202\347\247\273\345\210\260\345\205\211\347\272\277\346\210\252"
-    "\347\204\266\344\270\215\345\220\214\347\232\204\345\234\260\346\226\271\345\206\215\345\201\232\344\270\200\346"
-    "\254\241\357\274\232\344\270\244\344\270\252\347\202\271\347\241\256\345\256\232\347\274\223\345\206\262\345\214"
-    "\272\347\232\204\347\234\237\345\256\236\345\205\263\347\263\273\357\274\214\347\231\275\347\202\271\345\234\250"
-    "\344\270\244\350\200\205\344\271\213\351\227\264\344\277\235\346\214\201\343\200\202",
+    "\346\211\200\351\200\211\346\240\241\345\207\206\347\202\271\347\232\204\347\231\275\347\202\271\357\274\214"
+    "\346\210\226\350\200\205 -- \346\234\252\351\200\211\344\270\255\344\273\273\344\275\225\350\241\214\346\227\266"
+    " -- \344\270\213\344\270\200\346\254\241\346\214\211\344\270\213\342\200\234\351\224\232\345\256\232\342\200\235"
+    "\345\260\206\346\215\225\350\216\267\347\232\204\345\200\274\343\200\202\n\n\350\260\203\345\210\260\346\255\244"
+    "\345\244\204\347\224\273\351\235\242\347\234\213\350\265\267\346\235\245\346\255\243\347\241\256\357\274\214"
+    "\347\204\266\345\220\216\351\224\232\345\256\232\343\200\202\347\247\273\345\210\260\345\205\211\347\272\277"
+    "\346\210\252\347\204\266\344\270\215\345\220\214\347\232\204\345\234\260\346\226\271\345\206\215\345\201\232"
+    "\344\270\200\346\254\241\357\274\232\344\270\244\344\270\252\347\202\271\347\241\256\345\256\232\347\274\223"
+    "\345\206\262\345\214\272\347\232\204\347\234\237\345\256\236\345\205\263\347\263\273\357\274\214\347\231\275"
+    "\347\202\271\345\234\250\344\270\244\350\200\205\344\271\213\351\227\264\344\277\235\346\214\201\343\200\202",
     "\345\276\256\350\260\203\357\274\210x \346\211\253\346\217\217\345\200\274\357\274\211",
-    "\346\211\253\346\217\217\347\231\275\347\202\271\347\232\204\344\271\230\346\225\260\357\274\214\344\271\237\346"
-    "\230\257\345\234\250\351\224\232\347\202\271\344\271\213\351\227\264\350\260\203\346\225\264\347\232\204\346\216"
-    "\247\345\210\266\351\241\271\357\274\232\345\234\250\345\275\223\345\211\215\345\205\211\347\272\277\344\270\213"
-    "\350\260\203\345\210\260\347\224\273\351\235\242\347\234\213\350\265\267\346\235\245\346\255\243\347\241\256\357"
-    "\274\214\347\204\266\345\220\216\346\214\211\342\200\234\345\256\236\351\252\214\346\200\247\342\200\235\344\270"
-    "\213\347\232\204\342\200\234\351\224\232\345\256\232\342\200\235 -- "
-    "\350\277\231\344\274\232\346\212\212\345\276\256\350\260\203\345\220\216\347\232\204\345\200\274\346\215\225\350"
-    "\216\267\344\270\272\346\226\260\347\202\271\357\274\214\345\271\266\346\212\212\346\255\244\351\241\271\351\207"
-    "\215\347\275\256\344\270\272 1\343\200\202",
-    "\346\255\244\346\270\270\346\210\217\346\217\220\344\276\233\346\233\235\345\205\211\357\274\214\346\255\243\345"
-    "\234\250\350\257\273\345\217\226\343\200\202",
-    "\346\255\244\346\270\270\346\210\217\344\270\215\346\217\220\344\276\233\346\233\235\345\205\211\343\200\202\350"
-    "\257\267\346\224\271\350\257\225\346\211\253\346\217\217\343\200\202",
+    "\346\211\253\346\217\217\347\231\275\347\202\271\347\232\204\344\271\230\346\225\260\357\274\214\344\271\237"
+    "\346\230\257\345\234\250\351\224\232\347\202\271\344\271\213\351\227\264\350\260\203\346\225\264\347\232\204"
+    "\346\216\247\345\210\266\351\241\271\357\274\232\345\234\250\345\275\223\345\211\215\345\205\211\347\272\277"
+    "\344\270\213\350\260\203\345\210\260\347\224\273\351\235\242\347\234\213\350\265\267\346\235\245\346\255\243"
+    "\347\241\256\357\274\214\347\204\266\345\220\216\346\214\211\342\200\234\345\256\236\351\252\214\346\200\247"
+    "\342\200\235\344\270\213\347\232\204\342\200\234\351\224\232\345\256\232\342\200\235 -- \350\277\231\344\274\232"
+    "\346\212\212\345\276\256\350\260\203\345\220\216\347\232\204\345\200\274\346\215\225\350\216\267\344\270\272"
+    "\346\226\260\347\202\271\357\274\214\345\271\266\346\212\212\346\255\244\351\241\271\351\207\215\347\275\256"
+    "\344\270\272 1\343\200\202",
+    "\346\255\244\346\270\270\346\210\217\346\217\220\344\276\233\346\233\235\345\205\211\357\274\214\346\255\243"
+    "\345\234\250\350\257\273\345\217\226\343\200\202",
+    "\346\255\244\346\270\270\346\210\217\344\270\215\346\217\220\344\276\233\346\233\235\345\205\211\343\200\202"
+    "\350\257\267\346\224\271\350\257\225\346\211\253\346\217\217\343\200\202",
     "\347\255\211\345\276\205\347\224\273\351\235\242...",
     "\346\270\270\346\210\217\346\233\235\345\205\211 %.4f  ->  \347\231\275\347\202\271 %.2f%s",
     "  \357\274\210\344\277\235\346\214\201\357\274\232\346\234\254\345\270\247\347\274\272\345\244\261\357\274\211",
     "\346\255\243\345\234\250\350\257\273\345\217\226\346\233\235\345\205\211...",
     "\345\276\256\350\260\203\357\274\210x \346\270\270\346\210\217\346\233\235\345\205\211\357\274\211",
-    "\346\270\270\346\210\217\346\211\200\346\217\220\344\276\233\346\233\235\345\205\211\347\232\204\344\271\230\346"
-    "\225\260\343\200\2021.00x "
-    "\345\216\237\346\240\267\351\207\207\347\224\250\345\256\203\347\232\204\346\225\260\345\200\274\357\274\214\350"
-    "\277\231\345\234\250\350\277\231\351\207\214\345\260\261\346\230\257\346\255\243\347\241\256\347\255\224\346\241"
-    "\210\343\200\202\n\n\350\277\231\344\270\215\346\230\257\344\277\256\346\255\243\347\263\273\346\225\260\343\200"
-    "\202\344\270\200\344\270\252\346\270\270\346\210\217\351\234\200\350\246\201\346\212\212\345\276\256\350\260\203"
-    "\350\260\203\345\210\260\350\277\234\347\246\273 1 "
-    "\346\211\215\346\230\276\345\276\227\346\255\243\347\241\256\357\274\214\350\257\264\346\230\216\350\257\273\345"
-    "\210\260\347\232\204\346\233\235\345\205\211\345\257\271\350\257\245\346\270\270\346\210\217\346\230\257\351\224"
-    "\231\347\232\204\357\274\214\350\200\214\344\270\215\346\230\257\346\270\270\346\210\217\351\234\200\350\246\201"
-    "\345\276\256\350\260\203\343\200\202\345\244\247\347\272\246 0.8 \345\210\260 1.25 "
-    "\346\230\257\350\257\232\345\256\236\347\232\204\350\260\203\346\240\241\357\274\233\350\260\203\345\210\260 4 "
-    "\346\204\217\345\221\263\347\235\200\344\270\212\346\270\270\346\237\220\345\244\204\345\235\217\344\272\206\357"
-    "\274\214\350\200\214\346\255\244\351\241\271\345\234\250\346\216\251\347\233\226\345\256\203\343\200\202\n\n\344"
-    "\275\240\346\211\213\345\212\250\350\256\276\347\275\256\347\232\204\347\272\270\347\231\275\345\215\225\347\213"
-    "\254\344\277\235\345\255\230\357\274\214\345\210\207\345\233\236\350\257\245\346\235\245\346\272\220\346\227\266"
-    "\344\274\232\345\216\237\346\240\267\346\201\242\345\244\215\343\200\202",
-    "\346\250\241\345\236\213\347\234\213\345\210\260\347\224\273\351\235\242\344\271\213\345\211\215\357\274\214\347"
-    "\224\273\351\235\242\350\242\253\351\231\244\344\273\245\347\232\204\346\225\260\345\200\274\343\200\202\346\262"
-    "\241\346\234\211\345\210\253\347\232\204\347\231\275\347\202\271\357\274\233\350\277\231\345\260\261\346\230\257"
-    "\345\205\250\351\203\250\343\200\202\351\253\230\344\272\216 1 "
-    "\346\227\266\344\272\244\345\207\272\347\232\204\347\224\273\351\235\242\346\233\264\346\232\227\357\274\214\351"
-    "\253\230\345\205\211\345\234\250\346\233\262\347\272\277\344\270\212\344\275\215\347\275\256\346\233\264\344\275"
-    "\216\343\200\202",
+    "\346\270\270\346\210\217\346\211\200\346\217\220\344\276\233\346\233\235\345\205\211\347\232\204\344\271\230"
+    "\346\225\260\343\200\2021.00x \345\216\237\346\240\267\351\207\207\347\224\250\345\256\203\347\232\204\346\225\260"
+    "\345\200\274\357\274\214\350\277\231\345\234\250\350\277\231\351\207\214\345\260\261\346\230\257\346\255\243"
+    "\347\241\256\347\255\224\346\241\210\343\200\202\n\n\350\277\231\344\270\215\346\230\257\344\277\256\346\255\243"
+    "\347\263\273\346\225\260\343\200\202\344\270\200\344\270\252\346\270\270\346\210\217\351\234\200\350\246\201"
+    "\346\212\212\345\276\256\350\260\203\350\260\203\345\210\260\350\277\234\347\246\273 1 \346\211\215\346\230\276"
+    "\345\276\227\346\255\243\347\241\256\357\274\214\350\257\264\346\230\216\350\257\273\345\210\260\347\232\204"
+    "\346\233\235\345\205\211\345\257\271\350\257\245\346\270\270\346\210\217\346\230\257\351\224\231\347\232\204"
+    "\357\274\214\350\200\214\344\270\215\346\230\257\346\270\270\346\210\217\351\234\200\350\246\201\345\276\256"
+    "\350\260\203\343\200\202\345\244\247\347\272\246 0.8 \345\210\260 1.25 \346\230\257\350\257\232\345\256\236"
+    "\347\232\204\350\260\203\346\240\241\357\274\233\350\260\203\345\210\260 4 \346\204\217\345\221\263\347\235\200"
+    "\344\270\212\346\270\270\346\237\220\345\244\204\345\235\217\344\272\206\357\274\214\350\200\214\346\255\244"
+    "\351\241\271\345\234\250\346\216\251\347\233\226\345\256\203\343\200\202\n\n\344\275\240\346\211\213\345\212\250"
+    "\350\256\276\347\275\256\347\232\204\347\272\270\347\231\275\345\215\225\347\213\254\344\277\235\345\255\230"
+    "\357\274\214\345\210\207\345\233\236\350\257\245\346\235\245\346\272\220\346\227\266\344\274\232\345\216\237"
+    "\346\240\267\346\201\242\345\244\215\343\200\202",
+    "\346\250\241\345\236\213\347\234\213\345\210\260\347\224\273\351\235\242\344\271\213\345\211\215\357\274\214"
+    "\347\224\273\351\235\242\350\242\253\351\231\244\344\273\245\347\232\204\346\225\260\345\200\274\343\200\202"
+    "\346\262\241\346\234\211\345\210\253\347\232\204\347\231\275\347\202\271\357\274\233\350\277\231\345\260\261"
+    "\346\230\257\345\205\250\351\203\250\343\200\202\351\253\230\344\272\216 1 \346\227\266\344\272\244\345\207\272"
+    "\347\232\204\347\224\273\351\235\242\346\233\264\346\232\227\357\274\214\351\253\230\345\205\211\345\234\250"
+    "\346\233\262\347\272\277\344\270\212\344\275\215\347\275\256\346\233\264\344\275\216\343\200\202",
     "\351\253\230\345\205\211\344\277\235\346\212\244",
-    "\351\200\232\351\201\223\345\217\257\344\273\245\346\212\212\344\273\273\344\275\225\345\203\217\347\264\240\347"
-    "\247\273\345\212\250\347\232\204\346\234\200\345\244\247\345\271\205\345\272\246\357\274\214\344\273\245\345\205"
-    "\266\345\216\237\345\200\274\347\232\204\345\200\215\346\225\260\350\256\241\357\274\214\345\217\214\345\220\221"
-    "\346\234\211\346\225\210 -- "
-    "\345\203\217\347\264\240\344\270\215\350\203\275\350\242\253\346\217\220\344\272\256\350\266\205\350\277\207\346"
-    "\255\244\345\200\274\357\274\214\344\271\237\344\270\215\350\203\275\350\242\253\345\216\213\346\232\227\350\266"
-    "\205\350\277\207\345\205\266\345\200\222\346\225\260\343\200\202\345\205\211\346\272\220\346\230\257\346\250\241"
-    "\345\236\213\346\234\200\346\262\241\346\234\211\345\217\221\350\250\200\346\235\203\343\200\201\351\207\215\346"
-    "\226\260\347\274\251\346\224\276\345\205\266\347\255\224\346\241\210\347\240\264\345\235\217\346\234\200\345\244"
-    "\247\347\232\204\345\234\260\346\226\271\357\274\2332x "
-    "\344\277\235\347\225\231\347\273\206\350\212\202\357\274\214\345\220\214\346\227\266\351\230\262\346\255\242\344"
-    "\270\200\346\240\271\346\227\245\345\205\211\347\201\257\345\217\230\346\210\220\344\270\200\344\270\262\345\275"
-    "\251\350\211\262\346\240\274\345\255\220\343\200\202\345\217\252\346\234\211\345\234\250\346\230\216\344\272\256"
-    "\345\214\272\345\237\237\347\234\213\350\265\267\346\235\245\350\242\253\350\243\201\345\210\207\346\227\266\346"
-    "\211\215\350\260\203\351\253\230\343\200\202",
+    "\351\200\232\351\201\223\345\217\257\344\273\245\346\212\212\344\273\273\344\275\225\345\203\217\347\264\240"
+    "\347\247\273\345\212\250\347\232\204\346\234\200\345\244\247\345\271\205\345\272\246\357\274\214\344\273\245"
+    "\345\205\266\345\216\237\345\200\274\347\232\204\345\200\215\346\225\260\350\256\241\357\274\214\345\217\214"
+    "\345\220\221\346\234\211\346\225\210 -- \345\203\217\347\264\240\344\270\215\350\203\275\350\242\253\346\217\220"
+    "\344\272\256\350\266\205\350\277\207\346\255\244\345\200\274\357\274\214\344\271\237\344\270\215\350\203\275"
+    "\350\242\253\345\216\213\346\232\227\350\266\205\350\277\207\345\205\266\345\200\222\346\225\260\343\200\202"
+    "\345\205\211\346\272\220\346\230\257\346\250\241\345\236\213\346\234\200\346\262\241\346\234\211\345\217\221"
+    "\350\250\200\346\235\203\343\200\201\351\207\215\346\226\260\347\274\251\346\224\276\345\205\266\347\255\224"
+    "\346\241\210\347\240\264\345\235\217\346\234\200\345\244\247\347\232\204\345\234\260\346\226\271\357\274\233"
+    "2x \344\277\235\347\225\231\347\273\206\350\212\202\357\274\214\345\220\214\346\227\266\351\230\262\346\255\242"
+    "\344\270\200\346\240\271\346\227\245\345\205\211\347\201\257\345\217\230\346\210\220\344\270\200\344\270\262"
+    "\345\275\251\350\211\262\346\240\274\345\255\220\343\200\202\345\217\252\346\234\211\345\234\250\346\230\216"
+    "\344\272\256\345\214\272\345\237\237\347\234\213\350\265\267\346\235\245\350\242\253\350\243\201\345\210\207"
+    "\346\227\266\346\211\215\350\260\203\351\253\230\343\200\202",
     "\346\233\235\345\205\211\346\211\253\346\217\217",
     "\345\234\250\345\261\217\345\271\225\344\270\212\346\230\276\347\244\272\346\265\213\345\205\211\350\241\250",
-    "\350\247\222\350\220\275\351\207\214\347\232\204\344\270\200\347\233\217\347\201\257\357\274\232\346\232\227\344"
-    "\270\272\347\272\242\357\274\214\345\205\250\344\272\256\344\270\272\347\273\277\357\274\214\344\271\213\351\227"
-    "\264\346\230\257\350\277\207\346\270\241\350\211\262\357\274\214\346\227\201\350\276\271\346\230\276\347\244\272"
-    "\350\257\273\346\225\260\343\200\202\n\n\350\277\231\346\230\257\344\270\200\347\234\274\347\234\213\345\207\272"
-    "\346\211\253\346\217\217\345\234\250\342\200\234\350\267\237\350\270\252\342\200\235\350\200\214\344\270\215\345"
-    "\217\252\346\230\257\345\234\250\350\277\220\350\241\214\347\232\204\346\226\271\346\263\225\343\200\202\350\265"
-    "\260\350\277\233\351\230\264\345\275\261\345\256\203\345\272\224\346\273\221\345\220\221\347\272\242\350\211\262"
-    "\357\274\233\350\265\260\345\207\272\346\235\245\345\272\224\345\217\230\347\273\277\343\200\202\345\246\202\346"
-    "\236\234\346\226\271\345\220\221\345\217\215\344\272\206\357\274\214\344\270\213\346\226\271\347\232\204\342\200"
-    "\234\346\225\260\345\200\274\346\226\271\345\220\221\347\233\270\345\217\215\342\200\235\345\260\261\346\230\257"
-    "\344\270\272\346\255\244\345\207\206\345\244\207\347\232\204\343\200\202\n\n\347\272\257\347\262\271\346\230\257"
-    "\350\257\273\346\225\260\343\200\202\344\270\215\346\224\271\345\217\230\344\273\273\344\275\225\344\270\234\350"
-    "\245\277\343\200\202",
+    "\350\247\222\350\220\275\351\207\214\347\232\204\344\270\200\347\233\217\347\201\257\357\274\232\346\232\227"
+    "\344\270\272\347\272\242\357\274\214\345\205\250\344\272\256\344\270\272\347\273\277\357\274\214\344\271\213"
+    "\351\227\264\346\230\257\350\277\207\346\270\241\350\211\262\357\274\214\346\227\201\350\276\271\346\230\276"
+    "\347\244\272\350\257\273\346\225\260\343\200\202\n\n\350\277\231\346\230\257\344\270\200\347\234\274\347\234\213"
+    "\345\207\272\346\211\253\346\217\217\345\234\250\342\200\234\350\267\237\350\270\252\342\200\235\350\200\214"
+    "\344\270\215\345\217\252\346\230\257\345\234\250\350\277\220\350\241\214\347\232\204\346\226\271\346\263\225"
+    "\343\200\202\350\265\260\350\277\233\351\230\264\345\275\261\345\256\203\345\272\224\346\273\221\345\220\221"
+    "\347\272\242\350\211\262\357\274\233\350\265\260\345\207\272\346\235\245\345\272\224\345\217\230\347\273\277"
+    "\343\200\202\345\246\202\346\236\234\346\226\271\345\220\221\345\217\215\344\272\206\357\274\214\344\270\213"
+    "\346\226\271\347\232\204\342\200\234\346\225\260\345\200\274\346\226\271\345\220\221\347\233\270\345\217\215"
+    "\342\200\235\345\260\261\346\230\257\344\270\272\346\255\244\345\207\206\345\244\207\347\232\204\343\200\202"
+    "\n\n\347\272\257\347\262\271\346\230\257\350\257\273\346\225\260\343\200\202\344\270\215\346\224\271\345\217\230"
+    "\344\273\273\344\275\225\344\270\234\350\245\277\343\200\202",
     "\345\234\250\346\255\244\351\224\232\345\256\232",
-    "\346\212\212\347\224\273\351\235\242\350\260\203\345\210\260\346\255\243\347\241\256\357\274\214\347\204\266\345"
-    "\220\216\346\214\211\344\270\213\346\255\244\351\241\271 -- "
-    "\345\256\203\346\212\212\345\275\223\345\211\215\346\225\210\346\236\234\346\215\225\350\216\267\344\270\272\344"
-    "\270\200\344\270\252\347\202\271\343\200\202\347\254\254\344\270\200\344\270\252\347\202\271\347\224\250\344\270"
-    "\212\346\226\271\347\232\204\347\272\270\347\231\275\346\273\221\345\235\227\357\274\233\344\271\213\345\220\216"
-    "\347\232\204\346\257\217\344\270\252\347\202\271\357\274\214\347\247\273\345\210\260\344\270\215\345\220\214\345"
-    "\205\211\347\272\277\344\270\213\345\271\266\344\275\277\347\224\250\345\276\256\350\260\203\357\274\214\346\255"
-    "\244\351\241\271\351\232\217\345\220\216\344\274\232\346\212\212\345\256\203\345\233\272\345\214\226\350\277\233"
-    "\345\216\273\343\200\202\n\n\344\270\200\344\270\252\347\202\271\346\240\241\345\207\206\344\270\200\344\270\252"
-    "\346\257\224\347\216\207\357\274\214\346\255\244\345\220\216\347\231\275\347\202\271\350\267\237\351\232\217\346"
-    "\211\253\346\217\217\343\200\202\350\265\260\345\210\260\345\205\211\347\272\277\346\210\252\347\204\266\344\270"
-    "\215\345\220\214\347\232\204\345\234\260\346\226\271\345\206\215\346\214\211\344\270\200\346\254\241\357\274\232"
-    "\347\254\254\344\272\214\344\270\252\347\202\271\347\241\256\345\256\232\347\274\223\345\206\262\345\214\272\347"
-    "\232\204\347\234\237\345\256\236\346\233\262\347\272\277\357\274\214\344\272\216\346\230\257\344\270\244\350\200"
-    "\205\344\271\213\351\227\264\347\232\204\344\270\200\345\210\207\351\203\275\346\255\243\347\241\256\357\274\214"
-    "\350\200\214\344\270\215\345\217\252\346\230\257\344\270\200\344\270\252\351\224\232\347\202\271\351\231\204\350"
-    "\277\221\343\200\202\346\234\200\345\244\232\345\205\253\344\270\252\343\200\202\n\n\346\255\244\350\241\250\346"
-    "\214\211\346\270\270\346\210\217\344\277\235\345\255\230\344\270\224\345\217\257\345\210\206\344\272\253 -- "
-    "\344\270\200\344\270\252\344\272\272\346\240\241\345\207\206\344\270\200\346\254\276\346\270\270\346\210\217\357"
-    "\274\214\346\213\277\345\210\260\350\257\245\351\205\215\347\275\256\347\232\204\346\211\200\346\234\211\344\272"
-    "\272\346\225\260\345\200\274\347\233\270\345\220\214\343\200\202",
-    "\357\274\210\346\211\253\346\217\217\345\217\252\346\230\257\345\234\250\350\247\202\345\257\237 -- "
-    "\344\270\212\346\226\271\347\232\204\347\231\275\347\202\271\346\235\245\350\207\252\345\210\253\345\244\204\357"
-    "\274\211",
+    "\346\212\212\347\224\273\351\235\242\350\260\203\345\210\260\346\255\243\347\241\256\357\274\214\347\204\266"
+    "\345\220\216\346\214\211\344\270\213\346\255\244\351\241\271 -- \345\256\203\346\212\212\345\275\223\345\211\215"
+    "\346\225\210\346\236\234\346\215\225\350\216\267\344\270\272\344\270\200\344\270\252\347\202\271\343\200\202"
+    "\347\254\254\344\270\200\344\270\252\347\202\271\347\224\250\344\270\212\346\226\271\347\232\204\347\272\270"
+    "\347\231\275\346\273\221\345\235\227\357\274\233\344\271\213\345\220\216\347\232\204\346\257\217\344\270\252"
+    "\347\202\271\357\274\214\347\247\273\345\210\260\344\270\215\345\220\214\345\205\211\347\272\277\344\270\213"
+    "\345\271\266\344\275\277\347\224\250\345\276\256\350\260\203\357\274\214\346\255\244\351\241\271\351\232\217"
+    "\345\220\216\344\274\232\346\212\212\345\256\203\345\233\272\345\214\226\350\277\233\345\216\273\343\200\202"
+    "\n\n\344\270\200\344\270\252\347\202\271\346\240\241\345\207\206\344\270\200\344\270\252\346\257\224\347\216\207"
+    "\357\274\214\346\255\244\345\220\216\347\231\275\347\202\271\350\267\237\351\232\217\346\211\253\346\217\217"
+    "\343\200\202\350\265\260\345\210\260\345\205\211\347\272\277\346\210\252\347\204\266\344\270\215\345\220\214"
+    "\347\232\204\345\234\260\346\226\271\345\206\215\346\214\211\344\270\200\346\254\241\357\274\232\347\254\254"
+    "\344\272\214\344\270\252\347\202\271\347\241\256\345\256\232\347\274\223\345\206\262\345\214\272\347\232\204"
+    "\347\234\237\345\256\236\346\233\262\347\272\277\357\274\214\344\272\216\346\230\257\344\270\244\350\200\205"
+    "\344\271\213\351\227\264\347\232\204\344\270\200\345\210\207\351\203\275\346\255\243\347\241\256\357\274\214"
+    "\350\200\214\344\270\215\345\217\252\346\230\257\344\270\200\344\270\252\351\224\232\347\202\271\351\231\204"
+    "\350\277\221\343\200\202\346\234\200\345\244\232\345\205\253\344\270\252\343\200\202\n\n\346\255\244\350\241\250"
+    "\346\214\211\346\270\270\346\210\217\344\277\235\345\255\230\344\270\224\345\217\257\345\210\206\344\272\253"
+    " -- \344\270\200\344\270\252\344\272\272\346\240\241\345\207\206\344\270\200\346\254\276\346\270\270\346\210\217"
+    "\357\274\214\346\213\277\345\210\260\350\257\245\351\205\215\347\275\256\347\232\204\346\211\200\346\234\211"
+    "\344\272\272\346\225\260\345\200\274\347\233\270\345\220\214\343\200\202",
+    "\357\274\210\346\211\253\346\217\217\345\217\252\346\230\257\345\234\250\350\247\202\345\257\237 -- \344\270\212"
+    "\346\226\271\347\232\204\347\231\275\347\202\271\346\235\245\350\207\252\345\210\253\345\244\204\357\274\211",
     "%s \346\211\253\346\217\217 %.4f  ->  \347\231\275 %.2f%s",
     "   [\347\274\226\350\276\221\344\270\255]",
-    "\347\202\271\345\207\273\344\270\200\350\241\214\347\224\250\344\270\212\346\226\271\346\273\221\345\235\227\347"
-    "\274\226\350\276\221\345\256\203\357\274\233\345\206\215\346\254\241\347\202\271\345\207\273\345\210\231\346\216"
-    "\247\345\210\266\345\256\236\346\227\266\347\202\271\343\200\202> "
-    "\346\230\257\345\275\223\345\211\215\344\275\277\347\224\250\347\232\204\347\202\271\343\200\202",
+    "\347\202\271\345\207\273\344\270\200\350\241\214\347\224\250\344\270\212\346\226\271\346\273\221\345\235\227"
+    "\347\274\226\350\276\221\345\256\203\357\274\233\345\206\215\346\254\241\347\202\271\345\207\273\345\210\231"
+    "\346\216\247\345\210\266\345\256\236\346\227\266\347\202\271\343\200\202> \346\230\257\345\275\223\345\211\215"
+    "\344\275\277\347\224\250\347\232\204\347\202\271\343\200\202",
     "\346\225\260\345\200\274\346\226\271\345\220\221\347\233\270\345\217\215",
-    "\345\246\202\346\236\234\347\224\273\351\235\242\345\234\250\346\234\254\345\272\224\345\217\230\345\245\275\347"
-    "\232\204\346\226\271\345\220\221\344\270\212\345\217\230\345\267\256\357\274\214\345\260\261\347\277\273\350\275"
-    "\254\346\255\244\351\241\271\343\200\202\345\244\232\346\225\260\345\274\225\346\223\216\345\255\230\345\202\250"
-    "\347\232\204\346\233\235\345\205\211\351\232\217\345\234\272\346\231\257\345\217\230\344\272\256\350\200\214\344"
-    "\270\213\351\231\215\357\274\233\346\234\211\344\272\233\345\255\230\345\202\250\345\205\266\345\200\222\346\225"
-    "\260\357\274\214\350\200\214\346\214\211\345\275\242\347\212\266\346\211\276\345\210\260\347\232\204\347\274\223"
-    "\345\206\262\345\214\272\344\270\215\344\274\232\350\257\264\346\230\216\346\230\257\345\223\252\347\247\215\343"
-    "\200\202\345\234\250\344\270\215\345\220\214\345\205\211\347\272\277\344\270\213\346\267\273\345\212\240\347\254"
-    "\254\344\272\214\344\270\252\351\224\232\347\202\271\357\274\214\350\277\231\345\260\261\344\274\232\350\207\252"
-    "\345\212\250\347\241\256\345\256\232\357\274\214\346\255\244\351\241\271\351\232\217\344\271\213\346\266\210\345"
-    "\244\261\343\200\202",
+    "\345\246\202\346\236\234\347\224\273\351\235\242\345\234\250\346\234\254\345\272\224\345\217\230\345\245\275"
+    "\347\232\204\346\226\271\345\220\221\344\270\212\345\217\230\345\267\256\357\274\214\345\260\261\347\277\273"
+    "\350\275\254\346\255\244\351\241\271\343\200\202\345\244\232\346\225\260\345\274\225\346\223\216\345\255\230"
+    "\345\202\250\347\232\204\346\233\235\345\205\211\351\232\217\345\234\272\346\231\257\345\217\230\344\272\256"
+    "\350\200\214\344\270\213\351\231\215\357\274\233\346\234\211\344\272\233\345\255\230\345\202\250\345\205\266"
+    "\345\200\222\346\225\260\357\274\214\350\200\214\346\214\211\345\275\242\347\212\266\346\211\276\345\210\260"
+    "\347\232\204\347\274\223\345\206\262\345\214\272\344\270\215\344\274\232\350\257\264\346\230\216\346\230\257"
+    "\345\223\252\347\247\215\343\200\202\345\234\250\344\270\215\345\220\214\345\205\211\347\272\277\344\270\213"
+    "\346\267\273\345\212\240\347\254\254\344\272\214\344\270\252\351\224\232\347\202\271\357\274\214\350\277\231"
+    "\345\260\261\344\274\232\350\207\252\345\212\250\347\241\256\345\256\232\357\274\214\346\255\244\351\241\271"
+    "\351\232\217\344\271\213\346\266\210\345\244\261\343\200\202",
     "\345\200\231\351\200\211",
-    "\345\260\232\346\234\252\345\214\271\351\205\215\345\210\260\344\273\273\344\275\225\345\206\205\345\256\271\343"
-    "\200\202",
+    "\345\260\232\346\234\252\345\214\271\351\205\215\345\210\260\344\273\273\344\275\225\345\206\205\345\256\271"
+    "\343\200\202",
     "%zu. %s -- \345\260\232\346\234\252\350\257\273\345\217\226",
     "%zu. %s = %.5f  \357\274\210\350\247\202\346\265\213 %.5f..%.5f\357\274\211 %s",
     "\345\234\250\345\217\230\345\214\226",
     "\350\277\204\344\273\212\344\270\215\345\217\230",
-    "\344\273\216\351\230\264\345\275\261\350\265\260\345\210\260\346\227\245\345\205\211\344\270\213\343\200\202\347"
-    "\234\237\346\255\243\347\232\204\346\233\235\345\205\211\344\274\232\345\217\230\345\214\226\343\200\202\345\217"
-    "\252\344\274\232\344\270\200\350\267\257\344\270\212\345\215\207\347\232\204\346\230\257\350\256\241\346\225\260"
-    "\345\231\250\357\274\214\344\270\215\346\230\257\346\233\235\345\205\211\343\200\202",
+    "\344\273\216\351\230\264\345\275\261\350\265\260\345\210\260\346\227\245\345\205\211\344\270\213\343\200\202"
+    "\347\234\237\346\255\243\347\232\204\346\233\235\345\205\211\344\274\232\345\217\230\345\214\226\343\200\202"
+    "\345\217\252\344\274\232\344\270\200\350\267\257\344\270\212\345\215\207\347\232\204\346\230\257\350\256\241"
+    "\346\225\260\345\231\250\357\274\214\344\270\215\346\230\257\346\233\235\345\205\211\343\200\202",
     "\345\274\225\345\257\274",
     "\350\267\237\351\232\217\346\270\270\346\210\217",
     "\345\274\272\345\210\266\346\255\243\345\270\270",
     "\345\274\272\345\210\266\345\217\215\350\275\254",
     "\346\267\261\345\272\246",
-    "\345\221\212\350\257\211\346\250\241\345\236\213\346\267\261\345\272\246\347\232\204\346\226\271\345\220\221\343"
-    "\200\202\346\270\270\346\210\217\345\234\250\345\210\233\345\273\272\350\207\252\345\267\261\347\232\204 DLSS "
-    "feature "
-    "\346\227\266\347\224\250\346\240\207\345\277\227\345\243\260\346\230\216\344\272\206\350\277\231\344\270\200\347"
-    "\202\271\357\274\214\350\267\237\351\232\217\345\256\203\345\207\240\344\271\216\346\200\273\346\230\257\346\255"
-    "\243\347\241\256\347\232\204 -- "
-    "\344\275\206\345\243\260\346\230\216\351\224\231\350\257\257\347\232\204\346\270\270\346\210\217\351\234\200\350"
-    "\246\201\346\211\213\345\212\250\347\272\240\346\255\243\343\200\202\n\n\345\246\202\346\236\234\351\200\232\351"
-    "\201\223\345\234\250\345\207\240\344\275\225\344\275\223\344\270\216\345\244\251\347\251\272\344\272\244\347\225"
-    "\214\345\244\204\350\241\250\347\216\260\346\234\200\345\267\256\357\274\214\350\257\225\350\257\225\345\274\272"
-    "\345\210\266\345\217\246\344\270\200\347\247\215\343\200\202",
+    "\345\221\212\350\257\211\346\250\241\345\236\213\346\267\261\345\272\246\347\232\204\346\226\271\345\220\221"
+    "\343\200\202\346\270\270\346\210\217\345\234\250\345\210\233\345\273\272\350\207\252\345\267\261\347\232\204"
+    " DLSS feature \346\227\266\347\224\250\346\240\207\345\277\227\345\243\260\346\230\216\344\272\206\350\277\231"
+    "\344\270\200\347\202\271\357\274\214\350\267\237\351\232\217\345\256\203\345\207\240\344\271\216\346\200\273"
+    "\346\230\257\346\255\243\347\241\256\347\232\204 -- \344\275\206\345\243\260\346\230\216\351\224\231\350\257\257"
+    "\347\232\204\346\270\270\346\210\217\351\234\200\350\246\201\346\211\213\345\212\250\347\272\240\346\255\243"
+    "\343\200\202\n\n\345\246\202\346\236\234\351\200\232\351\201\223\345\234\250\345\207\240\344\275\225\344\275\223"
+    "\344\270\216\345\244\251\347\251\272\344\272\244\347\225\214\345\244\204\350\241\250\347\216\260\346\234\200"
+    "\345\267\256\357\274\214\350\257\225\350\257\225\345\274\272\345\210\266\345\217\246\344\270\200\347\247\215"
+    "\343\200\202",
     "UI \346\240\241\346\255\243",
-    "\350\256\251\346\250\241\345\236\213\350\200\203\350\231\221\350\246\206\347\233\226\345\234\250\347\224\273\351"
-    "\235\242\344\270\212\347\232\204 UI "
-    "\345\261\202\343\200\202\345\274\200\345\220\257\346\230\257\345\256\203\350\207\252\345\267\261\347\232\204\351"
-    "\273\230\350\256\244\345\200\274\357\274\214\345\217\252\350\246\201\346\234\211 UI "
-    "\350\265\204\346\272\220\345\210\260\350\276\276\345\256\203\345\260\261\346\230\257\346\255\243\347\241\256\347"
-    "\232\204\357\274\233\345\246\202\346\236\234\346\240\241\346\255\243\346\234\254\350\272\253\347\234\213\350\265"
-    "\267\346\235\245\346\234\211\351\227\256\351\242\230\357\274\214\345\260\261\345\205\263\346\216\211\343\200\202\n"
-    "\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266\350\257\273\345\217\226\343\200\202",
+    "\350\256\251\346\250\241\345\236\213\350\200\203\350\231\221\350\246\206\347\233\226\345\234\250\347\224\273"
+    "\351\235\242\344\270\212\347\232\204 UI \345\261\202\343\200\202\345\274\200\345\220\257\346\230\257\345\256\203"
+    "\350\207\252\345\267\261\347\232\204\351\273\230\350\256\244\345\200\274\357\274\214\345\217\252\350\246\201"
+    "\346\234\211 UI \350\265\204\346\272\220\345\210\260\350\276\276\345\256\203\345\260\261\346\230\257\346\255\243"
+    "\347\241\256\347\232\204\357\274\233\345\246\202\346\236\234\346\240\241\346\255\243\346\234\254\350\272\253"
+    "\347\234\213\350\265\267\346\235\245\346\234\211\351\227\256\351\242\230\357\274\214\345\260\261\345\205\263"
+    "\346\216\211\343\200\202\n\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266\350\257\273"
+    "\345\217\226\343\200\202",
     "\346\243\200\346\237\245",
     "\346\255\243\345\234\250\346\215\225\350\216\267...",
     "\346\215\225\350\216\267 8 \345\270\247",
-    "\346\212\212\350\277\236\347\273\255\345\205\253\345\270\247\345\206\231\344\270\244\351\201\215\357\274\232\350"
-    "\266\205\351\207\207\346\240\267\345\231\250\350\276\223\345\207\272\347\232\204\345\216\237\346\240\267\357\274"
-    "\214\344\273\245\345\217\212\345\272\224\347\224\250\346\250\241\345\236\213\344\277\256\346\224\271\344\271\213"
-    "\345\220\216\343\200\202\345\206\231\345\205\245 OptiScaler \346\227\201\350\276\271\347\232\204 dlssnr-capture "
-    "\346\226\207\344\273\266\345\244\271\357\274\233\346\257\217\346\254\241\350\277\220\350\241\214\350\246\206\347"
-    "\233\226\344\270\212\344\270\200\346\254\241\343\200\202",
-    "\346\257\217\346\254\241\344\274\232\350\257\235\350\207\252\345\212\250\346\215\225\350\216\267\344\270\200\346"
-    "\254\241",
-    "\346\227\240\351\234\200\344\273\273\344\275\225\344\272\272\350\246\201\346\261\202\357\274\214\350\207\252\345"
-    "\212\250\345\206\231\345\205\245\344\270\200\347\273\204\345\214\271\351\205\215\347\232\204\345\211\215\345\220"
-    "\216\345\257\271\346\257\224\343\200\202\346\226\207\344\273\266\345\244\271\346\257\217\346\254\241\350\277\220"
-    "\350\241\214\351\203\275\344\274\232\346\270\205\347\251\272\357\274\214\345\233\240\346\255\244\345\217\252\344"
-    "\277\235\345\255\230\344\270\200\346\254\241\344\274\232\350\257\235\357\274\214\346\260\270\344\270\215\345\242"
-    "\236\351\225\277\343\200\202",
+    "\346\212\212\350\277\236\347\273\255\345\205\253\345\270\247\345\206\231\344\270\244\351\201\215\357\274\232"
+    "\350\266\205\351\207\207\346\240\267\345\231\250\350\276\223\345\207\272\347\232\204\345\216\237\346\240\267"
+    "\357\274\214\344\273\245\345\217\212\345\272\224\347\224\250\346\250\241\345\236\213\344\277\256\346\224\271"
+    "\344\271\213\345\220\216\343\200\202\345\206\231\345\205\245 OptiScaler \346\227\201\350\276\271\347\232\204"
+    " dlssnr-capture \346\226\207\344\273\266\345\244\271\357\274\233\346\257\217\346\254\241\350\277\220\350\241\214"
+    "\350\246\206\347\233\226\344\270\212\344\270\200\346\254\241\343\200\202",
+    "\346\257\217\346\254\241\344\274\232\350\257\235\350\207\252\345\212\250\346\215\225\350\216\267\344\270\200"
+    "\346\254\241",
+    "\346\227\240\351\234\200\344\273\273\344\275\225\344\272\272\350\246\201\346\261\202\357\274\214\350\207\252"
+    "\345\212\250\345\206\231\345\205\245\344\270\200\347\273\204\345\214\271\351\205\215\347\232\204\345\211\215"
+    "\345\220\216\345\257\271\346\257\224\343\200\202\346\226\207\344\273\266\345\244\271\346\257\217\346\254\241"
+    "\350\277\220\350\241\214\351\203\275\344\274\232\346\270\205\347\251\272\357\274\214\345\233\240\346\255\244"
+    "\345\217\252\344\277\235\345\255\230\344\270\200\346\254\241\344\274\232\350\257\235\357\274\214\346\260\270"
+    "\344\270\215\345\242\236\351\225\277\343\200\202",
     "\345\206\273\347\273\223\347\224\273\351\235\242",
-    "\345\206\273\347\273\223\346\250\241\345\236\213\345\244\204\347\220\206\347\232\204\347\224\273\351\235\242\343"
-    "\200\202\345\206\273\347\273\223\346\234\237\351\227\264\357\274\214\346\233\264\346\224\271\347\272\270\347\231"
-    "\275\343\200\201\345\220\204\345\274\272\345\272\246\343\200\201\345\217\257\351\200\206\346\250\241\345\274\217"
-    "\343\200\201\346\250\241\345\236\213\351\242\204\350\256\276 -- "
-    "\350\266\205\351\207\207\346\240\267\345\231\250\344\271\213\344\270\213\347\232\204\344\273\273\344\275\225\350"
-    "\256\276\347\275\256 -- "
-    "\345\217\252\346\234\211\350\257\245\350\256\276\347\275\256\345\234\250\345\217\230\357\274\214\345\234\272\346"
-    "\231\257\344\270\215\345\217\230\343\200\202\344\270\216\351\241\266\351\203\250\347\232\204\342\200\234\345\272"
-    "\224\347\224\250\346\250\241\345\236\213\342\200\235\351\205\215\345\220\210\357\274\232\345\206\273\347\273\223"
-    "\344\270\200\345\270\247\357\274\214\347\204\266\345\220\216\345\210\207\346\215\242\345\256\203\346\235\245\345"
-    "\257\271\346\257\224\346\234\211\346\227\240\346\225\210\346\236\234\343\200\202\n\n\345\256\203\346\227\240\346"
-    "\263\225\345\261\225\347\244\272\347\232\204\357\274\232\350\266\205\351\207\207\346\240\267\345\231\250\351\242"
-    "\204\350\256\276\346\210\226\346\255\244\351\200\232\351\201\223\344\270\212\346\270\270\347\232\204\344\273\273"
-    "\344\275\225\344\270\234\350\245\277\357\274\210\345\206\273\347\273\223\347\224\273\351\235\242\344\270\212\344"
-    "\270\215\344\274\232\351\207\215\346\226\260\350\277\220\350\241\214\350\266\205\351\207\207\346\240\267\345\231"
-    "\250\357\274\211\357\274\214\344\273\245\345\217\212\345\234\250\346\255\244\344\271\213\345\220\216\350\277\220"
-    "\350\241\214\344\270\224\346\214\201\347\273\255\346\233\264\346\226\260\347\232\204\346\270\270\346\210\217\350"
-    "\207\252\350\272\253 HUD "
-    "\345\222\214\345\220\216\345\244\204\347\220\206\343\200\202\347\231\275\347\202\271\345\201\234\346\255\242\346"
-    "\265\213\351\207\217\345\271\266\344\277\235\346\214\201\346\225\260\345\200\274\357\274\214\345\233\240\346\255"
-    "\244\344\270\215\344\274\232\346\274\202\347\247\273\345\271\262\346\211\260\345\257\271\346\257\224\343\200\202\n"
-    "\n\345\205\263\351\227\255\351\235\242\346\235\277\345\220\216\344\273\215\344\277\235\346\214\201\345\206\273\347"
-    "\273\223\343\200\202\345\217\226\346\266\210\345\213\276\351\200\211\345\215\263\345\217\257\346\201\242\345\244"
-    "\215\343\200\202",
+    "\345\206\273\347\273\223\346\250\241\345\236\213\345\244\204\347\220\206\347\232\204\347\224\273\351\235\242"
+    "\343\200\202\345\206\273\347\273\223\346\234\237\351\227\264\357\274\214\346\233\264\346\224\271\347\272\270"
+    "\347\231\275\343\200\201\345\220\204\345\274\272\345\272\246\343\200\201\345\217\257\351\200\206\346\250\241"
+    "\345\274\217\343\200\201\346\250\241\345\236\213\351\242\204\350\256\276 -- \350\266\205\351\207\207\346\240\267"
+    "\345\231\250\344\271\213\344\270\213\347\232\204\344\273\273\344\275\225\350\256\276\347\275\256 -- \345\217\252"
+    "\346\234\211\350\257\245\350\256\276\347\275\256\345\234\250\345\217\230\357\274\214\345\234\272\346\231\257"
+    "\344\270\215\345\217\230\343\200\202\344\270\216\351\241\266\351\203\250\347\232\204\342\200\234\345\272\224"
+    "\347\224\250\346\250\241\345\236\213\342\200\235\351\205\215\345\220\210\357\274\232\345\206\273\347\273\223"
+    "\344\270\200\345\270\247\357\274\214\347\204\266\345\220\216\345\210\207\346\215\242\345\256\203\346\235\245"
+    "\345\257\271\346\257\224\346\234\211\346\227\240\346\225\210\346\236\234\343\200\202\n\n\345\256\203\346\227\240"
+    "\346\263\225\345\261\225\347\244\272\347\232\204\357\274\232\350\266\205\351\207\207\346\240\267\345\231\250"
+    "\351\242\204\350\256\276\346\210\226\346\255\244\351\200\232\351\201\223\344\270\212\346\270\270\347\232\204"
+    "\344\273\273\344\275\225\344\270\234\350\245\277\357\274\210\345\206\273\347\273\223\347\224\273\351\235\242"
+    "\344\270\212\344\270\215\344\274\232\351\207\215\346\226\260\350\277\220\350\241\214\350\266\205\351\207\207"
+    "\346\240\267\345\231\250\357\274\211\357\274\214\344\273\245\345\217\212\345\234\250\346\255\244\344\271\213"
+    "\345\220\216\350\277\220\350\241\214\344\270\224\346\214\201\347\273\255\346\233\264\346\226\260\347\232\204"
+    "\346\270\270\346\210\217\350\207\252\350\272\253 HUD \345\222\214\345\220\216\345\244\204\347\220\206\343\200\202"
+    "\347\231\275\347\202\271\345\201\234\346\255\242\346\265\213\351\207\217\345\271\266\344\277\235\346\214\201"
+    "\346\225\260\345\200\274\357\274\214\345\233\240\346\255\244\344\270\215\344\274\232\346\274\202\347\247\273"
+    "\345\271\262\346\211\260\345\257\271\346\257\224\343\200\202\n\n\345\205\263\351\227\255\351\235\242\346\235\277"
+    "\345\220\216\344\273\215\344\277\235\346\214\201\345\206\273\347\273\223\343\200\202\345\217\226\346\266\210"
+    "\345\213\276\351\200\211\345\215\263\345\217\257\346\201\242\345\244\215\343\200\202",
     "\345\205\263\351\227\255",
     "\345\271\266\346\216\222",
     "\346\223\246\351\231\244",
     "\345\257\271\346\257\224",
-    "\346\212\212\351\200\232\351\201\223\344\270\216\350\207\252\350\272\253\345\257\271\346\257\224\345\261\225\347"
-    "\244\272\343\200\202\345\271\266\346\216\222\346\212\212\346\225\264\345\271\205\347\224\273\351\235\242\346\224"
-    "\276\350\277\233\346\257\217\344\270\200\345\215\212\357\274\233\346\223\246\351\231\244\345\234\250\345\210\206"
-    "\345\211\262\345\244\204\345\210\207\345\274\200\345\215\225\345\270\247\345\271\266\346\255\243\345\270\270\346"
-    "\222\255\346\224\276\343\200\202\344\270\244\350\200\205\351\203\275\344\270\215\351\234\200\350\246\201\346\211"
-    "\223\345\274\200\350\217\234\345\215\225\345\215\263\345\217\257\346\214\201\347\273\255\345\267\245\344\275\234"
-    "\343\200\202",
+    "\346\212\212\351\200\232\351\201\223\344\270\216\350\207\252\350\272\253\345\257\271\346\257\224\345\261\225"
+    "\347\244\272\343\200\202\345\271\266\346\216\222\346\212\212\346\225\264\345\271\205\347\224\273\351\235\242"
+    "\346\224\276\350\277\233\346\257\217\344\270\200\345\215\212\357\274\233\346\223\246\351\231\244\345\234\250"
+    "\345\210\206\345\211\262\345\244\204\345\210\207\345\274\200\345\215\225\345\270\247\345\271\266\346\255\243"
+    "\345\270\270\346\222\255\346\224\276\343\200\202\344\270\244\350\200\205\351\203\275\344\270\215\351\234\200"
+    "\350\246\201\346\211\223\345\274\200\350\217\234\345\215\225\345\215\263\345\217\257\346\214\201\347\273\255"
+    "\345\267\245\344\275\234\343\200\202",
     "\344\272\244\346\215\242\344\270\244\344\276\247",
     "\346\240\207\347\255\276",
-    "\346\212\212\345\223\252\344\270\200\344\276\247\346\230\257\345\223\252\344\270\200\344\276\247\347\224\273\350"
-    "\277\233\347\224\273\351\235\242\350\207\252\350\272\253\347\232\204\345\271\263\351\235\242\357\274\214\345\233"
-    "\240\346\255\244\346\210\252\345\233\276\344\271\237\350\203\275\347\234\213\345\210\260\343\200\202\346\214\211"
-    "\344\276\247\350\243\201\345\210\207\357\274\214\346\211\200\344\273\245\346\223\246\351\231\244\346\230\276\347"
-    "\244\272\345\222\214\351\232\220\350\227\217\346\240\207\347\255\276\347\232\204\346\226\271\345\274\217\344\270"
-    "\216\345\233\276\345\203\217\345\256\214\345\205\250\344\270\200\350\207\264\343\200\202",
+    "\346\212\212\345\223\252\344\270\200\344\276\247\346\230\257\345\223\252\344\270\200\344\276\247\347\224\273"
+    "\350\277\233\347\224\273\351\235\242\350\207\252\350\272\253\347\232\204\345\271\263\351\235\242\357\274\214"
+    "\345\233\240\346\255\244\346\210\252\345\233\276\344\271\237\350\203\275\347\234\213\345\210\260\343\200\202"
+    "\346\214\211\344\276\247\350\243\201\345\210\207\357\274\214\346\211\200\344\273\245\346\223\246\351\231\244"
+    "\346\230\276\347\244\272\345\222\214\351\232\220\350\227\217\346\240\207\347\255\276\347\232\204\346\226\271"
+    "\345\274\217\344\270\216\345\233\276\345\203\217\345\256\214\345\205\250\344\270\200\350\207\264\343\200\202",
     "\346\240\207\347\255\276\345\244\247\345\260\217",
     "\347\274\251\346\224\276",
     "\345\210\206\345\211\262",
@@ -4038,59 +3719,57 @@ static const char* const kTable_zh_CN[] = {
     "\346\250\241\345\236\213\350\276\223\345\207\272\357\274\210\345\216\237\345\247\213\357\274\211",
     "\345\267\256\345\274\202\357\274\210\346\224\276\345\244\247\357\274\211",
     "\350\260\203\350\257\225\350\247\206\345\233\276",
-    "\344\273\243\347\220\206\346\230\257\344\272\244\347\273\231\346\250\241\345\236\213\347\232\204\347\224\273\351"
-    "\235\242\343\200\202\345\267\256\345\274\202\346\230\276\347\244\272\346\250\241\345\236\213\345\256\236\351\231"
-    "\205\346\224\271\345\217\230\344\272\206\344\273\200\344\271\210\357\274\214\346\224\276\345\244\247\344\272\214"
-    "\345\215\201\345\200\215\345\271\266\344\273\245\347\201\260\350\211\262\344\270\272\344\270\255\345\277\203\343"
-    "\200\202",
+    "\344\273\243\347\220\206\346\230\257\344\272\244\347\273\231\346\250\241\345\236\213\347\232\204\347\224\273"
+    "\351\235\242\343\200\202\345\267\256\345\274\202\346\230\276\347\244\272\346\250\241\345\236\213\345\256\236"
+    "\351\231\205\346\224\271\345\217\230\344\272\206\344\273\200\344\271\210\357\274\214\346\224\276\345\244\247"
+    "\344\272\214\345\215\201\345\200\215\345\271\266\344\273\245\347\201\260\350\211\262\344\270\272\344\270\255"
+    "\345\277\203\343\200\202",
     "\345\256\236\351\252\214\346\200\247",
-    "\344\270\244\350\200\205\351\203\275\346\234\252\347\273\217\351\252\214\350\257\201\343\200\202\345\256\203\344"
-    "\273\254\347\224\250\344\272\216\346\265\213\350\257\225\351\251\261\345\212\250\350\207\252\345\267\261\347\232"
-    "\204 nvngx.dll "
-    "\350\203\275\345\220\246\350\260\203\345\272\246\346\250\241\345\236\213\357\274\214\345\246\202\346\236\234\345"
-    "\217\257\344\273\245\357\274\214\345\260\261\344\270\215\345\206\215\351\234\200\350\246\201 OptiScaler "
-    "\346\227\201\350\276\271\351\202\243\344\273\275 165 MB \347\232\204\345\211\257\346\234\254\343\200\202",
+    "\344\270\244\350\200\205\351\203\275\346\234\252\347\273\217\351\252\214\350\257\201\343\200\202\345\256\203"
+    "\344\273\254\347\224\250\344\272\216\346\265\213\350\257\225\351\251\261\345\212\250\350\207\252\345\267\261"
+    "\347\232\204 nvngx.dll \350\203\275\345\220\246\350\260\203\345\272\246\346\250\241\345\236\213\357\274\214"
+    "\345\246\202\346\236\234\345\217\257\344\273\245\357\274\214\345\260\261\344\270\215\345\206\215\351\234\200"
+    "\350\246\201 OptiScaler \346\227\201\350\276\271\351\202\243\344\273\275 165 MB \347\232\204\345\211\257"
+    "\346\234\254\343\200\202",
     "\346\216\242\346\265\213\351\251\261\345\212\250",
-    "\346\257\217\346\254\241\344\274\232\350\257\235\345\220\221\351\251\261\345\212\250\347\232\204 nvngx.dll "
-    "\350\257\242\351\227\256\344\270\200\346\254\241\345\256\203\346\230\257\345\220\246\345\267\262\347\273\217\350"
-    "\256\244\350\257\206\350\257\245\346\250\241\345\236\213\343\200\202\346\212\212\347\255\224\346\241\210\345\206"
-    "\231\345\205\245\346\227\245\345\277\227\357\274\214\345\205\266\344\273\226\344\270\200\346\246\202\344\270\215"
-    "\345\217\230\343\200\202\n\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266\350\257\273"
-    "\345\217\226\357\274\214\345\233\240\346\255\244\344\273\216\344\270\213\346\254\241\344\274\232\350\257\235\350"
-    "\265\267\347\224\237\346\225\210\343\200\202",
+    "\346\257\217\346\254\241\344\274\232\350\257\235\345\220\221\351\251\261\345\212\250\347\232\204 nvngx.d"
+    "ll \350\257\242\351\227\256\344\270\200\346\254\241\345\256\203\346\230\257\345\220\246\345\267\262\347\273\217"
+    "\350\256\244\350\257\206\350\257\245\346\250\241\345\236\213\343\200\202\346\212\212\347\255\224\346\241\210"
+    "\345\206\231\345\205\245\346\227\245\345\277\227\357\274\214\345\205\266\344\273\226\344\270\200\346\246\202"
+    "\344\270\215\345\217\230\343\200\202\n\n\345\234\250\346\250\241\345\236\213\346\236\204\345\273\272\346\227\266"
+    "\350\257\273\345\217\226\357\274\214\345\233\240\346\255\244\344\273\216\344\270\213\346\254\241\344\274\232"
+    "\350\257\235\350\265\267\347\224\237\346\225\210\343\200\202",
     "\351\200\232\350\277\207\351\251\261\345\212\250\350\277\220\350\241\214",
-    "\351\200\232\350\277\207\351\251\261\345\212\250\350\207\252\345\267\261\347\232\204 nvngx.dll "
-    "\350\200\214\344\270\215\346\230\257\350\275\254\345\217\221\345\231\250\351\251\261\345\212\250\346\250\241\345"
-    "\236\213 -- \344\270\216 DLSS "
-    "\346\234\254\350\272\253\347\232\204\350\260\203\347\224\250\346\226\271\345\274\217\347\233\270\345\220\214\343"
-    "\200\202\345\246\202\346\236\234\347\224\273\351\235\242\344\270\200\350\207\264\357\274\214\350\275\254\345\217"
-    "\221\345\231\250\345\260\261\346\262\241\346\234\211\345\277\205\350\246\201\343\200\202\n\n\344\277\241\344\273"
-    "\273\344\271\213\345\211\215\345\205\210\345\257\271\346\257\224\357\274\232\346\211\223\345\274\200\344\270\212"
-    "\346\226\271\347\232\204\345\257\271\346\257\224\357\274\214\346\237\245\346\211\276\345\267\256\345\274\202\343"
-    "\200\202",
+    "\351\200\232\350\277\207\351\251\261\345\212\250\350\207\252\345\267\261\347\232\204 nvngx.dll \350\200\214"
+    "\344\270\215\346\230\257\350\275\254\345\217\221\345\231\250\351\251\261\345\212\250\346\250\241\345\236\213"
+    " -- \344\270\216 DLSS \346\234\254\350\272\253\347\232\204\350\260\203\347\224\250\346\226\271\345\274\217"
+    "\347\233\270\345\220\214\343\200\202\345\246\202\346\236\234\347\224\273\351\235\242\344\270\200\350\207\264"
+    "\357\274\214\350\275\254\345\217\221\345\231\250\345\260\261\346\262\241\346\234\211\345\277\205\350\246\201"
+    "\343\200\202\n\n\344\277\241\344\273\273\344\271\213\345\211\215\345\205\210\345\257\271\346\257\224\357\274\232"
+    "\346\211\223\345\274\200\344\270\212\346\226\271\347\232\204\345\257\271\346\257\224\357\274\214\346\237\245"
+    "\346\211\276\345\267\256\345\274\202\343\200\202",
     "\345\244\226\350\247\202",
     "\346\265\205\350\211\262\351\235\242\346\235\277",
-    "\346\265\205\350\211\262\346\230\257\351\273\230\350\256\244\343\200\202\346\255\244\351\235\242\346\235\277\346"
-    "\234\200\345\210\235\344\273\277\347\205\247\347\232\204\346\267\261\350\211\262\351\205\215\350\211\262\350\256"
-    "\251\346\232\227\346\267\241\346\226\207\345\255\227\344\270\216\350\203\214\346\231\257\347\232\204\345\257\271"
-    "\346\257\224\345\272\246\345\217\252\346\234\211 "
-    "2.65:1\357\274\214\350\200\214\350\210\222\351\200\202\351\230\205\350\257\273\351\234\200\350\246\201 4.5:1 -- "
-    "\350\246\206\347\233\226\345\261\202\346\230\257\345\234\250\347\247\273\345\212\250\347\232\204\347\224\273\351"
-    "\235\242\344\270\212\344\270\200\347\236\245\350\200\214\350\277\207\347\232\204\343\200\202\n\n\345\217\226\346"
-    "\266\210\345\213\276\351\200\211\346\201\242\345\244\215 NVIDIA "
-    "\350\207\252\345\267\261\347\232\204\351\205\215\350\211\262\343\200\202",
+    "\346\265\205\350\211\262\346\230\257\351\273\230\350\256\244\343\200\202\346\255\244\351\235\242\346\235\277"
+    "\346\234\200\345\210\235\344\273\277\347\205\247\347\232\204\346\267\261\350\211\262\351\205\215\350\211\262"
+    "\350\256\251\346\232\227\346\267\241\346\226\207\345\255\227\344\270\216\350\203\214\346\231\257\347\232\204"
+    "\345\257\271\346\257\224\345\272\246\345\217\252\346\234\211 2.65:1\357\274\214\350\200\214\350\210\222\351\200\202"
+    "\351\230\205\350\257\273\351\234\200\350\246\201 4.5:1 -- \350\246\206\347\233\226\345\261\202\346\230\257"
+    "\345\234\250\347\247\273\345\212\250\347\232\204\347\224\273\351\235\242\344\270\212\344\270\200\347\236\245"
+    "\350\200\214\350\277\207\347\232\204\343\200\202\n\n\345\217\226\346\266\210\345\213\276\351\200\211\346\201\242"
+    "\345\244\215 NVIDIA \350\207\252\345\267\261\347\232\204\351\205\215\350\211\262\343\200\202",
     "\345\216\202\345\225\206\351\205\215\350\211\262",
-    "\351\235\242\346\235\277\347\232\204\345\274\272\350\260\203\350\211\262\350\267\237\351\232\217\345\256\203\346"
-    "\211\200\347\273\230\345\210\266\347\232\204\346\230\276\345\215\241\357\274\232NVIDIA GPU "
-    "\344\270\212\344\270\272 NVIDIA \347\273\277\357\274\214AMD \344\270\212\344\270\272 AMD "
-    "\347\272\242\343\200\202\345\217\226\346\266\210\345\213\276\351\200\211\345\210\231\345\244\204\345\244\204\344"
-    "\277\235\346\214\201\347\273\277\350\211\262\343\200\202",
-    "\n\n\346\255\244\346\270\270\346\210\217\346\255\243\350\277\220\350\241\214\345\234\250 AMD "
-    "\346\230\276\345\215\241\344\270\212\343\200\202",
-    "\n\n\346\255\244\346\270\270\346\210\217\345\271\266\351\235\236\350\277\220\350\241\214\345\234\250 AMD "
-    "\346\230\276\345\215\241\344\270\212\357\274\214\346\211\200\344\273\245\346\255\244\351\241\271\345\234\250\350"
-    "\277\231\351\207\214\344\270\215\346\224\271\345\217\230\344\273\273\344\275\225\344\270\234\350\245\277\343\200"
-    "\202",
+    "\351\235\242\346\235\277\347\232\204\345\274\272\350\260\203\350\211\262\350\267\237\351\232\217\345\256\203"
+    "\346\211\200\347\273\230\345\210\266\347\232\204\346\230\276\345\215\241\357\274\232NVIDIA GPU \344\270\212"
+    "\344\270\272 NVIDIA \347\273\277\357\274\214AMD \344\270\212\344\270\272 AMD \347\272\242\343\200\202\345\217\226"
+    "\346\266\210\345\213\276\351\200\211\345\210\231\345\244\204\345\244\204\344\277\235\346\214\201\347\273\277"
+    "\350\211\262\343\200\202",
+    "\n\n\346\255\244\346\270\270\346\210\217\346\255\243\350\277\220\350\241\214\345\234\250 AMD \346\230\276"
+    "\345\215\241\344\270\212\343\200\202",
+    "\n\n\346\255\244\346\270\270\346\210\217\345\271\266\351\235\236\350\277\220\350\241\214\345\234\250 AMD"
+    " \346\230\276\345\215\241\344\270\212\357\274\214\346\211\200\344\273\245\346\255\244\351\241\271\345\234\250"
+    "\350\277\231\351\207\214\344\270\215\346\224\271\345\217\230\344\273\273\344\275\225\344\270\234\350\245\277"
+    "\343\200\202",
     "\350\207\252\345\212\250\357\274\210Windows\357\274\211",
     "\350\213\261\350\257\255",
     "\350\221\241\350\220\204\347\211\231\350\257\255\357\274\210\345\267\264\350\245\277\357\274\211",
@@ -4100,20 +3779,19 @@ static const char* const kTable_zh_CN[] = {
     "\350\245\277\347\217\255\347\211\231\350\257\255",
     "\345\276\267\350\257\255",
     "\350\257\255\350\250\200",
-    "\350\207\252\345\212\250\350\267\237\351\232\217 Windows "
-    "\347\232\204\346\230\276\347\244\272\350\257\255\350\250\200\343\200\202\345\234\250\346\255\244\345\233\272\345"
-    "\256\232\345\217\252\346\224\271\345\217\230\346\255\244\351\235\242\346\235\277\357\274\233OptiScaler "
-    "\350\207\252\345\267\261\347\232\204\350\217\234\345\215\225\344\273\215\344\270\272\350\213\261\346\226\207\343"
-    "\200\202\351\234\200\350\246\201\350\207\252\346\234\211\345\255\227\344\275\223\347\232\204\350\257\255\350\250"
-    "\200\357\274\210\344\270\255\346\226\207\343\200\201\351\237\251\346\226\207\357\274\211\344\274\232\345\234\250"
-    "\344\270\213\344\270\200\345\270\247\344\273\216 Windows \345\212\240\350\275\275\343\200\202",
+    "\350\207\252\345\212\250\350\267\237\351\232\217 Windows \347\232\204\346\230\276\347\244\272\350\257\255"
+    "\350\250\200\343\200\202\345\234\250\346\255\244\345\233\272\345\256\232\345\217\252\346\224\271\345\217\230"
+    "\346\255\244\351\235\242\346\235\277\357\274\233OptiScaler \350\207\252\345\267\261\347\232\204\350\217\234"
+    "\345\215\225\344\273\215\344\270\272\350\213\261\346\226\207\343\200\202\351\234\200\350\246\201\350\207\252"
+    "\346\234\211\345\255\227\344\275\223\347\232\204\350\257\255\350\250\200\357\274\210\344\270\255\346\226\207"
+    "\343\200\201\351\237\251\346\226\207\357\274\211\344\274\232\345\234\250\344\270\213\344\270\200\345\270\247"
+    "\344\273\216 Windows \345\212\240\350\275\275\343\200\202",
     "\345\255\227\344\275\223\345\244\247\345\260\217",
-    "\344\273\205\346\255\244\351\235\242\346\235\277\347\232\204\346\226\207\345\255\227 -- OptiScaler "
-    "\350\207\252\345\267\261\347\232\204\350\217\234\345\215\225\344\277\235\346\214\201\345\205\266 [Menu] "
-    "FontSize\343\200\202\n\n\350\241\214\345\256\275\346\214\211\345\255\227\344\275\223\345\244\247\345\260\217\350"
-    "\256\241\347\256\227\357\274\214\345\233\240\346\255\244\350\277\234\350\266\205 1.5x "
-    "\346\227\266\346\240\207\347\255\276\344\274\232\345\274\200\345\247\213\346\222\236\344\270\212\346\225\260\345"
-    "\200\274\343\200\202",
+    "\344\273\205\346\255\244\351\235\242\346\235\277\347\232\204\346\226\207\345\255\227 -- OptiScaler \350\207\252"
+    "\345\267\261\347\232\204\350\217\234\345\215\225\344\277\235\346\214\201\345\205\266 [Menu] FontSize\343\200\202"
+    "\n\n\350\241\214\345\256\275\346\214\211\345\255\227\344\275\223\345\244\247\345\260\217\350\256\241\347\256\227"
+    "\357\274\214\345\233\240\346\255\244\350\277\234\350\266\205 1.5x \346\227\266\346\240\207\347\255\276\344\274\232"
+    "\345\274\200\345\247\213\346\222\236\344\270\212\346\225\260\345\200\274\343\200\202",
     "\351\207\215\347\275\256\345\270\203\345\261\200",
     "\346\213\226\345\212\250\351\235\242\346\235\277\350\203\214\346\231\257\347\232\204\344\273\273\346\204\217"
     "\344\275\215\347\275\256\345\215\263\345\217\257\347\247\273\345\212\250\357\274\214\346\213\226\345\212\250"
@@ -4125,38 +3803,37 @@ static const char* const kTable_zh_CN[] = {
     "\344\274\232\346\214\211\345\261\217\345\271\225\346\257\224\344\276\213\344\270\272\346\234\254\346\270\270"
     "\346\210\217\350\256\260\344\275\217\357\274\214\345\233\240\346\255\244\345\234\250\344\273\273\344\275\225"
     "\345\210\206\350\276\250\347\216\207\344\270\213\351\203\275\344\274\232\346\201\242\345\244\215\343\200\202",
-    "\345\205\263\351\227\255\351\235\242\346\235\277\343\200\202\346\214\211\345\205\266\345\277\253\346\215\267\351"
-    "\224\256\345\217\257\345\206\215\346\254\241\346\211\223\345\274\200\343\200\202",
-    "\346\270\270\346\210\217\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\357\274\232\346\255\243\345\234"
-    "\250\344\273\245 %dX \350\277\220\350\241\214",
-    "\346\270\270\346\210\217\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\357\274\232\345\267\262\345\234"
-    "\250\346\270\270\346\210\217\347\232\204\350\247\206\351\242\221\350\256\276\347\275\256\344\270\255\345\205"
-    "\263\351\227\255\343\200\202",
+    "\345\205\263\351\227\255\351\235\242\346\235\277\343\200\202\346\214\211\345\205\266\345\277\253\346\215\267"
+    "\351\224\256\345\217\257\345\206\215\346\254\241\346\211\223\345\274\200\343\200\202",
+    "\346\270\270\346\210\217\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\357\274\232\346\255\243\345\234\250"
+    "\344\273\245 %dX \350\277\220\350\241\214",
+    "\346\270\270\346\210\217\347\232\204 DLSS \345\270\247\347\224\237\346\210\220\357\274\232\345\267\262\345\234\250"
+    "\346\270\270\346\210\217\347\232\204\350\247\206\351\242\221\350\256\276\347\275\256\344\270\255\345\205\263"
+    "\351\227\255\343\200\202",
     "\346\255\244\346\270\270\346\210\217\350\207\252\345\270\246 NVIDIA DLSS \345\270\247\347\224\237\346\210\220"
     "\343\200\202\347\205\247\345\270\270\345\234\250\346\270\270\346\210\217\347\232\204\350\247\206\351\242\221"
-    "\350\256\276\347\275\256\344\270\255\345\274\200\345\205\263\345\256\203 --\n\344\270\213\351\235\242\350\277"
-    "\231\344\270\200\350\241\214\345\217\252\346\224\271\345\217\230\345\256\203\345\220\221\351\251\261\345\212"
-    "\250\350\257\267\346\261\202\347\232\204\345\200\215\346\225\260\343\200\202",
+    "\350\256\276\347\275\256\344\270\255\345\274\200\345\205\263\345\256\203 --\n\344\270\213\351\235\242\350\277\231"
+    "\344\270\200\350\241\214\345\217\252\346\224\271\345\217\230\345\256\203\345\220\221\351\251\261\345\212\250"
+    "\350\257\267\346\261\202\347\232\204\345\200\215\346\225\260\343\200\202",
     "\346\270\270\346\210\217",
-    "\350\246\206\347\233\226\346\270\270\346\210\217\347\232\204 DLSS-G \345\234\250\347\234\237\345\256\236\345"
-    "\270\247\344\271\213\351\227\264\346\217\222\345\205\245\347\232\204\351\242\235\345\244\226\345\270\247\346"
-    "\225\260\343\200\202\n\342\200\234\346\270\270\346\210\217\342\200\235\344\277\235\346\214\201\346\270\270\346"
-    "\210\217\350\207\252\350\272\253\350\217\234\345\215\225\344\270\255\347\232\204\350\256\276\347\275\256\343"
-    "\200\2022X \346\217\222\345\205\245\344\270\200\345\270\247\357\274\2143X\n\346\217\222\345\205\245\344\270"
-    "\244\345\270\247\357\274\214\344\276\235\346\255\244\347\261\273\346\216\250\343\200\2023X \345\222\214 4X "
-    "\351\234\200\350\246\201 RTX 50 \347\263\273\345\210\227 -- \345\205\266\344\273\226\346\230\276\345\215\241\n"
-    "\346\227\240\350\256\272\350\277\231\351\207\214\351\200\211\344\273\200\344\271\210\357\274\214\351\251\261"
-    "\345\212\250\351\203\275\344\274\232\351\231\220\345\210\266\345\234\250 2X\343\200\202\n\n\344\270\213\346"
-    "\226\271 Multi \345\274\200\345\220\257\346\227\266\346\255\244\351\241\271\345\217\230\347\201\260 -- \351"
-    "\202\243\346\227\266\347\224\261\351\251\261\345\212\250\345\206\263\345\256\232\345\270\247\346\225\260\343"
-    "\200\202",
+    "\350\246\206\347\233\226\346\270\270\346\210\217\347\232\204 DLSS-G \345\234\250\347\234\237\345\256\236"
+    "\345\270\247\344\271\213\351\227\264\346\217\222\345\205\245\347\232\204\351\242\235\345\244\226\345\270\247"
+    "\346\225\260\343\200\202\n\342\200\234\346\270\270\346\210\217\342\200\235\344\277\235\346\214\201\346\270\270"
+    "\346\210\217\350\207\252\350\272\253\350\217\234\345\215\225\344\270\255\347\232\204\350\256\276\347\275\256"
+    "\343\200\2022X \346\217\222\345\205\245\344\270\200\345\270\247\357\274\2143X\n\346\217\222\345\205\245\344\270\244"
+    "\345\270\247\357\274\214\344\276\235\346\255\244\347\261\273\346\216\250\343\200\2023X \345\222\214 4X \351\234\200"
+    "\350\246\201 RTX 50 \347\263\273\345\210\227 -- \345\205\266\344\273\226\346\230\276\345\215\241\n\346\227\240"
+    "\350\256\272\350\277\231\351\207\214\351\200\211\344\273\200\344\271\210\357\274\214\351\251\261\345\212\250"
+    "\351\203\275\344\274\232\351\231\220\345\210\266\345\234\250 2X\343\200\202\n\n\344\270\213\346\226\271 "
+    "Multi \345\274\200\345\220\257\346\227\266\346\255\244\351\241\271\345\217\230\347\201\260 -- \351\202\243"
+    "\346\227\266\347\224\261\351\251\261\345\212\250\345\206\263\345\256\232\345\270\247\346\225\260\343\200\202",
     "\347\274\272\345\260\221 nvngx.dll_dlssnr.dll",
     "nvngx.dll_dlssnr.dll \346\227\240\346\263\225\345\212\240\350\275\275",
     "forwarder \347\274\272\345\260\221\345\257\274\345\207\272\345\207\275\346\225\260",
     "NGX \346\240\270\345\277\203\346\227\240\346\263\225\345\210\235\345\247\213\345\214\226",
     "NGX \346\240\270\345\277\203\346\262\241\346\234\211\350\203\275\345\212\233\345\217\202\346\225\260",
-    "NGX \346\240\270\345\277\203\346\213\222\347\273\235\344\272\206\345\256\203\347\232\204\350\203\275\345\212"
-    "\233\345\217\202\346\225\260",
+    "NGX \346\240\270\345\277\203\346\213\222\347\273\235\344\272\206\345\256\203\347\232\204\350\203\275\345\212\233"
+    "\345\217\202\346\225\260",
     "\346\227\240\346\263\225\345\210\206\351\205\215\350\266\205\345\210\206\345\211\215\347\232\204\351\242\234"
     "\350\211\262\346\232\202\345\255\230\347\272\271\347\220\206",
     "\345\234\250 OptiScaler \346\210\226\346\270\270\346\210\217\346\227\201\350\276\271\346\211\276\344\270\215"
@@ -4169,222 +3846,234 @@ static const char* const kTable_zh_CN[] = {
     "\344\273\243\347\220\206\350\267\257\345\276\204\346\227\240\346\263\225\350\277\220\350\241\214\346\250\241"
     "\345\236\213",
     "\346\250\241\345\236\213\346\213\222\347\273\235\350\277\220\350\241\214",
-    "%s \345\267\262\345\234\250\345\201\232\350\277\231\344\273\266\344\272\213 -- \347\247\273\351\231\244\345"
-    "\256\203\357\274\214\346\210\226\345\205\263\351\227\255\346\255\244\351\241\271",
+    "%s \345\267\262\345\234\250\345\201\232\350\277\231\344\273\266\344\272\213 -- \347\247\273\351\231\244\345\256\203"
+    "\357\274\214\346\210\226\345\205\263\351\227\255\346\255\244\351\241\271",
     "\345\260\232\346\234\252\345\274\200\345\247\213",
     "\346\227\240\346\263\225\345\210\206\351\205\215\345\233\236\350\257\273\347\274\223\345\206\262\345\214\272",
     "\346\255\244\346\270\270\346\210\217\344\270\255\346\262\241\346\234\211\345\275\242\347\212\266\345\203\217"
     "\346\233\235\345\205\211\345\200\274\347\232\204\347\274\223\345\206\262\345\214\272",
+    "\346\263\225\350\257\255",
 };
 
 static const char* const kTable_es[] = {
     "Controles de desarrollador DLSS 5",
     "DLSS ACTIVADO",
-    "Sintetiza detalle en el fotograma del escalador, antes de que la generaci\303\263n de fotogramas lo "
-    "vea.\n\nNecesita dos archivos de nombre parecido junto a OptiScaler, con un car\303\241cter de diferencia:\n  "
-    "nvngx_dlssnr.dll       el modelo de NVIDIA (~165 MB) -- lo aportas t\303\272\n  nvngx.dll_dlssnr.dll   el "
-    "reenviador (~13 KB) -- viene en este paquete\nSin documentar y accionado directamente, as\303\255 que nada de "
-    "esto tiene soporte oficial.",
+    "Sintetiza detalle en el fotograma del escalador, antes de que la generaci\303\263n de fotogramas lo vea."
+    "\n\nNecesita dos archivos de nombre parecido junto a OptiScaler, con un car\303\241cter de diferencia:\n"
+    "  nvngx_dlssnr.dll       el modelo de NVIDIA (~165 MB) -- lo aportas t\303\272\n  nvngx.dll_dlssnr.dll  "
+    " el reenviador (~13 KB) -- viene en este paquete\nSin documentar y accionado directamente, as\303\255 qu"
+    "e nada de esto tiene soporte oficial.",
     "Fuente: DLSS5 Feeder (sin DLSS nativo en este juego)",
-    "Este juego no tiene DLSS propio, as\303\255 que no hay llamada evaluate a la que el Neural Rendering pueda "
-    "engancharse. El add-on de ReShade DLSS5 Feeder construye una a partir de la profundidad y los vectores de "
-    "movimiento estimados del propio ReShade.\n\nLos vectores de movimiento estimados son m\303\241s toscos que los "
-    "reales del juego -- espera m\303\241s ghosting en movimiento r\303\241pido y geometr\303\255a fina m\303\241s "
-    "suave que lo que un juego con DLSS nativo obtiene del mismo modelo.",
+    "Este juego no tiene DLSS propio, as\303\255 que no hay llamada evaluate a la que el Neural Rendering pue"
+    "da engancharse. El add-on de ReShade DLSS5 Feeder construye una a partir de la profundidad y los vectore"
+    "s de movimiento estimados del propio ReShade.\n\nLos vectores de movimiento estimados son m\303\241s tos"
+    "cos que los reales del juego -- espera m\303\241s ghosting en movimiento r\303\241pido y geometr\303\255"
+    "a fina m\303\241s suave que lo que un juego con DLSS nativo obtiene del mismo modelo.",
     "Lossless Scaling: sin configurar (OptiDLSS5-UI).",
     "Lossless Scaling",
-    "Abre/cierra Lossless Scaling en segundo plano (minimizado en la bandeja, sin ventana visible). Activar Activo "
-    "abajo tambi\303\251n lo abre por ti.",
+    "Abre/cierra Lossless Scaling en segundo plano (minimizado en la bandeja, sin ventana visible). Activar A"
+    "ctivo abajo tambi\303\251n lo abre por ti.",
     "Activo",
-    "Activa/desactiva la Frame Generation de Lossless Scaling para este juego con su propio atajo global -- no se m"
-    "uestra ninguna ventana, y abre Lossless Scaling primero si hace falta. Muestra lo \303\272ltimo pedido, no un "
-    "estado confirmado en vivo.\n\nActivar esto desactiva la Frame Generation propia de OptiScaler: dos generadores"
-    " de fotogramas a la vez se apilan.",
+    "Activa/desactiva la Frame Generation de Lossless Scaling para este juego con su propio atajo global -- n"
+    "o se muestra ninguna ventana, y abre Lossless Scaling primero si hace falta. Muestra lo \303\272ltimo pe"
+    "dido, no un estado confirmado en vivo.\n\nActivar esto desactiva la Frame Generation propia de OptiScale"
+    "r: dos generadores de fotogramas a la vez se apilan.",
     "Adaptativo: mantiene %d fps",
-    "Frame Generation adaptativa: Lossless Scaling genera solo los fotogramas necesarios para mantener este objetivo. "
-    "Cambia el objetivo (o pasa a un multiplicador fijo) en OptiDLSS5-UI. Necesita el juego en Borderless o en "
-    "ventana, no en pantalla completa exclusiva (los juegos DX12 suelen ir bien de cualquier modo).",
-    "Fotogramas generados por cada uno real. Si Lossless Scaling ya est\303\241 en marcha, se reinicia un momento p"
-    "ara aplicarlo -- la Frame Gen se apaga un segundo. Necesita el juego en Borderless o en ventana, no en pantall"
-    "a completa exclusiva (los juegos DX12 suelen ir bien de cualquier modo).",
+    "Frame Generation adaptativa: Lossless Scaling genera solo los fotogramas necesarios para mantener este o"
+    "bjetivo. Cambia el objetivo (o pasa a un multiplicador fijo) en OptiDLSS5-UI. Necesita el juego en Borde"
+    "rless o en ventana, no en pantalla completa exclusiva (los juegos DX12 suelen ir bien de cualquier modo)"
+    ".",
+    "Fotogramas generados por cada uno real. Si Lossless Scaling ya est\303\241 en marcha, se reinicia un mom"
+    "ento para aplicarlo -- la Frame Gen se apaga un segundo. Necesita el juego en Borderless o en ventana, n"
+    "o en pantalla completa exclusiva (los juegos DX12 suelen ir bien de cualquier modo).",
     "Mant\303\251n apagada la DLSS Frame Generation propia del juego mientras esto corre.",
     "Tecla de alternancia",
-    "Activa y desactiva el Neural Rendering sin abrir este panel. Pulsa el bot\303\263n y luego la tecla que quieras. "
-    "Escape cancela, Retroceso desvincula, R lo restablece.",
+    "Activa y desactiva el Neural Rendering sin abrir este panel. Pulsa el bot\303\263n y luego la tecla que "
+    "quieras. Escape cancela, Retroceso desvincula, R lo restablece.",
     "Tecla del panel",
-    "Abre y cierra este panel. Independiente de la tecla del men\303\272 propio de OptiScaler, as\303\255 que los dos "
-    "pueden estar abiertos juntos o por separado.",
+    "Abre y cierra este panel. Independiente de la tecla del men\303\272 propio de OptiScaler, as\303\255 que"
+    " los dos pueden estar abiertos juntos o por separado.",
     "Aplicar el modelo",
-    "Si se aplica la edici\303\263n del modelo. Apagado muestra el fotograma limpio del escalador mientras el pase "
-    "sigue corriendo -- as\303\255, con Congelar fotograma, en Inspeccionar, puedes congelar un fotograma y alternar "
-    "esto para ver el mismo fotograma con y sin Neural Rendering.\nD\303\251jalo activado para el uso normal.",
+    "Si se aplica la edici\303\263n del modelo. Apagado muestra el fotograma limpio del escalador mientras el"
+    " pase sigue corriendo -- as\303\255, con Congelar fotograma, en Inspeccionar, puedes congelar un fotogra"
+    "ma y alternar esto para ver el mismo fotograma con y sin Neural Rendering.\nD\303\251jalo activado para "
+    "el uso normal.",
     "Antes de Super Resolution",
-    "D\303\263nde se sit\303\272a el pase. Apagado es la ubicaci\303\263n original: el modelo corre sobre el fotogr"
-    "ama ya escalado. Encendido lo corre a resoluci\303\263n de render sobre el color que SR est\303\241 a punto de"
-    " consumir, as\303\255 que SR acumula y escala una imagen ya mejorada.\n\nRay Reconstruction siempre se queda e"
-    "n la ruta posterior al escalado -- sus entradas son otro contrato. Una imagen de color con relleno dentro de u"
-    "na textura mayor se procesa a su tama\303\261o real; una desplazada de la esquina sigue volviendo a despu\303"
-    "\251s del escalado.\n\nSolo D3D12 y sus puentes D3D11/Vulkan; Vulkan nativo conserva la ubicaci\303\263n antig"
-    "ua.",
+    "D\303\263nde se sit\303\272a el pase. Apagado es la ubicaci\303\263n original: el modelo corre sobre el "
+    "fotograma ya escalado. Encendido lo corre a resoluci\303\263n de render sobre el color que SR est\303\241"
+    " a punto de consumir, as\303\255 que SR acumula y escala una imagen ya mejorada.\n\nRay Reconstruction s"
+    "iempre se queda en la ruta posterior al escalado -- sus entradas son otro contrato. Una imagen de color "
+    "con relleno dentro de una textura mayor se procesa a su tama\303\261o real; una desplazada de la esquina"
+    " sigue volviendo a despu\303\251s del escalado.\n\nSolo D3D12 y sus puentes D3D11/Vulkan; Vulkan nativo "
+    "conserva la ubicaci\303\263n antigua.",
     "Apagado en esta sesi\303\263n: %s.",
     "Reintentar",
     "Esperando a que corra el escalador.",
-    "El add-on DLSS5 Feeder est\303\241 cargado, pero a\303\272n no ha alimentado un evaluate de DLSS -- busca "
-    "\"technique MISSING\" en dlss5-feed.log en la carpeta del juego si esto no desaparece una vez dentro del juego.",
-    "Necesita DLSS o XeSS seleccionado como escalador en los ajustes de v\303\255deo del propio juego, y una partida "
-    "cargada -- esto (y el resto de OptiScaler) no corre en los men\303\272s.",
+    "El add-on DLSS5 Feeder est\303\241 cargado, pero a\303\272n no ha alimentado un evaluate de DLSS -- busc"
+    "a \"technique MISSING\" en dlss5-feed.log en la carpeta del juego si esto no desaparece una vez dentro d"
+    "el juego.",
+    "Necesita DLSS o XeSS seleccionado como escalador en los ajustes de v\303\255deo del propio juego, y una "
+    "partida cargada -- esto (y el resto de OptiScaler) no corre en los men\303\272s.",
     "  (modelo en marcha, edici\303\263n oculta)",
     "Corriendo%s - %.2f ms por fotograma%s",
     " de forma nativa en Vulkan",
     "Corriendo de forma nativa en Vulkan - %llu fotogramas%s",
     "Corriendo.%s",
     "El pase entero: las copias de staging y el resolve adem\303\241s del modelo. Cronometrar solo el modelo "
-    "maquillar\303\255a la cifra.\n\nComp\303\241ralo con el tiempo de fotograma al pie de esta ventana para ver lo "
-    "que te cuesta.",
+    "maquillar\303\255a la cifra.\n\nComp\303\241ralo con el tiempo de fotograma al pie de esta ventana para "
+    "ver lo que te cuesta.",
     "Controles globales",
     "Intensidad de estructura",
     "La fuerza de s\303\255ntesis de estructura del modelo en todo el fotograma.",
     "Intensidad de tono",
     "La fuerza de remapeo de tono del modelo en todo el fotograma.",
     "Autom\303\241scara del modelo",
-    "Deja que el modelo encuentre la piel por s\303\255 mismo en vez de tratar el fotograma de forma uniforme.",
+    "Deja que el modelo encuentre la piel por s\303\255 mismo en vez de tratar el fotograma de forma uniforme"
+    ".",
     "Mostrar m\303\241scara",
-    "El panel de NVIDIA puede dibujar la autom\303\241scara sobre el fotograma. El modelo no devuelve su "
-    "m\303\241scara por la interfaz que usa este fork, as\303\255 que aqu\303\255 no hay nada que mostrar.",
-    "-1 significa seguir la Intensidad de estructura de los Controles globales de arriba, y es el valor propio del "
-    "modelo. 0 o m\303\241s fija la estructura de la regi\303\263n enmascarada con independencia del resto del "
-    "fotograma.\n\nAtenuado mientras la Autom\303\241scara del modelo est\303\241 apagada -- sin ella no hay "
-    "m\303\241scara que moldear.",
+    "El panel de NVIDIA puede dibujar la autom\303\241scara sobre el fotograma. El modelo no devuelve su m\303\241"
+    "scara por la interfaz que usa este fork, as\303\255 que aqu\303\255 no hay nada que mostrar.",
+    "-1 significa seguir la Intensidad de estructura de los Controles globales de arriba, y es el valor propi"
+    "o del modelo. 0 o m\303\241s fija la estructura de la regi\303\263n enmascarada con independencia del re"
+    "sto del fotograma.\n\nAtenuado mientras la Autom\303\241scara del modelo est\303\241 apagada -- sin ella"
+    " no hay m\303\241scara que moldear.",
     "M\303\241scaras de desarrollador",
     "Mostrar m\303\241scaras",
-    "Las m\303\241scaras por objeto vienen del renderizador del propio juego, as\303\255 que esto queda solo para "
-    "NVIDIA -- un inyector no tiene lista de objetos que enmascarar.",
+    "Las m\303\241scaras por objeto vienen del renderizador del propio juego, as\303\255 que esto queda solo "
+    "para NVIDIA -- un inyector no tiene lista de objetos que enmascarar.",
     "Modelos",
     "Predeterminado",
     "Modelo A",
     "Modelo B",
     "Modelo C",
-    "No es la misma escala que los presets de super resolution o ray reconstruction -- la misma letra significa otra "
-    "cosa aqu\303\255.\n\nSe lee al construir el modelo, as\303\255 que un cambio lo reconstruye tras un momento.",
+    "No es la misma escala que los presets de super resolution o ray reconstruction -- la misma letra signifi"
+    "ca otra cosa aqu\303\255.\n\nSe lee al construir el modelo, as\303\255 que un cambio lo reconstruye tras"
+    " un momento.",
     "Predeterminado (standard)",
     "Natural",
     "Cinematic",
     "Estilo",
-    "Los perfiles de procesado propios del modelo.\n\nPredeterminado (standard): el m\303\241s fuerte, y el que "
-    "m\303\241s tiende a verse 'estilizado'.\nNatural: el mismo trabajo de detalle con mano m\303\241s "
-    "suave.\nCinematic: rebaja el brillo y el sobreprocesado para un aspecto de cine.\n\nLos nombres vienen de pruebas "
-    "de la comunidad, a diferencia de las etiquetas del panel de arriba -- NVIDIA no incluye nombres para este control "
-    "en los binarios.",
+    "Los perfiles de procesado propios del modelo.\n\nPredeterminado (standard): el m\303\241s fuerte, y el q"
+    "ue m\303\241s tiende a verse 'estilizado'.\nNatural: el mismo trabajo de detalle con mano m\303\241s sua"
+    "ve.\nCinematic: rebaja el brillo y el sobreprocesado para un aspecto de cine.\n\nLos nombres vienen de p"
+    "ruebas de la comunidad, a diferencia de las etiquetas del panel de arriba -- NVIDIA no incluye nombres p"
+    "ara este control en los binarios.",
     "Intensidad",
-    "El control de fuerza propio del modelo, aplicado dentro de \303\251l. Distinto de los Controles globales de "
-    "arriba y de la Fuerza de detalle de abajo, que escala el resultado despu\303\251s.",
+    "El control de fuerza propio del modelo, aplicado dentro de \303\251l. Distinto de los Controles globales"
+    " de arriba y de la Fuerza de detalle de abajo, que escala el resultado despu\303\251s.",
     "Frame Generation",
     "La DLSS Frame Generation de la propia NVIDIA, v\303\255a Streamline. No OptiFG.",
-    "Fija numFramesToGenerate de Streamline directamente -- cu\303\241ntos fotogramas extra inserta DLSS-G entre los "
-    "reales. 2X inserta uno, 3X inserta dos, y as\303\255. Limitado por lo que tu GPU y controlador dicen "
-    "soportar.\n\nAtenuado mientras Multi est\303\241 activado abajo -- entonces el controlador elige la cantidad.",
+    "Fija numFramesToGenerate de Streamline directamente -- cu\303\241ntos fotogramas extra inserta DLSS-G en"
+    "tre los reales. 2X inserta uno, 3X inserta dos, y as\303\255. Limitado por lo que tu GPU y controlador d"
+    "icen soportar.\n\nAtenuado mientras Multi est\303\241 activado abajo -- entonces el controlador elige la"
+    " cantidad.",
     "Multi (Frame Generation din\303\241mica)",
-    "Deja que el controlador de NVIDIA var\303\255e el multiplicador por s\303\255 mismo, fotograma a fotograma, para "
-    "mantener el objetivo de FPS de abajo -- en vez de un 2X/3X/4X fijo.",
+    "Deja que el controlador de NVIDIA var\303\255e el multiplicador por s\303\255 mismo, fotograma a fotogra"
+    "ma, para mantener el objetivo de FPS de abajo -- en vez de un 2X/3X/4X fijo.",
     "Objetivo de FPS de DMFG",
     "0 detecta autom\303\241ticamente la tasa de refresco de tu pantalla.",
     "Este juego no tiene DLSS Frame Generation de NVIDIA propia.",
     "Coste",
     "Pasadas del modelo",
-    "Cu\303\241ntas veces corre el modelo antes de componer su respuesta. Cada capa extra recibe la salida de la "
-    "anterior y mantiene su propio historial temporal.\n\nEl fotograma base queda intacto y la composici\303\263n "
-    "ocurre una vez al final, as\303\255 que color y fuerza de transferencia no se acumulan -- pero se le pide al "
-    "modelo que mejore su propia salida, algo fuera de lo que se entren\303\263.\n\nEl coste es casi lineal: el modelo "
-    "es casi todo el gasto del pase y cada capa lo paga de nuevo. Tres es el tope porque las capas posteriores "
-    "convergen mientras siguen costando el precio completo.",
-    "%dx de coste del modelo. Dos suele verse m\303\241s rico; tres normalmente se ve claramente sobreprocesado.",
+    "Cu\303\241ntas veces corre el modelo antes de componer su respuesta. Cada capa extra recibe la salida de"
+    " la anterior y mantiene su propio historial temporal.\n\nEl fotograma base queda intacto y la composici\303\263"
+    "n ocurre una vez al final, as\303\255 que color y fuerza de transferencia no se acumulan -- pero se le p"
+    "ide al modelo que mejore su propia salida, algo fuera de lo que se entren\303\263.\n\nEl coste es casi l"
+    "ineal: el modelo es casi todo el gasto del pase y cada capa lo paga de nuevo. Tres es el tope porque las"
+    " capas posteriores convergen mientras siguen costando el precio completo.",
+    "%dx de coste del modelo. Dos suele verse m\303\241s rico; tres normalmente se ve claramente sobreprocesa"
+    "do.",
     "Auto (hereda la pasada 1)",
     "Modelo de la pasada 2",
     "Estilo de la pasada 2",
     "Modelo de la pasada 3",
     "Estilo de la pasada 3",
-    "Qu\303\251 perfil integrado corre cada capa posterior. Seleccionan un perfil distinto dentro del mismo archivo de "
-    "modelo de NVIDIA -- no se carga nada extra.\n\nAuto significa que la capa corre lo que est\303\251 puesto en la "
-    "pasada 1. Cambiar uno reconstruye solo el recurso de esa capa, y solo mientras esa capa est\303\251 activa.",
+    "Qu\303\251 perfil integrado corre cada capa posterior. Seleccionan un perfil distinto dentro del mismo a"
+    "rchivo de modelo de NVIDIA -- no se carga nada extra.\n\nAuto significa que la capa corre lo que est\303\251"
+    " puesto en la pasada 1. Cambiar uno reconstruye solo el recurso de esa capa, y solo mientras esa capa es"
+    "t\303\251 activa.",
     "Resoluci\303\263n del modelo",
-    "Qu\303\251 fracci\303\263n del fotograma trabaja el modelo. El coste cae con el cuadrado de esto, as\303\255 que "
-    "media resoluci\303\263n es m\303\241s o menos un cuarto del tiempo. Por debajo de 100 el fotograma en s\303\255 "
-    "nunca se reduce -- solo la contribuci\303\263n propia del modelo se calcula en peque\303\261o y se ampl\303\255a. "
-    "Se aplica al soltar el mando, no mientras se mueve.",
-    "Supersampling %.2fx: el modelo corre POR ENCIMA de la resoluci\303\263n nativa y luego se remuestrea hacia abajo. "
-    "Experimental y costoso -- el tiempo crece con el \303\241rea.",
+    "Qu\303\251 fracci\303\263n del fotograma trabaja el modelo. El coste cae con el cuadrado de esto, as\303\255"
+    " que media resoluci\303\263n es m\303\241s o menos un cuarto del tiempo. Por debajo de 100 el fotograma "
+    "en s\303\255 nunca se reduce -- solo la contribuci\303\263n propia del modelo se calcula en peque\303\261"
+    "o y se ampl\303\255a. Se aplica al soltar el mando, no mientras se mueve.",
+    "Supersampling %.2fx: el modelo corre POR ENCIMA de la resoluci\303\263n nativa y luego se remuestrea hac"
+    "ia abajo. Experimental y costoso -- el tiempo crece con el \303\241rea.",
     "Reductor",
-    "El filtro que promedia la respuesta del modelo por encima de la nativa de vuelta al tama\303\261o de pantalla -- "
-    "es lo que convierte el supersampling en MENOS ruido y no en m\303\241s. Los filtros m\303\241s n\303\255tidos "
-    "(Lanczos3, Kaiser3) conservan m\303\241s detalle; los m\303\241s suaves (Bicubic, Catmull-Rom) son m\303\241s "
-    "amables con el ringing. Independiente del reductor del Output Scaling, as\303\255 que los dos pueden diferir y "
-    "correr a la vez.",
+    "El filtro que promedia la respuesta del modelo por encima de la nativa de vuelta al tama\303\261o de pan"
+    "talla -- es lo que convierte el supersampling en MENOS ruido y no en m\303\241s. Los filtros m\303\241s "
+    "n\303\255tidos (Lanczos3, Kaiser3) conservan m\303\241s detalle; los m\303\241s suaves (Bicubic, Catmull"
+    "-Rom) son m\303\241s amables con el ringing. Independiente del reductor del Output Scaling, as\303\255 q"
+    "ue los dos pueden diferir y correr a la vez.",
     "Cl\303\241sico",
     "Residuo emparejado",
     "Ampliaci\303\263n",
-    "C\303\263mo se devuelve el trabajo del modelo a su tama\303\261o cuando corri\303\263 por debajo del "
-    "tama\303\261o del fotograma.\n\nCl\303\241sico compone la imagen peque\303\261a del modelo directamente contra el "
-    "fotograma a tama\303\261o completo. Ambas difieren tanto por el desenfoque de la reducci\303\263n como por la "
-    "edici\303\263n del modelo, y la composici\303\263n no puede distinguirlos.\n\nAtenuado al 100%, donde no hay nada "
-    "que ampliar.",
+    "C\303\263mo se devuelve el trabajo del modelo a su tama\303\261o cuando corri\303\263 por debajo del tam"
+    "a\303\261o del fotograma.\n\nCl\303\241sico compone la imagen peque\303\261a del modelo directamente con"
+    "tra el fotograma a tama\303\261o completo. Ambas difieren tanto por el desenfoque de la reducci\303\263n"
+    " como por la edici\303\263n del modelo, y la composici\303\263n no puede distinguirlos.\n\nAtenuado al 1"
+    "00%, donde no hay nada que ampliar.",
     "Cu\303\241nto de esto llega",
     "Fuerza de detalle",
     "Restablecer",
-    "Cu\303\241nto se mueve el fotograma hacia la imagen del modelo. 0 devuelve exactamente lo que produjo el "
-    "escalador. 1 es la imagen del modelo. Por encima de 1 sigue m\303\241s all\303\241 en la misma direcci\303\263n.",
+    "Cu\303\241nto se mueve el fotograma hacia la imagen del modelo. 0 devuelve exactamente lo que produjo el"
+    " escalador. 1 es la imagen del modelo. Por encima de 1 sigue m\303\241s all\303\241 en la misma direcci\303\263"
+    "n.",
     "Fuerza de color",
-    "Si el color del modelo llega con su luz. 0 mantiene el tono propio del juego exactamente -- cada p\303\255xel con "
-    "el color original, y solo su brillo lleva el veredicto del modelo. 1 trae tambi\303\251n el color del modelo, en "
-    "su propio tono, limitado a AP1 para que no se pida nada inalcanzable.\n\nPor encima de 1 se sobresatura: el color "
-    "mantiene su tono pero se vuelve m\303\241s vivo, y se aten\303\272a en el l\303\255mite de lo que la pantalla "
-    "puede mostrar en vez de recortarse en una mancha quemada. 1 es el color propio del modelo; p\303\241sate para "
-    "m\303\241s pegada.",
+    "Si el color del modelo llega con su luz. 0 mantiene el tono propio del juego exactamente -- cada p\303\255"
+    "xel con el color original, y solo su brillo lleva el veredicto del modelo. 1 trae tambi\303\251n el colo"
+    "r del modelo, en su propio tono, limitado a AP1 para que no se pida nada inalcanzable.\n\nPor encima de "
+    "1 se sobresatura: el color mantiene su tono pero se vuelve m\303\241s vivo, y se aten\303\272a en el l\303\255"
+    "mite de lo que la pantalla puede mostrar en vez de recortarse en una mancha quemada. 1 es el color propi"
+    "o del modelo; p\303\241sate para m\303\241s pegada.",
     "Color",
-    "El modelo se entren\303\263 con fotogramas acabados, codificados en sRGB. Estos deciden c\303\263mo se mapea la "
-    "salida lineal del escalador a algo que reconoce.",
+    "El modelo se entren\303\263 con fotogramas acabados, codificados en sRGB. Estos deciden c\303\263mo se m"
+    "apea la salida lineal del escalador a algo que reconoce.",
     "Apagado (rodilla suave)",
     "Proxy Neutwo + compuesto",
     "Proxy Neutwo + reemplazo",
     "Proxy h\303\255brido + compuesto",
     "Proxy h\303\255brido + reemplazo",
     "Proxy reversible",
-    "Qu\303\251 se le muestra al modelo y c\303\263mo vuelve su respuesta. Experimental.\n\nApagado (rodilla suave): "
-    "el predeterminado, id\303\251ntico byte a byte al de antes. Comprime las altas luces tanto que el modelo no "
-    "resuelve detalle en ellas -- bien en escenas de luz suave, flojo en las brillantes.\n\nNeutwo compuesto: una "
-    "curva sin recorte, as\303\255 que el modelo ve detalle en las altas luces, y despu\303\251s todo lo de arriba "
-    "(fuerzas, guarda de altas luces, paleta). Gana en escenas brillantes, pero la curva comprime tambi\303\251n los "
-    "medios tonos, as\303\255 que el contenido de luz suave puede quedar peor que Apagado. Tambi\303\251n desplaza el "
-    "blanco de papel -- rev\303\255salo al cambiar.\n\nH\303\255brido compuesto: el que hay que usar. Identidad en los "
-    "medios tonos -- tan bueno como Apagado ah\303\255 -- con la curva sin recorte solo en las altas luces, as\303\255 "
-    "que recupera el detalle que Apagado aplasta sin renunciar a los medios tonos como hace Neutwo. Apenas desplaza el "
-    "blanco de papel.\n\nReemplazo: el modelo en bruto de vuelta por la inversa exacta, sin composici\303\263n -- sin "
-    "guarda, sin paleta, sin fuerzas. Precioso donde no hay luces brillantes, pero estas PARPADEAN en movimiento. Una "
-    "referencia, no un ajuste diario.\n\nH\303\255brido reemplazo: el modelo en bruto del Reemplazo sobre la curva "
-    "h\303\255brida, as\303\255 que el parpadeo queda confinado a las altas luces reales en vez de en todas partes. La "
-    "mayor parte del detalle del Reemplazo, mucho m\303\241s estable.",
+    "Qu\303\251 se le muestra al modelo y c\303\263mo vuelve su respuesta. Experimental.\n\nApagado (rodilla "
+    "suave): el predeterminado, id\303\251ntico byte a byte al de antes. Comprime las altas luces tanto que e"
+    "l modelo no resuelve detalle en ellas -- bien en escenas de luz suave, flojo en las brillantes.\n\nNeutw"
+    "o compuesto: una curva sin recorte, as\303\255 que el modelo ve detalle en las altas luces, y despu\303\251"
+    "s todo lo de arriba (fuerzas, guarda de altas luces, paleta). Gana en escenas brillantes, pero la curva "
+    "comprime tambi\303\251n los medios tonos, as\303\255 que el contenido de luz suave puede quedar peor que"
+    " Apagado. Tambi\303\251n desplaza el blanco de papel -- rev\303\255salo al cambiar.\n\nH\303\255brido co"
+    "mpuesto: el que hay que usar. Identidad en los medios tonos -- tan bueno como Apagado ah\303\255 -- con "
+    "la curva sin recorte solo en las altas luces, as\303\255 que recupera el detalle que Apagado aplasta sin"
+    " renunciar a los medios tonos como hace Neutwo. Apenas desplaza el blanco de papel.\n\nReemplazo: el mod"
+    "elo en bruto de vuelta por la inversa exacta, sin composici\303\263n -- sin guarda, sin paleta, sin fuer"
+    "zas. Precioso donde no hay luces brillantes, pero estas PARPADEAN en movimiento. Una referencia, no un a"
+    "juste diario.\n\nH\303\255brido reemplazo: el modelo en bruto del Reemplazo sobre la curva h\303\255brid"
+    "a, as\303\255 que el parpadeo queda confinado a las altas luces reales en vez de en todas partes. La may"
+    "or parte del detalle del Reemplazo, mucho m\303\241s estable.",
     "Solo blanco de papel",
     "La exposici\303\263n propia del juego",
     "Un b\303\272fer que encontr\303\263 el escaneo",
     "Punto blanco desde",
-    "Solo blanco de papel -- el deslizador de abajo y nada m\303\241s. Correcto para un juego cuya exposici\303\263n "
-    "nunca cambia, err\303\263neo en cuanto lo hace: una constante no sirve para una cueva y un campo.\n\nLa "
-    "exposici\303\263n propia del juego -- le\303\255da de la textura que el juego entrega al escalador. La mejor "
-    "fuente que hay, porque se decide antes y nada de lo que hace este pase la mueve. No todos los juegos la "
-    "aportan.\n\nUn b\303\272fer que encontr\303\263 el escaneo -- para juegos que calculan una exposici\303\263n y "
-    "nunca la pasan. Una conjetura: los candidatos se emparejan por forma, y la raz\303\263n del ancla cancela la "
-    "escala. Necesita anclarse una vez, en la secci\303\263n Experimental, y comprobarse despu\303\251s.",
+    "Solo blanco de papel -- el deslizador de abajo y nada m\303\241s. Correcto para un juego cuya exposici\303\263"
+    "n nunca cambia, err\303\263neo en cuanto lo hace: una constante no sirve para una cueva y un campo.\n\nL"
+    "a exposici\303\263n propia del juego -- le\303\255da de la textura que el juego entrega al escalador. La"
+    " mejor fuente que hay, porque se decide antes y nada de lo que hace este pase la mueve. No todos los jue"
+    "gos la aportan.\n\nUn b\303\272fer que encontr\303\263 el escaneo -- para juegos que calculan una exposi"
+    "ci\303\263n y nunca la pasan. Una conjetura: los candidatos se emparejan por forma, y la raz\303\263n de"
+    "l ancla cancela la escala. Necesita anclarse una vez, en la secci\303\263n Experimental, y comprobarse d"
+    "espu\303\251s.",
     "Escaneo %.5f  ->  punto blanco %.2f   (1 punto)",
     "Escaneo %.5f  ->  punto blanco %.2f   (%u puntos)",
     "Blanco de papel (punto %d)",
     "Blanco de papel",
-    "El punto blanco del punto de calibraci\303\263n seleccionado, o -- sin fila seleccionada -- el valor que captura "
-    "la pr\303\263xima pulsaci\303\263n de Anclar.\n\nAj\303\272stalo hasta que la imagen se vea bien aqu\303\255, "
-    "luego Anclar. Ve a una luz muy distinta y repite: dos puntos fijan la relaci\303\263n real del b\303\272fer y el "
-    "punto blanco se mantiene entre ellos.",
+    "El punto blanco del punto de calibraci\303\263n seleccionado, o -- sin fila seleccionada -- el valor que"
+    " captura la pr\303\263xima pulsaci\303\263n de Anclar.\n\nAj\303\272stalo hasta que la imagen se vea bie"
+    "n aqu\303\255, luego Anclar. Ve a una luz muy distinta y repite: dos puntos fijan la relaci\303\263n rea"
+    "l del b\303\272fer y el punto blanco se mantiene entre ellos.",
     "Ajuste (x el escaneo)",
-    "Un multiplicador sobre el punto blanco del escaneo, y el control para ajustar entre puntos de ancla: "
-    "g\303\255ralo hasta que la imagen se vea bien con la luz actual, luego pulsa Anclar en Experimental -- eso "
-    "captura el valor ajustado como nuevo punto y restablece esto a 1.",
+    "Un multiplicador sobre el punto blanco del escaneo, y el control para ajustar entre puntos de ancla: g\303\255"
+    "ralo hasta que la imagen se vea bien con la luz actual, luego pulsa Anclar en Experimental -- eso captur"
+    "a el valor ajustado como nuevo punto y restablece esto a 1.",
     "Este juego aporta una exposici\303\263n y se est\303\241 leyendo.",
     "Este juego no aporta exposici\303\263n. Prueba el escaneo.",
     "Esperando un fotograma...",
@@ -4392,96 +4081,99 @@ static const char* const kTable_es[] = {
     "  (retenido: ausente en este fotograma)",
     "Leyendo la exposici\303\263n...",
     "Ajuste (x la exposici\303\263n del juego)",
-    "Un multiplicador sobre la exposici\303\263n que aport\303\263 el juego. 1.00x toma su n\303\272mero exacto, y esa "
-    "es la respuesta correcta aqu\303\255.\n\nNo es un factor de apa\303\261o. Un juego que necesita el ajuste lejos "
-    "de 1 para verse bien es prueba de que la exposici\303\263n le\303\255da es err\303\263nea para ese juego, no de "
-    "que el juego quiera ajuste. M\303\241s o menos 0.8 a 1.25 es afinado honesto; llegar a 4 significa que algo antes "
-    "est\303\241 roto y esto lo esconde.\n\nTu blanco de papel manual se guarda aparte y vuelve intacto si cambias la "
-    "fuente de vuelta.",
-    "Por lo que se divide el fotograma antes de que el modelo lo vea. No hay otro punto blanco; este es todo. Por "
-    "encima de 1 la imagen entregada es m\303\241s oscura, as\303\255 que las altas luces quedan m\303\241s abajo en "
-    "la curva.",
+    "Un multiplicador sobre la exposici\303\263n que aport\303\263 el juego. 1.00x toma su n\303\272mero exac"
+    "to, y esa es la respuesta correcta aqu\303\255.\n\nNo es un factor de apa\303\261o. Un juego que necesit"
+    "a el ajuste lejos de 1 para verse bien es prueba de que la exposici\303\263n le\303\255da es err\303\263"
+    "nea para ese juego, no de que el juego quiera ajuste. M\303\241s o menos 0.8 a 1.25 es afinado honesto; "
+    "llegar a 4 significa que algo antes est\303\241 roto y esto lo esconde.\n\nTu blanco de papel manual se "
+    "guarda aparte y vuelve intacto si cambias la fuente de vuelta.",
+    "Por lo que se divide el fotograma antes de que el modelo lo vea. No hay otro punto blanco; este es todo."
+    " Por encima de 1 la imagen entregada es m\303\241s oscura, as\303\255 que las altas luces quedan m\303\241"
+    "s abajo en la curva.",
     "Guarda de altas luces",
-    "Lo m\303\241ximo que el pase puede mover cualquier p\303\255xel, como m\303\272ltiplo de lo que ya era, en ambas "
-    "direcciones -- un p\303\255xel no puede aclararse m\303\241s all\303\241 de esto ni oscurecerse m\303\241s "
-    "all\303\241 de su rec\303\255proco. Las luces son donde el modelo menos tiene que decir y reescalar su respuesta "
-    "hace m\303\241s da\303\261o; 2x deja el detalle intacto mientras impide que un fluorescente se convierta en una "
-    "tira de celdas de colores. S\303\272belo solo si las zonas brillantes se ven recortadas.",
+    "Lo m\303\241ximo que el pase puede mover cualquier p\303\255xel, como m\303\272ltiplo de lo que ya era, "
+    "en ambas direcciones -- un p\303\255xel no puede aclararse m\303\241s all\303\241 de esto ni oscurecerse"
+    " m\303\241s all\303\241 de su rec\303\255proco. Las luces son donde el modelo menos tiene que decir y re"
+    "escalar su respuesta hace m\303\241s da\303\261o; 2x deja el detalle intacto mientras impide que un fluo"
+    "rescente se convierta en una tira de celdas de colores. S\303\272belo solo si las zonas brillantes se ve"
+    "n recortadas.",
     "Escaneo de exposici\303\263n",
     "Mostrar el fot\303\263metro en pantalla",
-    "Una l\303\241mpara en la esquina: roja para oscuro, verde para luz plena, y los tonos intermedios, con la lectura "
-    "al lado.\n\nEs c\303\263mo ves de un vistazo que el escaneo est\303\241 SIGUIENDO en vez de solo correr. Entra en "
-    "la sombra y deber\303\255a deslizarse hacia el rojo; sal y deber\303\255a ponerse verde. Si se mueve al "
-    "rev\303\251s, para eso est\303\241 \"El n\303\272mero va al rev\303\251s\" abajo.\n\nSolo una lectura. No cambia "
-    "nada.",
+    "Una l\303\241mpara en la esquina: roja para oscuro, verde para luz plena, y los tonos intermedios, con l"
+    "a lectura al lado.\n\nEs c\303\263mo ves de un vistazo que el escaneo est\303\241 SIGUIENDO en vez de so"
+    "lo correr. Entra en la sombra y deber\303\255a deslizarse hacia el rojo; sal y deber\303\255a ponerse ve"
+    "rde. Si se mueve al rev\303\251s, para eso est\303\241 \"El n\303\272mero va al rev\303\251s\" abajo.\n\n"
+    "Solo una lectura. No cambia nada.",
     "Anclar aqu\303\255",
-    "Haz que la imagen se vea bien y pulsa esto -- captura el aspecto actual como un punto. Para el primer punto usa "
-    "el deslizador Blanco de papel de arriba; para cada punto siguiente, ve a otra luz y usa el Ajuste, que esto luego "
-    "incorpora.\n\nUn punto calibra una raz\303\263n y el punto blanco sigue al escaneo desde ah\303\255. Ve a una luz "
-    "muy distinta y p\303\272lsalo de nuevo: el segundo punto fija la curva real del b\303\272fer, as\303\255 que todo "
-    "entre los dos es correcto y no solo el entorno de un ancla. Hasta ocho.\n\nLa tabla es por juego y compartible -- "
-    "una persona calibra un juego y los n\303\272meros son los mismos para todos los que tomen el perfil.",
+    "Haz que la imagen se vea bien y pulsa esto -- captura el aspecto actual como un punto. Para el primer pu"
+    "nto usa el deslizador Blanco de papel de arriba; para cada punto siguiente, ve a otra luz y usa el Ajust"
+    "e, que esto luego incorpora.\n\nUn punto calibra una raz\303\263n y el punto blanco sigue al escaneo des"
+    "de ah\303\255. Ve a una luz muy distinta y p\303\272lsalo de nuevo: el segundo punto fija la curva real "
+    "del b\303\272fer, as\303\255 que todo entre los dos es correcto y no solo el entorno de un ancla. Hasta "
+    "ocho.\n\nLa tabla es por juego y compartible -- una persona calibra un juego y los n\303\272meros son lo"
+    "s mismos para todos los que tomen el perfil.",
     "(el escaneo solo observa -- el punto blanco de arriba viene de otro sitio)",
     "%s escaneo %.4f  ->  blanco %.2f%s",
     "   [editando]",
-    "Pulsa una fila para editarla con el deslizador de arriba; p\303\272lsala de nuevo para controlar el punto en "
-    "vivo. > es el punto en uso ahora.",
+    "Pulsa una fila para editarla con el deslizador de arriba; p\303\272lsala de nuevo para controlar el punt"
+    "o en vivo. > es el punto en uso ahora.",
     "El n\303\272mero va al rev\303\251s",
-    "Invierte esto si la imagen empeora en la direcci\303\263n en que deber\303\255a mejorar. La mayor\303\255a de los "
-    "motores guardan una exposici\303\263n que baja cuando la escena se aclara; algunos guardan su rec\303\255proco, y "
-    "un b\303\272fer hallado por forma no dice cu\303\241l. A\303\261ade un segundo punto de ancla con otra luz y esto "
-    "se decide por ti, as\303\255 que desaparece.",
+    "Invierte esto si la imagen empeora en la direcci\303\263n en que deber\303\255a mejorar. La mayor\303\255"
+    "a de los motores guardan una exposici\303\263n que baja cuando la escena se aclara; algunos guardan su r"
+    "ec\303\255proco, y un b\303\272fer hallado por forma no dice cu\303\241l. A\303\261ade un segundo punto "
+    "de ancla con otra luz y esto se decide por ti, as\303\255 que desaparece.",
     "Candidatos",
     "a\303\272n no hay coincidencias.",
     "%zu. %s -- a\303\272n sin leer",
     "%zu. %s = %.5f  (visto %.5f..%.5f) %s",
     "SE MUEVE",
     "plano por ahora",
-    "Camina de la sombra a la luz del d\303\255a. Una exposici\303\263n real se mueve. Una que solo sube es un "
-    "contador, no una exposici\303\263n.",
+    "Camina de la sombra a la luz del d\303\255a. Una exposici\303\263n real se mueve. Una que solo sube es u"
+    "n contador, no una exposici\303\263n.",
     "Gu\303\255a",
     "Seguir al juego",
     "Forzar normal",
     "Forzar invertida",
     "Profundidad",
-    "En qu\303\251 sentido se le dice al modelo que va la profundidad. El juego lo declara en los flags con los que "
-    "cre\303\263 su propio recurso DLSS, y seguirlo es correcto casi siempre -- pero un juego que lo declara mal "
-    "necesita correcci\303\263n manual.\n\nSi el pase se ve peor donde la geometr\303\255a se junta con el cielo, "
-    "prueba a forzar el otro.",
+    "En qu\303\251 sentido se le dice al modelo que va la profundidad. El juego lo declara en los flags con l"
+    "os que cre\303\263 su propio recurso DLSS, y seguirlo es correcto casi siempre -- pero un juego que lo d"
+    "eclara mal necesita correcci\303\263n manual.\n\nSi el pase se ve peor donde la geometr\303\255a se junt"
+    "a con el cielo, prueba a forzar el otro.",
     "Correcci\303\263n de UI",
-    "Deja que el modelo tenga en cuenta una capa de UI sobre el fotograma. Encendido es su propio valor por defecto y "
-    "es correcto siempre que le llegue un recurso de UI; ap\303\241galo si la correcci\303\263n en s\303\255 es lo que "
-    "se ve mal.\n\nSe lee al construir el modelo.",
+    "Deja que el modelo tenga en cuenta una capa de UI sobre el fotograma. Encendido es su propio valor por d"
+    "efecto y es correcto siempre que le llegue un recurso de UI; ap\303\241galo si la correcci\303\263n en s"
+    "\303\255 es lo que se ve mal.\n\nSe lee al construir el modelo.",
     "Inspeccionar",
     "Capturando...",
     "Capturar 8 fotogramas",
-    "Escribe ocho fotogramas consecutivos dos veces: como los produjo el escalador y de nuevo con la edici\303\263n "
-    "del modelo aplicada. En una carpeta dlssnr-capture junto a OptiScaler; cada ejecuci\303\263n sobrescribe la "
-    "anterior.",
+    "Escribe ocho fotogramas consecutivos dos veces: como los produjo el escalador y de nuevo con la edici\303\263"
+    "n del modelo aplicada. En una carpeta dlssnr-capture junto a OptiScaler; cada ejecuci\303\263n sobrescri"
+    "be la anterior.",
     "Captura autom\303\241tica una vez por sesi\303\263n",
-    "Escribe un conjunto emparejado antes/despu\303\251s autom\303\241ticamente, sin que nadie lo pida. La carpeta se "
-    "vac\303\255a en cada ejecuci\303\263n, as\303\255 que guarda una sola sesi\303\263n y nunca crece.",
+    "Escribe un conjunto emparejado antes/despu\303\251s autom\303\241ticamente, sin que nadie lo pida. La ca"
+    "rpeta se vac\303\255a en cada ejecuci\303\263n, as\303\255 que guarda una sola sesi\303\263n y nunca cre"
+    "ce.",
     "Congelar fotograma",
-    "Congela el fotograma sobre el que trabaja el modelo. Mientras est\303\241 congelado, cambia el blanco de papel, "
-    "las fuerzas, el modo reversible, el preset del modelo -- cualquier cosa por debajo del escalador -- y solo ese "
-    "ajuste se mueve; la escena no. Se combina con \"Aplicar el modelo\" arriba: congela un fotograma y alterna "
-    "aquello para verlo con y sin.\n\nLo que no puede mostrar: presets del escalador o cualquier cosa anterior a este "
-    "pase (el escalador no se vuelve a ejecutar sobre un fotograma congelado), y el HUD y el posprocesado del propio "
-    "juego, que corren despu\303\251s y siguen actualiz\303\241ndose. El punto blanco deja de medirse y conserva su "
-    "valor, as\303\255 que no puede derivar ni confundir la comparaci\303\263n.\n\nCierra el panel y sigue congelado. "
-    "Desmarca para reanudar.",
+    "Congela el fotograma sobre el que trabaja el modelo. Mientras est\303\241 congelado, cambia el blanco de"
+    " papel, las fuerzas, el modo reversible, el preset del modelo -- cualquier cosa por debajo del escalador"
+    " -- y solo ese ajuste se mueve; la escena no. Se combina con \"Aplicar el modelo\" arriba: congela un fo"
+    "tograma y alterna aquello para verlo con y sin.\n\nLo que no puede mostrar: presets del escalador o cual"
+    "quier cosa anterior a este pase (el escalador no se vuelve a ejecutar sobre un fotograma congelado), y e"
+    "l HUD y el posprocesado del propio juego, que corren despu\303\251s y siguen actualiz\303\241ndose. El p"
+    "unto blanco deja de medirse y conserva su valor, as\303\255 que no puede derivar ni confundir la compara"
+    "ci\303\263n.\n\nCierra el panel y sigue congelado. Desmarca para reanudar.",
     "Apagado",
     "Lado a lado",
     "Cortinilla",
     "Comparar",
-    "Muestra el pase contra s\303\255 mismo. Lado a lado pone el fotograma entero en cada mitad; cortinilla corta un "
-    "solo fotograma en la divisi\303\263n y reproduce con normalidad. Ninguno necesita el men\303\272 abierto para "
-    "seguir funcionando.",
+    "Muestra el pase contra s\303\255 mismo. Lado a lado pone el fotograma entero en cada mitad; cortinilla c"
+    "orta un solo fotograma en la divisi\303\263n y reproduce con normalidad. Ninguno necesita el men\303\272"
+    " abierto para seguir funcionando.",
     "Intercambiar lados",
     "Etiquetas",
-    "Dibuja qu\303\251 lado es cu\303\241l en el propio plano del fotograma, as\303\255 que una captura de pantalla lo "
-    "sigue diciendo. Recortado por lado, as\303\255 que la cortinilla las revela y oculta exactamente como a las "
-    "im\303\241genes.",
+    "Dibuja qu\303\251 lado es cu\303\241l en el propio plano del fotograma, as\303\255 que una captura de pa"
+    "ntalla lo sigue diciendo. Recortado por lado, as\303\255 que la cortinilla las revela y oculta exactamen"
+    "te como a las im\303\241genes.",
     "Tama\303\261o de etiqueta",
     "Zoom",
     "Divisi\303\263n",
@@ -4489,27 +4181,28 @@ static const char* const kTable_es[] = {
     "Salida del modelo (en bruto)",
     "Diferencia (amplificada)",
     "Vista de depuraci\303\263n",
-    "Proxy es la imagen que se entrega al modelo. Diferencia muestra lo que el modelo cambi\303\263 de verdad, "
-    "amplificado veinte veces y centrado en gris.",
+    "Proxy es la imagen que se entrega al modelo. Diferencia muestra lo que el modelo cambi\303\263 de verdad"
+    ", amplificado veinte veces y centrado en gris.",
     "Experimental",
-    "Ambos sin probar. Existen para comprobar si la nvngx.dll del propio controlador puede despachar el modelo, lo que "
-    "eliminar\303\255a la necesidad de la copia de 165 MB junto a OptiScaler.",
+    "Ambos sin probar. Existen para comprobar si la nvngx.dll del propio controlador puede despachar el model"
+    "o, lo que eliminar\303\255a la necesidad de la copia de 165 MB junto a OptiScaler.",
     "Sondear el controlador",
-    "Pregunta a la nvngx.dll del controlador una vez por sesi\303\263n si ya conoce el modelo. Escribe la respuesta en "
-    "el registro y no cambia nada m\303\241s.\n\nSe lee al construir el modelo, as\303\255 que aplica desde la "
-    "pr\303\263xima sesi\303\263n.",
+    "Pregunta a la nvngx.dll del controlador una vez por sesi\303\263n si ya conoce el modelo. Escribe la res"
+    "puesta en el registro y no cambia nada m\303\241s.\n\nSe lee al construir el modelo, as\303\255 que apli"
+    "ca desde la pr\303\263xima sesi\303\263n.",
     "Correr por el controlador",
-    "Acciona el modelo a trav\303\251s de la nvngx.dll del propio controlador en vez del reenviador -- tal como se "
-    "llama al DLSS mismo. Si la imagen coincide, el reenviador sobra.\n\nCompara antes de fiarte: activa Comparar "
-    "arriba y busca una diferencia.",
+    "Acciona el modelo a trav\303\251s de la nvngx.dll del propio controlador en vez del reenviador -- tal co"
+    "mo se llama al DLSS mismo. Si la imagen coincide, el reenviador sobra.\n\nCompara antes de fiarte: activ"
+    "a Comparar arriba y busca una diferencia.",
     "Apariencia",
     "Panel claro",
-    "Claro es el predeterminado. La paleta oscura en la que este panel se inspir\303\263 al principio dejaba su texto "
-    "atenuado a 2.65:1 contra el fondo, frente al 4.5:1 que se lee con comodidad -- y una superposici\303\263n se lee "
-    "de un vistazo, sobre una imagen en movimiento.\n\nDesmarcar restaura el coloreado propio de NVIDIA.",
+    "Claro es el predeterminado. La paleta oscura en la que este panel se inspir\303\263 al principio dejaba "
+    "su texto atenuado a 2.65:1 contra el fondo, frente al 4.5:1 que se lee con comodidad -- y una superposic"
+    "i\303\263n se lee de un vistazo, sobre una imagen en movimiento.\n\nDesmarcar restaura el coloreado prop"
+    "io de NVIDIA.",
     "Colores del fabricante",
-    "El acento del panel sigue a la tarjeta sobre la que se dibuja: verde NVIDIA en una GPU NVIDIA, rojo AMD en una "
-    "AMD. Desmarca para mantener el verde en todas partes.",
+    "El acento del panel sigue a la tarjeta sobre la que se dibuja: verde NVIDIA en una GPU NVIDIA, rojo AMD "
+    "en una AMD. Desmarca para mantener el verde en todas partes.",
     "\n\nEste juego corre en una tarjeta AMD.",
     "\n\nEste juego no corre en una tarjeta AMD, as\303\255 que esto no cambia nada aqu\303\255.",
     "Auto (Windows)",
@@ -4521,28 +4214,30 @@ static const char* const kTable_es[] = {
     "Espa\303\261ol",
     "Alem\303\241n",
     "Idioma",
-    "Auto sigue el idioma de pantalla de Windows. Fijar uno aqu\303\255 solo cambia este panel; el men\303\272 propio "
-    "de OptiScaler sigue en ingl\303\251s. Un idioma que necesita su propia fuente (chino, coreano) la carga desde "
-    "Windows en el siguiente fotograma.",
+    "Auto sigue el idioma de pantalla de Windows. Fijar uno aqu\303\255 solo cambia este panel; el men\303\272"
+    " propio de OptiScaler sigue en ingl\303\251s. Un idioma que necesita su propia fuente (chino, coreano) l"
+    "a carga desde Windows en el siguiente fotograma.",
     "Tama\303\261o de fuente",
-    "Solo el texto de este panel -- el men\303\272 propio de OptiScaler conserva su [Menu] FontSize.\n\nLos anchos de "
-    "fila se calculan a partir del tama\303\261o de fuente, as\303\255 que muy por encima de 1.5x las etiquetas "
-    "empiezan a chocar con sus valores.",
+    "Solo el texto de este panel -- el men\303\272 propio de OptiScaler conserva su [Menu] FontSize.\n\nLos a"
+    "nchos de fila se calculan a partir del tama\303\261o de fuente, as\303\255 que muy por encima de 1.5x la"
+    "s etiquetas empiezan a chocar con sus valores.",
     "Restablecer dise\303\261o",
-    "Arrastra cualquier parte del fondo del panel para moverlo, o arrastra un borde o la esquina\ninferior derecha "
-    "para cambiar su tama\303\261o. Puede quedar en parte fuera de la pantalla, pero siempre\nqueda una franja visi"
-    "ble para agarrarlo. La posici\303\263n y el tama\303\261o se recuerdan para este juego como\nfracci\303\263n d"
-    "e la pantalla, as\303\255 que vuelven con cualquier resoluci\303\263n.",
+    "Arrastra cualquier parte del fondo del panel para moverlo, o arrastra un borde o la esquina\ninferior de"
+    "recha para cambiar su tama\303\261o. Puede quedar en parte fuera de la pantalla, pero siempre\nqueda una"
+    " franja visible para agarrarlo. La posici\303\263n y el tama\303\261o se recuerdan para este juego como\n"
+    "fracci\303\263n de la pantalla, as\303\255 que vuelven con cualquier resoluci\303\263n.",
     "Cierra el panel. Su tecla lo vuelve a abrir.",
     "DLSS Frame Generation del juego: funcionando a %dX",
     "DLSS Frame Generation del juego: apagada en los ajustes de v\303\255deo del juego.",
-    "Este juego tiene DLSS Frame Generation de NVIDIA propia. Act\303\255vala o desact\303\255vala en los\najustes "
-    "de v\303\255deo del juego como siempre -- la fila de abajo solo cambia el multiplicador\nque pide al driver.",
+    "Este juego tiene DLSS Frame Generation de NVIDIA propia. Act\303\255vala o desact\303\255vala en los\naj"
+    "ustes de v\303\255deo del juego como siempre -- la fila de abajo solo cambia el multiplicador\nque pide "
+    "al driver.",
     "Juego",
-    "Sustituye cu\303\241ntos fotogramas extra inserta el DLSS-G del juego entre los reales.\n\"Juego\" lo deja com"
-    "o diga el men\303\272 del propio juego. 2X inserta uno, 3X\ninserta dos, y as\303\255 sucesivamente. 3X y 4X n"
-    "ecesitan una RTX serie 50 -- en otras tarjetas\nel driver lo limita a 2X, se elija lo que se elija aqu\303\255"
-    ".\n\nAtenuado mientras Multi est\303\251 activado abajo -- entonces el driver elige la cantidad.",
+    "Sustituye cu\303\241ntos fotogramas extra inserta el DLSS-G del juego entre los reales.\n\"Juego\" lo de"
+    "ja como diga el men\303\272 del propio juego. 2X inserta uno, 3X\ninserta dos, y as\303\255 sucesivament"
+    "e. 3X y 4X necesitan una RTX serie 50 -- en otras tarjetas\nel driver lo limita a 2X, se elija lo que se"
+    " elija aqu\303\255.\n\nAtenuado mientras Multi est\303\251 activado abajo -- entonces el driver elige la"
+    " cantidad.",
     "falta nvngx.dll_dlssnr.dll",
     "nvngx.dll_dlssnr.dll no se pudo cargar",
     "al forwarder le faltan sus exportaciones",
@@ -4560,71 +4255,76 @@ static const char* const kTable_es[] = {
     "sin iniciar",
     "no se pudieron reservar los b\303\272feres de lectura",
     "ning\303\272n b\303\272fer de este juego tiene forma de exposici\303\263n",
+    "Franc\303\251s",
 };
 
 static const char* const kTable_de[] = {
     "DLSS 5 Entwicklersteuerung",
     "DLSS AN",
-    "Synthetisiert Details im Frame des Upscalers, bevor die Frame Generation ihn sieht.\n\nBraucht zwei "
-    "\303\244hnlich benannte Dateien neben OptiScaler, die sich in einem Zeichen unterscheiden:\n  nvngx_dlssnr.dll    "
-    "   NVIDIAs Modell (~165 MB) -- lieferst du\n  nvngx.dll_dlssnr.dll   der Weiterleiter (~13 KB) -- liegt diesem "
-    "Paket bei\nUndokumentiert und direkt angesteuert, nichts davon ist offiziell unterst\303\274tzt.",
+    "Synthetisiert Details im Frame des Upscalers, bevor die Frame Generation ihn sieht.\n\nBraucht zwei \303\244"
+    "hnlich benannte Dateien neben OptiScaler, die sich in einem Zeichen unterscheiden:\n  nvngx_dlssnr.dll  "
+    "     NVIDIAs Modell (~165 MB) -- lieferst du\n  nvngx.dll_dlssnr.dll   der Weiterleiter (~13 KB) -- lieg"
+    "t diesem Paket bei\nUndokumentiert und direkt angesteuert, nichts davon ist offiziell unterst\303\274tzt"
+    ".",
     "Quelle: DLSS5 Feeder (kein natives DLSS in diesem Spiel)",
-    "Dieses Spiel hat kein eigenes DLSS, also gibt es keinen evaluate-Aufruf, an den sich Neural Rendering "
-    "h\303\244ngen k\303\266nnte. Das ReShade-Add-on DLSS5 Feeder baut stattdessen einen aus ReShades eigener Tiefe "
-    "und gesch\303\244tzten Bewegungsvektoren.\n\nGesch\303\244tzte Bewegungsvektoren sind gr\303\266ber als die "
-    "echten des Spiels -- rechne mit mehr Ghosting bei schneller Bewegung und weicherer feiner Geometrie, als ein "
-    "Spiel mit nativem DLSS vom selben Modell bekommt.",
+    "Dieses Spiel hat kein eigenes DLSS, also gibt es keinen evaluate-Aufruf, an den sich Neural Rendering h\303\244"
+    "ngen k\303\266nnte. Das ReShade-Add-on DLSS5 Feeder baut stattdessen einen aus ReShades eigener Tiefe un"
+    "d gesch\303\244tzten Bewegungsvektoren.\n\nGesch\303\244tzte Bewegungsvektoren sind gr\303\266ber als di"
+    "e echten des Spiels -- rechne mit mehr Ghosting bei schneller Bewegung und weicherer feiner Geometrie, a"
+    "ls ein Spiel mit nativem DLSS vom selben Modell bekommt.",
     "Lossless Scaling: nicht konfiguriert (OptiDLSS5-UI).",
     "Lossless Scaling",
-    "Startet/schlie\303\237t Lossless Scaling im Hintergrund (in den Infobereich minimiert, kein Fenster). Aktiv un"
-    "ten einzuschalten startet es ebenfalls f\303\274r dich.",
+    "Startet/schlie\303\237t Lossless Scaling im Hintergrund (in den Infobereich minimiert, kein Fenster). Ak"
+    "tiv unten einzuschalten startet es ebenfalls f\303\274r dich.",
     "Aktiv",
-    "Schaltet die Frame Generation von Lossless Scaling f\303\274r dieses Spiel \303\274ber dessen globales Tastenk"
-    "\303\274rzel ein/aus -- es erscheint kein Fenster, und Lossless Scaling wird bei Bedarf zuerst gestartet. Zeig"
-    "t die letzte Anforderung, keinen best\303\244tigten Live-Zustand.\n\nDas Einschalten schaltet OptiScalers eige"
-    "ne Frame Generation ab: zwei Frame-Generatoren gleichzeitig stapeln ihre Frames.",
+    "Schaltet die Frame Generation von Lossless Scaling f\303\274r dieses Spiel \303\274ber dessen globales T"
+    "astenk\303\274rzel ein/aus -- es erscheint kein Fenster, und Lossless Scaling wird bei Bedarf zuerst ges"
+    "tartet. Zeigt die letzte Anforderung, keinen best\303\244tigten Live-Zustand.\n\nDas Einschalten schalte"
+    "t OptiScalers eigene Frame Generation ab: zwei Frame-Generatoren gleichzeitig stapeln ihre Frames.",
     "Adaptiv: h\303\244lt %d fps",
-    "Adaptive Frame Generation: Lossless Scaling erzeugt nur so viele Frames, wie n\303\266tig sind, um dieses Ziel zu "
-    "halten. Das Ziel (oder der Wechsel auf einen festen Faktor) wird in OptiDLSS5-UI eingestellt. Das Spiel muss "
-    "randlos oder im Fenster laufen, nicht im exklusiven Vollbild (DX12-Spiele sind meist so oder so unproblematisch).",
-    "Erzeugte Frames pro echtem Frame. L\303\244uft Lossless Scaling schon, startet es zum \303\234bernehmen kurz n"
-    "eu -- Frame Gen setzt f\303\274r eine Sekunde aus. Das Spiel muss randlos oder im Fenster laufen, nicht im exk"
-    "lusiven Vollbild (DX12-Spiele sind meist so oder so unproblematisch).",
+    "Adaptive Frame Generation: Lossless Scaling erzeugt nur so viele Frames, wie n\303\266tig sind, um diese"
+    "s Ziel zu halten. Das Ziel (oder der Wechsel auf einen festen Faktor) wird in OptiDLSS5-UI eingestellt. "
+    "Das Spiel muss randlos oder im Fenster laufen, nicht im exklusiven Vollbild (DX12-Spiele sind meist so o"
+    "der so unproblematisch).",
+    "Erzeugte Frames pro echtem Frame. L\303\244uft Lossless Scaling schon, startet es zum \303\234bernehmen "
+    "kurz neu -- Frame Gen setzt f\303\274r eine Sekunde aus. Das Spiel muss randlos oder im Fenster laufen, "
+    "nicht im exklusiven Vollbild (DX12-Spiele sind meist so oder so unproblematisch).",
     "Lass die spieleigene DLSS Frame Generation aus, solange das l\303\244uft.",
     "Umschalttaste",
-    "Schaltet Neural Rendering um, ohne dieses Panel zu \303\266ffnen. Dr\303\274cke die Schaltfl\303\244che, dann die "
-    "gew\303\274nschte Taste. Escape bricht ab, R\303\274cktaste hebt die Belegung auf, R setzt sie zur\303\274ck.",
+    "Schaltet Neural Rendering um, ohne dieses Panel zu \303\266ffnen. Dr\303\274cke die Schaltfl\303\244che,"
+    " dann die gew\303\274nschte Taste. Escape bricht ab, R\303\274cktaste hebt die Belegung auf, R setzt sie"
+    " zur\303\274ck.",
     "Panel-Taste",
-    "\303\226ffnet und schlie\303\237t dieses Panel. Unabh\303\244ngig von der Men\303\274taste von OptiScaler selbst, "
-    "sodass beide zusammen oder einzeln offen sein k\303\266nnen.",
+    "\303\226ffnet und schlie\303\237t dieses Panel. Unabh\303\244ngig von der Men\303\274taste von OptiScale"
+    "r selbst, sodass beide zusammen oder einzeln offen sein k\303\266nnen.",
     "Modell anwenden",
-    "Ob die \303\204nderung des Modells angewendet wird. Aus zeigt den sauberen Upscaler-Frame, w\303\244hrend der "
-    "Pass weiterl\303\244uft -- mit Frame halten unter Pr\303\274fen kannst du so einen Frame einfrieren und dies "
-    "umschalten, um denselben Frame mit und ohne Neural Rendering zu sehen.\nF\303\274r den Normalgebrauch anlassen.",
+    "Ob die \303\204nderung des Modells angewendet wird. Aus zeigt den sauberen Upscaler-Frame, w\303\244hren"
+    "d der Pass weiterl\303\244uft -- mit Frame halten unter Pr\303\274fen kannst du so einen Frame einfriere"
+    "n und dies umschalten, um denselben Frame mit und ohne Neural Rendering zu sehen.\nF\303\274r den Normal"
+    "gebrauch anlassen.",
     "Vor Super Resolution",
-    "Wo der Pass sitzt. Aus ist die urspr\303\274ngliche Stelle: das Modell l\303\244uft auf dem fertig hochskalier"
-    "ten Frame. An l\303\244sst es in Render-Aufl\303\266sung auf der Farbe laufen, die SR gleich verarbeitet, soda"
-    "ss SR ein bereits verbessertes Bild akkumuliert und hochskaliert.\n\nRay Reconstruction bleibt immer auf dem P"
-    "fad nach dem Upscaling -- seine Eingaben sind ein anderer Vertrag. Ein Farbbild mit Rand in einer gr\303\266"
-    "\303\237eren Textur wird in seiner echten Gr\303\266\303\237e verarbeitet; eines mit Versatz von der Ecke f"
-    "\303\244llt weiterhin auf \342\200\236nach dem Upscaling\342\200\234 zur\303\274ck.\n\nNur D3D12 und seine D3D"
-    "11/Vulkan-Br\303\274cken; natives Vulkan beh\303\244lt die alte Stelle.",
+    "Wo der Pass sitzt. Aus ist die urspr\303\274ngliche Stelle: das Modell l\303\244uft auf dem fertig hochs"
+    "kalierten Frame. An l\303\244sst es in Render-Aufl\303\266sung auf der Farbe laufen, die SR gleich verar"
+    "beitet, sodass SR ein bereits verbessertes Bild akkumuliert und hochskaliert.\n\nRay Reconstruction blei"
+    "bt immer auf dem Pfad nach dem Upscaling -- seine Eingaben sind ein anderer Vertrag. Ein Farbbild mit Ra"
+    "nd in einer gr\303\266\303\237eren Textur wird in seiner echten Gr\303\266\303\237e verarbeitet; eines m"
+    "it Versatz von der Ecke f\303\244llt weiterhin auf \342\200\236nach dem Upscaling\342\200\234 zur\303\274"
+    "ck.\n\nNur D3D12 und seine D3D11/Vulkan-Br\303\274cken; natives Vulkan beh\303\244lt die alte Stelle.",
     "In dieser Sitzung aus: %s.",
     "Erneut versuchen",
     "Warte darauf, dass der Upscaler l\303\244uft.",
-    "Das Add-on DLSS5 Feeder ist geladen, hat aber noch keinen DLSS-evaluate geliefert -- suche in dlss5-feed.log im "
-    "Spielordner nach \"technique MISSING\", falls das im Spiel nicht verschwindet.",
-    "Braucht DLSS oder XeSS als Upscaler in den Videoeinstellungen des Spiels und einen geladenen Spielstand -- dies "
-    "(und der Rest von OptiScaler) l\303\244uft nicht in Men\303\274s.",
+    "Das Add-on DLSS5 Feeder ist geladen, hat aber noch keinen DLSS-evaluate geliefert -- suche in dlss5-feed"
+    ".log im Spielordner nach \"technique MISSING\", falls das im Spiel nicht verschwindet.",
+    "Braucht DLSS oder XeSS als Upscaler in den Videoeinstellungen des Spiels und einen geladenen Spielstand "
+    "-- dies (und der Rest von OptiScaler) l\303\244uft nicht in Men\303\274s.",
     "  (Modell l\303\244uft, \303\204nderung ausgeblendet)",
     "L\303\244uft%s - %.2f ms pro Frame%s",
     " nativ auf Vulkan",
     "L\303\244uft nativ auf Vulkan - %llu Frames%s",
     "L\303\244uft.%s",
-    "Der ganze Pass: die Staging-Kopien und das Resolve ebenso wie das Modell. Nur das Modell zu messen w\303\274rde "
-    "die Zahl sch\303\266nen.\n\nVergleiche sie mit der Frametime unten in diesem Fenster, um zu sehen, was es dich "
-    "kostet.",
+    "Der ganze Pass: die Staging-Kopien und das Resolve ebenso wie das Modell. Nur das Modell zu messen w\303\274"
+    "rde die Zahl sch\303\266nen.\n\nVergleiche sie mit der Frametime unten in diesem Fenster, um zu sehen, w"
+    "as es dich kostet.",
     "Globale Steuerung",
     "Strukturintensit\303\244t",
     "Die Struktursynthese-St\303\244rke des Modells \303\274ber den ganzen Frame.",
@@ -4633,144 +4333,148 @@ static const char* const kTable_de[] = {
     "Modell-Automaske",
     "L\303\244sst das Modell Haut selbst finden, statt den Frame einheitlich zu behandeln.",
     "Maske zeigen",
-    "NVIDIAs Panel kann die Automaske \303\274ber den Frame zeichnen. Das Modell gibt seine Maske \303\274ber die "
-    "Schnittstelle, die dieser Fork ansteuert, nicht zur\303\274ck, also gibt es hier nichts anzuzeigen.",
-    "-1 folgt der Strukturintensit\303\244t der Globalen Steuerung oben und ist der eigene Standard des Modells. 0 und "
-    "dar\303\274ber setzen die Struktur des maskierten Bereichs unabh\303\244ngig vom Rest des Frames.\n\nAusgegraut, "
-    "solange die Modell-Automaske aus ist -- ohne sie gibt es keine Maske zu formen.",
+    "NVIDIAs Panel kann die Automaske \303\274ber den Frame zeichnen. Das Modell gibt seine Maske \303\274ber"
+    " die Schnittstelle, die dieser Fork ansteuert, nicht zur\303\274ck, also gibt es hier nichts anzuzeigen.",
+    "-1 folgt der Strukturintensit\303\244t der Globalen Steuerung oben und ist der eigene Standard des Model"
+    "ls. 0 und dar\303\274ber setzen die Struktur des maskierten Bereichs unabh\303\244ngig vom Rest des Fram"
+    "es.\n\nAusgegraut, solange die Modell-Automaske aus ist -- ohne sie gibt es keine Maske zu formen.",
     "Entwickler-Maskierung",
     "Masken zeigen",
-    "Objektmasken kommen aus dem Renderer des Spiels selbst, daher bleibt das NVIDIA-exklusiv -- ein Injector hat "
-    "keine Objektliste zum Maskieren.",
+    "Objektmasken kommen aus dem Renderer des Spiels selbst, daher bleibt das NVIDIA-exklusiv -- ein Injector"
+    " hat keine Objektliste zum Maskieren.",
     "Modelle",
     "Standard",
     "Modell A",
     "Modell B",
     "Modell C",
-    "Nicht dieselbe Skala wie die Presets von Super Resolution oder Ray Reconstruction -- derselbe Buchstabe bedeutet "
-    "hier etwas anderes.\n\nWird beim Bau des Modells gelesen, eine \303\204nderung baut es also nach einem Moment "
-    "neu.",
+    "Nicht dieselbe Skala wie die Presets von Super Resolution oder Ray Reconstruction -- derselbe Buchstabe "
+    "bedeutet hier etwas anderes.\n\nWird beim Bau des Modells gelesen, eine \303\204nderung baut es also nac"
+    "h einem Moment neu.",
     "Standard (standard)",
     "Natural",
     "Cinematic",
     "Stil",
-    "Die eigenen Verarbeitungsprofile des Modells.\n\nStandard (standard): das st\303\244rkste, und am ehesten "
-    "'stilisiert' wirkend.\nNatural: dieselbe Detailarbeit mit sanfterer Hand.\nCinematic: nimmt Glanz und "
-    "\303\234berverarbeitung zur\303\274ck f\303\274r einen filmischen Look.\n\nDie Namen stammen aus Community-Tests, "
-    "anders als die Panel-Beschriftungen oben -- NVIDIA liefert f\303\274r diese Einstellung keine Namen in den "
-    "Binaries.",
+    "Die eigenen Verarbeitungsprofile des Modells.\n\nStandard (standard): das st\303\244rkste, und am eheste"
+    "n 'stilisiert' wirkend.\nNatural: dieselbe Detailarbeit mit sanfterer Hand.\nCinematic: nimmt Glanz und "
+    "\303\234berverarbeitung zur\303\274ck f\303\274r einen filmischen Look.\n\nDie Namen stammen aus Communi"
+    "ty-Tests, anders als die Panel-Beschriftungen oben -- NVIDIA liefert f\303\274r diese Einstellung keine "
+    "Namen in den Binaries.",
     "Intensit\303\244t",
-    "Die eigene St\303\244rkeregelung des Modells, innerhalb davon angewendet. Getrennt von der Globalen Steuerung "
-    "oben und von der Detailst\303\244rke unten, die das Ergebnis erst danach skaliert.",
+    "Die eigene St\303\244rkeregelung des Modells, innerhalb davon angewendet. Getrennt von der Globalen Steu"
+    "erung oben und von der Detailst\303\244rke unten, die das Ergebnis erst danach skaliert.",
     "Frame Generation",
     "NVIDIAs eigene DLSS Frame Generation \303\274ber Streamline. Nicht OptiFG.",
-    "Setzt Streamlines numFramesToGenerate direkt -- wie viele zus\303\244tzliche Frames DLSS-G zwischen echte "
-    "einf\303\274gt. 2X f\303\274gt einen ein, 3X zwei, und so weiter. Begrenzt durch das, was GPU und Treiber als "
-    "unterst\303\274tzt melden.\n\nAusgegraut, solange Multi unten an ist -- dann w\303\244hlt der Treiber die Anzahl.",
+    "Setzt Streamlines numFramesToGenerate direkt -- wie viele zus\303\244tzliche Frames DLSS-G zwischen echt"
+    "e einf\303\274gt. 2X f\303\274gt einen ein, 3X zwei, und so weiter. Begrenzt durch das, was GPU und Trei"
+    "ber als unterst\303\274tzt melden.\n\nAusgegraut, solange Multi unten an ist -- dann w\303\244hlt der Tr"
+    "eiber die Anzahl.",
     "Multi (dynamische Frame Generation)",
-    "L\303\244sst NVIDIAs Treiber den Faktor selbst von Frame zu Frame variieren, um das FPS-Ziel unten zu halten -- "
-    "statt fester 2X/3X/4X.",
+    "L\303\244sst NVIDIAs Treiber den Faktor selbst von Frame zu Frame variieren, um das FPS-Ziel unten zu ha"
+    "lten -- statt fester 2X/3X/4X.",
     "DMFG-FPS-Ziel",
     "0 erkennt die Bildwiederholrate deines Displays automatisch.",
     "Dieses Spiel hat keine eigene NVIDIA DLSS Frame Generation.",
     "Kosten",
     "Modelldurchl\303\244ufe",
-    "Wie oft das Modell l\303\244uft, bevor seine Antwort zusammengesetzt wird. Jede zus\303\244tzliche Schicht "
-    "bekommt die Ausgabe der vorigen und f\303\274hrt ihre eigene zeitliche Historie.\n\nDer Basis-Frame bleibt "
-    "unber\303\274hrt und die Komposition passiert einmal am Ende, sodass sich Farb- und "
-    "\303\234bertragungsst\303\244rke nicht aufsummieren -- aber das Modell soll seine eigene Ausgabe verbessern, "
-    "wof\303\274r es nicht trainiert wurde.\n\nDie Kosten sind fast linear: das Modell ist beinahe der ganze Aufwand "
-    "des Passes, und jede Schicht zahlt ihn erneut. Drei ist die Obergrenze, weil sp\303\244tere Schichten "
-    "konvergieren und trotzdem den vollen Preis kosten.",
+    "Wie oft das Modell l\303\244uft, bevor seine Antwort zusammengesetzt wird. Jede zus\303\244tzliche Schic"
+    "ht bekommt die Ausgabe der vorigen und f\303\274hrt ihre eigene zeitliche Historie.\n\nDer Basis-Frame b"
+    "leibt unber\303\274hrt und die Komposition passiert einmal am Ende, sodass sich Farb- und \303\234bertra"
+    "gungsst\303\244rke nicht aufsummieren -- aber das Modell soll seine eigene Ausgabe verbessern, wof\303\274"
+    "r es nicht trainiert wurde.\n\nDie Kosten sind fast linear: das Modell ist beinahe der ganze Aufwand des"
+    " Passes, und jede Schicht zahlt ihn erneut. Drei ist die Obergrenze, weil sp\303\244tere Schichten konve"
+    "rgieren und trotzdem den vollen Preis kosten.",
     "%dx Modellkosten. Zwei wirken oft reicher; drei sind meist sichtbar \303\274berverarbeitet.",
     "Auto (wie Durchlauf 1)",
     "Modell Durchlauf 2",
     "Stil Durchlauf 2",
     "Modell Durchlauf 3",
     "Stil Durchlauf 3",
-    "Welches eingebaute Profil jede sp\303\244tere Schicht ausf\303\274hrt. Sie w\303\244hlen ein anderes Profil "
-    "innerhalb derselben NVIDIA-Modelldatei -- nichts Zus\303\244tzliches wird geladen.\n\nAuto hei\303\237t, die "
-    "Schicht l\303\244uft mit dem, was f\303\274r Durchlauf 1 eingestellt ist. Eine \303\204nderung baut nur das "
-    "Feature dieser Schicht neu, und nur solange sie aktiv ist.",
+    "Welches eingebaute Profil jede sp\303\244tere Schicht ausf\303\274hrt. Sie w\303\244hlen ein anderes Pro"
+    "fil innerhalb derselben NVIDIA-Modelldatei -- nichts Zus\303\244tzliches wird geladen.\n\nAuto hei\303\237"
+    "t, die Schicht l\303\244uft mit dem, was f\303\274r Durchlauf 1 eingestellt ist. Eine \303\204nderung ba"
+    "ut nur das Feature dieser Schicht neu, und nur solange sie aktiv ist.",
     "Modellaufl\303\266sung",
-    "Auf welchem Anteil des Frames das Modell arbeitet. Die Kosten fallen mit dem Quadrat davon, halbe "
-    "Aufl\303\266sung ist also etwa ein Viertel der Zeit. Unter 100 wird der Frame selbst nie verkleinert -- nur der "
-    "eigene Beitrag des Modells wird klein berechnet und vergr\303\266\303\237ert. Wird beim Loslassen des Reglers "
-    "angewendet, nicht w\303\244hrend er sich bewegt.",
-    "Supersampling %.2fx: das Modell l\303\244uft \303\234BER nativ und wird dann zur\303\274ckgerechnet. "
-    "Experimentell und teuer -- die Zeit w\303\244chst mit der Fl\303\244che.",
+    "Auf welchem Anteil des Frames das Modell arbeitet. Die Kosten fallen mit dem Quadrat davon, halbe Aufl\303\266"
+    "sung ist also etwa ein Viertel der Zeit. Unter 100 wird der Frame selbst nie verkleinert -- nur der eige"
+    "ne Beitrag des Modells wird klein berechnet und vergr\303\266\303\237ert. Wird beim Loslassen des Regler"
+    "s angewendet, nicht w\303\244hrend er sich bewegt.",
+    "Supersampling %.2fx: das Modell l\303\244uft \303\234BER nativ und wird dann zur\303\274ckgerechnet. Exp"
+    "erimentell und teuer -- die Zeit w\303\244chst mit der Fl\303\244che.",
     "Verkleinerungsfilter",
-    "Der Filter, der die \303\274ber-native Antwort des Modells auf Anzeigegr\303\266\303\237e zur\303\274ckmittelt -- "
-    "er macht aus Supersampling WENIGER Rauschen statt mehr. Sch\303\244rfere Filter (Lanczos3, Kaiser3) behalten die "
-    "meisten Details; weichere (Bicubic, Catmull-Rom) gehen sanfter mit Ringing um. Unabh\303\244ngig vom "
-    "Verkleinerungsfilter des Output Scaling, die beiden k\303\266nnen sich also unterscheiden und gleichzeitig "
-    "laufen.",
+    "Der Filter, der die \303\274ber-native Antwort des Modells auf Anzeigegr\303\266\303\237e zur\303\274ckm"
+    "ittelt -- er macht aus Supersampling WENIGER Rauschen statt mehr. Sch\303\244rfere Filter (Lanczos3, Kai"
+    "ser3) behalten die meisten Details; weichere (Bicubic, Catmull-Rom) gehen sanfter mit Ringing um. Unabh\303\244"
+    "ngig vom Verkleinerungsfilter des Output Scaling, die beiden k\303\266nnen sich also unterscheiden und g"
+    "leichzeitig laufen.",
     "Klassisch",
     "Angepasstes Residuum",
     "Vergr\303\266\303\237erung",
-    "Wie die Arbeit des Modells wieder hochgebracht wird, wenn es unter der Frame-Gr\303\266\303\237e "
-    "lief.\n\nKlassisch setzt das kleine Bild des Modells direkt gegen den Frame in voller Gr\303\266\303\237e. Die "
-    "beiden unterscheiden sich durch die Unsch\303\244rfe der Verkleinerung ebenso wie durch die \303\204nderung des "
-    "Modells, und die Komposition kann das nicht auseinanderhalten.\n\nAusgegraut bei 100 %, wo es nichts zu "
-    "vergr\303\266\303\237ern gibt.",
+    "Wie die Arbeit des Modells wieder hochgebracht wird, wenn es unter der Frame-Gr\303\266\303\237e lief.\n"
+    "\nKlassisch setzt das kleine Bild des Modells direkt gegen den Frame in voller Gr\303\266\303\237e. Die "
+    "beiden unterscheiden sich durch die Unsch\303\244rfe der Verkleinerung ebenso wie durch die \303\204nder"
+    "ung des Modells, und die Komposition kann das nicht auseinanderhalten.\n\nAusgegraut bei 100 %, wo es ni"
+    "chts zu vergr\303\266\303\237ern gibt.",
     "Wie viel davon ankommt",
     "Detailst\303\244rke",
     "Zur\303\274cksetzen",
-    "Wie weit sich der Frame zum Bild des Modells bewegt. 0 gibt genau zur\303\274ck, was der Upscaler erzeugt hat. 1 "
-    "ist das Bild des Modells. \303\234ber 1 geht in derselben Richtung dar\303\274ber hinaus.",
+    "Wie weit sich der Frame zum Bild des Modells bewegt. 0 gibt genau zur\303\274ck, was der Upscaler erzeug"
+    "t hat. 1 ist das Bild des Modells. \303\234ber 1 geht in derselben Richtung dar\303\274ber hinaus.",
     "Farbst\303\244rke",
-    "Ob die Farbe des Modells mit seinem Licht ankommt. 0 beh\303\244lt den Farbton des Spiels exakt -- jedes Pixel in "
-    "der Originalfarbe, nur seine Helligkeit tr\303\244gt das Urteil des Modells. 1 bringt auch die Farbe des Modells "
-    "mit, in dessen eigenem Farbton, in AP1 begrenzt, damit nichts Unerreichbares verlangt wird.\n\n\303\234ber 1 "
-    "\303\274bers\303\244ttigt es: die Farbe beh\303\244lt ihren Ton, wird aber kr\303\244ftiger, und l\303\244uft am "
-    "Rand dessen, was das Display zeigen kann, weich aus, statt in einen flachen, ausgebrannten Fleck zu clippen. 1 "
-    "ist die eigene Farbe des Modells; dar\303\274ber hinaus f\303\274r mehr Punch.",
+    "Ob die Farbe des Modells mit seinem Licht ankommt. 0 beh\303\244lt den Farbton des Spiels exakt -- jedes"
+    " Pixel in der Originalfarbe, nur seine Helligkeit tr\303\244gt das Urteil des Modells. 1 bringt auch die"
+    " Farbe des Modells mit, in dessen eigenem Farbton, in AP1 begrenzt, damit nichts Unerreichbares verlangt"
+    " wird.\n\n\303\234ber 1 \303\274bers\303\244ttigt es: die Farbe beh\303\244lt ihren Ton, wird aber kr\303\244"
+    "ftiger, und l\303\244uft am Rand dessen, was das Display zeigen kann, weich aus, statt in einen flachen,"
+    " ausgebrannten Fleck zu clippen. 1 ist die eigene Farbe des Modells; dar\303\274ber hinaus f\303\274r me"
+    "hr Punch.",
     "Farbe",
-    "Das Modell wurde auf fertigen, sRGB-kodierten Frames trainiert. Diese Einstellungen legen fest, wie die lineare "
-    "Ausgabe des Upscalers in etwas abgebildet wird, das es wiedererkennt.",
+    "Das Modell wurde auf fertigen, sRGB-kodierten Frames trainiert. Diese Einstellungen legen fest, wie die "
+    "lineare Ausgabe des Upscalers in etwas abgebildet wird, das es wiedererkennt.",
     "Aus (weiches Knie)",
     "Neutwo-Proxy + komponiert",
     "Neutwo-Proxy + ersetzt",
     "Hybrid-Proxy + komponiert",
     "Hybrid-Proxy + ersetzt",
     "Umkehrbarer Proxy",
-    "Was das Modell gezeigt bekommt und wie seine Antwort zur\303\274ckkommt. Experimentell.\n\nAus (weiches Knie): "
-    "der Standard, byteidentisch mit vorher. Es dr\303\274ckt die Lichter so hart ab, dass das Modell darin keine "
-    "Details aufl\303\266sen kann -- gut in weich beleuchteten Szenen, schwach in hellen.\n\nNeutwo komponiert: eine "
-    "ungeclippte Kurve, das Modell sieht also Lichterdetails, dann alles dar\303\274ber (St\303\244rken, "
-    "Lichterschutz, Palette). Gewinnt in hellen Szenen, aber die Kurve komprimiert auch die Mittelt\303\266ne, weich "
-    "beleuchteter Inhalt kann also schlechter sein als Aus. Verschiebt au\303\237erdem das Papierwei\303\237 -- beim "
-    "Umschalten nachpr\303\274fen.\n\nHybrid komponiert: das, was man nimmt. Identit\303\244t in den "
-    "Mittelt\303\266nen -- dort so gut wie Aus -- mit dem ungeclippten Auslauf nur in den Lichtern, holt also die "
-    "Details zur\303\274ck, die Aus zerdr\303\274ckt, ohne die Mittelt\303\266ne aufzugeben wie Neutwo. Verschiebt das "
-    "Papierwei\303\237 kaum.\n\nErsetzt: das rohe Modell direkt durch die exakte Umkehrung zur\303\274ck, ohne "
-    "Komposition -- kein Schutz, keine Palette, keine St\303\244rken. Wundersch\303\266n, wo es keine hellen Lichter "
-    "gibt, aber die BLITZEN in Bewegung. Eine Referenz, keine Alltagseinstellung.\n\nHybrid ersetzt: das rohe Modell "
-    "von Ersetzt auf der Hybridkurve, sodass das Blitzen auf echte Lichter beschr\303\244nkt ist statt \303\274berall. "
-    "Der Gro\303\237teil der Details von Ersetzt, weit stabiler.",
+    "Was das Modell gezeigt bekommt und wie seine Antwort zur\303\274ckkommt. Experimentell.\n\nAus (weiches "
+    "Knie): der Standard, byteidentisch mit vorher. Es dr\303\274ckt die Lichter so hart ab, dass das Modell "
+    "darin keine Details aufl\303\266sen kann -- gut in weich beleuchteten Szenen, schwach in hellen.\n\nNeut"
+    "wo komponiert: eine ungeclippte Kurve, das Modell sieht also Lichterdetails, dann alles dar\303\274ber ("
+    "St\303\244rken, Lichterschutz, Palette). Gewinnt in hellen Szenen, aber die Kurve komprimiert auch die M"
+    "ittelt\303\266ne, weich beleuchteter Inhalt kann also schlechter sein als Aus. Verschiebt au\303\237erde"
+    "m das Papierwei\303\237 -- beim Umschalten nachpr\303\274fen.\n\nHybrid komponiert: das, was man nimmt. "
+    "Identit\303\244t in den Mittelt\303\266nen -- dort so gut wie Aus -- mit dem ungeclippten Auslauf nur in"
+    " den Lichtern, holt also die Details zur\303\274ck, die Aus zerdr\303\274ckt, ohne die Mittelt\303\266ne"
+    " aufzugeben wie Neutwo. Verschiebt das Papierwei\303\237 kaum.\n\nErsetzt: das rohe Modell direkt durch "
+    "die exakte Umkehrung zur\303\274ck, ohne Komposition -- kein Schutz, keine Palette, keine St\303\244rken"
+    ". Wundersch\303\266n, wo es keine hellen Lichter gibt, aber die BLITZEN in Bewegung. Eine Referenz, kein"
+    "e Alltagseinstellung.\n\nHybrid ersetzt: das rohe Modell von Ersetzt auf der Hybridkurve, sodass das Bli"
+    "tzen auf echte Lichter beschr\303\244nkt ist statt \303\274berall. Der Gro\303\237teil der Details von E"
+    "rsetzt, weit stabiler.",
     "Nur Papierwei\303\237",
     "Die eigene Belichtung des Spiels",
     "Ein vom Scan gefundener Puffer",
     "Wei\303\237punkt aus",
-    "Nur Papierwei\303\237 -- der Regler unten und sonst nichts. Richtig f\303\274r ein Spiel, dessen Belichtung sich "
-    "nie bewegt, falsch, sobald sie es tut: eine Konstante kann nicht H\303\266hle und Feld zugleich bedienen.\n\nDie "
-    "eigene Belichtung des Spiels -- gelesen aus der Textur, die das Spiel dem Upscaler \303\274bergibt. Die beste "
-    "Quelle, die es gibt, weil sie stromaufw\303\244rts entschieden wird und nichts in diesem Pass sie bewegen kann. "
-    "Nicht jedes Spiel liefert eine.\n\nEin vom Scan gefundener Puffer -- f\303\274r Spiele, die eine Belichtung "
-    "berechnen und nie weitergeben. Eine Vermutung: Kandidaten werden nach Form abgeglichen, und das Verh\303\244ltnis "
-    "zum Anker hebt die Skala auf. Muss einmal im Abschnitt Experimentell verankert und danach gepr\303\274ft werden.",
+    "Nur Papierwei\303\237 -- der Regler unten und sonst nichts. Richtig f\303\274r ein Spiel, dessen Belicht"
+    "ung sich nie bewegt, falsch, sobald sie es tut: eine Konstante kann nicht H\303\266hle und Feld zugleich"
+    " bedienen.\n\nDie eigene Belichtung des Spiels -- gelesen aus der Textur, die das Spiel dem Upscaler \303\274"
+    "bergibt. Die beste Quelle, die es gibt, weil sie stromaufw\303\244rts entschieden wird und nichts in die"
+    "sem Pass sie bewegen kann. Nicht jedes Spiel liefert eine.\n\nEin vom Scan gefundener Puffer -- f\303\274"
+    "r Spiele, die eine Belichtung berechnen und nie weitergeben. Eine Vermutung: Kandidaten werden nach Form"
+    " abgeglichen, und das Verh\303\244ltnis zum Anker hebt die Skala auf. Muss einmal im Abschnitt Experimen"
+    "tell verankert und danach gepr\303\274ft werden.",
     "Scan %.5f  ->  Wei\303\237punkt %.2f   (1 Punkt)",
     "Scan %.5f  ->  Wei\303\237punkt %.2f   (%u Punkte)",
     "Papierwei\303\237 (Punkt %d)",
     "Papierwei\303\237",
-    "Der Wei\303\237punkt des gew\303\244hlten Kalibrierpunkts, oder -- ohne gew\303\244hlte Zeile -- der Wert, den "
-    "der n\303\244chste Druck auf Verankern erfasst.\n\nStelle ihn ein, bis das Bild hier richtig aussieht, dann "
-    "Verankern. Geh in ganz anderes Licht und wiederhole es: zwei Punkte legen die echte Beziehung des Puffers fest, "
-    "und der Wei\303\237punkt h\303\244lt dazwischen.",
+    "Der Wei\303\237punkt des gew\303\244hlten Kalibrierpunkts, oder -- ohne gew\303\244hlte Zeile -- der Wer"
+    "t, den der n\303\244chste Druck auf Verankern erfasst.\n\nStelle ihn ein, bis das Bild hier richtig auss"
+    "ieht, dann Verankern. Geh in ganz anderes Licht und wiederhole es: zwei Punkte legen die echte Beziehung"
+    " des Puffers fest, und der Wei\303\237punkt h\303\244lt dazwischen.",
     "Trimm (x den Scan)",
-    "Ein Faktor auf den Wei\303\237punkt des Scans und die Stellschraube zwischen Ankerpunkten: drehe, bis das Bild im "
-    "aktuellen Licht richtig aussieht, dann dr\303\274cke Verankern unter Experimentell -- das erfasst den getrimmten "
-    "Wert als neuen Punkt und setzt dies auf 1 zur\303\274ck.",
+    "Ein Faktor auf den Wei\303\237punkt des Scans und die Stellschraube zwischen Ankerpunkten: drehe, bis da"
+    "s Bild im aktuellen Licht richtig aussieht, dann dr\303\274cke Verankern unter Experimentell -- das erfa"
+    "sst den getrimmten Wert als neuen Punkt und setzt dies auf 1 zur\303\274ck.",
     "Dieses Spiel liefert eine Belichtung, und sie wird gelesen.",
     "Dieses Spiel liefert keine Belichtung. Probier stattdessen den Scan.",
     "Warte auf einen Frame...",
@@ -4778,96 +4482,99 @@ static const char* const kTable_de[] = {
     "  (gehalten: in diesem Frame nicht vorhanden)",
     "Lese die Belichtung...",
     "Trimm (x die Spielbelichtung)",
-    "Ein Faktor auf die vom Spiel gelieferte Belichtung. 1.00x nimmt dessen Zahl exakt, und das ist hier die richtige "
-    "Antwort.\n\nDas ist kein Korrekturfaktor. Ein Spiel, das den Trimm weit weg von 1 braucht, um richtig auszusehen, "
-    "ist ein Beleg daf\303\274r, dass die gelesene Belichtung f\303\274r dieses Spiel falsch ist, nicht daf\303\274r, "
-    "dass das Spiel getrimmt werden will. Etwa 0.8 bis 1.25 ist ehrliches Feintuning; zu 4 zu greifen hei\303\237t, "
-    "dass stromaufw\303\244rts etwas kaputt ist und dies es verdeckt.\n\nDein manuelles Papierwei\303\237 wird "
-    "getrennt aufbewahrt und kommt unver\303\244ndert zur\303\274ck, wenn du die Quelle zur\303\274ckschaltest.",
-    "Wodurch der Frame geteilt wird, bevor das Modell ihn sieht. Es gibt keinen anderen Wei\303\237punkt; das ist "
-    "alles. \303\234ber 1 ist das \303\274bergebene Bild dunkler, die Lichter sitzen also tiefer auf der Kurve.",
+    "Ein Faktor auf die vom Spiel gelieferte Belichtung. 1.00x nimmt dessen Zahl exakt, und das ist hier die "
+    "richtige Antwort.\n\nDas ist kein Korrekturfaktor. Ein Spiel, das den Trimm weit weg von 1 braucht, um r"
+    "ichtig auszusehen, ist ein Beleg daf\303\274r, dass die gelesene Belichtung f\303\274r dieses Spiel fals"
+    "ch ist, nicht daf\303\274r, dass das Spiel getrimmt werden will. Etwa 0.8 bis 1.25 ist ehrliches Feintun"
+    "ing; zu 4 zu greifen hei\303\237t, dass stromaufw\303\244rts etwas kaputt ist und dies es verdeckt.\n\nD"
+    "ein manuelles Papierwei\303\237 wird getrennt aufbewahrt und kommt unver\303\244ndert zur\303\274ck, wen"
+    "n du die Quelle zur\303\274ckschaltest.",
+    "Wodurch der Frame geteilt wird, bevor das Modell ihn sieht. Es gibt keinen anderen Wei\303\237punkt; das"
+    " ist alles. \303\234ber 1 ist das \303\274bergebene Bild dunkler, die Lichter sitzen also tiefer auf der"
+    " Kurve.",
     "Lichterschutz",
-    "Das Meiste, um das der Pass ein Pixel bewegen darf, als Vielfaches dessen, was es schon war, in beide Richtungen "
-    "-- ein Pixel darf weder dar\303\274ber hinaus aufgehellt noch \303\274ber den Kehrwert hinaus abgedunkelt werden. "
-    "Lichter sind der Ort, an dem das Modell am wenigsten zu sagen hat und das Umskalieren seiner Antwort am meisten "
-    "Schaden anrichtet; 2x l\303\244sst Details intakt und verhindert, dass eine Leuchtstoffr\303\266hre zu einer "
-    "Kette farbiger Zellen wird. Nur erh\303\266hen, wenn helle Bereiche abgeschnitten wirken.",
+    "Das Meiste, um das der Pass ein Pixel bewegen darf, als Vielfaches dessen, was es schon war, in beide Ri"
+    "chtungen -- ein Pixel darf weder dar\303\274ber hinaus aufgehellt noch \303\274ber den Kehrwert hinaus a"
+    "bgedunkelt werden. Lichter sind der Ort, an dem das Modell am wenigsten zu sagen hat und das Umskalieren"
+    " seiner Antwort am meisten Schaden anrichtet; 2x l\303\244sst Details intakt und verhindert, dass eine L"
+    "euchtstoffr\303\266hre zu einer Kette farbiger Zellen wird. Nur erh\303\266hen, wenn helle Bereiche abge"
+    "schnitten wirken.",
     "Belichtungsscan",
     "Belichtungsmesser auf dem Bildschirm zeigen",
-    "Eine Lampe in der Ecke: rot f\303\274r dunkel, gr\303\274n f\303\274r volles Licht und die Stufen dazwischen, mit "
-    "dem Messwert daneben.\n\nSo siehst du auf einen Blick, dass der Scan FOLGT, statt nur zu laufen. Geh in den "
-    "Schatten, und sie sollte Richtung Rot rutschen; tritt heraus, und sie sollte gr\303\274n werden. Bewegt sie sich "
-    "falsch herum, ist \"Die Zahl l\303\244uft andersherum\" unten daf\303\274r da.\n\nReine Anzeige. \303\204ndert "
-    "nichts.",
+    "Eine Lampe in der Ecke: rot f\303\274r dunkel, gr\303\274n f\303\274r volles Licht und die Stufen dazwis"
+    "chen, mit dem Messwert daneben.\n\nSo siehst du auf einen Blick, dass der Scan FOLGT, statt nur zu laufe"
+    "n. Geh in den Schatten, und sie sollte Richtung Rot rutschen; tritt heraus, und sie sollte gr\303\274n w"
+    "erden. Bewegt sie sich falsch herum, ist \"Die Zahl l\303\244uft andersherum\" unten daf\303\274r da.\n\n"
+    "Reine Anzeige. \303\204ndert nichts.",
     "Hier verankern",
-    "Bring das Bild in Ordnung, dann dr\303\274cke dies -- es erfasst den aktuellen Look als Punkt. F\303\274r den "
-    "ersten Punkt nimm den Papierwei\303\237-Regler oben; f\303\274r jeden weiteren geh in anderes Licht und nutze den "
-    "Trimm, den dies dann einbackt.\n\nEin Punkt kalibriert ein Verh\303\244ltnis, und der Wei\303\237punkt folgt dem "
-    "Scan von da an. Geh in ganz anderes Licht und dr\303\274cke es erneut: der zweite Punkt legt die echte Kurve des "
-    "Puffers fest, sodass alles zwischen den beiden stimmt und nicht nur die Umgebung eines Ankers. Bis zu "
-    "acht.\n\nDie Tabelle gilt pro Spiel und ist teilbar -- eine Person kalibriert ein Spiel, und die Zahlen sind "
-    "f\303\274r alle gleich, die das Profil \303\274bernehmen.",
+    "Bring das Bild in Ordnung, dann dr\303\274cke dies -- es erfasst den aktuellen Look als Punkt. F\303\274"
+    "r den ersten Punkt nimm den Papierwei\303\237-Regler oben; f\303\274r jeden weiteren geh in anderes Lich"
+    "t und nutze den Trimm, den dies dann einbackt.\n\nEin Punkt kalibriert ein Verh\303\244ltnis, und der We"
+    "i\303\237punkt folgt dem Scan von da an. Geh in ganz anderes Licht und dr\303\274cke es erneut: der zwei"
+    "te Punkt legt die echte Kurve des Puffers fest, sodass alles zwischen den beiden stimmt und nicht nur di"
+    "e Umgebung eines Ankers. Bis zu acht.\n\nDie Tabelle gilt pro Spiel und ist teilbar -- eine Person kalib"
+    "riert ein Spiel, und die Zahlen sind f\303\274r alle gleich, die das Profil \303\274bernehmen.",
     "(der Scan schaut nur zu -- der Wei\303\237punkt oben kommt von woanders)",
     "%s Scan %.4f  ->  Wei\303\237 %.2f%s",
     "   [bearbeitet]",
-    "Klick auf eine Zeile bearbeitet sie mit dem Regler oben; nochmal klicken steuert den Live-Punkt. > ist der Punkt, "
-    "der gerade verwendet wird.",
+    "Klick auf eine Zeile bearbeitet sie mit dem Regler oben; nochmal klicken steuert den Live-Punkt. > ist d"
+    "er Punkt, der gerade verwendet wird.",
     "Die Zahl l\303\244uft andersherum",
-    "Kippe das, wenn das Bild in der Richtung schlechter wird, in der es besser werden sollte. Die meisten Engines "
-    "speichern eine Belichtung, die f\303\244llt, wenn die Szene heller wird; manche speichern den Kehrwert, und ein "
-    "nach Form gefundener Puffer sagt nicht, welchen. F\303\274ge einen zweiten Ankerpunkt in anderem Licht hinzu, und "
-    "das wird f\303\274r dich entschieden, sodass es verschwindet.",
+    "Kippe das, wenn das Bild in der Richtung schlechter wird, in der es besser werden sollte. Die meisten En"
+    "gines speichern eine Belichtung, die f\303\244llt, wenn die Szene heller wird; manche speichern den Kehr"
+    "wert, und ein nach Form gefundener Puffer sagt nicht, welchen. F\303\274ge einen zweiten Ankerpunkt in a"
+    "nderem Licht hinzu, und das wird f\303\274r dich entschieden, sodass es verschwindet.",
     "Kandidaten",
     "noch nichts gefunden.",
     "%zu. %s -- noch nicht gelesen",
     "%zu. %s = %.5f  (gesehen %.5f..%.5f) %s",
     "BEWEGT SICH",
     "bisher flach",
-    "Geh vom Schatten ins Tageslicht. Eine echte Belichtung bewegt sich. Eine, die nur je steigt, ist ein "
-    "Z\303\244hler, keine Belichtung.",
+    "Geh vom Schatten ins Tageslicht. Eine echte Belichtung bewegt sich. Eine, die nur je steigt, ist ein Z\303\244"
+    "hler, keine Belichtung.",
     "F\303\274hrung",
     "Dem Spiel folgen",
     "Normal erzwingen",
     "Invertiert erzwingen",
     "Tiefe",
-    "In welche Richtung dem Modell gesagt wird, dass die Tiefe l\303\244uft. Das Spiel gibt das in den Flags an, mit "
-    "denen es sein eigenes DLSS-Feature erstellt hat, und dem zu folgen ist fast immer richtig -- aber ein Spiel, das "
-    "es falsch angibt, muss von Hand korrigiert werden.\n\nWenn der Pass dort am schlechtesten aussieht, wo Geometrie "
-    "auf Himmel trifft, versuche, das andere zu erzwingen.",
+    "In welche Richtung dem Modell gesagt wird, dass die Tiefe l\303\244uft. Das Spiel gibt das in den Flags "
+    "an, mit denen es sein eigenes DLSS-Feature erstellt hat, und dem zu folgen ist fast immer richtig -- abe"
+    "r ein Spiel, das es falsch angibt, muss von Hand korrigiert werden.\n\nWenn der Pass dort am schlechtest"
+    "en aussieht, wo Geometrie auf Himmel trifft, versuche, das andere zu erzwingen.",
     "UI-Korrektur",
-    "L\303\244sst das Modell eine \303\274ber den Frame gelegte UI-Ebene ber\303\274cksichtigen. An ist sein eigener "
-    "Standard und richtig, wann immer eine UI-Ressource bei ihm ankommt; schalte es aus, wenn die Korrektur selbst das "
-    "ist, was falsch aussieht.\n\nWird beim Bau des Modells gelesen.",
+    "L\303\244sst das Modell eine \303\274ber den Frame gelegte UI-Ebene ber\303\274cksichtigen. An ist sein "
+    "eigener Standard und richtig, wann immer eine UI-Ressource bei ihm ankommt; schalte es aus, wenn die Kor"
+    "rektur selbst das ist, was falsch aussieht.\n\nWird beim Bau des Modells gelesen.",
     "Pr\303\274fen",
     "Erfasse...",
     "8 Frames erfassen",
-    "Schreibt acht aufeinanderfolgende Frames zweimal: wie der Upscaler sie erzeugt hat und noch einmal, nachdem die "
-    "\303\204nderung des Modells angewendet wurde. In einen Ordner dlssnr-capture neben OptiScaler; jeder Lauf "
-    "\303\274berschreibt den letzten.",
+    "Schreibt acht aufeinanderfolgende Frames zweimal: wie der Upscaler sie erzeugt hat und noch einmal, nach"
+    "dem die \303\204nderung des Modells angewendet wurde. In einen Ordner dlssnr-capture neben OptiScaler; j"
+    "eder Lauf \303\274berschreibt den letzten.",
     "Einmal pro Sitzung automatisch erfassen",
-    "Schreibt automatisch einen passenden Vorher/Nachher-Satz, ohne dass jemand fragt. Der Ordner wird bei jedem Lauf "
-    "geleert, h\303\244lt also eine einzige Sitzung und w\303\244chst nie.",
+    "Schreibt automatisch einen passenden Vorher/Nachher-Satz, ohne dass jemand fragt. Der Ordner wird bei je"
+    "dem Lauf geleert, h\303\244lt also eine einzige Sitzung und w\303\244chst nie.",
     "Frame halten",
-    "Friert den Frame ein, an dem das Modell arbeitet. Solange er gehalten wird, \303\244ndere Papierwei\303\237, die "
-    "St\303\244rken, den umkehrbaren Modus, das Modell-Preset -- alles unterhalb des Upscalers -- und nur diese "
-    "Einstellung bewegt sich; die Szene nicht. Passt zu \"Modell anwenden\" oben: Frame einfrieren, dann das "
-    "umschalten, um ihn mit und ohne zu sehen.\n\nWas es nicht zeigen kann: Upscaler-Presets oder alles "
-    "stromaufw\303\244rts dieses Passes (der Upscaler l\303\244uft auf einem gehaltenen Frame nicht erneut), sowie HUD "
-    "und Nachbearbeitung des Spiels selbst, die danach laufen und sich weiter aktualisieren. Der Wei\303\237punkt wird "
-    "nicht mehr gemessen und h\303\244lt seinen Wert, kann also nicht driften und den Vergleich "
-    "verf\303\244lschen.\n\nSchlie\303\237e das Panel, und er bleibt gehalten. H\303\244kchen entfernen, um "
-    "fortzusetzen.",
+    "Friert den Frame ein, an dem das Modell arbeitet. Solange er gehalten wird, \303\244ndere Papierwei\303\237"
+    ", die St\303\244rken, den umkehrbaren Modus, das Modell-Preset -- alles unterhalb des Upscalers -- und n"
+    "ur diese Einstellung bewegt sich; die Szene nicht. Passt zu \"Modell anwenden\" oben: Frame einfrieren, "
+    "dann das umschalten, um ihn mit und ohne zu sehen.\n\nWas es nicht zeigen kann: Upscaler-Presets oder al"
+    "les stromaufw\303\244rts dieses Passes (der Upscaler l\303\244uft auf einem gehaltenen Frame nicht erneu"
+    "t), sowie HUD und Nachbearbeitung des Spiels selbst, die danach laufen und sich weiter aktualisieren. De"
+    "r Wei\303\237punkt wird nicht mehr gemessen und h\303\244lt seinen Wert, kann also nicht driften und den"
+    " Vergleich verf\303\244lschen.\n\nSchlie\303\237e das Panel, und er bleibt gehalten. H\303\244kchen entf"
+    "ernen, um fortzusetzen.",
     "Aus",
     "Nebeneinander",
     "Wischen",
     "Vergleichen",
-    "Zeigt den Pass gegen sich selbst. Nebeneinander legt den ganzen Frame in jede H\303\244lfte; Wischen schneidet "
-    "einen einzelnen Frame an der Trennlinie und spielt normal ab. Keines braucht das offene Men\303\274, um "
-    "weiterzuarbeiten.",
+    "Zeigt den Pass gegen sich selbst. Nebeneinander legt den ganzen Frame in jede H\303\244lfte; Wischen sch"
+    "neidet einen einzelnen Frame an der Trennlinie und spielt normal ab. Keines braucht das offene Men\303\274"
+    ", um weiterzuarbeiten.",
     "Seiten tauschen",
     "Beschriftungen",
-    "Zeichnet, welche Seite welche ist, in die Ebene des Frames selbst, sodass ein Screenshot es noch sagt. Pro Seite "
-    "beschnitten, sodass das Wischen sie genau so enth\303\274llt und verbirgt wie die Bilder.",
+    "Zeichnet, welche Seite welche ist, in die Ebene des Frames selbst, sodass ein Screenshot es noch sagt. P"
+    "ro Seite beschnitten, sodass das Wischen sie genau so enth\303\274llt und verbirgt wie die Bilder.",
     "Beschriftungsgr\303\266\303\237e",
     "Zoom",
     "Trennlinie",
@@ -4875,27 +4582,29 @@ static const char* const kTable_de[] = {
     "Modellausgabe (roh)",
     "Differenz (verst\303\244rkt)",
     "Debug-Ansicht",
-    "Proxy ist das Bild, das dem Modell \303\274bergeben wird. Differenz zeigt, was das Modell tats\303\244chlich "
-    "ge\303\244ndert hat, zwanzigfach verst\303\244rkt und auf Grau zentriert.",
+    "Proxy ist das Bild, das dem Modell \303\274bergeben wird. Differenz zeigt, was das Modell tats\303\244ch"
+    "lich ge\303\244ndert hat, zwanzigfach verst\303\244rkt und auf Grau zentriert.",
     "Experimentell",
-    "Beide unerprobt. Sie existieren, um zu testen, ob die treibereigene nvngx.dll das Modell ausf\303\274hren kann, "
-    "was die 165-MB-Kopie neben OptiScaler \303\274berfl\303\274ssig machen w\303\274rde.",
+    "Beide unerprobt. Sie existieren, um zu testen, ob die treibereigene nvngx.dll das Modell ausf\303\274hre"
+    "n kann, was die 165-MB-Kopie neben OptiScaler \303\274berfl\303\274ssig machen w\303\274rde.",
     "Treiber abfragen",
-    "Fragt die nvngx.dll des Treibers einmal pro Sitzung, ob sie das Modell schon kennt. Schreibt die Antwort ins Log "
-    "und \303\244ndert sonst nichts.\n\nWird beim Bau des Modells gelesen, gilt also ab der n\303\244chsten Sitzung.",
+    "Fragt die nvngx.dll des Treibers einmal pro Sitzung, ob sie das Modell schon kennt. Schreibt die Antwort"
+    " ins Log und \303\244ndert sonst nichts.\n\nWird beim Bau des Modells gelesen, gilt also ab der n\303\244"
+    "chsten Sitzung.",
     "\303\234ber den Treiber ausf\303\274hren",
-    "Steuert das Modell \303\274ber die treibereigene nvngx.dll statt \303\274ber den Weiterleiter an -- so, wie DLSS "
-    "selbst aufgerufen wird. Stimmt das Bild \303\274berein, ist der Weiterleiter unn\303\266tig.\n\nVergleiche, bevor "
-    "du ihm traust: schalte Vergleichen oben ein und suche nach einem Unterschied.",
+    "Steuert das Modell \303\274ber die treibereigene nvngx.dll statt \303\274ber den Weiterleiter an -- so, "
+    "wie DLSS selbst aufgerufen wird. Stimmt das Bild \303\274berein, ist der Weiterleiter unn\303\266tig.\n\n"
+    "Vergleiche, bevor du ihm traust: schalte Vergleichen oben ein und suche nach einem Unterschied.",
     "Darstellung",
     "Helles Panel",
-    "Hell ist der Standard. Die dunkle Palette, nach der dieses Panel urspr\303\274nglich gestaltet war, setzte seinen "
-    "gedimmten Text auf 2.65:1 gegen den Hintergrund, gegen\303\274ber den 4.5:1, die sich bequem lesen -- und ein "
-    "Overlay wird auf einen Blick gelesen, \303\274ber einem bewegten Bild.\n\nH\303\244kchen entfernen stellt NVIDIAs "
-    "eigene Farbgebung wieder her.",
+    "Hell ist der Standard. Die dunkle Palette, nach der dieses Panel urspr\303\274nglich gestaltet war, setz"
+    "te seinen gedimmten Text auf 2.65:1 gegen den Hintergrund, gegen\303\274ber den 4.5:1, die sich bequem l"
+    "esen -- und ein Overlay wird auf einen Blick gelesen, \303\274ber einem bewegten Bild.\n\nH\303\244kchen"
+    " entfernen stellt NVIDIAs eigene Farbgebung wieder her.",
     "Herstellerfarben",
-    "Der Akzent des Panels folgt der Karte, auf der es gezeichnet wird: NVIDIA-Gr\303\274n auf einer NVIDIA-GPU, "
-    "AMD-Rot auf einer AMD-Karte. H\303\244kchen entfernen, um \303\274berall das Gr\303\274n zu behalten.",
+    "Der Akzent des Panels folgt der Karte, auf der es gezeichnet wird: NVIDIA-Gr\303\274n auf einer NVIDIA-G"
+    "PU, AMD-Rot auf einer AMD-Karte. H\303\244kchen entfernen, um \303\274berall das Gr\303\274n zu behalten"
+    ".",
     "\n\nDieses Spiel l\303\244uft auf einer AMD-Karte.",
     "\n\nDieses Spiel l\303\244uft nicht auf einer AMD-Karte, das \303\244ndert hier also nichts.",
     "Automatisch (Windows)",
@@ -4907,29 +4616,31 @@ static const char* const kTable_de[] = {
     "Spanisch",
     "Deutsch",
     "Sprache",
-    "Automatisch folgt der Anzeigesprache von Windows. Eine hier festzulegen \303\244ndert nur dieses Panel; das "
-    "eigene Men\303\274 von OptiScaler bleibt Englisch. Eine Sprache, die eine eigene Schrift braucht (Chinesisch, "
-    "Koreanisch), l\303\244dt sie im n\303\244chsten Frame aus Windows.",
+    "Automatisch folgt der Anzeigesprache von Windows. Eine hier festzulegen \303\244ndert nur dieses Panel; "
+    "das eigene Men\303\274 von OptiScaler bleibt Englisch. Eine Sprache, die eine eigene Schrift braucht (Ch"
+    "inesisch, Koreanisch), l\303\244dt sie im n\303\244chsten Frame aus Windows.",
     "Schriftgr\303\266\303\237e",
-    "Nur der Text dieses Panels -- das eigene Men\303\274 von OptiScaler beh\303\244lt seine [Menu] FontSize.\n\nDie "
-    "Zeilenbreiten werden aus der Schriftgr\303\266\303\237e berechnet, weit \303\274ber 1.5x laufen die "
-    "Beschriftungen also in ihre Werte hinein.",
+    "Nur der Text dieses Panels -- das eigene Men\303\274 von OptiScaler beh\303\244lt seine [Menu] FontSize."
+    "\n\nDie Zeilenbreiten werden aus der Schriftgr\303\266\303\237e berechnet, weit \303\274ber 1.5x laufen "
+    "die Beschriftungen also in ihre Werte hinein.",
     "Layout zur\303\274cksetzen",
-    "Ziehe das Panel an einer beliebigen Stelle seines Hintergrunds, um es zu verschieben, oder ziehe\neinen Rand o"
-    "der die untere rechte Ecke, um die Gr\303\266\303\237e zu \303\244ndern. Es darf teilweise aus dem Bildschirm"
-    "\nragen, aber ein Streifen bleibt immer sichtbar zum Greifen. Position und Gr\303\266\303\237e werden f\303"
-    "\274r dieses Spiel\nals Bruchteil des Bildschirms gemerkt und kommen bei jeder Aufl\303\266sung zur\303\274ck.",
+    "Ziehe das Panel an einer beliebigen Stelle seines Hintergrunds, um es zu verschieben, oder ziehe\neinen "
+    "Rand oder die untere rechte Ecke, um die Gr\303\266\303\237e zu \303\244ndern. Es darf teilweise aus dem"
+    " Bildschirm\nragen, aber ein Streifen bleibt immer sichtbar zum Greifen. Position und Gr\303\266\303\237"
+    "e werden f\303\274r dieses Spiel\nals Bruchteil des Bildschirms gemerkt und kommen bei jeder Aufl\303\266"
+    "sung zur\303\274ck.",
     "Schlie\303\237t das Panel. Seine Taste \303\266ffnet es wieder.",
     "DLSS Frame Generation des Spiels: l\303\244uft mit %dX",
     "DLSS Frame Generation des Spiels: in den Grafikeinstellungen des Spiels aus.",
-    "Dieses Spiel hat eine eigene NVIDIA DLSS Frame Generation. Schalte sie wie gewohnt in den\nGrafikeinstellungen"
-    " des Spiels ein oder aus -- die Zeile darunter \303\244ndert nur den Multiplikator,\nden es beim Treiber anfor"
-    "dert.",
+    "Dieses Spiel hat eine eigene NVIDIA DLSS Frame Generation. Schalte sie wie gewohnt in den\nGrafikeinstel"
+    "lungen des Spiels ein oder aus -- die Zeile darunter \303\244ndert nur den Multiplikator,\nden es beim T"
+    "reiber anfordert.",
     "Spiel",
-    "Legt fest, wie viele zus\303\244tzliche Frames das DLSS-G des Spiels zwischen echte Frames einf\303\274gt.\n\""
-    "Spiel\" l\303\244sst es bei dem, was das Men\303\274 des Spiels sagt. 2X f\303\274gt einen ein, 3X\nzwei, und "
-    "so weiter. 3X und 4X brauchen eine RTX-50-Serie -- andere Karten begrenzt\nder Treiber auf 2X, egal was hier g"
-    "ew\303\244hlt ist.\n\nAusgegraut, solange Multi unten an ist -- dann w\303\244hlt der Treiber die Anzahl.",
+    "Legt fest, wie viele zus\303\244tzliche Frames das DLSS-G des Spiels zwischen echte Frames einf\303\274g"
+    "t.\n\"Spiel\" l\303\244sst es bei dem, was das Men\303\274 des Spiels sagt. 2X f\303\274gt einen ein, 3X"
+    "\nzwei, und so weiter. 3X und 4X brauchen eine RTX-50-Serie -- andere Karten begrenzt\nder Treiber auf 2"
+    "X, egal was hier gew\303\244hlt ist.\n\nAusgegraut, solange Multi unten an ist -- dann w\303\244hlt der "
+    "Treiber die Anzahl.",
     "nvngx.dll_dlssnr.dll fehlt",
     "nvngx.dll_dlssnr.dll lie\303\237 sich nicht laden",
     "dem Forwarder fehlen seine Exporte",
@@ -4947,12 +4658,434 @@ static const char* const kTable_de[] = {
     "nicht gestartet",
     "die Readback-Puffer lie\303\237en sich nicht anlegen",
     "kein Puffer in diesem Spiel ist wie eine Belichtung aufgebaut",
+    "Franz\303\266sisch",
 };
 
-const char* const kLanguageCodes[] = { "pt-BR", "ru", "ko", "zh-CN", "es", "de" };
+static const char* const kTable_fr[] = {
+    "Commandes d\303\251veloppeur DLSS 5",
+    "DLSS ACTIV\303\211",
+    "Synth\303\251tise des d\303\251tails dans l'image de l'upscaler, avant que la g\303\251n\303\251ration d"
+    "'images ne la voie.\n\nN\303\251cessite deux fichiers au nom tr\303\250s proche \303\240 c\303\264t\303\251"
+    " d'OptiScaler, \303\240 un caract\303\250re pr\303\250s :\n  nvngx_dlssnr.dll       le mod\303\250le de "
+    "NVIDIA (~165 Mo) -- \303\240 fournir vous-m\303\252me\n  nvngx.dll_dlssnr.dll   le relais (~13 Ko) -- fo"
+    "urni dans ce paquet\nNon document\303\251 et pilot\303\251 directement, donc rien de tout cela n'est off"
+    "iciellement pris en charge.",
+    "Source : DLSS5 Feeder (pas de DLSS natif dans ce jeu)",
+    "Ce jeu n'a pas de DLSS \303\240 lui, il n'y a donc aucun appel d'\303\251valuation auquel le Neural Rend"
+    "ering puisse s'accrocher. L'add-on ReShade DLSS5 Feeder en construit un \303\240 partir de la profondeur"
+    " de ReShade et de vecteurs de mouvement estim\303\251s.\n\nDes vecteurs de mouvement estim\303\251s sont"
+    " plus grossiers que ceux d'un jeu -- attendez-vous \303\240 plus de tra\303\256n\303\251es dans les mouv"
+    "ements rapides et \303\240 une g\303\251om\303\251trie fine plus floue qu'un jeu \303\240 DLSS natif ave"
+    "c le m\303\252me mod\303\250le.",
+    "Lossless Scaling : non configur\303\251 (OptiDLSS5-UI).",
+    "Lossless Scaling",
+    "Lance/ferme Lossless Scaling en arri\303\250re-plan (r\303\251duit dans la zone de notification, aucune "
+    "fen\303\252tre). Activer \302\253 Actif \302\273 ci-dessous le lance aussi pour vous.",
+    "Actif",
+    "Active/d\303\251sactive la g\303\251n\303\251ration d'images de Lossless Scaling pour ce jeu via son pro"
+    "pre raccourci global -- aucune fen\303\252tre ne s'affiche, et Lossless Scaling est lanc\303\251 d'abord"
+    " si besoin. Affiche la derni\303\250re demande, pas un \303\251tat confirm\303\251 en direct.\n\nL'activ"
+    "er coupe la g\303\251n\303\251ration d'images d'OptiScaler : deux g\303\251n\303\251rateurs d'images en "
+    "m\303\252me temps s'empilent.",
+    "Adaptatif : maintient %d ips",
+    "G\303\251n\303\251ration d'images adaptative : Lossless Scaling ne g\303\251n\303\250re que le nombre d'"
+    "images n\303\251cessaire pour tenir cet objectif. Changez l'objectif (ou passez \303\240 un multiplicate"
+    "ur fixe) dans OptiDLSS5-UI. Le jeu doit tourner en fen\303\252tr\303\251 ou sans bordure, pas en plein \303\251"
+    "cran exclusif (les jeux DX12 fonctionnent g\303\251n\303\251ralement dans les deux cas).",
+    "Images g\303\251n\303\251r\303\251es par image r\303\251elle. Si Lossless Scaling tourne d\303\251j\303\240"
+    ", il red\303\251marre bri\303\250vement pour appliquer -- la g\303\251n\303\251ration d'images se coupe "
+    "une seconde. Le jeu doit tourner en fen\303\252tr\303\251 ou sans bordure, pas en plein \303\251cran exc"
+    "lusif (les jeux DX12 fonctionnent g\303\251n\303\251ralement dans les deux cas).",
+    "Laissez la g\303\251n\303\251ration d'images DLSS du jeu d\303\251sactiv\303\251e pendant ce temps.",
+    "Touche bascule",
+    "Active/d\303\251sactive le Neural Rendering sans ouvrir ce panneau. Appuyez sur le bouton, puis\nsur la "
+    "touche voulue. \303\211chap annule, Retour arri\303\250re supprime, R r\303\251initialise.",
+    "Touche du panneau",
+    "Ouvre et ferme ce panneau. Ind\303\251pendante de la touche du menu d'OptiScaler, donc\nles deux peuvent"
+    " \303\252tre ouverts ensemble ou s\303\251par\303\251ment.",
+    "Appliquer le mod\303\250le",
+    "Indique si la retouche du mod\303\250le est appliqu\303\251e. D\303\251sactiv\303\251, l'image de l'upsc"
+    "aler s'affiche\nsans retouche pendant que la passe continue de tourner -- avec \302\253 Figer l'image \302\273"
+    ", sous\nInspecter, vous pouvez figer une image et basculer ceci pour voir la m\303\252me image\navec et "
+    "sans Neural Rendering.\nLaissez activ\303\251 en utilisation normale.",
+    "Avant la Super Resolution",
+    "O\303\271 se place la passe. D\303\251sactiv\303\251 correspond au placement d'origine : le mod\303\250l"
+    "e travaille\nsur l'image finale mise \303\240 l'\303\251chelle. Activ\303\251 le fait tourner en r\303\251"
+    "solution de rendu sur la\ncouleur que la SR va consommer, la SR accumule et agrandit alors une image d\303\251"
+    "j\303\240 am\303\251lior\303\251e.\n\nLa Ray Reconstruction reste toujours apr\303\250s la mise \303\240"
+    " l'\303\251chelle -- ses entr\303\251es suivent un\nautre contrat. Une image couleur plac\303\251e dans "
+    "une texture plus grande est pr\303\251par\303\251e \303\240 sa\ntaille r\303\251elle ; une image d\303\251"
+    "cal\303\251e du coin repasse apr\303\250s la mise \303\240 l'\303\251chelle.\n\nD3D12 et ses ponts D3D11"
+    "/Vulkan uniquement ; Vulkan natif garde l'ancien placement.",
+    "D\303\251sactiv\303\251 pour cette session : %s.",
+    "R\303\251essayer",
+    "En attente de l'ex\303\251cution de l'upscaler.",
+    "L'add-on DLSS5 Feeder est charg\303\251, mais n'a pas encore fourni d'\303\251valuation DLSS -- cherchez"
+    " \"technique MISSING\" dans dlss5-feed.log (dossier du jeu) si cela ne dispara\303\256t pas une fois en "
+    "jeu.",
+    "N\303\251cessite DLSS ou XeSS comme upscaler dans les options vid\303\251o du jeu, et une sauvegarde cha"
+    "rg\303\251e -- ceci (comme le reste d'OptiScaler) ne fonctionne pas dans les menus.",
+    "  (mod\303\250le actif, retouche masqu\303\251e)",
+    "Actif%s - %.2f ms par image%s",
+    " en natif sur Vulkan",
+    "Actif en natif sur Vulkan - %llu images%s",
+    "Actif.%s",
+    "La passe compl\303\250te : les copies de pr\303\251paration et la recomposition en plus du\nmod\303\250l"
+    "e. Ne chronom\303\251trer que le mod\303\250le flatterait le chiffre.\n\nComparez-le au temps d'image en"
+    " bas de cette fen\303\252tre pour\nvoir ce que cela vous co\303\273te.",
+    "Commandes globales",
+    "Intensit\303\251 de structure",
+    "La force de synth\303\250se de structure du mod\303\250le sur toute l'image.",
+    "Intensit\303\251 de tonalit\303\251",
+    "La force de remappage des tons du mod\303\250le sur toute l'image.",
+    "Masque auto du mod\303\250le",
+    "Laisse le mod\303\250le trouver lui-m\303\252me la peau au lieu de traiter l'image uniform\303\251ment.",
+    "Afficher le masque",
+    "Le panneau de NVIDIA peut dessiner le masque automatique sur l'image. Le mod\303\250le ne\nrenvoie pas s"
+    "on masque via l'interface pilot\303\251e par ce fork, il n'y a donc\nrien \303\240 afficher ici.",
+    "-1 signifie suivre l'intensit\303\251 de structure des commandes globales ci-dessus ; c'est la\nvaleur p"
+    "ar d\303\251faut du mod\303\250le. 0 et plus r\303\250glent la structure de la zone masqu\303\251e\nind\303\251"
+    "pendamment du reste de l'image.\n\nGris\303\251 tant que le masque auto du mod\303\250le est d\303\251sa"
+    "ctiv\303\251 -- sans masque, il n'y a\nrien \303\240 fa\303\247onner.",
+    "Masquage d\303\251veloppeur",
+    "Afficher les masques",
+    "Les masques par objet viennent du moteur de rendu du jeu, cette option reste donc r\303\251serv\303\251e"
+    " \303\240 NVIDIA -- un injecteur n'a aucune liste d'objets \303\240 masquer.",
+    "Mod\303\250les",
+    "Par d\303\251faut",
+    "Mod\303\250le A",
+    "Mod\303\250le B",
+    "Mod\303\250le C",
+    "Pas la m\303\252me \303\251chelle que les pr\303\251r\303\251glages de super resolution ou de ray recons"
+    "truction --\nla m\303\252me lettre signifie autre chose ici.\n\nLu \303\240 la construction du mod\303\250"
+    "le, un changement le reconstruit donc apr\303\250s un instant.",
+    "Par d\303\251faut (standard)",
+    "Naturel",
+    "Cin\303\251matique",
+    "Style",
+    "Les profils de traitement propres au mod\303\250le.\n\nPar d\303\251faut (standard) : le plus fort, et l"
+    "e plus susceptible de para\303\256tre \302\253 stylis\303\251 \302\273.\nNaturel : le m\303\252me travai"
+    "l de d\303\251tail, avec plus de retenue.\nCin\303\251matique : att\303\251nue la brillance et le surtra"
+    "itement pour un rendu cin\303\251ma.\n\nLes noms viennent des tests de la communaut\303\251, contraireme"
+    "nt aux libell\303\251s ci-dessus --\nNVIDIA ne livre aucun nom pour ce r\303\251glage dans ses binaires.",
+    "Intensit\303\251",
+    "Le r\303\251glage de force propre au mod\303\250le, appliqu\303\251 \303\240 l'int\303\251rieur. Distinc"
+    "t des commandes\nglobales ci-dessus, et de la force du d\303\251tail ci-dessous, qui ajuste le r\303\251"
+    "sultat\nensuite.",
+    "G\303\251n\303\251ration d'images",
+    "La g\303\251n\303\251ration d'images DLSS de NVIDIA, via Streamline. Pas OptiFG.",
+    "R\303\250gle directement numFramesToGenerate de Streamline -- combien d'images suppl\303\251mentaires\nD"
+    "LSS-G ins\303\250re entre les vraies. 2X en ins\303\250re une, 3X en ins\303\250re deux, et\nainsi de su"
+    "ite. Limit\303\251 par ce que votre GPU et votre pilote d\303\251clarent prendre en charge.\n\nGris\303\251"
+    " tant que Multi est activ\303\251 ci-dessous -- le pilote choisit alors le nombre.",
+    "Multi (g\303\251n\303\251ration d'images dynamique)",
+    "Laisse le pilote NVIDIA faire varier lui-m\303\252me le multiplicateur, image par image, pour tenir\nl'o"
+    "bjectif d'ips ci-dessous -- au lieu d'un 2X/3X/4X fixe.",
+    "Objectif d'ips DMFG",
+    "0 d\303\251tecte automatiquement la fr\303\251quence de rafra\303\256chissement de l'\303\251cran.",
+    "Ce jeu n'a pas de g\303\251n\303\251ration d'images DLSS NVIDIA \303\240 lui.",
+    "Co\303\273t",
+    "Passes du mod\303\250le",
+    "Combien de fois le mod\303\250le tourne avant que sa r\303\251ponse soit compos\303\251e. Chaque couche\n"
+    "suppl\303\251mentaire re\303\247oit la sortie de la pr\303\251c\303\251dente et garde son propre histori"
+    "que temporel.\n\nL'image de base reste intacte et la composition a lieu une seule fois \303\240 la fin, "
+    "donc\nla couleur et la force de transfert ne se cumulent pas -- mais on demande au mod\303\250le\nd'am\303\251"
+    "liorer sa propre sortie, ce qui sort de son entra\303\256nement.\n\nLe co\303\273t est quasiment lin\303\251"
+    "aire : le mod\303\250le repr\303\251sente presque toute la passe\net chaque couche le paie \303\240 nouv"
+    "eau. Trois est le maximum, car les couches suivantes\nconvergent tout en co\303\273tant le prix fort.",
+    "Co\303\273t du mod\303\250le x%d. Deux para\303\256t souvent plus riche ; trois est g\303\251n\303\251ra"
+    "lement visiblement surtrait\303\251.",
+    "Auto (h\303\251rite de la passe 1)",
+    "Mod\303\250le de la passe 2",
+    "Style de la passe 2",
+    "Mod\303\250le de la passe 3",
+    "Style de la passe 3",
+    "Le profil int\303\251gr\303\251 utilis\303\251 par chaque couche suivante. Ils s\303\251lectionnent un a"
+    "utre\nprofil dans le m\303\252me fichier de mod\303\250le NVIDIA -- rien de plus n'est charg\303\251.\n\n"
+    "Auto signifie que la couche utilise le r\303\251glage de la passe 1. En changer un\nne reconstruit que l"
+    "a fonctionnalit\303\251 de cette couche, et seulement si elle est active.",
+    "R\303\251solution du mod\303\250le",
+    "La fraction de l'image sur laquelle travaille le mod\303\250le. Le co\303\273t baisse avec le carr\303\251"
+    " de\ncette valeur : la moiti\303\251 de la r\303\251solution prend environ un quart du temps. Sous 100, "
+    "l'image\nelle-m\303\252me n'est jamais r\303\251duite -- seule la contribution du mod\303\250le est calc"
+    "ul\303\251e en petit\npuis agrandie. Appliqu\303\251 au rel\303\242chement de la poign\303\251e, pas pen"
+    "dant le d\303\251placement.",
+    "Sur\303\251chantillonnage %.2fx : le mod\303\250le tourne AU-DESSUS de la r\303\251solution native, puis"
+    " est r\303\251duit. Exp\303\251rimental et co\303\273teux -- le temps cro\303\256t avec la surface.",
+    "R\303\251ducteur",
+    "Le filtre qui ram\303\250ne la r\303\251ponse sur\303\251chantillonn\303\251e du mod\303\250le \303\240 "
+    "la taille d'affichage --\nc'est lui qui fait que le sur\303\251chantillonnage donne MOINS de bruit plut\303\264"
+    "t que plus. Les\nfiltres plus nets (Lanczos3, Kaiser3) gardent le plus de d\303\251tails ; les plus doux"
+    " (Bicubic,\nCatmull-Rom) limitent les halos. Ind\303\251pendant du r\303\251ducteur de l'Output Scaling,"
+    "\nles deux peuvent donc diff\303\251rer et fonctionner en m\303\252me temps.",
+    "Classique",
+    "R\303\251sidu appari\303\251",
+    "Agrandissement",
+    "Comment le travail du mod\303\250le est remis \303\240 l'\303\251chelle quand il a tourn\303\251 sous la"
+    " taille de l'image.\n\nClassique compose directement la petite image du mod\303\250le avec l'image plein"
+    "e taille.\nLes deux diff\303\250rent par le flou de la r\303\251duction autant que par la retouche du mo"
+    "d\303\250le, et\nla composition ne peut pas les distinguer.\n\nGris\303\251 \303\240 100 %, o\303\271 il"
+    " n'y a rien \303\240 agrandir.",
+    "Ce qui en arrive \303\240 l'image",
+    "Force du d\303\251tail",
+    "R\303\251initialiser",
+    "\303\200 quel point l'image se rapproche de celle du mod\303\250le. 0 rend exactement ce que\nl'upscaler"
+    " a produit. 1 est l'image du mod\303\250le. Au-del\303\240 de 1, on continue plus loin\ndans la m\303\252"
+    "me direction.",
+    "Force de la couleur",
+    "Indique si la couleur du mod\303\250le arrive avec sa lumi\303\250re. 0 garde exactement la teinte\ndu j"
+    "eu -- chaque pixel dans sa couleur d'origine, seule sa luminosit\303\251 portant\nle verdict du mod\303\250"
+    "le. 1 apporte aussi la couleur du mod\303\250le, dans sa propre teinte,\nlimit\303\251e \303\240 AP1 pou"
+    "r ne rien demander d'inatteignable.\n\nAu-del\303\240 de 1, elle sursature : la couleur garde sa teinte "
+    "mais devient plus vive, et\ns'adoucit \303\240 la limite de ce que l'\303\251cran peut afficher plut\303\264"
+    "t que d'\303\251cr\303\252ter en une\nzone plate br\303\273l\303\251e. 1 est la couleur du mod\303\250le"
+    " ; allez au-del\303\240 pour plus de punch.",
+    "Couleur",
+    "Le mod\303\250le a \303\251t\303\251 entra\303\256n\303\251 sur des images finales encod\303\251es en sR"
+    "GB. Ces r\303\251glages d\303\251cident comment la sortie lin\303\251aire de l'upscaler est convertie en"
+    " quelque chose qu'il reconna\303\256t.",
+    "D\303\251sactiv\303\251 (genou doux)",
+    "Proxy Neutwo + compos\303\251",
+    "Proxy Neutwo + remplacement",
+    "Proxy hybride + compos\303\251",
+    "Proxy hybride + remplacement",
+    "Proxy r\303\251versible",
+    "Ce qui est montr\303\251 au mod\303\250le, et comment sa r\303\251ponse revient. Exp\303\251rimental.\n\n"
+    "D\303\251sactiv\303\251 (genou doux) : le d\303\251faut, identique \303\240 l'octet pr\303\250s \303\240"
+    " avant. Il \303\251crase tellement\nles hautes lumi\303\250res que le mod\303\250le n'y r\303\251sout au"
+    "cun d\303\251tail -- bien en lumi\303\250re douce,\nfaible dans les sc\303\250nes lumineuses.\n\nNeutwo "
+    "compos\303\251 : une courbe non \303\251cr\303\252t\303\251e, le mod\303\250le voit donc le d\303\251tai"
+    "l des hautes\nlumi\303\250res, puis tout ce qui suit (forces, protection des hautes lumi\303\250res, pal"
+    "ette). Gagne\ndans les sc\303\250nes lumineuses, mais la courbe compresse aussi les tons moyens, donc le"
+    "s\nsc\303\250nes en lumi\303\250re douce peuvent \303\252tre pires qu'avec D\303\251sactiv\303\251.\nIl "
+    "d\303\251cale aussi le blanc papier -- rev\303\251rifiez-le apr\303\250s avoir chang\303\251.\n\nHybride"
+    " compos\303\251 : celui \303\240 utiliser. Identit\303\251 dans les tons moyens -- aussi bon que\nD\303\251"
+    "sactiv\303\251 -- avec l'att\303\251nuation non \303\251cr\303\252t\303\251e seulement dans les hautes l"
+    "umi\303\250res : il\nr\303\251cup\303\250re le d\303\251tail que D\303\251sactiv\303\251 \303\251crase s"
+    "ans perdre les tons moyens comme Neutwo.\nD\303\251cale \303\240 peine le blanc papier.\n\nRemplacement "
+    ": le mod\303\250le brut renvoy\303\251 tel quel via l'inverse exact, sans aucune\ncomposition -- ni prot"
+    "ection, ni palette, ni forces. Superbe sans lumi\303\250res vives,\nmais elles CLIGNOTENT en mouvement. "
+    "Une r\303\251f\303\251rence, pas un r\303\251glage quotidien.\n\nHybride remplacement : le mod\303\250le"
+    " brut du Remplacement sur la courbe hybride, le\nclignotement se limite donc aux vraies hautes lumi\303\250"
+    "res au lieu d'\303\252tre partout.\nL'essentiel du d\303\251tail du Remplacement, en bien plus stable.",
+    "Blanc papier seul",
+    "L'exposition du jeu",
+    "Un buffer trouv\303\251 par l'analyse",
+    "Point blanc depuis",
+    "Blanc papier seul -- le curseur ci-dessous et rien d'autre. Adapt\303\251 \303\240 un jeu dont\nl'exposi"
+    "tion ne bouge jamais, faux d\303\250s qu'elle bouge : une constante ne peut pas servir\n\303\240 la fois"
+    " une grotte et un champ.\n\nL'exposition du jeu -- lue dans la texture que le jeu donne \303\240 l'upsca"
+    "ler.\nLa meilleure source possible, car d\303\251cid\303\251e en amont et rien dans cette passe\nne peut"
+    " la modifier. Tous les jeux n'en fournissent pas.\n\nUn buffer trouv\303\251 par l'analyse -- pour les j"
+    "eux qui calculent une exposition sans\njamais la transmettre. Une supposition : les candidats sont rep\303\251"
+    "r\303\251s par leur forme, et le\nrapport de l'ancre annule l'\303\251chelle. \303\200 ancrer une fois, "
+    "dans la section Exp\303\251rimental, puis \303\240 v\303\251rifier.",
+    "Analyse %.5f  ->  point blanc %.2f   (1 point)",
+    "Analyse %.5f  ->  point blanc %.2f   (%u points)",
+    "Blanc papier (point %d)",
+    "Blanc papier",
+    "Le point blanc du point de calibrage s\303\251lectionn\303\251, ou -- sans ligne\ns\303\251lectionn\303\251"
+    "e -- la valeur que capturera le prochain appui sur Ancrer.\n\nR\303\251glez-le jusqu'\303\240 ce que l'i"
+    "mage soit juste ici, puis Ancrer. Allez dans une\nlumi\303\250re tr\303\250s diff\303\251rente et recomm"
+    "encez : deux points fixent la vraie relation\ndu buffer et le point blanc tient entre les deux.",
+    "Ajustement (x l'analyse)",
+    "Un multiplicateur sur le point blanc de l'analyse, et le r\303\251glage \303\240 ajuster entre\nles poin"
+    "ts d'ancrage : tournez-le jusqu'\303\240 ce que l'image soit juste dans la lumi\303\250re\nactuelle, pui"
+    "s appuyez sur Ancrer sous Exp\303\251rimental -- la valeur ajust\303\251e devient\nun nouveau point et c"
+    "eci revient \303\240 1.",
+    "Ce jeu fournit une exposition et elle est lue.",
+    "Ce jeu ne fournit aucune exposition. Essayez plut\303\264t l'analyse.",
+    "En attente d'une image...",
+    "Exposition du jeu %.4f  ->  point blanc %.2f%s",
+    "  (maintenu : absent sur cette image)",
+    "Lecture de l'exposition...",
+    "Ajustement (x l'exposition du jeu)",
+    "Un multiplicateur sur l'exposition fournie par le jeu. 1.00x prend sa valeur telle quelle,\net c'est la "
+    "bonne r\303\251ponse ici.\n\nCe n'est pas un facteur de bricolage. Un jeu qui a besoin d'un ajustement l"
+    "oin de 1 pour\npara\303\256tre juste montre que l'exposition lue est fausse pour ce jeu, pas que le\njeu"
+    " demande un ajustement. Environ 0.8 \303\240 1.25 est un r\303\251glage honn\303\252te ; aller jusqu'\303\240"
+    " 4\nsignifie que quelque chose en amont est cass\303\251 et que ceci le masque.\n\nVotre blanc papier ma"
+    "nuel est conserv\303\251 \303\240 part et revient intact si vous\nremettez l'ancienne source.",
+    "Ce par quoi l'image est divis\303\251e avant que le mod\303\250le la voie. Il n'y a pas d'autre point\nb"
+    "lanc ; c'est tout. Au-del\303\240 de 1, l'image transmise est plus sombre, donc les\nhautes lumi\303\250"
+    "res sont plus bas sur la courbe.",
+    "Protection des hautes lumi\303\250res",
+    "Le maximum dont la passe peut modifier un pixel, en multiple de sa valeur, dans les deux\nsens -- un pix"
+    "el ne peut \303\252tre \303\251clairci au-del\303\240 ni assombri au-del\303\240 de son\ninverse. Les lu"
+    "mi\303\250res sont l\303\240 o\303\271 le mod\303\250le a le moins \303\240 dire et o\303\271 remettre s"
+    "a r\303\251ponse\n\303\240 l'\303\251chelle fait le plus de d\303\251g\303\242ts ; 2x garde le d\303\251"
+    "tail tout en emp\303\252chant un n\303\251on de\ndevenir une rang\303\251e de cellules color\303\251es. "
+    "Augmentez seulement si les zones claires semblent \303\251cr\303\252t\303\251es.",
+    "Analyse de l'exposition",
+    "Afficher le posem\303\250tre \303\240 l'\303\251cran",
+    "Une lampe dans le coin : rouge pour sombre, verte pour pleine lumi\303\250re, et les nuances\nentre les "
+    "deux, avec la mesure \303\240 c\303\264t\303\251.\n\nElle permet de voir d'un coup d'\305\223il que l'an"
+    "alyse SUIT la sc\303\250ne au lieu de\nsimplement tourner. Entrez dans l'ombre et elle doit glisser vers"
+    " le rouge ; sortez\net elle doit passer au vert. Si elle va dans le mauvais sens, c'est \303\240 cela qu"
+    "e sert\n\302\253 La valeur va dans l'autre sens \302\273 ci-dessous.\n\nUn simple affichage. Il ne chang"
+    "e rien.",
+    "Ancrer ici",
+    "Rendez l'image juste, puis appuyez ici -- l'aspect actuel est captur\303\251 comme un\npoint. Pour le pr"
+    "emier point, utilisez le curseur Blanc papier ci-dessus ; pour chaque point\nsuivant, changez de lumi\303\250"
+    "re et utilisez l'Ajustement, que ceci int\303\250gre alors.\n\nUn point calibre un rapport et le point b"
+    "lanc suit l'analyse \303\240 partir de l\303\240.\nAllez dans une lumi\303\250re tr\303\250s diff\303\251"
+    "rente et appuyez \303\240 nouveau : le second point fixe\nla vraie courbe du buffer, tout ce qui est ent"
+    "re les deux est donc juste, et pas\nseulement le voisinage d'une ancre. Jusqu'\303\240 huit.\n\nLa table"
+    " est propre \303\240 chaque jeu et partageable -- une personne calibre un jeu et les\nvaleurs sont les m"
+    "\303\252mes pour tous ceux qui prennent le profil.",
+    "(l'analyse ne fait qu'observer -- le point blanc ci-dessus vient d'ailleurs)",
+    "%s analyse %.4f  ->  blanc %.2f%s",
+    "   [modification]",
+    "Cliquez sur une ligne pour la modifier avec le curseur ci-dessus ; cliquez \303\240 nouveau pour piloter"
+    " le point en direct. > est le point utilis\303\251 maintenant.",
+    "La valeur va dans l'autre sens",
+    "Inversez ceci si l'image empire dans le sens o\303\271 elle devrait\ns'am\303\251liorer. La plupart des "
+    "moteurs stockent une exposition qui baisse quand la sc\303\250ne s'\303\251claircit ;\ncertains stockent"
+    " son inverse, et un buffer trouv\303\251 par sa forme ne dit pas lequel.\nAjoutez un second point d'ancr"
+    "age dans une autre lumi\303\250re et c'est d\303\251cid\303\251 pour vous,\ndonc cette option dispara\303\256"
+    "t.",
+    "Candidats",
+    "rien ne correspond pour l'instant.",
+    "%zu. %s -- pas encore lu",
+    "%zu. %s = %.5f  (vu %.5f..%.5f) %s",
+    "BOUGE",
+    "stable jusqu'ici",
+    "Passez de l'ombre \303\240 la lumi\303\250re du jour. Une vraie exposition bouge. Une valeur qui ne fait"
+    " que monter est un compteur, pas une exposition.",
+    "Guide",
+    "Suivre le jeu",
+    "Forcer normal",
+    "Forcer invers\303\251",
+    "Profondeur",
+    "Dans quel sens on indique au mod\303\250le que la profondeur va. Le jeu le pr\303\251cise dans les\nindi"
+    "cateurs de cr\303\251ation de sa propre fonctionnalit\303\251 DLSS, et le suivre est juste presque\ntouj"
+    "ours -- mais un jeu qui l'indique mal doit \303\252tre corrig\303\251 \303\240 la main.\n\nSi la passe e"
+    "st la pire l\303\240 o\303\271 la g\303\251om\303\251trie rencontre le ciel, essayez de forcer l'autre s"
+    "ens.",
+    "Correction de l'UI",
+    "Permet au mod\303\250le de tenir compte d'une couche d'interface pos\303\251e sur l'image. Activ\303\251"
+    " est son\nd\303\251faut, et c'est juste d\303\250s qu'une ressource d'UI lui parvient ; d\303\251sactive"
+    "z-le si la\ncorrection elle-m\303\252me semble fausse.\n\nLu \303\240 la construction du mod\303\250le.",
+    "Inspecter",
+    "Capture...",
+    "Capturer 8 images",
+    "\303\211crit huit images cons\303\251cutives deux fois : telles que l'upscaler les a produites, puis\nap"
+    "r\303\250s application de la retouche du mod\303\250le. Dans un dossier dlssnr-capture \303\240 c\303\264"
+    "t\303\251\nd'OptiScaler ; chaque capture \303\251crase la pr\303\251c\303\251dente.",
+    "Capture auto une fois par session",
+    "\303\211crit automatiquement un ensemble avant/apr\303\250s appari\303\251, sans rien demander. Le\ndoss"
+    "ier est vid\303\251 \303\240 chaque lancement, il ne contient donc qu'une session et ne grossit jamais.",
+    "Figer l'image",
+    "Fige l'image sur laquelle travaille le mod\303\250le. Pendant ce temps, changez le blanc papier, les for"
+    "ces,\nle mode r\303\251versible, le pr\303\251r\303\251glage du mod\303\250le -- tout ce qui est apr\303\250"
+    "s l'upscaler -- et seul\nce r\303\251glage change ; la sc\303\250ne ne bouge pas. Va de pair avec \302\253"
+    " Appliquer le mod\303\250le \302\273 en haut :\nfigez une image, puis basculez-le pour la voir avec et s"
+    "ans.\n\nCe qu'il ne peut pas montrer : les pr\303\251r\303\251glages de l'upscaler ou tout ce qui pr\303\251"
+    "c\303\250de cette passe\n(l'upscaler ne retourne pas sur une image fig\303\251e), ni le HUD et le post-t"
+    "raitement du\njeu, qui viennent apr\303\250s et continuent de se mettre \303\240 jour. Le point blanc n'"
+    "est plus\nmesur\303\251 et garde sa valeur, il ne peut donc pas d\303\251river et fausser la\ncomparaiso"
+    "n.\n\nFermez le panneau et l'image reste fig\303\251e. D\303\251cochez pour reprendre.",
+    "D\303\251sactiv\303\251",
+    "C\303\264te \303\240 c\303\264te",
+    "Volet",
+    "Comparer",
+    "Montre la passe face \303\240 elle-m\303\252me. C\303\264te \303\240 c\303\264te met l'image enti\303\250"
+    "re dans chaque moiti\303\251 ;\nle volet coupe une seule image \303\240 la s\303\251paration et se joue "
+    "normalement. Aucun des deux n'a\nbesoin du menu ouvert pour continuer \303\240 fonctionner.",
+    "Inverser les c\303\264t\303\251s",
+    "\303\211tiquettes",
+    "\303\211crit quel c\303\264t\303\251 est lequel dans l'image elle-m\303\252me, pour qu'une capture d'\303\251"
+    "cran\nle dise encore. D\303\251coup\303\251 par c\303\264t\303\251, le volet les r\303\251v\303\250le et"
+    " les masque donc exactement comme\nles images.",
+    "Taille des \303\251tiquettes",
+    "Zoom",
+    "S\303\251paration",
+    "Proxy (ce que voit le mod\303\250le)",
+    "Sortie du mod\303\250le (brute)",
+    "Diff\303\251rence (amplifi\303\251e)",
+    "Vue de d\303\251bogage",
+    "Proxy est l'image transmise au mod\303\250le. Diff\303\251rence montre ce que le mod\303\250le\na r\303\251"
+    "ellement chang\303\251, amplifi\303\251 vingt fois et centr\303\251 sur le gris.",
+    "Exp\303\251rimental",
+    "Les deux sont non \303\251prouv\303\251s. Ils servent \303\240 tester si le nvngx.dll du pilote peut lui"
+    "-m\303\252me ex\303\251cuter le mod\303\250le, ce qui \303\251viterait la copie de 165 Mo \303\240 c\303\264"
+    "t\303\251 d'OptiScaler.",
+    "Sonder le pilote",
+    "Demande une fois par session au nvngx.dll du pilote s'il conna\303\256t d\303\251j\303\240 le mod\303\250"
+    "le.\n\303\211crit la r\303\251ponse dans le journal et ne change rien d'autre.\n\nLu \303\240 la constru"
+    "ction du mod\303\250le, s'applique donc \303\240 la session suivante.",
+    "Passer par le pilote",
+    "Pilote le mod\303\250le via le nvngx.dll du pilote au lieu du relais --\ncomme le DLSS lui-m\303\252me e"
+    "st appel\303\251. Si l'image est identique, le relais est\ninutile.\n\nComparez avant de vous y fier : a"
+    "ctivez Comparer ci-dessus et cherchez une diff\303\251rence.",
+    "Apparence",
+    "Panneau clair",
+    "Le clair est le d\303\251faut. La palette sombre dont ce panneau s'inspirait \303\240 l'origine mettait\n"
+    "son texte att\303\251nu\303\251 \303\240 2.65:1 sur le fond, contre les 4.5:1 qui se lisent\nconfortable"
+    "ment -- et une surcouche se lit d'un coup d'\305\223il, sur une image en mouvement.\n\nD\303\251cocher r"
+    "estaure les couleurs de NVIDIA.",
+    "Couleurs du fabricant",
+    "L'accent du panneau suit la carte sur laquelle il est dessin\303\251 : vert NVIDIA sur un GPU NVIDIA,\nr"
+    "ouge AMD sur un GPU AMD. D\303\251cochez pour garder le vert partout.",
+    "\n\nCe jeu tourne sur une carte AMD.",
+    "\n\nCe jeu ne tourne pas sur une carte AMD, cela ne change donc rien ici.",
+    "Auto (Windows)",
+    "Anglais",
+    "Portugais (Br\303\251sil)",
+    "Russe",
+    "Cor\303\251en",
+    "Chinois (simplifi\303\251)",
+    "Espagnol",
+    "Allemand",
+    "Langue",
+    "Auto suit la langue d'affichage de Windows. En choisir une ici ne change que ce panneau ;\nle menu d'Opt"
+    "iScaler reste en anglais. Une langue qui a besoin de sa propre police (chinois,\ncor\303\251en) la charg"
+    "e depuis Windows \303\240 l'image suivante.",
+    "Taille du texte",
+    "Le texte de ce panneau uniquement -- le menu d'OptiScaler garde son [Menu] FontSize.\n\nLa largeur des l"
+    "ignes d\303\251pend de la taille du texte, donc bien au-del\303\240 de 1.5x les libell\303\251s\ncommenc"
+    "ent \303\240 d\303\251border sur leurs valeurs.",
+    "R\303\251initialiser la disposition",
+    "Faites glisser n'importe o\303\271 sur le fond du panneau pour le d\303\251placer, ou faites glisser un "
+    "bord ou le coin\ninf\303\251rieur droit pour le redimensionner. Il peut d\303\251passer de l'\303\251cra"
+    "n, mais une bande reste toujours visible\npour le saisir. La position et la taille sont m\303\251moris\303\251"
+    "es pour ce jeu en fraction de l'\303\251cran, elles\nreviennent donc \303\240 n'importe quelle r\303\251"
+    "solution.",
+    "Fermer le panneau. Sa touche le rouvre.",
+    "G\303\251n\303\251ration d'images DLSS du jeu : active en %dX",
+    "G\303\251n\303\251ration d'images DLSS du jeu : d\303\251sactiv\303\251e dans les options vid\303\251o d"
+    "u jeu.",
+    "Ce jeu a sa propre g\303\251n\303\251ration d'images DLSS NVIDIA. Activez-la ou d\303\251sactivez-la dan"
+    "s les\noptions vid\303\251o du jeu comme d'habitude -- la ligne ci-dessous ne change que le multiplicate"
+    "ur\nqu'il demande au pilote.",
+    "Jeu",
+    "Remplace le nombre d'images suppl\303\251mentaires que le DLSS-G du jeu ins\303\250re entre les vraies.\n"
+    "\302\253 Jeu \302\273 garde ce qu'indique le menu du jeu. 2X en ins\303\250re une, 3X\nen ins\303\250re "
+    "deux, et ainsi de suite. 3X et 4X n\303\251cessitent une RTX s\303\251rie 50 -- les autres cartes sont\n"
+    "limit\303\251es \303\240 2X par le pilote, quel que soit le choix ici.\n\nGris\303\251 tant que Multi es"
+    "t activ\303\251 ci-dessous -- le pilote choisit alors le nombre.",
+    "nvngx.dll_dlssnr.dll est manquant",
+    "nvngx.dll_dlssnr.dll n'a pas pu \303\252tre charg\303\251",
+    "il manque des exports au relais",
+    "le c\305\223ur NGX n'a pas pu s'initialiser",
+    "le c\305\223ur NGX n'a aucun param\303\250tre de capacit\303\251",
+    "le c\305\223ur NGX a refus\303\251 ses param\303\250tres de capacit\303\251",
+    "la texture de pr\303\251paration de la couleur active avant SR n'a pas pu \303\252tre allou\303\251e",
+    "nvngx_dlssnr.dll est introuvable \303\240 c\303\264t\303\251 d'OptiScaler ou du jeu",
+    "le mod\303\250le n'a pas pu s'initialiser",
+    "le codec de couleur n'a pas pu \303\252tre compil\303\251",
+    "la profondeur ou les vecteurs de mouvement du jeu n'ont pas pu \303\252tre rendus lisibles",
+    "le chemin proxy n'a pas pu ex\303\251cuter le mod\303\250le",
+    "le mod\303\250le a refus\303\251 de s'ex\303\251cuter",
+    "%s le fait d\303\251j\303\240 -- retirez-le, ou d\303\251sactivez ceci",
+    "non d\303\251marr\303\251",
+    "impossible d'allouer les buffers de relecture",
+    "aucun buffer de ce jeu n'a la forme d'une exposition",
+    "Fran\303\247ais",
+};
 
-const int kLanguageCount = 6;
-
-const char* const* const kLanguageTables[] = { kTable_pt_BR, kTable_ru, kTable_ko, kTable_zh_CN, kTable_es, kTable_de };
+const char* const kLanguageCodes[] = { "pt-BR", "ru", "ko", "zh-CN", "es", "de", "fr" };
+const int kLanguageCount = (int) (sizeof(kLanguageCodes) / sizeof(kLanguageCodes[0]));
+const char* const* const kLanguageTables[] = { kTable_pt_BR, kTable_ru, kTable_ko, kTable_zh_CN, kTable_es, kTable_de, kTable_fr };
 
 } // namespace DlssNr::I18n

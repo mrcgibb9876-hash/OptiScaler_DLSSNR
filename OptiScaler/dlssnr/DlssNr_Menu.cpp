@@ -2243,7 +2243,7 @@ void RenderMenu(Config* config, float menuResScale)
         {
             const char* langNames[] = { Tr("Auto (Windows)"), Tr("English"), Tr("Portuguese (Brazil)"),
                                         Tr("Russian"),        Tr("Korean"),  Tr("Chinese (Simplified)"),
-                                        Tr("Spanish"),        Tr("German") };
+                                        Tr("Spanish"),        Tr("German"),  Tr("French") };
             int lang = I18n::SelectorIndex(config->DlssNrLanguage.value_or_default().c_str());
             if (NrCombo(Tr("Language"), &lang, langNames, IM_ARRAYSIZE(langNames), rowWidth))
             {
