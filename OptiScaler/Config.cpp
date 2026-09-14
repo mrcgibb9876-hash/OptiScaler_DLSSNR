@@ -44,6 +44,53 @@ Config::Config()
 {
     absoluteFileName = Util::DllPath().parent_path() / fileName;
     Reload(absoluteFileName);
+    MarkIniAsSeen();
+}
+
+// Records the file as it is right now, so the next poll compares against what this process knows
+// rather than against nothing. Failing to read the time is not an error: the poll simply cannot
+// conclude anything and leaves the config alone.
+void Config::MarkIniAsSeen()
+{
+    std::error_code ec;
+    auto when = std::filesystem::last_write_time(absoluteFileName, ec);
+    if (!ec)
+        lastSeenWriteTime = when;
+}
+
+bool Config::ReloadIfChangedOnDisk()
+{
+    if (absoluteFileName.empty())
+        return false;
+
+    // The clock first: a stat on every frame of every game is a syscall nobody asked for, and a
+    // setting arriving a quarter of a second later than it could have is not a setting anybody
+    // notices arriving late.
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastDiskCheck < std::chrono::milliseconds(250))
+        return false;
+    lastDiskCheck = now;
+
+    std::error_code ec;
+    const auto when = std::filesystem::last_write_time(absoluteFileName, ec);
+    if (ec || when == lastSeenWriteTime)
+        return false;
+
+    // Claim the new time before reloading, so a write that lands during the reload is picked up by
+    // the next poll instead of being lost or reloaded twice.
+    lastSeenWriteTime = when;
+
+    LOG_INFO("OptiScaler.ini changed on disk, reloading it");
+    if (!Reload(absoluteFileName))
+    {
+        LOG_WARN("Reload failed; keeping the settings already in memory");
+        return false;
+    }
+
+    // Create-time settings -- preset, style, intensity -- are compared against what each feature
+    // was built with on the next dispatch, which rebuilds it exactly as moving the slider in the
+    // panel does. Nothing extra to do here.
+    return true;
 }
 
 bool Config::Reload(std::filesystem::path iniPath)
@@ -1769,7 +1816,12 @@ bool Config::SaveIni()
 
     LOG_INFO("Trying to save ini to: {0}", wstring_to_string(pathWStr));
 
-    return ini.SaveFile(absoluteFileName.wstring().c_str()) >= 0;
+    const bool saved = ini.SaveFile(absoluteFileName.wstring().c_str()) >= 0;
+    // Ours. The in-game panel saves on every change, and without this each of those would read as
+    // an outside edit and reload the whole config back over itself.
+    if (saved)
+        MarkIniAsSeen();
+    return saved;
 }
 
 bool Config::SaveXeFG()
@@ -1781,7 +1833,10 @@ bool Config::SaveXeFG()
     auto pathWStr = absoluteFileName.wstring();
     LOG_INFO("Trying to save ini to: {0}", wstring_to_string(pathWStr));
 
-    return ini.SaveFile(absoluteFileName.wstring().c_str()) >= 0;
+    const bool saved = ini.SaveFile(absoluteFileName.wstring().c_str()) >= 0;
+    if (saved)
+        MarkIniAsSeen();
+    return saved;
 }
 
 void Config::CheckUpscalerFiles()

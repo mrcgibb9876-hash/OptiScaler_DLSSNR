@@ -1005,6 +1005,18 @@ class Config
     bool SaveIni();
     bool SaveXeFG();
 
+    // Re-read the ini when something outside this process has rewritten it, so a setting changed
+    // in the manager reaches a running game without restarting it. Cheap to call every frame: it
+    // only looks at the clock, and only stats the file a few times a second.
+    //
+    // This is what makes the 32-bit route tunable at all. There OptiScaler runs inside the DLSS5
+    // Feeder's 64-bit helper process, which has no window, so its own panel cannot be put on screen
+    // over the game -- a user with a working install had no way to change a single setting. The
+    // manager writes host64\OptiScaler.ini; this is the half that makes the game notice.
+    //
+    // Returns true when a reload actually happened, so a caller can log it once.
+    bool ReloadIfChangedOnDisk();
+
     void CheckUpscalerFiles();
 
     std::vector<std::string> GetConfigLog();
@@ -1019,6 +1031,12 @@ class Config
     std::wstring fileName = L"OptiScaler.ini";
 
     bool Reload(std::filesystem::path iniPath);
+    void MarkIniAsSeen();
+
+    // The write time this process last saw, so its own SaveIni does not read as somebody else's
+    // edit -- the in-game panel saves on every change, which would otherwise reload on every click.
+    std::filesystem::file_time_type lastSeenWriteTime {};
+    std::chrono::steady_clock::time_point lastDiskCheck {};
 
     std::optional<std::string> readString(std::string section, std::string key, bool lowercase = false);
     std::optional<std::wstring> readWString(std::string section, std::string key, bool lowercase = false);

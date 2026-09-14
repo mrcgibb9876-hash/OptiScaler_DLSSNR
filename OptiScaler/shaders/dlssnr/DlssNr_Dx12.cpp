@@ -1613,6 +1613,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                            ID3D12CommandQueue* timingQueue)
 {
     std::lock_guard<std::mutex> nrLock(g_nrMutex);
+
+    // Settings changed from outside this process reach the running game here. That is what makes
+    // the 32-bit route tunable: OptiScaler runs inside the Feeder's 64-bit helper, which has no
+    // window, so its own panel cannot be shown over the game -- the manager writes
+    // host64\OptiScaler.ini instead and this is where the game notices. Rate-limited inside, and
+    // taken before the config reference below so a frame runs wholly on one set of values or the
+    // other. Create-time settings are compared against what each feature was built with further
+    // down and rebuild exactly as the in-game panel's own sliders do.
+    if (Config::Instance()->ReloadIfChangedOnDisk())
+        LOG_INFO("Settings reloaded from disk mid-run");
+
     const Config& cfg = *Config::Instance();
 
     if (g_nr.failed || cmdList == nullptr || colour == nullptr || depth == nullptr || motion == nullptr ||
