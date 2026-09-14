@@ -3055,6 +3055,44 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         auto* queue =
             timingQueue != nullptr ? timingQueue : (ID3D12CommandQueue*) State::Instance().currentCommandQueue;
 
+        // The queue is only asked for the timestamp frequency, which belongs to the GPU rather than to any
+        // one queue, and the timestamps themselves come back through the readback whichever queue runs the
+        // list. So with no queue known -- the DLSS5 Feeder's list, whose queue nothing here ever sees -- a
+        // small queue of this pass's own answers the question. Without it the panel showed a green
+        // "Running." with no cost on those games while others showed milliseconds (2026-09-14).
+        if (queue == nullptr)
+        {
+            static ID3D12CommandQueue* frequencyQueue = nullptr;
+            static ID3D12Device* frequencyDevice = nullptr;
+            static bool frequencyQueueFailed = false;
+
+            ID3D12Device* listDevice = nullptr;
+
+            if (!frequencyQueueFailed && SUCCEEDED(cmdList->GetDevice(IID_PPV_ARGS(&listDevice))) &&
+                listDevice != nullptr)
+            {
+                if (frequencyDevice != listDevice)
+                {
+                    // Retired rather than released if the device ever changes: cheap, and never in flight.
+                    frequencyQueue = nullptr;
+                    frequencyDevice = listDevice;
+
+                    D3D12_COMMAND_QUEUE_DESC desc {};
+                    desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+
+                    if (FAILED(listDevice->CreateCommandQueue(&desc, IID_PPV_ARGS(&frequencyQueue))))
+                    {
+                        frequencyQueue = nullptr;
+                        frequencyQueueFailed = true;
+                    }
+                }
+
+                listDevice->Release();
+            }
+
+            queue = frequencyQueue;
+        }
+
         if (queue != nullptr)
         {
             if (auto ms = g_gpuTime->ReadGpuTime(queue); ms.has_value())
