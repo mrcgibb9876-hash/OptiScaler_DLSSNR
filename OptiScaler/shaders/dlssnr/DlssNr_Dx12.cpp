@@ -1684,11 +1684,16 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // does not own. That is DLSS5-Feeder#104: Close() returned E_INVALIDARG on the first frame this
     // pass recorded into the feeder's list.
     //
-    // Hence the split. Post-upscale on the native route the target really is a game upscaler's
-    // output, so UAV holds. On the Feeder route the resource comes from ReShade instead, which runs
-    // its effects with the back buffer transitioned to RENDER_TARGET -- the better guess of the two,
-    // not a certainty. [Hotfix] OutputResourceBarrier overrides either, and the log line below says
-    // which was assumed, so a game that needs a third answer can be given one without a rebuild.
+    // Post-upscale the target is the output DLSS was just told to write, and NGX writes its output as a
+    // UAV, so UNORDERED_ACCESS is the arrival state on every route -- the DLSS5 Feeder's included.
+    //
+    // For a day (v1.0.21-v1.0.24) the Feeder route assumed RENDER_TARGET instead, on the reasoning that
+    // its texture comes from ReShade, to explain DLSS5-Feeder#104 (Armored Core VI's list failing to
+    // close). That was a guess and it was wrong where it could be checked: Batman: Arkham Knight, the
+    // Feeder game that worked, then failed Close() with E_INVALIDARG on the first frame after SR and the
+    // Feeder stopped; with OutputResourceBarrier=8 (UAV) the same build ran over 1,200 frames clean
+    // (2026-09-14). AC6 remains blocked by the Feeder's own command-list bug either way. [Hotfix]
+    // OutputResourceBarrier still overrides this, and the log line below says which was assumed.
     const bool feederRoute = OnFeederRoute();
     const D3D12_RESOURCE_STATES outputArrival =
         g_presentRouteDispatch ? D3D12_RESOURCE_STATE_PRESENT
@@ -1697,8 +1702,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                                    : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         : Config::Instance()->OutputResourceBarrier.has_value()
             ? (D3D12_RESOURCE_STATES) Config::Instance()->OutputResourceBarrier.value()
-        : feederRoute ? D3D12_RESOURCE_STATE_RENDER_TARGET
-                      : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+            : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
     // Said once per distinct value, because it is the first thing to check when a frame dies at
     // Close and the only way to tell an assumption apart from a setting after the fact.
