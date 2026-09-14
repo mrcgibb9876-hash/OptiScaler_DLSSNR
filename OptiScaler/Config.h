@@ -275,6 +275,9 @@ class Config
     // the game's Present, on a list of its own -- dlssnr/DlssNr_PresentRoute.h), or "auto", which picks
     // Present for games whose swapchain this app does not wrap.
     CustomOptional<std::wstring> DlssNrPlacement { std::wstring(L"auto") };
+    // On the Present route with no upscale call: estimate motion vectors from the frames (optical flow, beside
+    // OptiScaler as OptiScaler_OpticalFlow.dll) instead of handing the model a motion field of zeros.
+    CustomOptional<bool> DlssNrOpticalFlow { true };
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };

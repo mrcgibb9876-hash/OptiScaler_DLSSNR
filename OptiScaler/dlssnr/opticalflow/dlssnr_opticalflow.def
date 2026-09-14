@@ -1,0 +1,8 @@
+LIBRARY OptiScaler_OpticalFlow
+EXPORTS
+    OptiOF_AbiVersion
+    OptiOF_Create
+    OptiOF_Record
+    OptiOF_Destroy
+    OptiOF_LastError
+    OptiOF_StaticError

@@ -393,6 +393,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             // --- DLSS 5 Neural Rendering (OptiScaler/dlssnr) ---
             DlssNrEnabled.set_from_config(readBool("DlssNr", "Enabled"));
             DlssNrPlacement.set_from_config(readWString("DlssNr", "Placement", true));
+            DlssNrOpticalFlow.set_from_config(readBool("DlssNr", "OpticalFlow"));
             DlssNrRunBeforeSr.set_from_config(readBool("DlssNr", "RunBeforeSR"));
             DlssNrChainedHistory.set_from_config(readBool("DlssNr", "ChainedHistory"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
@@ -1301,6 +1302,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "Enabled", GetBoolValue(Instance()->DlssNrEnabled.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Placement",
                      wstring_to_string(Instance()->DlssNrPlacement.value_for_config_or(L"auto")).c_str());
+        ini.SetValue("DlssNr", "OpticalFlow", GetBoolValue(Instance()->DlssNrOpticalFlow.value_for_config()).c_str());
         ini.SetValue("DlssNr", "RunBeforeSR", GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ChainedHistory",
                      GetBoolValue(Instance()->DlssNrChainedHistory.value_for_config()).c_str());

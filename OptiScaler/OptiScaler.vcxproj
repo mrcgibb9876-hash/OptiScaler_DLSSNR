@@ -253,6 +253,7 @@ copy $(SolutionDir)external\xess\LICENSE.txt $(SolutionDir)x64\Release\a\License
 if exist "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" copy "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" $(SolutionDir)x64\Release\a\ /Y
 copy "$(SolutionDir)Licenses\RenoDX_ATTRIBUTION.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
 copy "$(SolutionDir)Licenses\DXL_ATTRIBUTION.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
+copy "$(SolutionDir)Licenses\FidelityFX_OpticalFlow_LICENSE.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
 md $(SolutionDir)x64\Release\a\OptiScaler
 copy $(SolutionDir)external\xess\bin\*.dll $(SolutionDir)x64\Release\a\OptiScaler\ /Y
 md $(SolutionDir)x64\Release\a\OptiScaler\Licenses

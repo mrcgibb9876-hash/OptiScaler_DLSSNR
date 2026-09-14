@@ -23,8 +23,15 @@ project is its own, written against OptiScaler's pass, but these designs come fr
     count and shadow-map shape, keeping the previous choice on a tie
     (OptiScaler/dlssnr/DlssNr_DepthTracker.cpp, adapted from DXL's src/core/DepthTracker.cpp).
 
+  * Motion vectors from optical flow for games that give none: AMD FidelityFX Optical Flow run on
+    the finished frames and densified to a per-pixel field (OptiScaler_OpticalFlow.dll, built from
+    OptiScaler/dlssnr/opticalflow, adapted from DXL's src/core/OpticalFlow.cpp). The FidelityFX
+    subset, its precompiled kernels and the densify kernel are the ones DXL ships; FidelityFX is
+    AMD's, under the MIT licence in Licenses/FidelityFX_OpticalFlow_LICENSE.txt.
+
 Where this project departs from DXL: the DSV handle table is a hash table rather than a 128-entry
 list, candidates are not dropped after 240 idle frames, descriptor copies carry their DSV mapping,
-and a letterboxed picture is processed as a rectangle inside the frame.
+a letterboxed picture is processed as a rectangle inside the frame, and the optical-flow downsample
+is a shader of this project's own that stretches the picture per axis to match the densify kernel.
 
 Thank you to LCPD15 for publishing DXL's source.

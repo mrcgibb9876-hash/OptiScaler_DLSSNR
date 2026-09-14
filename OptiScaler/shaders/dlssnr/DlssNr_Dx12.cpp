@@ -3231,10 +3231,201 @@ struct TrackedGuides
     D3D12_RESOURCE_STATES depthState = D3D12_RESOURCE_STATE_COPY_DEST;
     ID3D12Resource* zeroMotion = nullptr;
     bool wasActive = false;
+    bool usingFlow = false;
 };
 
 TrackedGuides g_tracked;
 std::unique_ptr<Menu_Dx12> g_presentMenu;
+
+// Optical-flow motion vectors (dlssnr/opticalflow): a DLL beside OptiScaler, estimated from the finished
+// frames on the Present route's own list. Anything missing or refused falls back to zero motion.
+struct OpticalFlowModule
+{
+    bool tried = false;
+    HMODULE module = nullptr;
+    void* (*create)(ID3D12Device*, unsigned int, unsigned int, int) = nullptr;
+    ID3D12Resource* (*record)(void*, ID3D12GraphicsCommandList*, ID3D12Resource*, int, int*) = nullptr;
+    void (*destroy)(void*) = nullptr;
+    const char* (*lastError)(void*) = nullptr;
+    const char* (*staticError)() = nullptr;
+
+    void* flow = nullptr;
+    unsigned int width = 0;
+    unsigned int height = 0;
+    bool failed = false;
+    unsigned int recordFailures = 0;
+
+    ID3D12Resource* colour = nullptr; // the picture, copied out of the back buffer
+    D3D12_RESOURCE_STATES colourState = D3D12_RESOURCE_STATE_COPY_DEST;
+
+    // Estimators replaced on a size change, destroyed once nothing recorded with them can still be running.
+    std::vector<std::pair<void*, unsigned int>> retired;
+};
+
+OpticalFlowModule g_flow;
+
+bool EnsureOpticalFlowModule()
+{
+    if (g_flow.tried)
+        return g_flow.module != nullptr;
+
+    g_flow.tried = true;
+    const constexpr char* kName = "OptiScaler_OpticalFlow.dll";
+
+    auto found = Util::FindFilePath(Util::DllPath().remove_filename(), kName);
+    if (!found.has_value())
+        found = Util::FindFilePath(Util::ExePath().remove_filename(), kName);
+
+    if (!found.has_value())
+    {
+        LOG_INFO("DLSS-NR Present route: {} is not beside OptiScaler -- zero motion vectors", kName);
+        return false;
+    }
+
+    g_flow.module = LoadLibraryW(found.value().wstring().c_str());
+
+    if (g_flow.module == nullptr)
+    {
+        LOG_WARN("DLSS-NR Present route: {} would not load (error {}) -- zero motion vectors", kName, GetLastError());
+        return false;
+    }
+
+    const auto abi = (int (*)()) GetProcAddress(g_flow.module, "OptiOF_AbiVersion");
+    g_flow.create = (decltype(g_flow.create)) GetProcAddress(g_flow.module, "OptiOF_Create");
+    g_flow.record = (decltype(g_flow.record)) GetProcAddress(g_flow.module, "OptiOF_Record");
+    g_flow.destroy = (decltype(g_flow.destroy)) GetProcAddress(g_flow.module, "OptiOF_Destroy");
+    g_flow.lastError = (decltype(g_flow.lastError)) GetProcAddress(g_flow.module, "OptiOF_LastError");
+    g_flow.staticError = (decltype(g_flow.staticError)) GetProcAddress(g_flow.module, "OptiOF_StaticError");
+
+    if (abi == nullptr || abi() != 1 || g_flow.create == nullptr || g_flow.record == nullptr ||
+        g_flow.destroy == nullptr || g_flow.lastError == nullptr || g_flow.staticError == nullptr)
+    {
+        LOG_WARN("DLSS-NR Present route: {} is not the version this OptiScaler expects -- zero motion vectors", kName);
+        FreeLibrary(g_flow.module);
+        g_flow.module = nullptr;
+        return false;
+    }
+
+    LOG_INFO("DLSS-NR Present route: optical flow loaded from {} (AMD FidelityFX Optical Flow, as DXL uses it)",
+             found.value().string());
+    return true;
+}
+
+// Estimates this frame's motion from the picture inside the back buffer (at pictureY, width x height) and
+// returns the per-pixel field, or null to use zero motion. Records on the Present route's own list, before
+// the pass touches the back buffer, which arrives and leaves in PRESENT.
+ID3D12Resource* PresentOpticalFlow(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Resource* backBuffer,
+                                   const D3D12_RESOURCE_DESC& frameDesc, unsigned int pictureY, unsigned int width,
+                                   unsigned int height, bool reset, bool& sceneCut)
+{
+    sceneCut = false;
+
+    for (size_t i = 0; i < g_flow.retired.size();)
+    {
+        if (--g_flow.retired[i].second == 0)
+        {
+            g_flow.destroy(g_flow.retired[i].first);
+            g_flow.retired.erase(g_flow.retired.begin() + i);
+        }
+        else
+        {
+            ++i;
+        }
+    }
+
+    if (!Config::Instance()->DlssNrOpticalFlow.value_or_default() || g_flow.failed || !EnsureOpticalFlowModule())
+        return nullptr;
+
+    if (g_flow.flow != nullptr && (g_flow.width != width || g_flow.height != height))
+    {
+        g_flow.retired.emplace_back(g_flow.flow, 16u);
+        g_flow.flow = nullptr;
+        ParkNrResource(g_flow.colour);
+    }
+
+    if (g_flow.flow == nullptr)
+    {
+        g_flow.flow = g_flow.create(device, width, height, 1);
+
+        if (g_flow.flow == nullptr)
+        {
+            const char* why = g_flow.staticError();
+            LOG_WARN("DLSS-NR Present route: optical flow unavailable ({}) -- zero motion vectors",
+                     why != nullptr ? why : "unknown");
+            g_flow.failed = true;
+            return nullptr;
+        }
+
+        g_flow.width = width;
+        g_flow.height = height;
+        reset = true;
+        LOG_INFO("DLSS-NR Present route: optical flow estimating {}x{} pictures", width, height);
+    }
+
+    if (g_flow.colour == nullptr)
+    {
+        D3D12_RESOURCE_DESC desc {};
+        desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        desc.Width = width;
+        desc.Height = height;
+        desc.DepthOrArraySize = 1;
+        desc.MipLevels = 1;
+        desc.Format = frameDesc.Format;
+        desc.SampleDesc.Count = 1;
+
+        D3D12_HEAP_PROPERTIES heap {};
+        heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+        if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g_flow.colour))))
+        {
+            g_flow.colour = nullptr;
+            LOG_WARN("DLSS-NR Present route: the optical flow picture could not be allocated -- zero motion vectors");
+            g_flow.failed = true;
+            return nullptr;
+        }
+
+        g_flow.colourState = D3D12_RESOURCE_STATE_COPY_DEST;
+    }
+
+    Barrier(list, g_flow.colour, g_flow.colourState, D3D12_RESOURCE_STATE_COPY_DEST);
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+    D3D12_TEXTURE_COPY_LOCATION to {};
+    to.pResource = g_flow.colour;
+    to.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    D3D12_TEXTURE_COPY_LOCATION from {};
+    from.pResource = backBuffer;
+    from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    const D3D12_BOX box { 0, pictureY, 0, width, pictureY + height, 1 };
+    list->CopyTextureRegion(&to, 0, 0, 0, &from, &box);
+
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+    Barrier(list, g_flow.colour, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    g_flow.colourState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+    int cut = 0;
+    ID3D12Resource* const motion = g_flow.record(g_flow.flow, list, g_flow.colour, reset ? 1 : 0, &cut);
+
+    if (motion == nullptr)
+    {
+        const char* why = g_flow.lastError(g_flow.flow);
+        LOG_WARN("DLSS-NR Present route: optical flow did not record ({}) -- zero motion vectors this frame",
+                 why != nullptr ? why : "unknown");
+
+        if (++g_flow.recordFailures >= 3)
+        {
+            LOG_WARN("DLSS-NR Present route: optical flow failed three times -- zero motion vectors from here on");
+            g_flow.failed = true;
+        }
+
+        return nullptr;
+    }
+
+    g_flow.recordFailures = 0;
+    sceneCut = cut != 0;
+    return motion;
+}
 
 // A motion field of zeros: a committed resource on a default heap is zero-filled when it is created.
 ID3D12Resource* CreateZeroMotion(ID3D12Device* device, unsigned int width, unsigned int height)
@@ -3597,34 +3788,50 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             Barrier(list, copy, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             g_tracked.depthState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
 
+            // Same width, shorter depth: a letterboxed picture, centred between the bars (checked on Resident
+            // Evil 2 at 16:10 -- 80 black rows above and below a 2560x1440 image). The pass runs on that band
+            // so the guides line up with it; the bars are left untouched.
+            const D3D12_RESOURCE_DESC frameDesc = backBuffer->GetDesc();
+            const bool letterboxed = tracked.width == frameDesc.Width && tracked.height < frameDesc.Height;
+            const unsigned int pictureY = letterboxed ? (unsigned int) ((frameDesc.Height - tracked.height) / 2) : 0u;
+
+            // Motion: estimated from the frames when the picture and the depth are the same size, zero otherwise.
+            bool flowCut = false;
+            ID3D12Resource* const motion =
+                tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height
+                    ? PresentOpticalFlow(device, list, backBuffer, frameDesc, pictureY, tracked.width, tracked.height,
+                                         !g_tracked.wasActive, flowCut)
+                    : nullptr;
+
             presentParams->Set(NVSDK_NGX_Parameter_Depth, copy);
-            presentParams->Set(NVSDK_NGX_Parameter_MotionVectors, g_tracked.zeroMotion);
+            presentParams->Set(NVSDK_NGX_Parameter_MotionVectors, motion != nullptr ? motion : g_tracked.zeroMotion);
             presentParams->Set(NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags,
                                (unsigned int) (tracked.reversed ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted : 0));
             presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, 0u);
             presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, 0u);
             presentParams->Set(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, 1.0f);
-            presentParams->Set(NVSDK_NGX_Parameter_Reset, g_tracked.wasActive ? 0u : 1u);
+            // The model's history goes with the estimator's: a scene cut it saw, or a switch between estimated
+            // and zero motion, leaves nothing to reproject from.
+            const bool motionSourceChanged = (motion != nullptr) != g_tracked.usingFlow;
+            g_tracked.usingFlow = motion != nullptr;
+            presentParams->Set(NVSDK_NGX_Parameter_Reset,
+                               (!g_tracked.wasActive || flowCut || motionSourceChanged) ? 1u : 0u);
             presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_X, 1.0f);
             presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_Y, 1.0f);
 
-            // Same width, shorter depth: a letterboxed picture, centred between the bars (checked on Resident
-            // Evil 2 at 16:10 -- 80 black rows above and below a 2560x1440 image). The pass runs on that band
-            // so the guides line up with it; the bars are left untouched.
-            const D3D12_RESOURCE_DESC frameDesc = backBuffer->GetDesc();
-
-            if (tracked.width == frameDesc.Width && tracked.height < frameDesc.Height)
+            if (letterboxed)
             {
-                presentParams->Set(kPresentActiveY, (unsigned int) ((frameDesc.Height - tracked.height) / 2));
+                presentParams->Set(kPresentActiveY, pictureY);
                 presentParams->Set(kPresentActiveWidth, tracked.width);
                 presentParams->Set(kPresentActiveHeight, tracked.height);
             }
 
-            if (!g_tracked.wasActive)
+            if (!g_tracked.wasActive || motionSourceChanged)
             {
-                LOG_INFO("DLSS-NR Present route: running on the tracked scene depth ({}x{}, {} depth) with zero motion "
+                LOG_INFO("DLSS-NR Present route: running on the tracked scene depth ({}x{}, {} depth) with {} motion "
                          "vectors -- no upscale call in this game",
-                         tracked.width, tracked.height, tracked.reversed ? "reversed" : "standard");
+                         tracked.width, tracked.height, tracked.reversed ? "reversed" : "standard",
+                         motion != nullptr ? "optical-flow" : "zero");
             }
 
             g_tracked.wasActive = true;
