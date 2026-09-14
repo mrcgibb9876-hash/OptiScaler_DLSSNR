@@ -306,7 +306,13 @@ bool Wanted()
     if (placement == L"evaluate")
         return false;
 
-    // auto: the games whose swapchain this app is known not to wrap.
+    // auto: the games whose swapchain this app is known not to wrap -- unless the DLSS5 Feeder is loaded. The
+    // Feeder makes a DLSS call of its own for the pass to ride, and its ReShade wraps the D3D12 device, so the
+    // Present route would find the swapchain on a device that does not match and run nothing at all: Devil
+    // May Cry 5 with the Feeder deployed, 2026-09-14. "present" in the ini still forces it.
+    if (DlssNr::IsFeederPresent())
+        return false;
+
     return static_cast<bool>(State::Instance().gameQuirks & GameQuirk::OldOverlayMenu);
 }
 

@@ -789,14 +789,8 @@ void ForgetCalibration()
     g_nr.calibWhy = "measuring...";
 }
 
-void ReleaseSurfacesIfFormatChanged(DXGI_FORMAT needed)
+void ReleaseSurfaces()
 {
-    if (g_nr.output == nullptr || g_nr.output->GetDesc().Format == needed)
-        return;
-
-    LOG_INFO("DLSS-NR rebuilding surfaces: format {} -> {} (inject point changed)", (int) g_nr.output->GetDesc().Format,
-             (int) needed);
-
     ForgetCalibration();
 
     ParkNrFeature(g_nr.feature);
@@ -818,6 +812,17 @@ void ReleaseSurfacesIfFormatChanged(DXGI_FORMAT needed)
     g_nr.passScratchFailed = false;
 
     g_nr.reset = true;
+}
+
+void ReleaseSurfacesIfFormatChanged(DXGI_FORMAT needed)
+{
+    if (g_nr.output == nullptr || g_nr.output->GetDesc().Format == needed)
+        return;
+
+    LOG_INFO("DLSS-NR rebuilding surfaces: format {} -> {} (inject point changed)", (int) g_nr.output->GetDesc().Format,
+             (int) needed);
+
+    ReleaseSurfaces();
 }
 
 void Barrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* res, D3D12_RESOURCE_STATES from,
@@ -3362,6 +3367,15 @@ ID3D12Resource* PresentOpticalFlow(ID3D12Device* device, ID3D12GraphicsCommandLi
         LOG_INFO("DLSS-NR Present route: optical flow estimating {}x{} pictures", width, height);
     }
 
+    // The copy below needs matching formats, and games change the swapchain's: Devil May Cry 5 starts in
+    // R8G8B8A8 and moves to R10G10B10A2 a few seconds in. A mismatched copy puts the list in an error state,
+    // so it fails to close -- every frame, from then on.
+    if (g_flow.colour != nullptr && g_flow.colour->GetDesc().Format != frameDesc.Format)
+    {
+        ParkNrResource(g_flow.colour);
+        reset = true;
+    }
+
     if (g_flow.colour == nullptr)
     {
         D3D12_RESOURCE_DESC desc {};
@@ -3562,6 +3576,11 @@ void CaptureForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
 void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigned long long presentIndex)
 {
     if (swapChain == nullptr || queue == nullptr)
+        return;
+
+    // Asked every frame, not only when the hooks went in: the DLSS5 Feeder's add-on can load after the device
+    // is created, and once it is here the pass rides its DLSS call instead (PresentRoute::Wanted).
+    if (!PresentRoute::Wanted())
         return;
 
     const bool nrOn = Config::Instance()->DlssNrEnabled.value_or_default();
@@ -3870,14 +3889,28 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
     }
     else
     {
-        static bool saidClose = false;
-        if (!saidClose)
+        static unsigned int closeFailures = 0;
+        if (++closeFailures <= 3)
         {
-            saidClose = true;
             LOG_ERROR("DLSS-NR Present route: our command list failed to close (0x{:X}) -- this frame was not "
-                      "submitted",
+                      "submitted; rebuilding the model and its guides",
                       (unsigned int) closed);
         }
+
+        // Nothing on that list ran. A feature created on it exists only on the CPU side, and the next Present
+        // would count it as submitted and evaluate it -- which throws inside the model (Devil May Cry 5). The
+        // states recorded for our copies are wrong for the same reason. Everything is rebuilt from scratch.
+        ReleaseSurfaces();
+        ParkNrResource(g_tracked.depth);
+        g_tracked.depthState = D3D12_RESOURCE_STATE_COPY_DEST;
+        g_tracked.wasActive = false;
+
+        if (g_flow.flow != nullptr)
+        {
+            g_flow.retired.emplace_back(g_flow.flow, 16u);
+            g_flow.flow = nullptr;
+        }
+        ParkNrResource(g_flow.colour);
     }
 
     device->Release();
