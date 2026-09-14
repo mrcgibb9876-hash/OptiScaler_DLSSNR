@@ -195,6 +195,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
 {
     LOG_FUNC();
 
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
+
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
     if (InFeatureInfo != nullptr)
@@ -223,7 +225,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
         {
             LOG_INFO("calling NVNGXProxy::D3D12_Init_Ext");
 
-            auto result = NVNGXProxy::D3D12_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice, InSDKVersion,
+            auto result = NVNGXProxy::D3D12_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice, DriverSdkVersion(InSDKVersion),
                                                        &localFeatureInfo);
             LOG_INFO("calling NVNGXProxy::D3D12_Init_Ext result: {0:X}", (UINT) result);
 
@@ -274,6 +276,13 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init(unsigned long long InApplica
 {
     LOG_FUNC();
 
+    // An SDK of version 0x13 or older has no feature info: its fourth argument is the SDK version, and what
+    // arrives as InSDKVersion is whatever was left in that register.
+    if (reinterpret_cast<std::uintptr_t>(InFeatureInfo) != 0 && reinterpret_cast<std::uintptr_t>(InFeatureInfo) < 0x10000)
+        InSDKVersion = static_cast<NVSDK_NGX_Version>(reinterpret_cast<std::uintptr_t>(InFeatureInfo));
+
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
+
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
     if (InFeatureInfo != nullptr)
@@ -297,7 +306,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init(unsigned long long InApplica
             LOG_INFO("calling NVNGXProxy::D3D12_Init");
 
             auto result = NVNGXProxy::D3D12_Init()(InApplicationId, InApplicationDataPath, InDevice, &localFeatureInfo,
-                                                   InSDKVersion);
+                                                   DriverSdkVersion(InSDKVersion));
 
             LOG_INFO("calling NVNGXProxy::D3D12_Init result: {0:X}", (UINT) result);
 
@@ -333,6 +342,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_ProjectID(const char* InProj
                                                               const NVSDK_NGX_FeatureCommonInfo* InFeatureInfo)
 {
     LOG_FUNC();
+
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
 
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
@@ -393,6 +404,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_with_ProjectID(
     NVSDK_NGX_Version InSDKVersion)
 {
     LOG_FUNC();
+
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
 
     LOG_INFO("InProjectId: {0}", InProjectId);
     LOG_INFO("InEngineType: {0}", (int) InEngineType);
@@ -562,7 +575,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_GetParameters(NVSDK_NGX_Parameter
                  (UINT64) *OutParameters);
 
         // Copy OptiScaler config to real NGX param table
-        if (result == NVSDK_NGX_Result_Success)
+        // NVIDIA can answer Success with no table when its init refused the game's SDK (Monster Hunter:
+        // World, SDK 0x12: BAD0000C). A null table is no table; OptiScaler's own is used instead.
+        if (result == NVSDK_NGX_Result_Success && *OutParameters != nullptr)
         {
             InitNGXParameters(*OutParameters, API::DX12);
             SetNGXParamAllocType(*(*OutParameters), NGX_AllocTypes::NVPersistent);
@@ -601,7 +616,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_GetCapabilityParameters(NVSDK_NGX
         LOG_INFO("Calling NVNGXProxy::D3D12_GetCapabilityParameters result: {0:X}, ptr: {1:X}", (UINT) result,
                  (UINT64) *OutParameters);
 
-        if (result == NVSDK_NGX_Result_Success)
+        // NVIDIA can answer Success with no table when its init refused the game's SDK (Monster Hunter:
+        // World, SDK 0x12: BAD0000C). A null table is no table; OptiScaler's own is used instead.
+        if (result == NVSDK_NGX_Result_Success && *OutParameters != nullptr)
         {
             // Init external NGX table with current configuration and mark as dynamic+external
             InitNGXParameters(*OutParameters, API::DX12);
@@ -636,7 +653,9 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_AllocateParameters(NVSDK_NGX_Para
         LOG_INFO("Calling NVNGXProxy::D3D12_AllocateParameters result: {0:X}, ptr: {1:X}", (UINT) result,
                  (UINT64) *OutParameters);
 
-        if (result == NVSDK_NGX_Result_Success)
+        // NVIDIA can answer Success with no table when its init refused the game's SDK (Monster Hunter:
+        // World, SDK 0x12: BAD0000C). A null table is no table; OptiScaler's own is used instead.
+        if (result == NVSDK_NGX_Result_Success && *OutParameters != nullptr)
         {
             SetNGXParamAllocType(*(*OutParameters), NGX_AllocTypes::NVDynamic);
             return result;

@@ -152,6 +152,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_Init_Ext2(
 {
     LOG_FUNC();
 
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
+
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
     if (InFeatureInfo != nullptr)
@@ -262,6 +264,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_Init_Ext(unsigned long long InAp
 {
     LOG_FUNC();
 
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
+
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
     if (InFeatureInfo != nullptr)
@@ -305,6 +309,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_Init_ProjectID_Ext(
     const NVSDK_NGX_FeatureCommonInfo* InFeatureInfo)
 {
     LOG_FUNC();
+
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
 
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
@@ -355,6 +361,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_VULKAN_Init(unsigned long long InApplic
                                                      NVSDK_NGX_Version InSDKVersion)
 {
     LOG_FUNC();
+
+    InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
 
     NVSDK_NGX_FeatureCommonInfo localFeatureInfo = {};
 
