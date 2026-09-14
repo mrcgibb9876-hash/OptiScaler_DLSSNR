@@ -38,9 +38,15 @@ struct ImGui_ImplDX12_Data
     ImGui_ImplDX12_Data() { memset((void*) this, 0, sizeof(*this)); }
 };
 
-static DescriptorHeapAllocator g_pd3dSrvDescHeapAlloc;
+// The menu object whose descriptor heap and device the shared DX12 backend was built on. Only that
+// object may shut the backend down, and any other object has to build its own before drawing: its
+// render path binds its own _srvDescHeap, so borrowing another object's backend would draw with the
+// wrong heap. Before this, a menu created while an older one's backend was still up never
+// initialised at all (the init only ran when no backend existed), and the older one's destructor
+// then shut that backend down anyway.
+static Menu_Dx12* s_dx12BackendOwner = nullptr;
 
-bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outTexture)
+bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outTexture, D3D12_RESOURCE_STATES outState)
 {
     if (Config::Instance()->OverlayMenu.value_or_default())
         return false;
@@ -70,6 +76,25 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     (void) io;
     io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
 
+    // Our backend was shut down under us (by the object that owned it): build it again before drawing.
+    // A backend that belongs to another, still-live menu object is never taken over -- replacing it
+    // while that object still held its heap crashed the game on the spot (2026-09-14). This object just
+    // waits, drawing nothing, until the other lets go; the shared context keeps the keys working.
+    if (_dx12Init && (io.BackendRendererUserData == nullptr || s_dx12BackendOwner != this))
+        _dx12Init = false;
+
+    if (!_dx12Init && io.BackendRendererUserData != nullptr)
+    {
+        static bool saidWaiting = false;
+        if (!saidWaiting)
+        {
+            saidWaiting = true;
+            LOG_DEBUG("Menu waiting for the previous menu object to release its DX12 backend");
+        }
+
+        return false;
+    }
+
     if (!_dx12Init && io.BackendRendererUserData == nullptr)
     {
         ImGui_ImplDX12_InitInfo initInfo {};
@@ -86,14 +111,18 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
         initInfo.RTVFormat = outDesc.Format;
         initInfo.DSVFormat = DXGI_FORMAT_UNKNOWN;
         initInfo.SrvDescriptorHeap = _srvDescHeap;
-        initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle,
+        initInfo.UserData = &_srvDescHeapAlloc;
+        initInfo.SrvDescriptorAllocFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE* out_cpu_handle,
                                            D3D12_GPU_DESCRIPTOR_HANDLE* out_gpu_handle)
-        { return g_pd3dSrvDescHeapAlloc.Alloc(out_cpu_handle, out_gpu_handle); };
-        initInfo.SrvDescriptorFreeFn =
-            [](ImGui_ImplDX12_InitInfo*, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle, D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)
-        { return g_pd3dSrvDescHeapAlloc.Free(cpu_handle, gpu_handle); };
+        { return static_cast<DescriptorHeapAllocator*>(info->UserData)->Alloc(out_cpu_handle, out_gpu_handle); };
+        initInfo.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo* info, D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
+                                          D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)
+        { return static_cast<DescriptorHeapAllocator*>(info->UserData)->Free(cpu_handle, gpu_handle); };
 
         _dx12Init = ImGui_ImplDX12_Init(&initInfo);
+
+        if (_dx12Init)
+            s_dx12BackendOwner = this;
 
         ImGui_ImplDX12_Data* bd =
             ImGui::GetCurrentContext() ? (ImGui_ImplDX12_Data*) ImGui::GetIO().BackendRendererUserData : nullptr;
@@ -147,7 +176,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
         outBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
         outBarrier.Transition.pResource = outTexture;
         outBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-        outBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        outBarrier.Transition.StateBefore = outState;
         outBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
         pCmdList->ResourceBarrier(1, &outBarrier);
 
@@ -160,7 +189,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCmdList);
 
         outBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-        outBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        outBarrier.Transition.StateAfter = outState;
         pCmdList->ResourceBarrier(1, &outBarrier);
 
         return true;
@@ -180,7 +209,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
     outBarrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
     outBarrier.Transition.pResource = outTexture;
     outBarrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    outBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    outBarrier.Transition.StateBefore = outState;
     outBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
 
     D3D12_RESOURCE_BARRIER bufferBarrier = {};
@@ -227,7 +256,7 @@ bool Menu_Dx12::Render(ID3D12GraphicsCommandList* pCmdList, ID3D12Resource* outT
         bufferBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
         outBarrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
-        outBarrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+        outBarrier.Transition.StateAfter = outState;
         pCmdList->ResourceBarrier(2, barriers);
     }
 
@@ -271,8 +300,14 @@ Menu_Dx12::Menu_Dx12(HWND handle, ID3D12Device* pDevice) : MenuDxBase(handle), _
             return;
     }
 
-    g_pd3dSrvDescHeapAlloc.Destroy();
-    g_pd3dSrvDescHeapAlloc.Create(pDevice, _srvDescHeap);
+    // This used to be one allocator shared by every menu object, pointed at the newest object's heap
+    // here. When an upscaler is recreated, the new feature's menu is built while the old one's backend
+    // is still up; the old one then shuts that backend down and frees its font descriptors -- slots in
+    // its own heap -- into an allocator that now indexes the new heap. The new backend is then built on
+    // a corrupted free list and draws with descriptors that point nowhere. Resident Evil 2 recreates its
+    // upscaler on the first real frame and died about two seconds later, every launch, with the device
+    // removed or an access violation in this module, whichever came first (2026-09-14).
+    _srvDescHeapAlloc.Create(pDevice, _srvDescHeap);
 
     Dx12Ready();
 
@@ -286,9 +321,21 @@ Menu_Dx12::~Menu_Dx12()
     if (!_dx12Init)
         return;
 
-    // On shutting down don't invalidate device objects
-    ImGui_ImplDX12_Shutdown(true, !State::Instance().isShuttingDown);
-    MenuCommon::Shutdown();
+    // On shutting down don't invalidate device objects. Only the object that built the backend may
+    // tear it down -- a newer menu may already be drawing with its own.
+    if (s_dx12BackendOwner == this && ImGui::GetCurrentContext() != nullptr)
+    {
+        // shutdown_platform stays false, as it is in the DX11 menu: true runs DestroyPlatformWindows, which
+        // frees the main viewport's Win32 data under whichever menu object is still using the shared
+        // context. The next frame's DPI query then reads a null window and faults (Resident Evil 2,
+        // c0000005 two seconds after its upscaler was recreated, 2026-09-14). The Win32 backend does its
+        // own DestroyPlatformWindows when the last menu object lets the context go.
+        ImGui_ImplDX12_Shutdown(false, !State::Instance().isShuttingDown);
+        s_dx12BackendOwner = nullptr;
+    }
+
+    // MenuCommon::Shutdown is ~MenuDxBase's to call, once per menu object. Calling it here as well
+    // counted this object twice against the shared context and destroyed it under the next menu.
 
     SAFE_RELEASE(_rtvDescHeap);
     SAFE_RELEASE(_srvDescHeap);

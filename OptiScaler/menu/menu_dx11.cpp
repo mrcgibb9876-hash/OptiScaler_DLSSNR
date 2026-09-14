@@ -133,7 +133,7 @@ Menu_Dx11::~Menu_Dx11()
         return;
 
     ImGui_ImplDX11_Shutdown(false);
-    MenuCommon::Shutdown();
+    // MenuCommon::Shutdown runs once, from ~MenuDxBase (see Menu_Dx12's destructor).
 
     // hackzor
     std::this_thread::sleep_for(std::chrono::milliseconds(250));

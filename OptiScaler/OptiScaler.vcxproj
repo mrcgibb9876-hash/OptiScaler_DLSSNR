@@ -252,6 +252,7 @@ del /Q $(SolutionDir)x64\Release\a\Licenses\*.*
 copy $(SolutionDir)external\xess\LICENSE.txt $(SolutionDir)x64\Release\a\Licenses\XeSS_LICENSE.txt /Y
 if exist "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" copy "$(SolutionDir)READ ME - DLSS Neural Rendering.txt" $(SolutionDir)x64\Release\a\ /Y
 copy "$(SolutionDir)Licenses\RenoDX_ATTRIBUTION.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
+copy "$(SolutionDir)Licenses\DXL_ATTRIBUTION.txt" $(SolutionDir)x64\Release\a\Licenses\ /Y
 md $(SolutionDir)x64\Release\a\OptiScaler
 copy $(SolutionDir)external\xess\bin\*.dll $(SolutionDir)x64\Release\a\OptiScaler\ /Y
 md $(SolutionDir)x64\Release\a\OptiScaler\Licenses
@@ -840,6 +841,10 @@ copy NUL "$(SolutionDir)x64\Release\a\!! EXTRACT ALL FILES TO GAME FOLDER !!" /Y
     <ClCompile Include="dlssnr\DlssNrFeature_Vk.cpp" />
     <ClCompile Include="dlssnr\DlssNr_ExposureScan.cpp" />
     <ClCompile Include="dlssnr\DlssNr_Proxy.cpp" />
+    <ClCompile Include="dlssnr\DlssNr_PresentRoute.cpp" />
+    <ClInclude Include="dlssnr\DlssNr_PresentRoute.h" />
+    <ClCompile Include="dlssnr\DlssNr_DepthTracker.cpp" />
+    <ClInclude Include="dlssnr\DlssNr_DepthTracker.h" />
     <ClCompile Include="dlssnr\DlssNr_Menu.cpp" />
     <ClCompile Include="dlssnr\DlssNr_I18n.cpp" />
     <ClCompile Include="dlssnr\DlssNr_I18n_Tables.cpp" />

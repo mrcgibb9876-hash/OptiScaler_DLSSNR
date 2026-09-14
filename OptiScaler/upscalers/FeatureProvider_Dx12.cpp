@@ -22,6 +22,7 @@ bool FeatureProvider_Dx12::GetFeature(Upscaler upscaler, UINT handleId, NVSDK_NG
     Config& cfg = *Config::Instance();
     auto primaryGpu = IdentifyGpu::getPrimaryGpu();
     ScopedSkipHeapCapture skipHeapCapture {};
+    const Upscaler requested = upscaler == Upscaler::DLSSD ? Upscaler::DLSS : upscaler;
 
     switch (upscaler)
     {
@@ -88,7 +89,15 @@ bool FeatureProvider_Dx12::GetFeature(Upscaler upscaler, UINT handleId, NVSDK_NG
     if (upscaler == Upscaler::DLSSD)
         upscaler = Upscaler::DLSS;
 
-    cfg.Dx12Upscaler = upscaler;
+    // A substitute is for this session only; the ini keeps what the user chose (State.h).
+    if (state.newBackendIsFallback || upscaler != requested ||
+        (cfg.Dx12Upscaler.is_volatile() && !state.newBackendIsUserChoice))
+        cfg.Dx12Upscaler.set_volatile_value(upscaler);
+    else
+        cfg.Dx12Upscaler = upscaler;
+
+    state.newBackendIsFallback = false;
+    state.newBackendIsUserChoice = false;
 
     return loaded;
 }
@@ -207,6 +216,8 @@ bool FeatureProvider_Dx12::ChangeFeature(Upscaler upscaler, ID3D12Device* device
                     state.newBackend = Upscaler::FSR21;
                     ImGui::InsertNotification({ ImGuiToastType::Warning, 10000, "Falling back to FSR 2.1.2" });
                 }
+
+                state.newBackendIsFallback = true;
             }
             else
             {

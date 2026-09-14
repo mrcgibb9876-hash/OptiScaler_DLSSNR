@@ -107,6 +107,14 @@ struct DlssNrFrameInfo
     // available and is what gets used.
     unsigned int RenderSubrectWidth = 0;
     unsigned int RenderSubrectHeight = 0;
+
+    // After SR, on the Present route only: the picture sits inside the frame at this offset and size
+    // (a letterboxed game), and the guides describe that rectangle rather than the whole frame. The pass
+    // then runs on the rectangle and puts it back, leaving the bars alone. Zero size means the whole frame.
+    unsigned int ActiveBaseX = 0;
+    unsigned int ActiveBaseY = 0;
+    unsigned int ActiveWidth = 0;
+    unsigned int ActiveHeight = 0;
 };
 
 struct alignas(256) DlssNrConstants

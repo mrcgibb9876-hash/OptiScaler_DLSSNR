@@ -2600,6 +2600,7 @@ void MenuCommon::RenderActiveUpscalerSettings(RenderMenuContext& ctx)
                     config->DlssReactiveMaskBias.reset();
                 }
 
+                state.newBackendIsUserChoice = true;
                 MARK_ALL_BACKENDS_CHANGED();
             }
         }
@@ -7923,10 +7924,27 @@ bool MenuCommon::RenderMenu()
     return ctx.newFrame;
 }
 
+// How many menu objects are using the one ImGui context. Every upscaler feature owns a menu, so a
+// backend change creates the new feature's menu before the old feature -- destroyed with a delay --
+// lets go of its own. Each Shutdown used to destroy the context outright, which took the NEW menu's
+// context with it: "No ImGui context on the old overlay path" for the rest of the session, no
+// OptiScaler menu and no DLSS 5 panel (Resident Evil 2, 2026-09-14). Whether it happened depended on
+// the order the two landed in, so it came and went between launches.
+static int s_menuUsers = 0;
+
 void MenuCommon::Init(HWND InHwnd, bool isUWP)
 {
     // Reset shutdown flag in case of re-init
     State::Instance().isShuttingDown = false;
+
+    // Same window, context still alive: share it rather than building a second one over it.
+    if (_isInited && ImGui::GetCurrentContext() != nullptr && InHwnd == _handle && isUWP == _isUWP)
+    {
+        ++s_menuUsers;
+        LOG_DEBUG("Menu already set up for window {:X} -- sharing its context ({} users)", (size_t) InHwnd,
+                  s_menuUsers);
+        return;
+    }
 
     HWND oldHandle = nullptr;
 
@@ -8028,12 +8046,23 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
 
     ApplyThemeStyle();
     _isInited = true;
+    s_menuUsers = 1;
 }
 
 void MenuCommon::Shutdown()
 {
     if (!MenuCommon::_isInited)
         return;
+
+    // Another menu object still draws with this context.
+    if (s_menuUsers > 1)
+    {
+        --s_menuUsers;
+        LOG_DEBUG("Menu user released -- {} still using the context, keeping it", s_menuUsers);
+        return;
+    }
+
+    s_menuUsers = 0;
 
     // if (_oWndProc != nullptr)
     //{

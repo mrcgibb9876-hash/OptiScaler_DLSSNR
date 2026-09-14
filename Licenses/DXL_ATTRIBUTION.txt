@@ -1,0 +1,30 @@
+DXL (DLSS eXtended Loader)
+==========================
+
+Project:  DXL by LCPD15
+Source:   https://github.com/LCPD15/DXL
+Licence:  AGPL-3.0
+
+What is derived from it
+-----------------------
+
+The Present placement of DLSS 5 Neural Rendering follows DXL's approach. The code in this
+project is its own, written against OptiScaler's pass, but these designs come from DXL:
+
+  * Running the Neural Rendering pass at the game's Present, on a command list of its own,
+    for games whose swapchain OptiScaler does not wrap (OptiScaler/dlssnr/DlssNr_PresentRoute.cpp).
+
+  * Hooking Present and Present1 by detouring the functions a throwaway swapchain reveals, rather
+    than writing the shared vtable entry (DXL's PresentInlineHooks.h), and learning the frame's
+    command queue from ExecuteCommandLists.
+
+  * Finding the game's scene depth by watching its depth buffers -- DSV creation, render target
+    binds, depth clears and resource barriers -- and scoring the candidates by render size, bind
+    count and shadow-map shape, keeping the previous choice on a tie
+    (OptiScaler/dlssnr/DlssNr_DepthTracker.cpp, adapted from DXL's src/core/DepthTracker.cpp).
+
+Where this project departs from DXL: the DSV handle table is a hash table rather than a 128-entry
+list, candidates are not dropped after 240 idle frames, descriptor copies carry their DSV mapping,
+and a letterboxed picture is processed as a rectangle inside the frame.
+
+Thank you to LCPD15 for publishing DXL's source.

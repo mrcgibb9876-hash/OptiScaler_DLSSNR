@@ -23,6 +23,7 @@ bool FeatureProvider_Vk::GetFeature(Upscaler upscaler, UINT handleId, NVSDK_NGX_
     State& state = State::Instance();
     Config& cfg = *Config::Instance();
     auto primaryGpu = IdentifyGpu::getPrimaryGpu();
+    const Upscaler requested = upscaler == Upscaler::DLSSD ? Upscaler::DLSS : upscaler;
 
     switch (upscaler)
     {
@@ -101,7 +102,15 @@ bool FeatureProvider_Vk::GetFeature(Upscaler upscaler, UINT handleId, NVSDK_NGX_
     if (upscaler == Upscaler::DLSSD)
         upscaler = Upscaler::DLSS;
 
-    cfg.VulkanUpscaler = upscaler;
+    // A substitute is for this session only; the ini keeps what the user chose (State.h).
+    if (state.newBackendIsFallback || upscaler != requested ||
+        (cfg.VulkanUpscaler.is_volatile() && !state.newBackendIsUserChoice))
+        cfg.VulkanUpscaler.set_volatile_value(upscaler);
+    else
+        cfg.VulkanUpscaler = upscaler;
+
+    state.newBackendIsFallback = false;
+    state.newBackendIsUserChoice = false;
 
     return loaded;
 }
@@ -219,6 +228,8 @@ bool FeatureProvider_Vk::ChangeFeature(Upscaler upscaler, VkInstance instance, V
                     state.newBackend = Upscaler::FSR21;
                     ImGui::InsertNotification({ ImGuiToastType::Warning, 10000, "Falling back to FSR 2.1.2" });
                 }
+
+                state.newBackendIsFallback = true;
             }
             else
             {

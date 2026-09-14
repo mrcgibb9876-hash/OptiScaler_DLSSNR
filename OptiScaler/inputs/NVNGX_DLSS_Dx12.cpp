@@ -151,6 +151,41 @@ static void UpdateInitPaths(NVSDK_NGX_FeatureCommonInfo* InFeatureInfo)
     }
 }
 
+// NVIDIA's own messages, in this log. The real NGX init is handed the caller's feature info, logging
+// callback included, so everything NGX says about a failure -- why a feature refused to create --
+// went to the caller alone. A game's own sink at least exists; an injected upscaler's often does
+// not: PureDark's plugin on Resident Evil 2 got BAD0000B from every DLSS create and nothing anywhere
+// said why. At LogLevel 0 or 1 the callback is ours, and the caller's is still called after it.
+static NVSDK_NGX_AppLogCallback s_callerNgxLogCallback = nullptr;
+
+static void NVSDK_CONV NgxLogToOurs(const char* message, NVSDK_NGX_Logging_Level loggingLevel,
+                                    NVSDK_NGX_Feature sourceComponent)
+{
+    if (message != nullptr)
+    {
+        std::string text(message);
+        while (!text.empty() && (text.back() == '\n' || text.back() == '\r'))
+            text.pop_back();
+        LOG_INFO("NGX [feature {}]: {}", (UINT) sourceComponent, text);
+    }
+
+    if (s_callerNgxLogCallback != nullptr)
+        s_callerNgxLogCallback(message, loggingLevel, sourceComponent);
+}
+
+static void RouteNgxLoggingToOurLog(NVSDK_NGX_FeatureCommonInfo* info)
+{
+    if (info == nullptr || Config::Instance()->LogLevel.value_or_default() >= 2)
+        return;
+
+    if (info->LoggingInfo.LoggingCallback != NgxLogToOurs)
+        s_callerNgxLogCallback = info->LoggingInfo.LoggingCallback;
+
+    info->LoggingInfo.LoggingCallback = NgxLogToOurs;
+    info->LoggingInfo.MinimumLoggingLevel = NVSDK_NGX_LOGGING_LEVEL_VERBOSE;
+    info->LoggingInfo.DisableOtherLoggingSinks = false;
+}
+
 #pragma region DLSS Init Calls
 
 NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApplicationId,
@@ -164,6 +199,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
 
     if (InFeatureInfo != nullptr)
         std::memcpy(&localFeatureInfo, InFeatureInfo, sizeof(NVSDK_NGX_FeatureCommonInfo));
+
+    RouteNgxLoggingToOurLog(&localFeatureInfo);
 
     if (!_skipInit)
         UpdateInitPaths(&localFeatureInfo);
@@ -242,6 +279,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init(unsigned long long InApplica
     if (InFeatureInfo != nullptr)
         std::memcpy(&localFeatureInfo, InFeatureInfo, sizeof(NVSDK_NGX_FeatureCommonInfo));
 
+    RouteNgxLoggingToOurLog(&localFeatureInfo);
+
     if (!_skipInit)
         UpdateInitPaths(&localFeatureInfo);
 
@@ -299,6 +338,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_ProjectID(const char* InProj
 
     if (InFeatureInfo != nullptr)
         std::memcpy(&localFeatureInfo, InFeatureInfo, sizeof(NVSDK_NGX_FeatureCommonInfo));
+
+    RouteNgxLoggingToOurLog(&localFeatureInfo);
 
     if (!_skipInit)
         UpdateInitPaths(&localFeatureInfo);
@@ -770,6 +811,7 @@ static NVSDK_NGX_Result TryCreateOptiFeature(ID3D12GraphicsCommandList* InCmdLis
     {
         LOG_ERROR("Feature '{}' initialization failed falling back to FSR 2.1.2", UpscalerDisplayName(upscalerBackend));
         state.newBackend = Upscaler::FSR21;
+        state.newBackendIsFallback = true;
         state.changeBackend[handleId] = true;
     }
 
@@ -1129,6 +1171,7 @@ static NVSDK_NGX_Result TryEvaluateOptiFeature(ID3D12GraphicsCommandList* InCmdL
         ImGui::InsertNotification({ ImGuiToastType::Warning, 10000, "Falling back to FSR 2.1.2" });
 
         state.newBackend = Upscaler::FSR21;
+        state.newBackendIsFallback = true;
         state.changeBackend[handleId] = true;
 
         D3D12Hooks::SetRootSignatureTracking(true);

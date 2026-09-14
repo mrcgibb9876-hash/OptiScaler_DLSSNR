@@ -208,6 +208,16 @@ class State
     // for realtime changes
     ankerl::unordered_dense::map<unsigned int, bool> changeBackend;
     Upscaler newBackend = Upscaler::Reset;
+    // Set by every automatic fallback (an upscaler that would not create, initialise or run), so
+    // the FeatureProvider stores the substitute as a session-only value. Without it the fallback
+    // was written into the config like a user's choice, and the next SaveIni -- which the DLSS 5
+    // panel calls on every change -- made it permanent: one failed DLSS start on Resident Evil 2
+    // left Dx12Upscaler=fsr21 in OptiScaler.ini, and every later launch skipped DLSS entirely.
+    bool newBackendIsFallback = false;
+    // Set only where the user picks an upscaler (the menu's Change Upscaler). A fallback can be
+    // requested more than once before the change runs, and the menu re-creates the current backend
+    // for ordinary setting changes; neither may turn a session-only substitute into a saved choice.
+    bool newBackendIsUserChoice = false;
 
     // XeSS debug stuff
     bool xessDebug = false;

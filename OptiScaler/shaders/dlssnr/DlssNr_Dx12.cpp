@@ -7,6 +7,12 @@
 #include <dlssnr/DlssNr_Capture.h>
 #include <dlssnr/DlssNr_Proxy.h>
 #include <dlssnr/DlssNr_ExposureScan.h>
+#include <dlssnr/DlssNr_PresentRoute.h>
+#include <dlssnr/DlssNr_DepthTracker.h>
+#include <menu/menu_dx12.h>
+#include <dlssnr/DlssNrFeature_Dx12.h>
+#include <NVNGX_Parameter.h>
+#include <dxgi1_4.h>
 
 #include "DlssNr_Dx12.h"
 #include "DlssNr_ActiveColor.h"
@@ -20,6 +26,9 @@
 #include <gpu_time/GpuTime_Dx12.h>
 
 #include <mutex>
+#include <map>
+#include <chrono>
+#include <format>
 #include <algorithm>
 #include <cstring>
 #include "precompile/DlssNr_Shader.h"
@@ -1608,11 +1617,41 @@ DlssNr_Dx12::~DlssNr_Dx12()
     }
 }
 
+// Where the pass leaves early, counted by source line. "Running after SR" is logged once per build and
+// the heartbeat only on frames that finish, so a pass that started and then left early on every frame
+// looked the same in the log as one that ran all session (Resident Evil 2 under XeSS, 2026-09-14: started,
+// then no heartbeat in 38 seconds). Dispatch runs under g_nrMutex, so plain counters are enough.
+static std::map<int, unsigned long long> g_dispatchBails;
+// Set only while DlssNr::RunAtPresent calls into the pass: the target is then the swapchain's back buffer,
+// in PRESENT state, and the command list is this app's own -- no game state on it to restore.
+static bool g_presentRouteDispatch = false;
+
+// Keys on the Present route's private parameter block: the letterboxed picture's rectangle in the frame.
+static constexpr const char* kPresentActiveX = "OptiDlssNr.Present.Active.X";
+static constexpr const char* kPresentActiveY = "OptiDlssNr.Present.Active.Y";
+static constexpr const char* kPresentActiveWidth = "OptiDlssNr.Present.Active.Width";
+static constexpr const char* kPresentActiveHeight = "OptiDlssNr.Present.Active.Height";
+static unsigned long long g_dispatchCalls = 0;
+static unsigned long long g_dispatchDone = 0;
+#define DLSSNR_BAIL() do { ++g_dispatchBails[__LINE__]; return; } while (0)
+
 void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* colour, ID3D12Resource* depth,
                            ID3D12Resource* motion, ID3D12Resource* output, const DlssNrFrameInfo& frame,
                            ID3D12CommandQueue* timingQueue)
 {
     std::lock_guard<std::mutex> nrLock(g_nrMutex);
+
+    ++g_dispatchCalls;
+
+    if (g_dispatchCalls % 600 == 0)
+    {
+        std::string bails;
+        for (const auto& [line, count] : g_dispatchBails)
+            bails += std::format("{}line {} x{}", bails.empty() ? "" : ", ", line, count);
+
+        LOG_INFO("DLSS-NR calls: {} into the pass, {} ran to the end, left early: {}", g_dispatchCalls, g_dispatchDone,
+                 bails.empty() ? std::string("never") : bails);
+    }
 
     // Settings changed from outside this process reach the running game here. That is what makes
     // the 32-bit route tunable: OptiScaler runs inside the Feeder's 64-bit helper, which has no
@@ -1630,7 +1669,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         output == nullptr)
     {
         ReportSkipOnce(g_nr.failed ? "it already failed this session" : "a resource was missing");
-        return;
+        DLSSNR_BAIL();
     }
 
     ID3D12Resource* target = output;
@@ -1652,7 +1691,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // which was assumed, so a game that needs a third answer can be given one without a rebuild.
     const bool feederRoute = OnFeederRoute();
     const D3D12_RESOURCE_STATES outputArrival =
-        frame.BeforeUpscale ? (Config::Instance()->ColorResourceBarrier.has_value()
+        g_presentRouteDispatch ? D3D12_RESOURCE_STATE_PRESENT
+        : frame.BeforeUpscale  ? (Config::Instance()->ColorResourceBarrier.has_value()
                                    ? (D3D12_RESOURCE_STATES) Config::Instance()->ColorResourceBarrier.value()
                                    : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         : Config::Instance()->OutputResourceBarrier.has_value()
@@ -1671,7 +1711,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             LOG_INFO("DLSS-NR: target assumed to arrive in D3D12 state 0x{:X} ({}). If a frame fails "
                      "to close, override it with [Hotfix] OutputResourceBarrier.",
                      (unsigned int) outputArrival,
-                     Config::Instance()->OutputResourceBarrier.has_value() ? "set in the ini"
+                     g_presentRouteDispatch                                ? "Present route back buffer"
+                     : Config::Instance()->OutputResourceBarrier.has_value() ? "set in the ini"
                      : feederRoute                                         ? "Feeder route default"
                                                                            : "native route default");
         }
@@ -1688,23 +1729,46 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if (FAILED(target->GetDevice(IID_PPV_ARGS(&device))) || device == nullptr)
     {
         ReportSkipOnce("the output texture belongs to no D3D12 device");
-        return;
+        DLSSNR_BAIL();
     }
 
     const D3D12_RESOURCE_DESC desc = target->GetDesc();
+
+    // A letterboxed frame on the Present route: run on the picture between the bars, where the guides are.
+    // The staging texture is a UAV in the frame's own format, which an sRGB format cannot be -- such a frame
+    // keeps the whole-frame placement rather than failing the pass for the session.
+    const bool srgbFrame = desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+                           desc.Format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
+    const bool activeRect = !frame.BeforeUpscale && g_presentRouteDispatch && !srgbFrame && frame.ActiveWidth != 0 &&
+                            frame.ActiveHeight != 0 && frame.ActiveBaseX + frame.ActiveWidth <= desc.Width &&
+                            frame.ActiveBaseY + frame.ActiveHeight <= desc.Height;
+
     const auto active =
-        frame.BeforeUpscale
-            ? DlssNr::PreSrColorExtent(desc, frame.RenderSubrectWidth, frame.RenderSubrectHeight)
-            : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width, desc.Height } };
+        frame.BeforeUpscale ? DlssNr::PreSrColorExtent(desc, frame.RenderSubrectWidth, frame.RenderSubrectHeight)
+        : activeRect        ? std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent {
+                           frame.ActiveWidth, frame.ActiveHeight, frame.ActiveBaseX, frame.ActiveBaseY } }
+                            : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width,
+                                                                                      desc.Height } };
     if (!active)
     {
         ReportSkipOnce("the pre-SR active colour size is invalid");
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
     const auto width = active->width;
     const auto height = active->height;
-    const bool cropColor = frame.BeforeUpscale && (width != desc.Width || height != desc.Height);
+    const bool cropColor = (frame.BeforeUpscale || activeRect) && (width != desc.Width || height != desc.Height);
+
+    if (activeRect && cropColor)
+    {
+        static unsigned int saidBaseY = ~0u;
+        if (saidBaseY != active->baseY)
+        {
+            saidBaseY = active->baseY;
+            LOG_INFO("DLSS-NR: letterboxed frame -- running on the {}x{} picture at {},{} inside the {}x{} frame",
+                     width, height, active->baseX, active->baseY, (UINT) desc.Width, (UINT) desc.Height);
+        }
+    }
     const bool targetSupportsUav = cropColor || (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != 0;
 
     // Depth and motion vectors are the upscaler's inputs and so are at render resolution, while colour
@@ -1860,7 +1924,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         g_nr.failed = true;
         g_nr.reason = conflict.c_str();
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     if (!EnsureForwarder() || !EnsureCapabilityParams(device))
@@ -1868,7 +1932,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         g_nr.failed = true;
         LOG_ERROR("DLSS-NR unavailable: {}", g_nr.reason);
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     // What the model works at. The frame and its edit stay full resolution; only the model's input and
@@ -1966,7 +2030,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         g_nr.reason = "the pre-SR active colour staging texture could not be allocated";
         LOG_ERROR("DLSS-NR unavailable: {}", g_nr.reason);
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     if (requestedPasses == 1)
@@ -2037,7 +2101,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             g_nr.reason = "nvngx_dlssnr.dll was not found beside OptiScaler or the game";
             LOG_ERROR("DLSS-NR unavailable: {}", g_nr.reason);
             device->Release();
-            return;
+            DLSSNR_BAIL();
         }
 
         SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
@@ -2062,7 +2126,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             LOG_ERROR("DLSS-NR create failed: init 0x{:X} ({}), create 0x{:X} ({})", initResult,
                       NgxResultName(initResult), createResult, NgxResultName(createResult));
             device->Release();
-            return;
+            DLSSNR_BAIL();
         }
 
         g_nr.width = width;
@@ -2081,13 +2145,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         // GPU (every crash died on a creation frame). The creation goes through the game's own submit
         // first; the first evaluate happens next frame. One frame without the model is invisible.
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     if (g_nr.feature == nullptr)
     {
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     // A later function call is not proof that the command list containing CreateFeature was
@@ -2099,7 +2163,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         if (frame.SubmissionEpoch == g_nr.featureCreateEpoch)
         {
             device->Release();
-            return;
+            DLSSNR_BAIL();
         }
 
         g_nr.featurePendingSubmission = false;
@@ -2130,7 +2194,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         if (frame.SubmissionEpoch == g_nr.passCreateEpoch[pass])
         {
             device->Release();
-            return;
+            DLSSNR_BAIL();
         }
 
         g_nr.passPendingSubmission[pass] = false;
@@ -2191,7 +2255,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             }
 
             device->Release();
-            return;
+            DLSSNR_BAIL();
         }
     }
 
@@ -2227,7 +2291,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         g_nr.reason = "the colour codec would not compile";
         LOG_ERROR("DLSS-NR unavailable: {}", g_nr.reason);
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     // What the upscaler produces is linear HDR with an open-ended range; the model was trained on
@@ -2264,10 +2328,44 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // touching state was unsafe this frame, and binding the pass now would leave state the envelope
     // cannot clean up. So on those games, skip the frame rather than corrupt it. Ordinary games do
     // not require restore, so they are unaffected and the pass runs as before.
+    // The Present route records into a list of its own, which has no game state on it to put back.
     const bool restoreRequired =
-        cfg.RestoreComputeSignature.value_or_default() || cfg.RestoreGraphicSignature.value_or_default();
+        !g_presentRouteDispatch &&
+        (cfg.RestoreComputeSignature.value_or_default() || cfg.RestoreGraphicSignature.value_or_default());
+
+    // The same exception the upscaler already makes (NVNGX_DLSS_Dx12.cpp, TryEvaluateOptiFeature): a
+    // command list that never has a root signature to track after a few frames is one the caller opened
+    // only to run the upscale on, so there is no game state on it to protect. PureDark's plugin on
+    // Resident Evil 2 hands over exactly such a list; the upscaler runs on it, and without this the pass
+    // skipped every frame there. EXPERIMENTAL: the upscaler's version of this is the prime suspect in
+    // that game's intermittent device removals shortly after start.
+    static std::map<ID3D12GraphicsCommandList*, unsigned int> skippedForRestore;
+    constexpr unsigned int kRestoreSkips = 3;
+    bool untrackedDedicatedList = false;
 
     if (restoreRequired && !D3D12Hooks::CanRestoreRootSignature(cmdList))
+    {
+        auto& skips = skippedForRestore[cmdList];
+
+        if (skips < kRestoreSkips)
+        {
+            ++skips;
+        }
+        else
+        {
+            untrackedDedicatedList = true;
+
+            if (skips == kRestoreSkips)
+            {
+                ++skips;
+                LOG_WARN("DLSS-NR: command list {:X} never had state to restore after {} frames -- treating it as "
+                         "a dedicated upscaling list and running the pass on it without a restore",
+                         (UINT64) cmdList, kRestoreSkips);
+            }
+        }
+    }
+
+    if (restoreRequired && !untrackedDedicatedList && !D3D12Hooks::CanRestoreRootSignature(cmdList))
     {
         ReportSkipOnce("the upscaler could not restore state this frame");
 
@@ -2275,7 +2373,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         // It was not released here, and this is the one path a bindless game takes every single frame
         // -- so the game that most needed this skip was also leaking a device reference per frame.
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     // From here on the pass binds its own root signature, heaps and pipeline. Everything below runs
@@ -2315,7 +2413,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             {
                 TransitionTarget(D3D12_RESOURCE_STATE_COPY_SOURCE);
                 Barrier(cmdList, gameColor, outputArrival, D3D12_RESOURCE_STATE_COPY_DEST);
-                DlssNr::CopyActiveColor(cmdList, gameColor, target, *active);
+                DlssNr::CopyActiveColor(cmdList, gameColor, target, *active, true);
                 Barrier(cmdList, gameColor, D3D12_RESOURCE_STATE_COPY_DEST, outputArrival);
             }
             TransitionTarget(D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -2571,7 +2669,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         LOG_ERROR("DLSS-NR unavailable: {}", g_nr.reason);
         FinishColor(false);
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     // The vectors were scaled to full-frame pixels; the image the model reprojects is the working size.
@@ -2604,7 +2702,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         FinishColor(false);
         device->Release();
-        return;
+        DLSSNR_BAIL();
     }
 
     if (g_ngxTime != nullptr)
@@ -2979,6 +3077,49 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
     }
 
+    // Heartbeat, every 600 frames the pass ran, whatever else is or is not available. The lines above
+    // only ever say that a pass started (and the cost split needs a queue this app knows about, which
+    // Resident Evil 2 through REFramework never gave it), so a log could not tell "running all session"
+    // from "ran once" -- and a user comparing settings needs exactly that. Settings are the ones in
+    // effect now, so a change made in the panel shows up here within 600 frames.
+    {
+        ++g_dispatchDone;
+        static unsigned long long beatOk = 0;
+        static unsigned long long beatFailed = 0;
+        static unsigned long long beatLastTotal = 0;
+        static auto beatLastTime = std::chrono::steady_clock::now();
+
+        if (result == NVSDK_NGX_Result_Success)
+            ++beatOk;
+        else
+            ++beatFailed;
+
+        const unsigned long long total = beatOk + beatFailed;
+
+        if (total - beatLastTotal >= 600)
+        {
+            const auto now = std::chrono::steady_clock::now();
+            const double seconds = std::chrono::duration<double>(now - beatLastTime).count();
+            const double fps = seconds > 0.0 ? double(total - beatLastTotal) / seconds : 0.0;
+            beatLastTotal = total;
+            beatLastTime = now;
+
+            const auto* cfg = Config::Instance();
+            const bool queueKnown =
+                timingQueue != nullptr || State::Instance().currentCommandQueue != nullptr;
+            const std::string gpu = g_lastGpuTime.has_value()
+                                        ? std::format("{:.2f} ms", g_lastGpuTime.value())
+                                        : (queueKnown ? std::string("not read yet") : std::string("n/a (no queue)"));
+
+            LOG_INFO("DLSS-NR heartbeat: {} frames run ({} model failures), {:.0f} fps, GPU {} | "
+                     "intensity {:.2f}, preset {}, style {}, passes {} ({} this frame), {}",
+                     total, beatFailed, fps, gpu, cfg->DlssNrIntensity.value_or_default(),
+                     cfg->DlssNrPreset.value_or_default(), cfg->DlssNrStyle.value_or_default(),
+                     cfg->DlssNrPasses.value_or_default(), effectivePasses,
+                     reduced ? "reduced resolution" : "full resolution");
+        }
+    }
+
     // Put any guide clones back where the next frame's copy expects to find them.
     // A clone left in NON_PIXEL_SHADER_RESOURCE by a frozen frame was never transitioned back to
     // COPY_DEST, because a frozen frame does not copy. Putting it back unconditionally would be a
@@ -3012,6 +3153,488 @@ void RetryAfterFailure()
     g_nr.reset = true;
 }
 
+// ---------------------------------------------------------------------------------------------------
+// Present placement: what the upscale call leaves behind for Present, and the Present-side run.
+//
+// The guides the game hands its upscaler are only guaranteed for the length of that call; by Present the
+// engine may have moved on to the next frame's targets. So they are copied into textures of our own on the
+// game's list (a barrier and a CopyResource, no root signature, no pipeline state -- nothing the game has
+// to have put back), together with the few values the pass reads off the parameter block.
+
+struct PresentCapture
+{
+    ID3D12Device* device = nullptr; // not owned; the device the game's DLSS call is on
+    ID3D12Resource* depth = nullptr;
+    ID3D12Resource* motion = nullptr;
+    D3D12_RESOURCE_STATES depthState = D3D12_RESOURCE_STATE_COPY_DEST;
+    D3D12_RESOURCE_STATES motionState = D3D12_RESOURCE_STATE_COPY_DEST;
+
+    unsigned int createFlags = 0;
+    unsigned int subrectWidth = 0;
+    unsigned int subrectHeight = 0;
+    bool haveMvScale = false;
+    float mvScaleX = 1.0f;
+    float mvScaleY = 1.0f;
+    float preExposure = 1.0f;
+    unsigned int reset = 0; // sticky until a Present consumes it
+    bool valid = false;
+    unsigned long long capturedAtPresent = 0; // PresentRoute::PresentCount() when last captured
+};
+
+// With no upscale call at all -- the game running its own TAA -- the guides come from the depth tracker and a
+// motion field of zeros, and the panel is drawn at Present because no upscaler exists to draw it.
+struct TrackedGuides
+{
+    ID3D12Resource* depth = nullptr;
+    D3D12_RESOURCE_STATES depthState = D3D12_RESOURCE_STATE_COPY_DEST;
+    ID3D12Resource* zeroMotion = nullptr;
+    bool wasActive = false;
+};
+
+TrackedGuides g_tracked;
+std::unique_ptr<Menu_Dx12> g_presentMenu;
+
+// A motion field of zeros: a committed resource on a default heap is zero-filled when it is created.
+ID3D12Resource* CreateZeroMotion(ID3D12Device* device, unsigned int width, unsigned int height)
+{
+    D3D12_RESOURCE_DESC desc {};
+    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    desc.Width = width;
+    desc.Height = height;
+    desc.DepthOrArraySize = 1;
+    desc.MipLevels = 1;
+    desc.Format = DXGI_FORMAT_R16G16_FLOAT;
+    desc.SampleDesc.Count = 1;
+
+    D3D12_HEAP_PROPERTIES heap {};
+    heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+
+    ID3D12Resource* res = nullptr;
+    device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                                    nullptr, IID_PPV_ARGS(&res));
+    return res;
+}
+
+PresentCapture g_presentCapture;
+std::mutex g_presentCaptureMutex;
+
+bool CopyGuideForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, ID3D12Resource* source,
+                         ID3D12Resource*& copy, D3D12_RESOURCE_STATES& copyState)
+{
+    if (source == nullptr)
+        return false;
+
+    const D3D12_RESOURCE_DESC want = source->GetDesc();
+
+    if (copy != nullptr)
+    {
+        const D3D12_RESOURCE_DESC have = copy->GetDesc();
+
+        // Retired, not released: a Present list may still be reading the old copy.
+        if (have.Width != want.Width || have.Height != want.Height || have.Format != TypedGuideFormat(want.Format))
+            ParkNrResource(copy);
+    }
+
+    if (copy == nullptr)
+    {
+        copy = CreateGuideClone(device, source);
+        copyState = D3D12_RESOURCE_STATE_COPY_DEST;
+
+        if (copy == nullptr)
+            return false;
+    }
+
+    Barrier(cmdList, copy, copyState, D3D12_RESOURCE_STATE_COPY_DEST);
+    Barrier(cmdList, source, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    cmdList->CopyResource(copy, source);
+    Barrier(cmdList, source, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    Barrier(cmdList, copy, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    copyState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    return true;
+}
+
+void CaptureForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params)
+{
+    ID3D12Resource* depth = GetResource(params, NVSDK_NGX_Parameter_Depth, "DLSSD.Depth");
+    ID3D12Resource* motion = GetResource(params, NVSDK_NGX_Parameter_MotionVectors, "DLSSD.MotionVectors");
+
+    if (depth == nullptr || motion == nullptr)
+    {
+        ReportSkipOnce(depth == nullptr ? "the parameters carried no depth" : "the parameters carried no motion vectors");
+        return;
+    }
+
+    PresentRoute::NoteUpscaleList(cmdList);
+
+    std::lock_guard<std::mutex> lock(g_presentCaptureMutex);
+    auto& c = g_presentCapture;
+
+    if (c.device != device)
+    {
+        ParkNrResource(c.depth);
+        ParkNrResource(c.motion);
+        c.device = device;
+    }
+
+    const bool haveDepth = CopyGuideForPresent(device, cmdList, depth, c.depth, c.depthState);
+    const bool haveMotion = CopyGuideForPresent(device, cmdList, motion, c.motion, c.motionState);
+
+    params->Get(NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags, &c.createFlags);
+
+    c.subrectWidth = 0;
+    c.subrectHeight = 0;
+    params->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, &c.subrectWidth);
+    params->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, &c.subrectHeight);
+
+    c.haveMvScale = params->Get(NVSDK_NGX_Parameter_MV_Scale_X, &c.mvScaleX) == NVSDK_NGX_Result_Success &&
+                    params->Get(NVSDK_NGX_Parameter_MV_Scale_Y, &c.mvScaleY) == NVSDK_NGX_Result_Success;
+
+    float pre = 1.0f;
+    c.preExposure = params->Get(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, &pre) == NVSDK_NGX_Result_Success && pre > 1e-6f
+                        ? pre
+                        : 1.0f;
+
+    unsigned int reset = 0;
+    if (params->Get(NVSDK_NGX_Parameter_Reset, &reset) == NVSDK_NGX_Result_Success && reset != 0)
+        c.reset = 1;
+
+    c.valid = haveDepth && haveMotion;
+    c.capturedAtPresent = PresentRoute::PresentCount();
+
+    // The hook is only proven by Presents arriving. Captures piling up with none means the game presents
+    // through something the detour does not reach, and the pass is silently never running.
+    {
+        static unsigned long long captures = 0;
+        static bool saidNoPresent = false;
+
+        if (++captures == 300 && PresentRoute::PresentCount() == 0 && !saidNoPresent)
+        {
+            saidNoPresent = true;
+            LOG_WARN("DLSS-NR Present route: 300 upscale calls and not one Present reached the hook -- the pass is "
+                     "not running");
+        }
+    }
+
+    static bool said = false;
+    if (!said && c.valid)
+    {
+        said = true;
+        const auto d = c.depth->GetDesc();
+        LOG_INFO("DLSS-NR Present route: guides captured at the upscale call ({}x{} depth fmt {}), the model will "
+                 "run at Present",
+                 (UINT) d.Width, (UINT) d.Height, (int) d.Format);
+    }
+}
+
+void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigned long long presentIndex)
+{
+    if (swapChain == nullptr || queue == nullptr)
+        return;
+
+    const bool nrOn = Config::Instance()->DlssNrEnabled.value_or_default();
+
+    std::lock_guard<std::mutex> lock(g_presentCaptureMutex);
+    auto& c = g_presentCapture;
+
+    // Guides from the game's upscale call while it keeps making one; otherwise from the depth tracker.
+    const bool fromCapture = c.valid && c.depth != nullptr && c.motion != nullptr && presentIndex >= c.capturedAtPresent &&
+                             presentIndex - c.capturedAtPresent <= 8;
+
+    // The upscaler draws the panel when there is one. Without it the panel is drawn here every frame --
+    // whether or not the pass runs, or switching Neural Rendering off in the panel would take the panel away.
+    if (fromCapture && !nrOn)
+        return;
+
+    DepthTracker::Selection tracked {};
+    const bool fromTracker = nrOn && !fromCapture && DepthTracker::Selected(tracked);
+
+    if (nrOn && !fromCapture && !fromTracker && g_tracked.wasActive)
+    {
+        g_tracked.wasActive = false;
+        LOG_INFO("DLSS-NR Present route: no scene depth this frame -- the pass pauses until one is found");
+    }
+
+    ID3D12Resource* backBuffer = nullptr;
+
+    if (FAILED(swapChain->GetBuffer(swapChain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backBuffer))) ||
+        backBuffer == nullptr)
+    {
+        ReportSkipOnce("the swapchain's back buffer could not be read at Present");
+        return;
+    }
+
+    ID3D12Device* device = nullptr;
+    backBuffer->GetDevice(IID_PPV_ARGS(&device));
+
+    ID3D12Device* queueDevice = nullptr;
+    if (SUCCEEDED(queue->GetDevice(IID_PPV_ARGS(&queueDevice))) && queueDevice != nullptr)
+        queueDevice->Release();
+
+    if (device == nullptr || (fromCapture && device != c.device) || queueDevice != device)
+    {
+        ReportSkipOnce("the swapchain or frame queue is on a different device from the game's upscale call");
+
+        if (device != nullptr)
+            device->Release();
+
+        backBuffer->Release();
+        return;
+    }
+
+    // A small ring of allocators, each reused only once the GPU has finished what it last recorded -- a
+    // fence value per allocator says when. A frame that finds every allocator still in flight is skipped
+    // rather than stalled on.
+    struct AllocatorSlot
+    {
+        ID3D12CommandAllocator* allocator = nullptr;
+        UINT64 fenceValue = 0;
+    };
+
+    static std::vector<AllocatorSlot> slots;
+    static ID3D12Fence* fence = nullptr;
+    static UINT64 fenceValue = 0;
+    static ID3D12GraphicsCommandList* list = nullptr;
+    static NVNGX_Parameters* presentParams = nullptr;
+    static ID3D12Device* builtOn = nullptr;
+
+    if (builtOn != device)
+    {
+        // A new device (the game recreated it): everything recorded for the old one is dropped.
+        if (list != nullptr)
+            list->Release();
+        for (auto& s : slots)
+            if (s.allocator != nullptr)
+                s.allocator->Release();
+        if (fence != nullptr)
+            fence->Release();
+
+        slots.clear();
+        list = nullptr;
+        fence = nullptr;
+        fenceValue = 0;
+        builtOn = device;
+
+        if (FAILED(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence))))
+            fence = nullptr;
+    }
+
+    if (fence == nullptr)
+    {
+        ReportSkipOnce("a fence for the Present route could not be created");
+        device->Release();
+        backBuffer->Release();
+        return;
+    }
+
+    const UINT64 completed = fence->GetCompletedValue();
+    AllocatorSlot* slot = nullptr;
+
+    for (auto& s : slots)
+    {
+        if (s.fenceValue <= completed)
+        {
+            slot = &s;
+            break;
+        }
+    }
+
+    if (slot == nullptr && slots.size() < 8)
+    {
+        AllocatorSlot fresh;
+
+        if (SUCCEEDED(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&fresh.allocator))))
+        {
+            slots.push_back(fresh);
+            slot = &slots.back();
+        }
+    }
+
+    if (slot == nullptr)
+    {
+        static bool saidBusy = false;
+        if (!saidBusy)
+        {
+            saidBusy = true;
+            LOG_WARN("DLSS-NR Present route: every command allocator still in flight -- skipping a frame");
+        }
+
+        device->Release();
+        backBuffer->Release();
+        return;
+    }
+
+    slot->allocator->Reset();
+
+    if (list == nullptr)
+    {
+        if (FAILED(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, slot->allocator, nullptr,
+                                             IID_PPV_ARGS(&list))))
+        {
+            list = nullptr;
+            ReportSkipOnce("a command list for the Present route could not be created");
+            device->Release();
+            backBuffer->Release();
+            return;
+        }
+    }
+    else
+    {
+        list->Reset(slot->allocator, nullptr);
+    }
+
+    if (presentParams == nullptr)
+        presentParams = new NVNGX_Parameters(API::DX12, true);
+
+    presentParams->Set(NVSDK_NGX_Parameter_Output, backBuffer);
+    presentParams->Set(NVSDK_NGX_Parameter_Color, backBuffer);
+    presentParams->Set(NVSDK_NGX_Parameter_ExposureTexture, (void*) nullptr);
+    presentParams->Set(NVSDK_NGX_Parameter_DLSS_Input_Color_Subrect_Base_X, 0u);
+    presentParams->Set(NVSDK_NGX_Parameter_DLSS_Input_Color_Subrect_Base_Y, 0u);
+    presentParams->Set(kPresentActiveX, 0u);
+    presentParams->Set(kPresentActiveY, 0u);
+    presentParams->Set(kPresentActiveWidth, 0u);
+    presentParams->Set(kPresentActiveHeight, 0u);
+
+    bool haveGuides = fromCapture || fromTracker;
+
+    if (!haveGuides)
+    {
+        // Panel only.
+    }
+    else if (fromCapture)
+    {
+        presentParams->Set(NVSDK_NGX_Parameter_Depth, c.depth);
+        presentParams->Set(NVSDK_NGX_Parameter_MotionVectors, c.motion);
+        presentParams->Set(NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags, c.createFlags);
+        presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, c.subrectWidth);
+        presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, c.subrectHeight);
+        presentParams->Set(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, c.preExposure);
+        presentParams->Set(NVSDK_NGX_Parameter_Reset, c.reset);
+        presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_X, c.haveMvScale ? c.mvScaleX : 1.0f);
+        presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_Y, c.haveMvScale ? c.mvScaleY : 1.0f);
+        c.reset = 0;
+    }
+    else
+    {
+        // The tracked depth is copied on this list, from the state its last barrier left it in, into a typed
+        // twin the model can read; the game's own buffer is back in that state before the list ends.
+        ID3D12Resource*& copy = g_tracked.depth;
+
+        if (copy != nullptr)
+        {
+            const D3D12_RESOURCE_DESC have = copy->GetDesc();
+            if (have.Width != tracked.width || have.Height != tracked.height ||
+                have.Format != TypedGuideFormat(tracked.format))
+                ParkNrResource(copy);
+        }
+
+        if (copy == nullptr)
+        {
+            copy = CreateGuideClone(device, tracked.resource);
+            g_tracked.depthState = D3D12_RESOURCE_STATE_COPY_DEST;
+        }
+
+        if (g_tracked.zeroMotion != nullptr)
+        {
+            const D3D12_RESOURCE_DESC have = g_tracked.zeroMotion->GetDesc();
+            if (have.Width != tracked.width || have.Height != tracked.height)
+                ParkNrResource(g_tracked.zeroMotion);
+        }
+
+        if (g_tracked.zeroMotion == nullptr)
+            g_tracked.zeroMotion = CreateZeroMotion(device, tracked.width, tracked.height);
+
+        haveGuides = copy != nullptr && g_tracked.zeroMotion != nullptr;
+
+        if (haveGuides)
+        {
+            Barrier(list, copy, g_tracked.depthState, D3D12_RESOURCE_STATE_COPY_DEST);
+            Barrier(list, tracked.resource, tracked.state, D3D12_RESOURCE_STATE_COPY_SOURCE);
+            list->CopyResource(copy, tracked.resource);
+            Barrier(list, tracked.resource, D3D12_RESOURCE_STATE_COPY_SOURCE, tracked.state);
+            Barrier(list, copy, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_tracked.depthState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+            presentParams->Set(NVSDK_NGX_Parameter_Depth, copy);
+            presentParams->Set(NVSDK_NGX_Parameter_MotionVectors, g_tracked.zeroMotion);
+            presentParams->Set(NVSDK_NGX_Parameter_DLSS_Feature_Create_Flags,
+                               (unsigned int) (tracked.reversed ? NVSDK_NGX_DLSS_Feature_Flags_DepthInverted : 0));
+            presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, 0u);
+            presentParams->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, 0u);
+            presentParams->Set(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, 1.0f);
+            presentParams->Set(NVSDK_NGX_Parameter_Reset, g_tracked.wasActive ? 0u : 1u);
+            presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_X, 1.0f);
+            presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_Y, 1.0f);
+
+            // Same width, shorter depth: a letterboxed picture, centred between the bars (checked on Resident
+            // Evil 2 at 16:10 -- 80 black rows above and below a 2560x1440 image). The pass runs on that band
+            // so the guides line up with it; the bars are left untouched.
+            const D3D12_RESOURCE_DESC frameDesc = backBuffer->GetDesc();
+
+            if (tracked.width == frameDesc.Width && tracked.height < frameDesc.Height)
+            {
+                presentParams->Set(kPresentActiveY, (unsigned int) ((frameDesc.Height - tracked.height) / 2));
+                presentParams->Set(kPresentActiveWidth, tracked.width);
+                presentParams->Set(kPresentActiveHeight, tracked.height);
+            }
+
+            if (!g_tracked.wasActive)
+            {
+                LOG_INFO("DLSS-NR Present route: running on the tracked scene depth ({}x{}, {} depth) with zero motion "
+                         "vectors -- no upscale call in this game",
+                         tracked.width, tracked.height, tracked.reversed ? "reversed" : "standard");
+            }
+
+            g_tracked.wasActive = true;
+        }
+        else
+        {
+            ReportSkipOnce("the tracked depth's copy or the motion field could not be allocated");
+        }
+    }
+
+    if (haveGuides)
+    {
+        g_presentRouteDispatch = true;
+        EvaluateAfterUpscale(list, presentParams, queue, true, presentIndex);
+        g_presentRouteDispatch = false;
+    }
+
+    // No upscaler means no upscaler menu: the panel is drawn here, over the finished frame and after the
+    // pass, so the model never sees it.
+    if (!fromCapture && !Config::Instance()->OverlayMenu.value_or_default())
+    {
+        if (g_presentMenu == nullptr)
+            g_presentMenu = std::make_unique<Menu_Dx12>(Util::GetProcessWindow(), device);
+
+        g_presentMenu->Render(list, backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+    }
+
+    const HRESULT closed = list->Close();
+
+    if (SUCCEEDED(closed))
+    {
+        ID3D12CommandList* lists[] = { list };
+        queue->ExecuteCommandLists(1, lists);
+        slot->fenceValue = ++fenceValue;
+        queue->Signal(fence, fenceValue);
+    }
+    else
+    {
+        static bool saidClose = false;
+        if (!saidClose)
+        {
+            saidClose = true;
+            LOG_ERROR("DLSS-NR Present route: our command list failed to close (0x{:X}) -- this frame was not "
+                      "submitted",
+                      (unsigned int) closed);
+        }
+    }
+
+    device->Release();
+    backBuffer->Release();
+}
+
 // Reads the game's parameter block and runs the pass on what it finds.
 //
 // This is the call site's job, not the pass's. A caller that has the resources in hand -- a
@@ -3032,6 +3655,27 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
     {
         ReportSkipOnce("no command list or no parameter block");
         return;
+    }
+
+    // Present placement (dlssnr/DlssNr_PresentRoute.h). On the game's own upscale call -- no timing queue
+    // of ours -- only the guides are copied; the model runs later, at Present, on a list of our own. The
+    // Present route's own call arrives with its queue and falls through to the pass below.
+    if (timingQueue == nullptr && PresentRoute::Wanted())
+    {
+        ID3D12Device* device = nullptr;
+
+        if (SUCCEEDED(cmdList->GetDevice(IID_PPV_ARGS(&device))) && device != nullptr)
+        {
+            const bool installed = PresentRoute::EnsureInstalled(device);
+
+            if (installed && !beforeUpscale)
+                CaptureForPresent(device, cmdList, params);
+
+            device->Release();
+
+            if (installed)
+                return;
+        }
     }
 
     // Ray Reconstruction is explicitly forced post: PR #6 reports that pre-SR placement does not work
@@ -3133,6 +3777,41 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
     frame.BeforeUpscale = beforeUpscale;
     frame.SubmissionEpoch = timingQueue != nullptr ? submissionEpoch : State::Instance().frameCount;
 
+    // The Present count is the proof that a command list holding a new feature was submitted, and it
+    // only moves when this app wraps the game's swapchain. It does not always: Resident Evil 2 through
+    // REFramework and PureDark's plugin never advanced it past 0, so every feature waited forever for
+    // an epoch change -- 9000 evaluates, not one frame of Neural Rendering, while the log said
+    // "running". When the count stays put across this many evaluates, each evaluate becomes the epoch:
+    // the game calls its upscaler once per frame, so the next call means last frame's list went out.
+    if (timingQueue == nullptr)
+    {
+        static unsigned long long lastPresentCount = 0;
+        static unsigned long long callsWithoutPresent = 0;
+        static unsigned long long evaluateEpoch = 0;
+        static bool usingEvaluateEpoch = false;
+        constexpr unsigned long long kStuckCalls = 120;
+
+        const unsigned long long presentCount = State::Instance().frameCount;
+        ++evaluateEpoch;
+
+        if (presentCount != lastPresentCount)
+        {
+            lastPresentCount = presentCount;
+            callsWithoutPresent = 0;
+        }
+        else if (!usingEvaluateEpoch && ++callsWithoutPresent >= kStuckCalls)
+        {
+            usingEvaluateEpoch = true;
+            LOG_WARN("DLSS-NR: the Present count has not moved in {} evaluates (stuck at {}) -- this game's "
+                     "swapchain is not wrapped here, so each evaluate now counts as a submitted frame",
+                     kStuckCalls, presentCount);
+        }
+
+        // Far above any Present count, so the switch can only ever move the epoch forward.
+        if (usingEvaluateEpoch)
+            frame.SubmissionEpoch = (1ull << 40) + evaluateEpoch;
+    }
+
     // Color and Output may use different formats even though DLSS treats them as the same frame colour
     // space. Output is the stable authority across injection points; target is only a fallback for a
     // malformed parameter block.
@@ -3158,6 +3837,15 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
     // How much of the guides is real. See DlssNrFrameInfo -- zero means the game did not say.
     params->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, &frame.RenderSubrectWidth);
     params->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, &frame.RenderSubrectHeight);
+
+    // The Present route's own block says where a letterboxed picture sits. No game ever sets these keys.
+    if (g_presentRouteDispatch)
+    {
+        params->Get(kPresentActiveX, &frame.ActiveBaseX);
+        params->Get(kPresentActiveY, &frame.ActiveBaseY);
+        params->Get(kPresentActiveWidth, &frame.ActiveWidth);
+        params->Get(kPresentActiveHeight, &frame.ActiveHeight);
+    }
 
     if (params->Get(NVSDK_NGX_Parameter_MV_Scale_X, &frame.MvScaleX) != NVSDK_NGX_Result_Success)
         frame.MvScaleX = 1.0f;

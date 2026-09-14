@@ -4,6 +4,7 @@
 #include "DlssNrFeature_Vk.h"
 #include "DlssNr_ExposureScan.h"
 #include "DlssNr_I18n.h"
+#include "DlssNr_PresentRoute.h"
 
 #include <Config.h>
 #include <misc/IdentifyGpu.h>
@@ -955,7 +956,13 @@ void RenderMenu(Config* config, float menuResScale)
             {
                 ImGui::TextColored(kTextDim, "%s", Tr("Waiting for the upscaler to run."));
                 ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                if (DlssNr::IsFeederPresent())
+                if (DlssNr::PresentRoute::PresentCount() > 0)
+                    // The Present route with no upscale call: nothing to select in the game's settings --
+                    // the pass is waiting for the depth tracker to recognise the scene depth.
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Running at Present on this game's own anti-aliasing: looking for "
+                                          "the game's scene depth. Load into gameplay -- menus have none."));
+                else if (DlssNr::IsFeederPresent())
                     // The Feeder route: there is no native DLSS/XeSS setting to point at here --
                     // the evaluate this pass is waiting for is the Feeder's own synthetic one, so
                     // what is missing is the Feeder itself doing its job, not a game setting.

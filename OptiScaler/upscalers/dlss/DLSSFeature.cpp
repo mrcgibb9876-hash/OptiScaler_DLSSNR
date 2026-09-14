@@ -253,6 +253,34 @@ void DLSSFeature::ProcessInitParams(NVSDK_NGX_Parameter* InParameters)
         State::Instance().dlssPresetsOverridenByOpti = false;
     }
 
+    // Presets NVIDIA would never accept go back to Default. A preset hint is 0 (Default) to 15 (O);
+    // anything else makes CreateFeature_Validate refuse the whole create with BAD0000B. PureDark's
+    // plugin on Resident Evil 2 hands over 0x80000006 / 0x80000004 for most quality modes and an
+    // uninitialised 563523528 for Balanced -- DLSS failed on every launch, and OptiScaler fell back to
+    // FSR 2.1.2, until these were cleaned. Checked after the override logic above, which reads the
+    // caller's values and writes them straight back when no override is set.
+    {
+        static const char* const kPresetKeys[] = {
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_DLAA,
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraQuality,
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Quality,
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Balanced,
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_Performance,
+            NVSDK_NGX_Parameter_DLSS_Hint_Render_Preset_UltraPerformance,
+        };
+
+        for (const char* key : kPresetKeys)
+        {
+            unsigned int preset = 0;
+            if (InParameters->Get(key, &preset) == NVSDK_NGX_Result_Success &&
+                preset > (unsigned int) NVSDK_NGX_DLSS_Hint_Render_Preset_O)
+            {
+                LOG_WARN("{} = {} is not a DLSS preset -- using Default so DLSS can be created", key, preset);
+                InParameters->Set(key, (unsigned int) NVSDK_NGX_DLSS_Hint_Render_Preset_Default);
+            }
+        }
+    }
+
     UINT perfQ = NVSDK_NGX_PerfQuality_Value_Balanced;
     if (InParameters->Get(NVSDK_NGX_Parameter_PerfQualityValue, &perfQ) == NVSDK_NGX_Result_Success &&
         perfQ == NVSDK_NGX_PerfQuality_Value_UltraQuality)

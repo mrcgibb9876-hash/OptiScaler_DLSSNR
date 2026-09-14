@@ -16,6 +16,7 @@
 // vectors, so anything guessing from the parameter block alone attaches to both and runs the model twice
 // per rendered frame. Here it is a lookup on the feature handle.
 class Config;
+struct IDXGISwapChain3;
 
 namespace DlssNr
 {
@@ -35,6 +36,10 @@ inline constexpr unsigned int MaxPassCount = 3;
 void EvaluateAfterUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,
                           ID3D12CommandQueue* timingQueue = nullptr, bool forcePost = false,
                           unsigned long long submissionEpoch = 0);
+
+// Present placement (DlssNr_PresentRoute.h): runs the pass over the back buffer about to be presented, on a
+// command list of its own, from the guides the game's last upscale call left behind.
+void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigned long long presentIndex);
 
 // Runs the same pass over Color immediately before Super Resolution consumes it. The call is a no-op
 // unless RunBeforeSR is enabled. Color is returned in its original readable state.

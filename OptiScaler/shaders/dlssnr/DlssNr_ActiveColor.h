@@ -9,6 +9,10 @@ struct ColorExtent
 {
     unsigned int width;
     unsigned int height;
+    // Where the active image starts in the allocation. Zero everywhere except the Present route, where a
+    // letterboxed game draws its picture between black bars (Resident Evil 2 at 16:10: 2560x1440 at y 80).
+    unsigned int baseX = 0;
+    unsigned int baseY = 0;
 };
 
 // NGX reports the active image separately from the allocation. No preset names or standard
@@ -34,8 +38,10 @@ inline std::optional<ColorExtent> PreSrColorExtent(const D3D12_RESOURCE_DESC& al
 
 // Both resources must be in COPY_SOURCE/COPY_DEST respectively. An explicit box is essential:
 // a whole-resource copy either has mismatched dimensions or overwrites the game's padding.
+// intoGame says which way: false copies the active rectangle out of the game's texture into a compact one,
+// true puts a compact texture back at the active rectangle. With a zero base both are the same copy.
 inline void CopyActiveColor(ID3D12GraphicsCommandList* commands, ID3D12Resource* destination, ID3D12Resource* source,
-                            ColorExtent active)
+                            ColorExtent active, bool intoGame = false)
 {
     D3D12_TEXTURE_COPY_LOCATION src {};
     src.pResource = source;
@@ -43,7 +49,17 @@ inline void CopyActiveColor(ID3D12GraphicsCommandList* commands, ID3D12Resource*
     D3D12_TEXTURE_COPY_LOCATION dst {};
     dst.pResource = destination;
     dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-    const D3D12_BOX box { 0, 0, 0, active.width, active.height, 1 };
-    commands->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
+
+    if (intoGame)
+    {
+        const D3D12_BOX box { 0, 0, 0, active.width, active.height, 1 };
+        commands->CopyTextureRegion(&dst, active.baseX, active.baseY, 0, &src, &box);
+    }
+    else
+    {
+        const D3D12_BOX box { active.baseX, active.baseY, 0, active.baseX + active.width,
+                              active.baseY + active.height, 1 };
+        commands->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
+    }
 }
 } // namespace DlssNr

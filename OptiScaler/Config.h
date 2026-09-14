@@ -47,6 +47,9 @@ template <class T, HasDefaultValue defaultState = WithDefault> class CustomOptio
         std::optional<T>::operator=(value);
     }
 
+    // True while the current value is a session-only override that SaveIni will not write.
+    constexpr bool is_volatile() const { return _volatile; }
+
     // Use this when first setting a CustomOptional
     constexpr void set_from_config(const std::optional<T>& opt)
     {
@@ -268,6 +271,10 @@ class Config
     // DLSS Neural Rendering: a detail-synthesis pass over the upscaler's output. Off by default -- it is
     // an undocumented feature driven directly through its snippet, not something NVIDIA exposes.
     CustomOptional<bool> DlssNrEnabled { false };
+    // Where the pass runs: "evaluate" (on the upscaler's command list, as it always has), "present" (at
+    // the game's Present, on a list of its own -- dlssnr/DlssNr_PresentRoute.h), or "auto", which picks
+    // Present for games whose swapchain this app does not wrap.
+    CustomOptional<std::wstring> DlssNrPlacement { std::wstring(L"auto") };
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };

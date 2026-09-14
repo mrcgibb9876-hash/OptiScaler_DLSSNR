@@ -603,6 +603,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_CreateFeature(ID3D11DeviceContext
     LOG_ERROR("CreateFeature failed");
 
     State::Instance().newBackend = Upscaler::FSR22;
+    State::Instance().newBackendIsFallback = true;
     State::Instance().changeBackend[handleId] = true;
 
     return NVSDK_NGX_Result_Success;
@@ -803,6 +804,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_EvaluateFeature(ID3D11DeviceConte
     {
         ImGui::InsertNotification({ ImGuiToastType::Error, 10000, "Upscaler failed to run!" });
         state.newBackend = Upscaler::FSR22;
+        state.newBackendIsFallback = true;
         state.changeBackend[handleId] = true;
     }
 

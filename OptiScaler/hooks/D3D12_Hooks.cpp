@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "D3D12_Hooks.h"
 #include <dlssnr/DlssNr_ExposureScan.h>
+#include <dlssnr/DlssNr_PresentRoute.h>
 
 #include <Util.h>
 #include <Config.h>
@@ -2250,6 +2251,8 @@ static void HookToDevice(ID3D12Device* InDevice)
     {
         StreamlineProxy::InitWithD3D12(InDevice);
     }
+
+    DlssNr::PresentRoute::PrepareForDevice(InDevice);
 }
 
 static void UnhookDevice()
