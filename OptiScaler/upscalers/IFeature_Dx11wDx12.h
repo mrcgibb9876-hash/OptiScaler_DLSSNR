@@ -47,6 +47,12 @@ class IFeature_Dx11wDx12 : public virtual IFeature_Dx11
 
     ID3D11Resource* paramOutput[DX11WDX12_NUM_OF_BUFFERS] = {};
 
+    // Set when the caller's images turn out smaller than the frame it declared (Luma's Monster Hunter:
+    // World mod on a 16:10 screen: a 2560x1440 picture in a 2560x1600 swapchain). The size getters then
+    // report the images' size, which is what the backend change rebuilds the feature at.
+    std::optional<std::pair<uint32_t, uint32_t>> _imageSizeRender;
+    std::optional<std::pair<uint32_t, uint32_t>> _imageSizeDisplay;
+
     bool CreateD3D12Objects();
     bool ProcessDx11Textures(const NVSDK_NGX_Parameter* InParameters);
     bool CopyBackOutput();
@@ -110,26 +116,44 @@ class IFeature_Dx11wDx12 : public virtual IFeature_Dx11
     };
     uint32_t DisplayWidth() override
     {
+        if (_imageSizeDisplay.has_value())
+            return _imageSizeDisplay->first;
+
         return CallFeature([](auto f) { return f->DisplayWidth(); }, uint32_t {});
     };
     uint32_t DisplayHeight() override
     {
+        if (_imageSizeDisplay.has_value())
+            return _imageSizeDisplay->second;
+
         return CallFeature([](auto f) { return f->DisplayHeight(); }, uint32_t {});
     };
     uint32_t TargetWidth() override
     {
+        if (_imageSizeDisplay.has_value())
+            return _imageSizeDisplay->first;
+
         return CallFeature([](auto f) { return f->TargetWidth(); }, uint32_t {});
     };
     uint32_t TargetHeight() override
     {
+        if (_imageSizeDisplay.has_value())
+            return _imageSizeDisplay->second;
+
         return CallFeature([](auto f) { return f->TargetHeight(); }, uint32_t {});
     };
     uint32_t RenderWidth() override
     {
+        if (_imageSizeRender.has_value())
+            return _imageSizeRender->first;
+
         return CallFeature([](auto f) { return f->RenderWidth(); }, uint32_t {});
     };
     uint32_t RenderHeight() override
     {
+        if (_imageSizeRender.has_value())
+            return _imageSizeRender->second;
+
         return CallFeature([](auto f) { return f->RenderHeight(); }, uint32_t {});
     };
     NVSDK_NGX_PerfQuality_Value PerfQualityValue() override

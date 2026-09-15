@@ -442,6 +442,88 @@ bool IFeature_Dx11wDx12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_NG
             break;
         }
 
+        // The declared frame can be bigger than the images that carry it. Luma sizes its DLSS call from
+        // the swapchain, and Monster Hunter: World draws a 16:9 picture inside any other shape of window
+        // -- 2560x1440 images for a declared 2560x1600 on a 16:10 screen -- so DLSS refused every frame
+        // with InvalidParameter and the frame Luma took over from the game's TAA was never drawn. The
+        // images are the truth: they set the render size, and an output smaller than the feature was
+        // built for means rebuilding it at the output's size. Any resolution, not one screen.
+        if (dx11Color.Dx12Resource != nullptr && dx11Out.Dx12Resource != nullptr)
+        {
+            const auto colorDesc = dx11Color.Dx12Resource->GetDesc();
+            const auto outDesc = dx11Out.Dx12Resource->GetDesc();
+            const auto imageW = (unsigned int) colorDesc.Width;
+            const auto imageH = (unsigned int) colorDesc.Height;
+
+            unsigned int declaredW = 0;
+            unsigned int declaredH = 0;
+
+            if (InParameters->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, &declaredW) !=
+                    NVSDK_NGX_Result_Success ||
+                InParameters->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, &declaredH) !=
+                    NVSDK_NGX_Result_Success ||
+                declaredW == 0 || declaredH == 0)
+            {
+                declaredW = RenderWidth();
+                declaredH = RenderHeight();
+            }
+
+            if (declaredW > imageW || declaredH > imageH)
+            {
+                const auto fitW = std::min(declaredW, imageW);
+                const auto fitH = std::min(declaredH, imageH);
+
+                if ((UINT64) outDesc.Width < TargetWidth() || (UINT64) outDesc.Height < TargetHeight())
+                {
+                    LOG_WARN("Declared frame {}x{} is larger than the {}x{} images the game hands over; rebuilding "
+                             "DLSS for {}x{} -> {}x{}",
+                             declaredW, declaredH, imageW, imageH, fitW, fitH, (UINT) outDesc.Width, outDesc.Height);
+
+                    _imageSizeRender = std::make_pair(fitW, fitH);
+                    _imageSizeDisplay = std::make_pair((uint32_t) outDesc.Width, (uint32_t) outDesc.Height);
+                    State::Instance().newBackend = Upscaler::Reset;
+                    State::Instance().changeBackend[Handle()->Id] = true;
+                    break;
+                }
+
+                // Motion-vector scale is derived from the declared size by whoever made the call (half of
+                // it for NDC vectors, all of it for UV ones), so it shrinks with it. Any other scale was
+                // not derived that way and is left alone.
+                auto fitScale = [](float scale, unsigned int declared, unsigned int fit)
+                {
+                    const auto magnitude = std::abs(scale);
+
+                    if (std::abs(magnitude - declared * 0.5f) < 1.0f || std::abs(magnitude - (float) declared) < 1.0f)
+                        return scale * ((float) fit / (float) declared);
+
+                    return scale;
+                };
+
+                float mvScaleX = 0;
+                float mvScaleY = 0;
+
+                if (InParameters->Get(NVSDK_NGX_Parameter_MV_Scale_X, &mvScaleX) == NVSDK_NGX_Result_Success &&
+                    InParameters->Get(NVSDK_NGX_Parameter_MV_Scale_Y, &mvScaleY) == NVSDK_NGX_Result_Success)
+                {
+                    InParameters->Set(NVSDK_NGX_Parameter_MV_Scale_X, fitScale(mvScaleX, declaredW, fitW));
+                    InParameters->Set(NVSDK_NGX_Parameter_MV_Scale_Y, fitScale(mvScaleY, declaredH, fitH));
+                }
+
+                InParameters->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, fitW);
+                InParameters->Set(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, fitH);
+
+                static bool reportedFit = false;
+
+                if (!reportedFit)
+                {
+                    reportedFit = true;
+                    LOG_INFO("Declared frame {}x{} fitted to the {}x{} images; motion-vector scale {}, {} -> {}, {}",
+                             declaredW, declaredH, fitW, fitH, mvScaleX, mvScaleY, fitScale(mvScaleX, declaredW, fitW),
+                             fitScale(mvScaleY, declaredH, fitH));
+                }
+            }
+        }
+
         commandListRecording = true;
 
         InParameters->Set(NVSDK_NGX_Parameter_Color, (void*) dx11Color.Dx12Resource);
@@ -460,6 +542,55 @@ bool IFeature_Dx11wDx12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_NG
         if (dx12Feature->GetUpscalerType() != Upscaler::DLSSD)
             DlssNr::EvaluateBeforeUpscale(cmdList, InParameters, Dx12CommandQueue, _frameCount);
         dx12EvalResult = dx12Feature->Evaluate(cmdList, InParameters);
+
+        // A refused evaluate names no parameter, and NGX's own log stays silent on the D3D12 side of the
+        // bridge. The first few refusals say what was handed over, so a game whose inputs DLSS rejects
+        // (Monster Hunter: World through Luma) can be read from one log instead of guessed at.
+        static int reportedRefusals = 0;
+
+        if (!dx12EvalResult && reportedRefusals < 3)
+        {
+            reportedRefusals++;
+
+            auto describe = [](const char* name, ID3D12Resource* resource)
+            {
+                if (resource == nullptr)
+                {
+                    LOG_WARN("Dx11wDx12 refused evaluate: {} is null", name);
+                    return;
+                }
+
+                const auto desc = resource->GetDesc();
+                LOG_WARN("Dx11wDx12 refused evaluate: {} {}x{} fmt {} mips {} array {} samples {} flags 0x{:X}", name,
+                         (UINT) desc.Width, desc.Height, (UINT) desc.Format, desc.MipLevels, desc.DepthOrArraySize,
+                         desc.SampleDesc.Count, (UINT) desc.Flags);
+            };
+
+            describe("Color", dx11Color.Dx12Resource);
+            describe("MotionVectors", dx11Mv.Dx12Resource);
+            describe("Depth", dx11Depth.Dx12Resource);
+            describe("Output", dx11Out.Dx12Resource);
+
+            float jitterX = 0, jitterY = 0, mvScaleX = 0, mvScaleY = 0, preExposure = 0;
+            unsigned int subrectW = 0, subrectH = 0, width = 0, height = 0, outWidth = 0, outHeight = 0, reset = 0;
+            InParameters->Get(NVSDK_NGX_Parameter_Jitter_Offset_X, &jitterX);
+            InParameters->Get(NVSDK_NGX_Parameter_Jitter_Offset_Y, &jitterY);
+            InParameters->Get(NVSDK_NGX_Parameter_MV_Scale_X, &mvScaleX);
+            InParameters->Get(NVSDK_NGX_Parameter_MV_Scale_Y, &mvScaleY);
+            InParameters->Get(NVSDK_NGX_Parameter_DLSS_Pre_Exposure, &preExposure);
+            InParameters->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Width, &subrectW);
+            InParameters->Get(NVSDK_NGX_Parameter_DLSS_Render_Subrect_Dimensions_Height, &subrectH);
+            InParameters->Get(NVSDK_NGX_Parameter_Width, &width);
+            InParameters->Get(NVSDK_NGX_Parameter_Height, &height);
+            InParameters->Get(NVSDK_NGX_Parameter_OutWidth, &outWidth);
+            InParameters->Get(NVSDK_NGX_Parameter_OutHeight, &outHeight);
+            InParameters->Get(NVSDK_NGX_Parameter_Reset, &reset);
+
+            LOG_WARN("Dx11wDx12 refused evaluate: jitter {}, {} | mv scale {}, {} | pre-exposure {} | subrect {}x{} | "
+                     "size {}x{} -> {}x{} | reset {}",
+                     jitterX, jitterY, mvScaleX, mvScaleY, preExposure, subrectW, subrectH, width, height, outWidth,
+                     outHeight, reset);
+        }
 
         // DLSS 5 Neural Rendering rides the bridge: at this moment the block carries the D3D12 copies
         // of every input, the list is still recording, and the model's edit lands on the D3D12 output
@@ -557,6 +688,37 @@ bool IFeature_Dx11wDx12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_NG
         _frameCount++;
     else
         Dx11WithDx12::ClearLastPreparedUpscalerFrameState();
+
+    // A caller that hands DLSS the job of its own anti-aliasing (Luma replaces the game's TAA outright)
+    // draws nothing in that frame when DLSS does not run -- the player sees whatever the output texture
+    // last held. When input and output are the same picture, the un-anti-aliased input is a far better
+    // frame than that, so it goes in. Different sizes would put a small picture in a corner; left alone.
+    if (!evalResult && hasRestoreParamColor && hasRestoreParamOutput && restoreParamColor != restoreParamOutput)
+    {
+        ID3D11Texture2D* colorTex = nullptr;
+        ID3D11Texture2D* outTex = nullptr;
+
+        if (restoreParamColor->QueryInterface(IID_PPV_ARGS(&colorTex)) == S_OK &&
+            restoreParamOutput->QueryInterface(IID_PPV_ARGS(&outTex)) == S_OK)
+        {
+            D3D11_TEXTURE2D_DESC colorDesc {};
+            D3D11_TEXTURE2D_DESC outDesc {};
+            colorTex->GetDesc(&colorDesc);
+            outTex->GetDesc(&outDesc);
+
+            if (colorDesc.Width == outDesc.Width && colorDesc.Height == outDesc.Height &&
+                colorDesc.Format == outDesc.Format && colorDesc.SampleDesc.Count == 1 && outDesc.SampleDesc.Count == 1)
+            {
+                InDeviceContext->CopySubresourceRegion(outTex, 0, 0, 0, 0, colorTex, 0, nullptr);
+            }
+        }
+
+        if (colorTex != nullptr)
+            colorTex->Release();
+
+        if (outTex != nullptr)
+            outTex->Release();
+    }
 
     // restore compute shader resources
     for (UINT i = 0; i < D3D11_COMMONSHADER_INPUT_RESOURCE_SLOT_COUNT; i++)
