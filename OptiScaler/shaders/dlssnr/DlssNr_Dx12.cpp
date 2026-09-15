@@ -24,6 +24,7 @@
 #include <proxies/NVNGX_Proxy.h>
 #include <hooks/D3D12_Hooks.h>
 #include <gpu_time/GpuTime_Dx12.h>
+#include <dlssnr/DlssNr_TimingTrust.h>
 
 #include <mutex>
 #include <map>
@@ -410,6 +411,9 @@ std::unique_ptr<GpuTime_Dx12> g_gpuTime;
 std::unique_ptr<GpuTime_Dx12> g_ngxTime;
 std::optional<double> g_lastNgxTime;
 std::optional<double> g_lastGpuTime;
+
+// Whether g_lastGpuTime is fit for the panel at all; see DlssNr_TimingTrust.h.
+NrTimingTrust g_timingTrust;
 
 // Writes matched before/after frames on request, so comparisons stop depending on video.
 capture::FrameCapture g_capture;
@@ -3100,8 +3104,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         if (queue != nullptr)
         {
-            if (auto ms = g_gpuTime->ReadGpuTime(queue); ms.has_value())
+            auto ms = g_gpuTime->ReadGpuTime(queue);
+
+            if (ms.has_value() && NrTimingTrust::Plausible(ms.value()))
                 g_lastGpuTime = ms;
+
+            if (g_timingTrust.Add(ms))
+                LOG_WARN("DLSS-NR: the GPU pass timer gives scattered readings on this card/route (last {:.2f} ms); "
+                         "the panel shows DLSS 5 on without a cost this session",
+                         ms.value_or(-1.0));
 
             if (g_ngxTime != nullptr)
             {
@@ -3113,7 +3124,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             // remainder: the model's cost is NVIDIA's to set, and everything else is ours.
             static unsigned long long lastSplitLog = 0;
 
-            if (g_lastGpuTime.has_value() && g_lastNgxTime.has_value() && g_frames - lastSplitLog > 600)
+            if (!g_timingTrust.Untrusted() && g_lastGpuTime.has_value() && g_lastNgxTime.has_value() &&
+                g_frames - lastSplitLog > 600)
             {
                 lastSplitLog = g_frames;
                 const double total = g_lastGpuTime.value();
@@ -3154,7 +3166,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const auto* cfg = Config::Instance();
             const bool queueKnown =
                 timingQueue != nullptr || State::Instance().currentCommandQueue != nullptr;
-            const std::string gpu = g_lastGpuTime.has_value()
+            const std::string gpu = g_timingTrust.Untrusted() ? std::string("n/a (timer unreliable)")
+                                    : g_lastGpuTime.has_value()
                                         ? std::format("{:.2f} ms", g_lastGpuTime.value())
                                         : (queueKnown ? std::string("not read yet") : std::string("n/a (no queue)"));
 
@@ -4431,7 +4444,7 @@ ExposureStatus GameExposureStatus()
     return s;
 }
 
-std::optional<double> LastGpuTime() { return g_lastGpuTime; }
+std::optional<double> LastGpuTime() { return g_timingTrust.Untrusted() ? std::nullopt : g_lastGpuTime; }
 
 void RequestCapture(unsigned int frames)
 {

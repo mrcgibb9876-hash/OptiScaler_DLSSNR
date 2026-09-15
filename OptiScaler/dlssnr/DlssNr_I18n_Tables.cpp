@@ -66,7 +66,7 @@ const char* const kKeys[] = {
     "Running%s - %.2f ms per frame%s",
     " natively on Vulkan",
     "Running natively on Vulkan - %llu frames%s",
-    "Running.%s",
+    "DLSS 5 on%s",
     "The whole pass: the staging copies and the resolve as well as the\nmodel. Timing only the model would fl"
     "atter the number.\n\nCompare it against the frame time at the bottom of this window to\nsee what it is c"
     "osting you.",
@@ -437,7 +437,7 @@ static const char* const kTable_pt_BR[] = {
     "Rodando%s - %.2f ms por quadro%s",
     " nativamente em Vulkan",
     "Rodando nativamente em Vulkan - %llu quadros%s",
-    "Rodando.%s",
+    "DLSS 5 ativo%s",
     "O passo inteiro: as c\303\263pias de staging e o resolve, al\303\251m do modelo. Medir s\303\263 o model"
     "o maquiaria o n\303\272mero.\n\nCompare com o tempo de quadro no rodap\303\251 desta janela para ver qua"
     "nto est\303\241 custando.",
@@ -1001,7 +1001,7 @@ static const char* const kTable_ru[] = {
     " \320\275\320\260\321\202\320\270\320\262\320\275\320\276 \320\275\320\260 Vulkan",
     "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202 \320\275\320\260\321\202\320\270\320\262"
     "\320\275\320\276 \320\275\320\260 Vulkan - %llu \320\272\320\260\320\264\321\200\320\276\320\262%s",
-    "\320\240\320\260\320\261\320\276\321\202\320\260\320\265\321\202.%s",
+    "DLSS 5 \320\262\320\272\320\273\321\216\321\207\321\221\320\275%s",
     "\320\222\320\265\321\201\321\214 \320\277\321\200\320\276\321\205\320\276\320\264: \320\277\321\200\320\276"
     "\320\274\320\265\320\266\321\203\321\202\320\276\321\207\320\275\321\213\320\265 \320\272\320\276\320\277"
     "\320\270\320\270 \320\270 resolve, \320\260 \320\275\320\265 \321\202\320\276\320\273\321\214\320\272\320\276"
@@ -2305,7 +2305,7 @@ static const char* const kTable_ko[] = {
     " Vulkan \353\204\244\354\235\264\355\213\260\353\270\214\353\241\234",
     "Vulkan \353\204\244\354\235\264\355\213\260\353\270\214\353\241\234 \354\213\244\355\226\211 \354\244\221"
     " - %llu \355\224\204\353\240\210\354\236\204%s",
-    "\354\213\244\355\226\211 \354\244\221.%s",
+    "DLSS 5 \354\274\234\354\247\220%s",
     "\355\214\250\354\212\244 \354\240\204\354\262\264: \353\252\250\353\215\270\353\277\220 \354\225\204\353\213\210"
     "\353\235\274 \354\212\244\355\205\214\354\235\264\354\247\225 \353\263\265\354\202\254\354\231\200 resol"
     "ve\352\271\214\354\247\200. \353\252\250\353\215\270\353\247\214 \354\236\254\353\251\264 \354\210\253\354\236\220"
@@ -3206,7 +3206,7 @@ static const char* const kTable_zh_CN[] = {
     "\350\277\220\350\241\214\344\270\255%s - \346\257\217\345\270\247 %.2f ms%s",
     " \345\216\237\347\224\237\350\277\220\350\241\214\344\272\216 Vulkan",
     "\345\216\237\347\224\237\350\277\220\350\241\214\344\272\216 Vulkan - %llu \345\270\247%s",
-    "\350\277\220\350\241\214\344\270\255\343\200\202%s",
+    "DLSS 5 \345\267\262\345\274\200\345\220\257%s",
     "\346\225\264\344\270\252\351\200\232\351\201\223\357\274\232\346\232\202\345\255\230\346\213\267\350\264\235"
     "\345\222\214 resolve\357\274\214\344\273\245\345\217\212\346\250\241\345\236\213\346\234\254\350\272\253"
     "\343\200\202\345\217\252\350\256\241\346\227\266\346\250\241\345\236\213\344\274\232\350\256\251\346\225\260"
@@ -3918,7 +3918,7 @@ static const char* const kTable_es[] = {
     "Corriendo%s - %.2f ms por fotograma%s",
     " de forma nativa en Vulkan",
     "Corriendo de forma nativa en Vulkan - %llu fotogramas%s",
-    "Corriendo.%s",
+    "DLSS 5 activado%s",
     "El pase entero: las copias de staging y el resolve adem\303\241s del modelo. Cronometrar solo el modelo "
     "maquillar\303\255a la cifra.\n\nComp\303\241ralo con el tiempo de fotograma al pie de esta ventana para "
     "ver lo que te cuesta.",
@@ -4321,7 +4321,7 @@ static const char* const kTable_de[] = {
     "L\303\244uft%s - %.2f ms pro Frame%s",
     " nativ auf Vulkan",
     "L\303\244uft nativ auf Vulkan - %llu Frames%s",
-    "L\303\244uft.%s",
+    "DLSS 5 an%s",
     "Der ganze Pass: die Staging-Kopien und das Resolve ebenso wie das Modell. Nur das Modell zu messen w\303\274"
     "rde die Zahl sch\303\266nen.\n\nVergleiche sie mit der Frametime unten in diesem Fenster, um zu sehen, w"
     "as es dich kostet.",
@@ -4729,7 +4729,7 @@ static const char* const kTable_fr[] = {
     "Actif%s - %.2f ms par image%s",
     " en natif sur Vulkan",
     "Actif en natif sur Vulkan - %llu images%s",
-    "Actif.%s",
+    "DLSS 5 activ\303\251%s",
     "La passe compl\303\250te : les copies de pr\303\251paration et la recomposition en plus du\nmod\303\250l"
     "e. Ne chronom\303\251trer que le mod\303\250le flatterait le chiffre.\n\nComparez-le au temps d'image en"
     " bas de cette fen\303\252tre pour\nvoir ce que cela vous co\303\273te.",

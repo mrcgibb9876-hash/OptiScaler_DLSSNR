@@ -1001,7 +1001,7 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running natively on Vulkan - %llu frames%s"),
                                    DlssNr::FramesVk(), runSuffix);
             else
-                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running.%s"), runSuffix);
+                ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("DLSS 5 on%s"), runSuffix);
 
             ImGui::SameLine();
             ImGui::TextColored(kTextDim, "(?)");

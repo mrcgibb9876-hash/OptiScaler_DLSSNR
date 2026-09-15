@@ -92,20 +92,21 @@ std::optional<double> GpuTime_Dx12::ReadGpuTime(ID3D12CommandQueue* commandQueue
     if (timestampData != nullptr)
     {
         // Get the GPU timestamp frequency (ticks per second)
-        UINT64 gpuFrequency;
-        commandQueue->GetTimestampFrequency(&gpuFrequency);
+        if (_frequency == 0 && commandQueue != nullptr)
+            commandQueue->GetTimestampFrequency(&_frequency);
 
         // Calculate elapsed time in milliseconds
         UINT64 startTime = timestampData[previousFrameIndex * 2];
         UINT64 endTime = timestampData[previousFrameIndex * 2 + 1];
 
-        if (endTime < startTime)
+        // A zero start is a slot the GPU never wrote (the readback starts zeroed).
+        if (_frequency == 0 || startTime == 0 || endTime <= startTime)
         {
             _readbackBuffer->Unmap(0, &writeRange);
             return elapsedTimeMs;
         }
 
-        elapsedTimeMs = (endTime - startTime) / static_cast<double>(gpuFrequency) * 1000.0;
+        elapsedTimeMs = (endTime - startTime) / static_cast<double>(_frequency) * 1000.0;
     }
     else
     {

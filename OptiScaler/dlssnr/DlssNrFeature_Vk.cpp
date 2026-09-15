@@ -9,6 +9,7 @@
 
 #include <shaders/dlssnr/DlssNr_Vk.h>
 #include <shaders/output_scaling/OS_Vk.h>
+#include <dlssnr/DlssNr_TimingTrust.h>
 
 #include <algorithm>
 #include <cmath>
@@ -105,6 +106,7 @@ struct VkState
     float timestampPeriod = 0.0f;
     unsigned long long timedFrames = 0;
     std::optional<double> lastGpuTime;
+    NrTimingTrust timingTrust;
 
     // Whether the game hands over an exposure texture, and what it said when it did.
     bool exposureOffered = false;
@@ -490,7 +492,7 @@ unsigned long long FramesVk() { return g_vk.frames; }
 
 bool ExposureOfferedVk() { return g_vk.exposureOffered; }
 
-std::optional<double> LastGpuTimeVk() { return g_vk.lastGpuTime; }
+std::optional<double> LastGpuTimeVk() { return g_vk.timingTrust.Untrusted() ? std::nullopt : g_vk.lastGpuTime; }
 
 void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* params, VkInstance instance,
                             VkPhysicalDevice physicalDevice, VkDevice device)
@@ -1108,20 +1110,26 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         {
             const uint32_t readSlot = (uint32_t) (g_vk.timedFrames % kTimingSlots);
             uint64_t ticks[2] = {};
+            std::optional<double> reading;
 
             // Without WAIT: a slot this old is retired, and if it somehow is not, NOT_READY is the
             // right answer rather than a stall.
             if (vkGetQueryPoolResults(device, g_vk.queryPool, readSlot * 2, 2, sizeof(ticks), ticks, sizeof(uint64_t),
                                       VK_QUERY_RESULT_64_BIT) == VK_SUCCESS &&
-                ticks[1] > ticks[0])
+                ticks[0] != 0 && ticks[1] > ticks[0])
             {
                 const double ms = (double) (ticks[1] - ticks[0]) * (double) g_vk.timestampPeriod / 1e6;
+                reading = ms;
 
                 // A pass that appears to have taken over a second did not; the queue was reset under
                 // it or the pair straddled a device change.
-                if (ms > 0.0 && ms < 1000.0)
+                if (NrTimingTrust::Plausible(ms))
                     g_vk.lastGpuTime = ms;
             }
+
+            if (g_vk.timingTrust.Add(reading))
+                LOG_WARN("DLSS-NR Vulkan: the GPU pass timer gives scattered readings on this card; the panel "
+                         "shows DLSS 5 on without a cost this session");
         }
     }
 
