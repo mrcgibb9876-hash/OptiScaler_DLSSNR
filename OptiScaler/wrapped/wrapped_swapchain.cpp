@@ -447,10 +447,152 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
     return presentResult;
 }
 
+// [DlssNr] ForceBorderless -- keep the game out of exclusive fullscreen, which Lossless Scaling cannot capture.
+//
+// On DXGI's own SetFullscreenState / GetFullscreenState / GetFullscreenDesc, not on this wrapper's methods: a
+// game can call the real swapchain directly (Monster Hunter: World through Luma's ReShade, 2026-09-15 -- ReShade
+// logged SetFullscreenState(TRUE) and the wrapper never saw it). The functions are dxgi.dll's, shared by every
+// swapchain in the process, so one detour covers them all. A request for fullscreen becomes a borderless window
+// over the monitor and S_OK, and the game is told it has fullscreen so it does not keep asking. Same window
+// treatment as FGHooks::hkSetFullscreenState for XeFG, which can sit on the same functions (detours chain).
+namespace
+{
+using PFN_SetFullscreenStateFB = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL, IDXGIOutput*);
+using PFN_GetFullscreenStateFB = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, BOOL*, IDXGIOutput**);
+using PFN_GetFullscreenDescFB = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain1*, DXGI_SWAP_CHAIN_FULLSCREEN_DESC*);
+
+PFN_SetFullscreenStateFB o_fbSetFullscreenState = nullptr;
+PFN_GetFullscreenStateFB o_fbGetFullscreenState = nullptr;
+PFN_GetFullscreenDescFB o_fbGetFullscreenDesc = nullptr;
+std::atomic<bool> g_fbInstalled { false };
+
+HRESULT STDMETHODCALLTYPE fbSetFullscreenState(IDXGISwapChain* This, BOOL Fullscreen, IDXGIOutput* pTarget)
+{
+    static unsigned int calls = 0;
+    if (++calls <= 8)
+        LOG_INFO("ForceBorderless: SetFullscreenState({}) reached the hook on swapchain {:X}", Fullscreen, (size_t) This);
+
+    DXGI_SWAP_CHAIN_DESC scDesc {};
+    This->GetDesc(&scDesc);
+    const HWND hwnd = scDesc.OutputWindow;
+    const bool wasFullscreen = State::Instance().SCExclusiveFullscreen;
+
+    if (Fullscreen)
+    {
+        State::Instance().SCExclusiveFullscreen = true;
+
+        // A swapchain created fullscreen (and made windowed at creation) is already covering its window.
+        if (hwnd != nullptr)
+        {
+            Util::MonitorInfo info =
+                pTarget != nullptr ? Util::GetMonitorInfoForOutput(pTarget) : Util::GetMonitorInfoForWindow(hwnd);
+
+            SetWindowLongPtr(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, WS_EX_APPWINDOW);
+            SetWindowPos(hwnd, HWND_TOP, info.x, info.y, info.width, info.height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+            static unsigned int told = 0;
+            if (++told <= 5)
+                LOG_INFO("ForceBorderless: refused exclusive fullscreen -- borderless {}x{} at {},{} on {}", info.width,
+                         info.height, info.x, info.y, wstring_to_string(info.name));
+        }
+
+        // Out of exclusive mode if the swapchain is already in it (created fullscreen before this was on).
+        return o_fbSetFullscreenState(This, FALSE, nullptr);
+    }
+
+    if (wasFullscreen)
+    {
+        State::Instance().SCExclusiveFullscreen = false;
+
+        if (hwnd != nullptr)
+        {
+            SetWindowLongPtr(hwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW | WS_VISIBLE);
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, WS_EX_OVERLAPPEDWINDOW);
+            SetWindowPos(hwnd, nullptr, 0, 0, scDesc.BufferDesc.Width, scDesc.BufferDesc.Height,
+                         SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+
+        LOG_INFO("ForceBorderless: the game left fullscreen -- back to a normal window");
+    }
+
+    return o_fbSetFullscreenState(This, Fullscreen, pTarget);
+}
+
+HRESULT STDMETHODCALLTYPE fbGetFullscreenState(IDXGISwapChain* This, BOOL* pFullscreen, IDXGIOutput** ppTarget)
+{
+    auto result = o_fbGetFullscreenState(This, pFullscreen, ppTarget);
+
+    if (result == S_OK && pFullscreen != nullptr && State::Instance().SCExclusiveFullscreen)
+        *pFullscreen = TRUE;
+
+    return result;
+}
+
+HRESULT STDMETHODCALLTYPE fbGetFullscreenDesc(IDXGISwapChain1* This, DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pDesc)
+{
+    auto result = o_fbGetFullscreenDesc(This, pDesc);
+
+    if (result == S_OK && pDesc != nullptr && State::Instance().SCExclusiveFullscreen)
+        pDesc->Windowed = FALSE;
+
+    return result;
+}
+
+void InstallForceBorderless(IDXGISwapChain* real)
+{
+    if (real == nullptr || g_fbInstalled.exchange(true))
+        return;
+
+    auto vtable = *(void***) real;
+    o_fbSetFullscreenState = (PFN_SetFullscreenStateFB) vtable[10];
+    o_fbGetFullscreenState = (PFN_GetFullscreenStateFB) vtable[11];
+
+    // What each interface's table points at, so a call arriving through another interface can be told apart.
+    IDXGISwapChain4* real4 = nullptr;
+    void* set4 = nullptr;
+    if (real->QueryInterface(IID_PPV_ARGS(&real4)) == S_OK && real4 != nullptr)
+    {
+        set4 = (*(void***) real4)[10];
+        real4->Release();
+    }
+
+    HMODULE owner = nullptr;
+    wchar_t ownerName[MAX_PATH] = L"?";
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCWSTR) o_fbSetFullscreenState, &owner))
+        GetModuleFileNameW(owner, ownerName, MAX_PATH);
+
+    LOG_INFO("ForceBorderless: SetFullscreenState at {:X} in {} (IDXGISwapChain4 table: {:X}), swapchain {:X}",
+             (size_t) o_fbSetFullscreenState, wstring_to_string(ownerName), (size_t) set4, (size_t) real);
+
+    IDXGISwapChain1* real1 = nullptr;
+    if (real->QueryInterface(IID_PPV_ARGS(&real1)) == S_OK && real1 != nullptr)
+    {
+        o_fbGetFullscreenDesc = (PFN_GetFullscreenDescFB) (*(void***) real1)[19];
+        real1->Release();
+    }
+
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    DetourAttach(&(PVOID&) o_fbSetFullscreenState, fbSetFullscreenState);
+    DetourAttach(&(PVOID&) o_fbGetFullscreenState, fbGetFullscreenState);
+    if (o_fbGetFullscreenDesc != nullptr)
+        DetourAttach(&(PVOID&) o_fbGetFullscreenDesc, fbGetFullscreenDesc);
+    const auto committed = DetourTransactionCommit();
+
+    LOG_INFO("ForceBorderless: DXGI fullscreen calls hooked (result {}) -- exclusive fullscreen becomes borderless",
+             committed);
+}
+} // namespace
+
 WrappedIDXGISwapChain4::WrappedIDXGISwapChain4(IDXGISwapChain* real, IUnknown* pDevice, HWND hWnd, UINT flags,
                                                bool isUWP, bool isComposition)
     : _real(real), _device(pDevice), _handle(hWnd), _refcount(1), _uwp(isUWP), _composition(isComposition)
 {
+    if (Config::Instance()->DlssNrForceBorderless.value_or_default())
+        InstallForceBorderless(real);
+
     _id = ++scCount;
     _lastFlags = flags;
 

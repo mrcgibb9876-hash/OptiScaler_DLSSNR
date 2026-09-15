@@ -126,8 +126,9 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChain(IDXGIFactory* realFactory, Wrap
               localDesc.BufferCount, localDesc.Flags, (SIZE_T) localDesc.OutputWindow, localDesc.Windowed,
               _skipFGSwapChainCreation);
 
-    if (State::Instance().activeFgOutput == FGOutput::XeFG &&
-        Config::Instance()->FGXeFGForceBorderless.value_or_default())
+    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
+         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
+        Config::Instance()->DlssNrForceBorderless.value_or_default())
     {
         if (!localDesc.Windowed)
         {
@@ -507,8 +508,9 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForHwnd(IDXGIFactory2* realFacto
     if (pFullscreenDesc != nullptr)
         memcpy(&localFullscreenDesc, pFullscreenDesc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
 
-    if (State::Instance().activeFgOutput == FGOutput::XeFG &&
-        Config::Instance()->FGXeFGForceBorderless.value_or_default())
+    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
+         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
+        Config::Instance()->DlssNrForceBorderless.value_or_default())
     {
         if (pFullscreenDesc != nullptr && !localFullscreenDesc.Windowed)
         {

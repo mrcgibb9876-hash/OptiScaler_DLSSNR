@@ -470,6 +470,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrReversibleMode.set_from_config(readUInt("DlssNr", "ReversibleMode"));
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
             DlssNrHoldFrame.set_from_config(readBool("DlssNr", "HoldFrame"));
+            DlssNrForceBorderless.set_from_config(readBool("DlssNr", "ForceBorderless"));
             UseGenericAppIdWithDlss.set_from_config(readBool("DLSS", "UseGenericAppIdWithDlss"));
 
             RenderPresetOverride.set_from_config(readBool("DLSS", "RenderPresetOverride"));
@@ -1401,6 +1402,8 @@ bool Config::SaveIni()
                      GetIntValue(Instance()->DlssNrReversibleMode.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ApplyModel", GetBoolValue(Instance()->DlssNrApplyModel.value_for_config()).c_str());
         ini.SetValue("DlssNr", "HoldFrame", GetBoolValue(Instance()->DlssNrHoldFrame.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "ForceBorderless",
+                     GetBoolValue(Instance()->DlssNrForceBorderless.value_for_config()).c_str());
         ini.SetValue("DLSS", "RenderPresetOverride",
                      GetBoolValue(Instance()->RenderPresetOverride.value_for_config()).c_str());
         ini.SetValue("DLSS", "RenderPresetForAll",

@@ -338,6 +338,12 @@ class Config
     // default. See dlssnr/design/frame-hold.md.
     CustomOptional<bool> DlssNrHoldFrame { false };
 
+    // Keep the game out of exclusive fullscreen: swapchains are created windowed and SetFullscreenState(TRUE)
+    // becomes a borderless window over the monitor while the game is told it is fullscreen. Lossless
+    // Scaling cannot capture an exclusive-fullscreen window, so OptiDLSS5-UI turns this on for the games it
+    // configures Lossless Scaling for. The same mechanism as [XeFG] ForceBorderless, for any output.
+    CustomOptional<bool> DlssNrForceBorderless { false };
+
     // The most the pass may multiply or divide a pixel by. A detail pass has no business restyling a
     // light source, whatever the model returns.
     CustomOptional<float> DlssNrMaxRatio { 2.0f };
