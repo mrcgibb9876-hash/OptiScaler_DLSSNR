@@ -635,8 +635,14 @@ void RenderMenu(Config* config, float menuResScale)
     // No NoMove: that is what makes it draggable. No NoResize / AlwaysAutoResize: that is what makes it
     // resizable (the fit is done by hand above). No NoScrollbar: a panel shorter than its content
     // scrolls. NoSavedSettings stays -- position and size live in OptiScaler.ini, not an imgui.ini.
-    ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+    //
+    // NoNavInputs: the panel is driven with the mouse. The shared context has keyboard and gamepad
+    // navigation on (for OptiScaler's own menu), and every navigation move scrolls the window to the
+    // widget it lands on -- so input the game keeps producing (a controller's resting stick, arrow keys)
+    // pinned this panel to one row and the mouse wheel could not scroll past it (Cyberpunk 2077,
+    // 2026-09-16: stuck on the Language combo).
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs;
 
     bool anyChanged = false;
 
@@ -928,6 +934,22 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ndifferent contract. A colour image padded inside a larger texture is staged at its"
                       "\nreal size; one offset from the corner still falls back after upscaling."
                       "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement."));
+
+        // Experimental: the same placement for Ray Reconstruction, whose colour input is the noisy frame it
+        // denoises. Only meaningful with Before Super Resolution on, so greyed out without it.
+        bool beforeRr = config->DlssNrRunBeforeRr.value_or_default();
+        ImGui::BeginDisabled(!config->DlssNrRunBeforeSr.value_or_default());
+        if (NrCheckbox(Tr("Before Ray Reconstruction (experimental)"), &beforeRr))
+        {
+            config->DlssNrRunBeforeRr = beforeRr;
+            anyChanged = true;
+        }
+        ImGui::EndDisabled();
+        HelpMarker(Tr("Also runs the pass before Ray Reconstruction, at render resolution, on the colour it is"
+                      "\nabout to denoise and upscale -- far cheaper than after it. EXPERIMENTAL: that colour"
+                      "\nis the noisy ray-traced frame rather than a finished one, so the model may enhance"
+                      "\nnoise and Ray Reconstruction may smear what it added. Try it, compare, and turn it"
+                      "\noff if it looks worse. Needs Before Super Resolution on."));
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
@@ -2260,25 +2282,10 @@ void RenderMenu(Config* config, float menuResScale)
             HelpMarker(tip.c_str());
         }
 
-        // What the panel speaks. Auto follows the Windows display language; OptiDLSS5-UI writes the
-        // same [DlssNr] Language key when its own Language setting is pinned, so the two agree. The
-        // names are kept in Latin script on purpose: the font that draws a language's own name is
-        // only loaded once that language is chosen (see I18n::EnsureFonts).
-        {
-            const char* langNames[] = { Tr("Auto (Windows)"), Tr("English"), Tr("Portuguese (Brazil)"),
-                                        Tr("Russian"),        Tr("Korean"),  Tr("Chinese (Simplified)"),
-                                        Tr("Spanish"),        Tr("German"),  Tr("French") };
-            int lang = I18n::SelectorIndex(config->DlssNrLanguage.value_or_default().c_str());
-            if (NrCombo(Tr("Language"), &lang, langNames, IM_ARRAYSIZE(langNames), rowWidth))
-            {
-                config->DlssNrLanguage = std::string(I18n::CodeForSelectorIndex(lang));
-                I18n::Refresh(config->DlssNrLanguage.value_or_default());
-                anyChanged = true;
-            }
-            HelpMarker(Tr("Auto follows the Windows display language. Pinning one here only changes this panel;"
-                          "\nOptiScaler's own menu stays English. A language that needs its own font (Chinese,"
-                          "\nKorean) loads it from Windows on the next frame."));
-        }
+        // No Language control here. The panel speaks [DlssNr] Language, which OptiDLSS5-UI writes from its
+        // own Language setting (auto follows Windows), so the manager is the one place to choose it. A combo
+        // here disagreed with the manager and, sitting in the navigation order, kept pulling the scroll back
+        // to itself (Cyberpunk 2077, 2026-09-16). I18n::Refresh still reads the key every frame.
 
         // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
         // is applied to the window.

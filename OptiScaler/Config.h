@@ -293,6 +293,10 @@ class Config
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };
+    // EXPERIMENTAL. With RunBeforeSR on, also run the pass before Ray Reconstruction, on the colour it is
+    // about to denoise and upscale. Off keeps Ray Reconstruction on the post-upscale path. That colour is
+    // the noisy ray-traced frame, not the clean one Super Resolution gets, so this is here to be tried.
+    CustomOptional<bool> DlssNrRunBeforeRr { false };
 
     // Do the stacked passes keep their temporal history between frames?
     //

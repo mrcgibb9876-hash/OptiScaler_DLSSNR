@@ -4041,8 +4041,9 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
         }
     }
 
-    // Ray Reconstruction is explicitly forced post: PR #6 reports that pre-SR placement does not work
-    // with DLSSD's input contract. Origin-zero padded inputs are staged at their active size; offset,
+    // Ray Reconstruction is forced post by its callers: PR #6 reports that pre-SR placement does not work
+    // with DLSSD's input contract. [DlssNr] RunBeforeRR lifts that, experimentally -- the callers then pass
+    // forcePost false and the colour read below is DLSSD.Color. Origin-zero padded inputs are staged at their active size; offset,
     // malformed or unsupported allocations still stay post. Rechecking on the post call makes this
     // a real fallback rather than dropping NR.
     bool preSrCompatible = true;
