@@ -2181,9 +2181,32 @@ void RenderMenu(Config* config, float menuResScale)
         // rather than presented as ordinary settings.
         SectionCaption(Tr("Experimental"), rowWidth);
 
+        // Only meaningful with something stacked on top of pass one: at one pass there is nothing to
+        // run less often, and a live slider that cannot do anything is worse than a greyed one.
+        const bool stacked = std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount) > 1;
+        ImGui::BeginDisabled(!stacked);
+        float rate = std::clamp(config->DlssNrPassRate.value_or_default(), 0.05f, 1.0f) * 100.0f;
+        auto rRate = NrSlider(Tr("Extra passes run on"), &rate, 5.0f, 100.0f, "%.0f%%", rowWidth);
+        if (rRate.changed)
+            config->DlssNrPassRate = std::clamp(rate, 5.0f, 100.0f) / 100.0f;
+        if (rRate.released)
+            anyChanged = true;
+        ImGui::EndDisabled();
+        HelpMarker(Tr("How often the passes above the first actually run, as a share of frames. 100% is"
+                      "\nevery frame, which is what this has always done; 50% is every other frame."
+                      "\n\nWhat it buys is the ground between one pass and two. Two passes cost twice the"
+                      "\nmodel time and there is no step between them -- this makes one and a half"
+                      "\nreachable. Watch the frame rate: that is the whole point of it."
+                      "\n\nWhat it costs is that a frame where the extra pass was skipped is genuinely"
+                      "\nless processed than one where it ran, so the picture alternates between two"
+                      "\nlooks. Whether that reads as a pulse or as nothing depends on the game and on"
+                      "\nhow much the extra layer was changing. Chained temporal history decides what"
+                      "\nthe skipped frames do to that pass's history: on, it now has gaps in it."
+                      "\n\nNeeds more than one pass to do anything."));
+
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
         ImGui::TextColored(kTextDim, "%s",
-                           Tr("Both are unproven. They exist to test whether the driver's own "
+                           Tr("The two below are unproven. They exist to test whether the driver's own "
                               "nvngx.dll can dispatch the model, which would remove the need for "
                               "the 165 MB copy beside OptiScaler."));
         ImGui::PopTextWrapPos();

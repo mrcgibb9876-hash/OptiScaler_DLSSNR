@@ -2751,6 +2751,29 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
     }
 
+    // EXPERIMENTAL -- [DlssNr] PassRate. Run the stacked passes on only a fraction of frames, so the
+    // cost of "two passes" can be paid partly. The features stay built either way: requestedPasses is
+    // what TuningMatchesFeature above compares against, and that is untouched, so a skipped frame is
+    // one evaluate call not made rather than a rebuild. Varying the built pass count per frame would
+    // rebuild the feature every frame, which is why this reaches effectivePasses and nothing else.
+    //
+    // A credit accumulator rather than a frame counter: it spreads the skipped frames evenly at any
+    // rate, where modulo only does so at rates that divide cleanly.
+    //
+    // The cost is in the picture, not the plumbing -- a skipped frame is genuinely less processed
+    // than a run one, so the output alternates between two looks. See the note on DlssNrPassRate in
+    // Config.h. Default 1.0 is every frame, which is byte-identical to before this existed.
+    const float passRate = std::clamp(cfg.DlssNrPassRate.value_or_default(), 0.05f, 1.0f);
+    if (passRate < 0.999f && effectivePasses > 1)
+    {
+        static float passCredit = 0.0f;
+        passCredit += passRate;
+        if (passCredit >= 1.0f)
+            passCredit -= 1.0f;
+        else
+            effectivePasses = 1;
+    }
+
     // Encode happened once above. Keep that base proxy immutable and ping-pong only model answers:
     //   pass 0: base -> A, pass 1: A -> B, pass 2: B -> A.
     // The final answer is resolved once against the original base, so matched-residual transfer is the
