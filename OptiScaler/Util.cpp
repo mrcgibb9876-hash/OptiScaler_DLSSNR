@@ -660,6 +660,36 @@ Util::MonitorInfo Util::GetMonitorInfoForWindow(HWND hwnd)
     return out;
 }
 
+// Refusing exclusive fullscreen is only half of ForceBorderless. A game that asked for a fullscreen
+// swapchain and got a windowed one back still has whatever window style it started with, so it ends
+// up in a plain title-barred window instead of filling the screen -- which is not what the player
+// picked and does not look like fullscreen at all. The window has to be restyled to match.
+//
+// This was the missing half: the swapchain-creation path forced Windowed=TRUE and stopped there,
+// and since the game then never called SetFullscreenState, the detour that does restyle the window
+// was never reached either. Monster Hunter: World set to Fullscreen showed exactly that -- the hook
+// installed, nothing was ever logged at it.
+bool Util::MakeWindowBorderless(HWND hwnd, IDXGIOutput* pTarget, const char* reason)
+{
+    if (hwnd == nullptr)
+        return false;
+
+    MonitorInfo info = pTarget != nullptr ? GetMonitorInfoForOutput(pTarget) : GetMonitorInfoForWindow(hwnd);
+    if (info.width <= 0 || info.height <= 0)
+    {
+        LOG_WARN("ForceBorderless: no monitor bounds for window {:X}, leaving it alone", (size_t) hwnd);
+        return false;
+    }
+
+    SetWindowLongPtr(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+    SetWindowLongPtr(hwnd, GWL_EXSTYLE, WS_EX_APPWINDOW);
+    SetWindowPos(hwnd, HWND_TOP, info.x, info.y, info.width, info.height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+
+    LOG_INFO("ForceBorderless: {} -- window {:X} is now borderless {}x{} at {},{} on {}", reason, (size_t) hwnd,
+             info.width, info.height, info.x, info.y, wstring_to_string(info.name));
+    return true;
+}
+
 Util::MonitorInfo Util::GetMonitorInfoForOutput(IDXGIOutput* pOutput)
 {
     MonitorInfo out {};

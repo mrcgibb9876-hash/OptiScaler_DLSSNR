@@ -49,6 +49,10 @@ std::string WhoIsTheCaller(void* returnAddress);
 HMODULE GetCallerModule(void* returnAddress);
 MonitorInfo GetMonitorInfoForWindow(HWND hwnd);
 MonitorInfo GetMonitorInfoForOutput(IDXGIOutput* pOutput);
+// Turns a window into a borderless one filling its monitor, for ForceBorderless. `reason` only names
+// the caller in the log. pTarget picks the monitor when the game named an output; otherwise the one
+// the window is already on. Returns false when there is no window to change.
+bool MakeWindowBorderless(HWND hwnd, IDXGIOutput* pTarget, const char* reason);
 int GetActiveRefreshRate(HWND hwnd);
 bool CheckForRealObject(std::string functionName, IUnknown* pObject, IUnknown** ppRealObject);
 void GetDeviceRemovedReason(ID3D11Device* pDevice);

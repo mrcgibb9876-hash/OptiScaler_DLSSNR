@@ -134,6 +134,9 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChain(IDXGIFactory* realFactory, Wrap
         {
             State::Instance().SCExclusiveFullscreen = true;
             localDesc.Windowed = true;
+            // Windowed=TRUE alone leaves the game in a plain title-barred window, and since it then
+            // never calls SetFullscreenState, the detour that restyles the window is never reached.
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
 
         localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
@@ -517,6 +520,8 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForHwnd(IDXGIFactory2* realFacto
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
         localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;

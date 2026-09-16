@@ -297,18 +297,37 @@ HRESULT DxgiFactoryHooks::CreateSwapChain(IDXGIFactory* realFactory, IUnknown* p
               localDesc.BufferCount, localDesc.Flags, (SIZE_T) localDesc.OutputWindow, localDesc.Windowed,
               _skipFGSwapChainCreation);
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (!localDesc.Windowed)
         {
             State::Instance().SCExclusiveFullscreen = true;
             localDesc.Windowed = true;
+            refused = true;
+            // Windowed=TRUE alone leaves the game in a plain title-barred window, and since it then
+            // never calls SetFullscreenState, the detour that restyles the window is never reached.
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        // Only when fullscreen was actually taken away. A game that created its swapchain windowed
+        // never asked for a mode switch and does not need its descriptor rewritten -- and rewriting
+        // it anyway is not free: Monster Hunter: World (2026-09-16, ScreenMode=Fullscreen, which it
+        // implements as a window it sizes itself) came up with a title bar at -426,-266 with these
+        // two lines applied, and correctly borderless at 0,0 without them. Neither the refusal above
+        // nor the SetFullscreenState detour ever ran on it, so this was the whole of the damage.
+        //
+        // XeFG keeps the unconditional behaviour it shipped with; only the DLSS-NR path narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        }
     }
 
     // For vsync override
@@ -701,6 +720,8 @@ HRESULT DxgiFactoryHooks::CreateSwapChainForHwnd(IDXGIFactory2* realFactory, IUn
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
         localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
@@ -1241,18 +1262,37 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChain(IDXGIFactory* realFactory, IUnkno
               localDesc.BufferCount, localDesc.Flags, (SIZE_T) localDesc.OutputWindow, localDesc.Windowed,
               _skipFGSwapChainCreation);
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (!localDesc.Windowed)
         {
             State::Instance().SCExclusiveFullscreen = true;
             localDesc.Windowed = true;
+            refused = true;
+            // Windowed=TRUE alone leaves the game in a plain title-barred window, and since it then
+            // never calls SetFullscreenState, the detour that restyles the window is never reached.
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        // Only when fullscreen was actually taken away. A game that created its swapchain windowed
+        // never asked for a mode switch and does not need its descriptor rewritten -- and rewriting
+        // it anyway is not free: Monster Hunter: World (2026-09-16, ScreenMode=Fullscreen, which it
+        // implements as a window it sizes itself) came up with a title bar at -426,-266 with these
+        // two lines applied, and correctly borderless at 0,0 without them. Neither the refusal above
+        // nor the SetFullscreenState detour ever ran on it, so this was the whole of the damage.
+        //
+        // XeFG keeps the unconditional behaviour it shipped with; only the DLSS-NR path narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        }
     }
 
     // For vsync override
@@ -1559,6 +1599,8 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChainForHwnd(IDXGIFactory2* realFactory
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
         localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;

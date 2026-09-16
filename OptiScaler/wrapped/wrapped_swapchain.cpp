@@ -484,17 +484,8 @@ HRESULT STDMETHODCALLTYPE fbSetFullscreenState(IDXGISwapChain* This, BOOL Fullsc
         // A swapchain created fullscreen (and made windowed at creation) is already covering its window.
         if (hwnd != nullptr)
         {
-            Util::MonitorInfo info =
-                pTarget != nullptr ? Util::GetMonitorInfoForOutput(pTarget) : Util::GetMonitorInfoForWindow(hwnd);
-
-            SetWindowLongPtr(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, WS_EX_APPWINDOW);
-            SetWindowPos(hwnd, HWND_TOP, info.x, info.y, info.width, info.height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
-
-            static unsigned int told = 0;
-            if (++told <= 5)
-                LOG_INFO("ForceBorderless: refused exclusive fullscreen -- borderless {}x{} at {},{} on {}", info.width,
-                         info.height, info.x, info.y, wstring_to_string(info.name));
+            // The same restyle the creation path does, from the one implementation of it.
+            Util::MakeWindowBorderless(hwnd, pTarget, "refused exclusive fullscreen");
         }
 
         // Out of exclusive mode if the swapchain is already in it (created fullscreen before this was on).
