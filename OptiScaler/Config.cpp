@@ -78,9 +78,10 @@ bool Config::LiveReloadWanted()
     {
         const std::wstring exe = Util::ExePath().filename().wstring();
         inFeederHost = _wcsicmp(exe.c_str(), L"dlss5-feed-host64.exe") == 0;
-        LOG_INFO("Live settings reload: {}", inFeederHost.value()
-                                                 ? "on (running in the DLSS5 Feeder's helper, where the panel cannot be shown)"
-                                                 : "off (this game can open the panel itself; set [DlssNr] LiveReload=true to force it on)");
+        LOG_INFO("Live settings reload: {}",
+                 inFeederHost.value()
+                     ? "on (running in the DLSS5 Feeder's helper, where the panel cannot be shown)"
+                     : "off (this game can open the panel itself; set [DlssNr] LiveReload=true to force it on)");
     }
 
     return inFeederHost.value();

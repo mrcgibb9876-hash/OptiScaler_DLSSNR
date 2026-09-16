@@ -170,8 +170,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_Init_Ext(unsigned long long InApp
         {
             LOG_INFO("calling NVNGXProxy::D3D11_Init_Ext");
 
-            auto result = NVNGXProxy::D3D11_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice, DriverSdkVersion(InSDKVersion),
-                                                       &localFeatureInfo);
+            auto result = NVNGXProxy::D3D11_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice,
+                                                       DriverSdkVersion(InSDKVersion), &localFeatureInfo);
 
             LOG_INFO("calling NVNGXProxy::D3D11_Init_Ext result: {0:X}", (UINT) result);
 
@@ -214,7 +214,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D11_Init(unsigned long long InApplica
 
     // An SDK of version 0x13 or older has no feature info: its fourth argument is the SDK version, and what
     // arrives as InSDKVersion is whatever was left in that register.
-    if (reinterpret_cast<std::uintptr_t>(InFeatureInfo) != 0 && reinterpret_cast<std::uintptr_t>(InFeatureInfo) < 0x10000)
+    if (reinterpret_cast<std::uintptr_t>(InFeatureInfo) != 0 &&
+        reinterpret_cast<std::uintptr_t>(InFeatureInfo) < 0x10000)
         InSDKVersion = static_cast<NVSDK_NGX_Version>(reinterpret_cast<std::uintptr_t>(InFeatureInfo));
 
     InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);

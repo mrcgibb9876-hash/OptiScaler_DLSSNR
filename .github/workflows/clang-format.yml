@@ -11,8 +11,19 @@ jobs:
       with:
         clang-format-version: '20'
         check-path: 'OptiScaler'
-        # precompile/ holds generated shader bytecode as C arrays. Formatting it achieves nothing --
-        # nobody reads it -- and it guarantees a conflict on every upstream sync, because upstream
-        # regenerates those files unformatted and the reformat touches every line. Excluded so the
-        # generated files can be taken from upstream verbatim.
-        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/'
+        # Three kinds of file are excluded, for one reason: nothing here writes them by hand, so
+        # formatting them costs a conflict on every sync and buys nothing a reader will ever see.
+        #
+        #   precompile/ and dlssnr/opticalflow/shaders/ hold generated shader bytecode as C arrays
+        #     (the latter open with `#if 0` and a disassembly listing). Upstream regenerates them
+        #     unformatted, so a reformat touches every line and then loses to the next regeneration.
+        #   dlssnr/opticalflow/fidelityfx/ is AMD's FidelityFX SDK, vendored verbatim. Reformatting
+        #     30,000 lines of someone else's source guarantees a conflict on every upstream sync and
+        #     makes the local copy harder to diff against theirs, which is the only thing it is for.
+        #   DlssNr_I18n_Tables.cpp says so in its own first line: generated from the per-language
+        #     lists, edit the lists and not the file.
+        #
+        # What is left is code this project actually writes, which is what a style check is for.
+        # Before this the check failed on 96 files, 93% of them by line someone else's or a
+        # generator's, so it was permanently red and told nobody anything.
+        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/|OptiScaler/dlssnr/opticalflow/fidelityfx/|OptiScaler/dlssnr/opticalflow/shaders/|OptiScaler/dlssnr/DlssNr_I18n_Tables\.cpp'

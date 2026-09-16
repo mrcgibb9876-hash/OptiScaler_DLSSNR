@@ -325,8 +325,7 @@ bool PatchMultiplierInSettings(const std::wstring& gameTitle, int multiplier)
     if (blockStart == std::string::npos || blockEnd == std::string::npos)
         return false;
 
-    bool changed = ReplaceTagInRange(content, blockStart, blockEnd, "LSFG3Multiplier",
-                                     std::to_string(multiplier));
+    bool changed = ReplaceTagInRange(content, blockStart, blockEnd, "LSFG3Multiplier", std::to_string(multiplier));
     // Best-effort; a profile OptiDLSS5-UI wrote always has this, but don't fail the write if not.
     ReplaceTagInRange(content, blockStart, blockEnd, "LSFG3Mode1", "FIXED");
     if (!changed)
@@ -352,11 +351,13 @@ bool LosslessScaling::Close()
         return false;
 
     // Detached so a slow exit can't stall the caller (this runs from the panel's render).
-    std::thread([pid]()
-    {
-        CloseNow(pid, 600);
-        ForgetRunningCache();
-    }).detach();
+    std::thread(
+        [pid]()
+        {
+            CloseNow(pid, 600);
+            ForgetRunningCache();
+        })
+        .detach();
 
     // Reported gone at once: the panel's checkbox reflects the request, not a process list that
     // still lists it for the next half second.
@@ -367,68 +368,74 @@ bool LosslessScaling::Close()
 
 void LosslessScaling::ActivateAsync(const std::wstring& exePath, int mods, int vk)
 {
-    std::thread([exePath, mods, vk]()
-    {
-        bool wasRunning = IsRunningNow();
-        if (!wasRunning)
+    std::thread(
+        [exePath, mods, vk]()
         {
-            if (!Launch(exePath))
-                return;
-            // Wait for the process, then give its keyboard hook time to install (it is set up in
-            // Lossless Scaling's MainWindow constructor, after settings load).
-            if (!WaitForRunning(6000))
-                return;
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-        }
-        SendToggleChord(mods, vk);
-    }).detach();
+            bool wasRunning = IsRunningNow();
+            if (!wasRunning)
+            {
+                if (!Launch(exePath))
+                    return;
+                // Wait for the process, then give its keyboard hook time to install (it is set up in
+                // Lossless Scaling's MainWindow constructor, after settings load).
+                if (!WaitForRunning(6000))
+                    return;
+                std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            }
+            SendToggleChord(mods, vk);
+        })
+        .detach();
 }
 
 void LosslessScaling::DeactivateAsync(int mods, int vk)
 {
-    std::thread([mods, vk]()
-    {
-        if (!IsRunningNow())
-            return;
-        SendToggleChord(mods, vk);
-    }).detach();
+    std::thread(
+        [mods, vk]()
+        {
+            if (!IsRunningNow())
+                return;
+            SendToggleChord(mods, vk);
+        })
+        .detach();
 }
 
 void LosslessScaling::SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier,
                                          int mods, int vk, bool wasActive)
 {
-    std::thread([exePath, gameTitle, multiplier, mods, vk, wasActive]()
-    {
-        // Order matters. Lossless Scaling only reads its profiles at startup and writes its own
-        // in-memory copy back over Settings.xml from its UI and from a real close -- a patch made
-        // while it runs can be undone by it before the relaunch reads the file. So: stop it
-        // first (a kill, which never saves), then patch, then start it again.
-        const DWORD pid = FindProcessId(L"LosslessScaling.exe");
-        const bool wasRunning = pid != 0;
-
-        if (wasRunning)
+    std::thread(
+        [exePath, gameTitle, multiplier, mods, vk, wasActive]()
         {
-            CloseNow(pid, 600);
-            ForgetRunningCache();
-            WaitForGone(4000);
-        }
+            // Order matters. Lossless Scaling only reads its profiles at startup and writes its own
+            // in-memory copy back over Settings.xml from its UI and from a real close -- a patch made
+            // while it runs can be undone by it before the relaunch reads the file. So: stop it
+            // first (a kill, which never saves), then patch, then start it again.
+            const DWORD pid = FindProcessId(L"LosslessScaling.exe");
+            const bool wasRunning = pid != 0;
 
-        const bool patched = PatchMultiplierInSettings(gameTitle, multiplier);
+            if (wasRunning)
+            {
+                CloseNow(pid, 600);
+                ForgetRunningCache();
+                WaitForGone(4000);
+            }
 
-        if (!wasRunning)
-            return; // Not running: the new value is read on its next launch. Done.
+            const bool patched = PatchMultiplierInSettings(gameTitle, multiplier);
 
-        // Back up, whether or not the patch landed -- the user had it running.
-        if (!Launch(exePath))
-            return;
-        if (!WaitForRunning(6000))
-            return;
-        std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+            if (!wasRunning)
+                return; // Not running: the new value is read on its next launch. Done.
 
-        // Re-scale only if it was scaling before the multiplier change.
-        if (wasActive)
-            SendToggleChord(mods, vk);
+            // Back up, whether or not the patch landed -- the user had it running.
+            if (!Launch(exePath))
+                return;
+            if (!WaitForRunning(6000))
+                return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
-        (void) patched;
-    }).detach();
+            // Re-scale only if it was scaling before the multiplier change.
+            if (wasActive)
+                SendToggleChord(mods, vk);
+
+            (void) patched;
+        })
+        .detach();
 }

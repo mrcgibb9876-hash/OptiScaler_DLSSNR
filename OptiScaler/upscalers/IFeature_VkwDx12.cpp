@@ -2173,8 +2173,7 @@ bool IFeature_VkwDx12::Evaluate(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter
 
         if (dx12EvalResult && Config::Instance()->DlssNrEnabled.value_or_default())
             DlssNr::EvaluateAfterUpscale(cmdList, InParameters, Dx12CommandQueue,
-                                         dx12Feature->GetUpscalerType() == Upscaler::DLSSD,
-                                         _frameCount);
+                                         dx12Feature->GetUpscalerType() == Upscaler::DLSSD, _frameCount);
 
     } while (false);
 

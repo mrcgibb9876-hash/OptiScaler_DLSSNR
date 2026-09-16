@@ -267,8 +267,7 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             // the real D3D11 interface. Confirmed via a real crash (Batman: Arkham Knight + DLSS5-
             // Feeder, 2026-09-09): symbolicated minidump showed the fault landing inside real
             // d3d11.dll's ID3D11DeviceContext::SetConstantBuffers, called from GpuTime_Dx12::ReadGpuTime.
-            const bool featureNeedsRealDx12Queue =
-                currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12();
+            const bool featureNeedsRealDx12Queue = currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12();
 
             if (cq != nullptr && featureNeedsRealDx12Queue)
             {
@@ -470,7 +469,8 @@ HRESULT STDMETHODCALLTYPE fbSetFullscreenState(IDXGISwapChain* This, BOOL Fullsc
 {
     static unsigned int calls = 0;
     if (++calls <= 8)
-        LOG_INFO("ForceBorderless: SetFullscreenState({}) reached the hook on swapchain {:X}", Fullscreen, (size_t) This);
+        LOG_INFO("ForceBorderless: SetFullscreenState({}) reached the hook on swapchain {:X}", Fullscreen,
+                 (size_t) This);
 
     DXGI_SWAP_CHAIN_DESC scDesc {};
     This->GetDesc(&scDesc);

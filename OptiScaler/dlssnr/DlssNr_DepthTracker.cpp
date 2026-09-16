@@ -23,13 +23,13 @@ constexpr size_t kSlotOMSetRenderTargets = 46;
 constexpr size_t kSlotClearDepthStencilView = 47;
 
 using CreateDepthStencilViewFn = void(STDMETHODCALLTYPE*)(ID3D12Device*, ID3D12Resource*,
-                                                           const D3D12_DEPTH_STENCIL_VIEW_DESC*,
-                                                           D3D12_CPU_DESCRIPTOR_HANDLE);
+                                                          const D3D12_DEPTH_STENCIL_VIEW_DESC*,
+                                                          D3D12_CPU_DESCRIPTOR_HANDLE);
 using OMSetRenderTargetsFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, UINT,
-                                                       const D3D12_CPU_DESCRIPTOR_HANDLE*, BOOL,
-                                                       const D3D12_CPU_DESCRIPTOR_HANDLE*);
+                                                      const D3D12_CPU_DESCRIPTOR_HANDLE*, BOOL,
+                                                      const D3D12_CPU_DESCRIPTOR_HANDLE*);
 using ClearDepthStencilViewFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, D3D12_CPU_DESCRIPTOR_HANDLE,
-                                                          D3D12_CLEAR_FLAGS, FLOAT, UINT8, UINT, const D3D12_RECT*);
+                                                         D3D12_CLEAR_FLAGS, FLOAT, UINT8, UINT, const D3D12_RECT*);
 using ResourceBarrierFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, UINT, const D3D12_RESOURCE_BARRIER*);
 
 CreateDepthStencilViewFn o_CreateDepthStencilView = nullptr;
@@ -257,7 +257,8 @@ int FindOrAddCandidate(ID3D12Resource* resource)
         for (unsigned int i = 0; i < kMaxCandidates; ++i)
         {
             if (g_entries[i].bindsLastFrame == 0 && g_entries[i].clearsLastFrame == 0 &&
-                static_cast<int>(i) != g_selectedIndex && (slot == kMaxCandidates || g_entries[i].staleFrames > stalest))
+                static_cast<int>(i) != g_selectedIndex &&
+                (slot == kMaxCandidates || g_entries[i].staleFrames > stalest))
             {
                 slot = i;
                 stalest = g_entries[i].staleFrames;
@@ -326,10 +327,10 @@ void CopyDsvMappings(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE dest, D3D12_CPU_DES
 }
 
 using CopyDescriptorsSimpleFn = void(STDMETHODCALLTYPE*)(ID3D12Device*, UINT, D3D12_CPU_DESCRIPTOR_HANDLE,
-                                                          D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_DESCRIPTOR_HEAP_TYPE);
-using CopyDescriptorsFn = void(STDMETHODCALLTYPE*)(ID3D12Device*, UINT, const D3D12_CPU_DESCRIPTOR_HANDLE*,
-                                                    const UINT*, UINT, const D3D12_CPU_DESCRIPTOR_HANDLE*, const UINT*,
-                                                    D3D12_DESCRIPTOR_HEAP_TYPE);
+                                                         D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_DESCRIPTOR_HEAP_TYPE);
+using CopyDescriptorsFn = void(STDMETHODCALLTYPE*)(ID3D12Device*, UINT, const D3D12_CPU_DESCRIPTOR_HANDLE*, const UINT*,
+                                                   UINT, const D3D12_CPU_DESCRIPTOR_HANDLE*, const UINT*,
+                                                   D3D12_DESCRIPTOR_HEAP_TYPE);
 CopyDescriptorsSimpleFn o_CopyDescriptorsSimple = nullptr;
 CopyDescriptorsFn o_CopyDescriptors = nullptr;
 
@@ -399,9 +400,9 @@ void STDMETHODCALLTYPE hkOMSetRenderTargets(ID3D12GraphicsCommandList* list, UIN
     o_OMSetRenderTargets(list, count, targets, singleHandle, depthStencil);
 }
 
-void STDMETHODCALLTYPE hkClearDepthStencilView(ID3D12GraphicsCommandList* list, D3D12_CPU_DESCRIPTOR_HANDLE depthStencil,
-                                               D3D12_CLEAR_FLAGS flags, FLOAT depth, UINT8 stencil, UINT rectCount,
-                                               const D3D12_RECT* rects)
+void STDMETHODCALLTYPE hkClearDepthStencilView(ID3D12GraphicsCommandList* list,
+                                               D3D12_CPU_DESCRIPTOR_HANDLE depthStencil, D3D12_CLEAR_FLAGS flags,
+                                               FLOAT depth, UINT8 stencil, UINT rectCount, const D3D12_RECT* rects)
 {
     const int candidate = CandidateForHandle(depthStencil.ptr);
 

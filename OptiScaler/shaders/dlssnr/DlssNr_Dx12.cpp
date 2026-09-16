@@ -1642,7 +1642,12 @@ static constexpr const char* kPresentActiveWidth = "OptiDlssNr.Present.Active.Wi
 static constexpr const char* kPresentActiveHeight = "OptiDlssNr.Present.Active.Height";
 static unsigned long long g_dispatchCalls = 0;
 static unsigned long long g_dispatchDone = 0;
-#define DLSSNR_BAIL() do { ++g_dispatchBails[__LINE__]; return; } while (0)
+#define DLSSNR_BAIL()                                                                                                  \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        ++g_dispatchBails[__LINE__];                                                                                   \
+        return;                                                                                                        \
+    } while (0)
 
 void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* colour, ID3D12Resource* depth,
                            ID3D12Resource* motion, ID3D12Resource* output, const DlssNrFrameInfo& frame,
@@ -1707,8 +1712,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     const D3D12_RESOURCE_STATES outputArrival =
         g_presentRouteDispatch ? D3D12_RESOURCE_STATE_PRESENT
         : frame.BeforeUpscale  ? (Config::Instance()->ColorResourceBarrier.has_value()
-                                   ? (D3D12_RESOURCE_STATES) Config::Instance()->ColorResourceBarrier.value()
-                                   : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
+                                      ? (D3D12_RESOURCE_STATES) Config::Instance()->ColorResourceBarrier.value()
+                                      : D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         : Config::Instance()->OutputResourceBarrier.has_value()
             ? (D3D12_RESOURCE_STATES) Config::Instance()->OutputResourceBarrier.value()
             : D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -1724,10 +1729,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             LOG_INFO("DLSS-NR: target assumed to arrive in D3D12 state 0x{:X} ({}). If a frame fails "
                      "to close, override it with [Hotfix] OutputResourceBarrier.",
                      (unsigned int) outputArrival,
-                     g_presentRouteDispatch                                ? "Present route back buffer"
+                     g_presentRouteDispatch                                  ? "Present route back buffer"
                      : Config::Instance()->OutputResourceBarrier.has_value() ? "set in the ini"
-                     : feederRoute                                         ? "Feeder route default"
-                                                                           : "native route default");
+                     : feederRoute                                           ? "Feeder route default"
+                                                                             : "native route default");
         }
     }
     D3D12_RESOURCE_STATES targetState = outputArrival;
@@ -1750,7 +1755,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // A letterboxed frame on the Present route: run on the picture between the bars, where the guides are.
     // The staging texture is a UAV in the frame's own format, which an sRGB format cannot be -- such a frame
     // keeps the whole-frame placement rather than failing the pass for the session.
-    const bool srgbFrame = desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB || desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
+    const bool srgbFrame = desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB ||
+                           desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB ||
                            desc.Format == DXGI_FORMAT_B8G8R8X8_UNORM_SRGB;
     const bool activeRect = !frame.BeforeUpscale && g_presentRouteDispatch && !srgbFrame && frame.ActiveWidth != 0 &&
                             frame.ActiveHeight != 0 && frame.ActiveBaseX + frame.ActiveWidth <= desc.Width &&
@@ -1758,10 +1764,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     const auto active =
         frame.BeforeUpscale ? DlssNr::PreSrColorExtent(desc, frame.RenderSubrectWidth, frame.RenderSubrectHeight)
-        : activeRect        ? std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent {
-                           frame.ActiveWidth, frame.ActiveHeight, frame.ActiveBaseX, frame.ActiveBaseY } }
-                            : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width,
-                                                                                      desc.Height } };
+        : activeRect
+            ? std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { frame.ActiveWidth, frame.ActiveHeight,
+                                                                         frame.ActiveBaseX, frame.ActiveBaseY } }
+            : std::optional<DlssNr::ColorExtent> { DlssNr::ColorExtent { (unsigned int) desc.Width, desc.Height } };
     if (!active)
     {
         ReportSkipOnce("the pre-SR active colour size is invalid");
@@ -2342,9 +2348,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // cannot clean up. So on those games, skip the frame rather than corrupt it. Ordinary games do
     // not require restore, so they are unaffected and the pass runs as before.
     // The Present route records into a list of its own, which has no game state on it to put back.
-    const bool restoreRequired =
-        !g_presentRouteDispatch &&
-        (cfg.RestoreComputeSignature.value_or_default() || cfg.RestoreGraphicSignature.value_or_default());
+    const bool restoreRequired = !g_presentRouteDispatch && (cfg.RestoreComputeSignature.value_or_default() ||
+                                                             cfg.RestoreGraphicSignature.value_or_default());
 
     // The same exception the upscaler already makes (NVNGX_DLSS_Dx12.cpp, TryEvaluateOptiFeature): a
     // command list that never has a root signature to track after a few frames is one the caller opened
@@ -3164,8 +3169,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             beatLastTime = now;
 
             const auto* cfg = Config::Instance();
-            const bool queueKnown =
-                timingQueue != nullptr || State::Instance().currentCommandQueue != nullptr;
+            const bool queueKnown = timingQueue != nullptr || State::Instance().currentCommandQueue != nullptr;
             const std::string gpu = g_timingTrust.Untrusted() ? std::string("n/a (timer unreliable)")
                                     : g_lastGpuTime.has_value()
                                         ? std::format("{:.2f} ms", g_lastGpuTime.value())
@@ -3520,7 +3524,8 @@ void CaptureForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
 
     if (depth == nullptr || motion == nullptr)
     {
-        ReportSkipOnce(depth == nullptr ? "the parameters carried no depth" : "the parameters carried no motion vectors");
+        ReportSkipOnce(depth == nullptr ? "the parameters carried no depth"
+                                        : "the parameters carried no motion vectors");
         return;
     }
 
@@ -3602,8 +3607,8 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
     auto& c = g_presentCapture;
 
     // Guides from the game's upscale call while it keeps making one; otherwise from the depth tracker.
-    const bool fromCapture = c.valid && c.depth != nullptr && c.motion != nullptr && presentIndex >= c.capturedAtPresent &&
-                             presentIndex - c.capturedAtPresent <= 8;
+    const bool fromCapture = c.valid && c.depth != nullptr && c.motion != nullptr &&
+                             presentIndex >= c.capturedAtPresent && presentIndex - c.capturedAtPresent <= 8;
 
     // The upscaler draws the panel when there is one. Without it the panel is drawn here every frame --
     // whether or not the pass runs, or switching Neural Rendering off in the panel would take the panel away.
