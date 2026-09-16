@@ -126,21 +126,31 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChain(IDXGIFactory* realFactory, Wrap
               localDesc.BufferCount, localDesc.Flags, (SIZE_T) localDesc.OutputWindow, localDesc.Windowed,
               _skipFGSwapChainCreation);
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (!localDesc.Windowed)
         {
             State::Instance().SCExclusiveFullscreen = true;
             localDesc.Windowed = true;
+            refused = true;
             // Windowed=TRUE alone leaves the game in a plain title-barred window, and since it then
             // never calls SetFullscreenState, the detour that restyles the window is never reached.
             Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        // Only when fullscreen was actually taken away -- see DxgiFactory_Hooks.cpp for the Monster
+        // Hunter: World measurements. XeFG keeps its unconditional behaviour; only DLSS-NR narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_STRETCHED;
+        }
     }
 
     // For vsync override
@@ -511,21 +521,31 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForHwnd(IDXGIFactory2* realFacto
     if (pFullscreenDesc != nullptr)
         memcpy(&localFullscreenDesc, pFullscreenDesc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (pFullscreenDesc != nullptr && !localFullscreenDesc.Windowed)
         {
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.Scaling = DXGI_SCALING_STRETCH;
+        // Only when fullscreen was actually taken away -- see DxgiFactory_Hooks.cpp for the Monster
+        // Hunter: World measurements. XeFG keeps its unconditional behaviour; only DLSS-NR narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.Scaling = DXGI_SCALING_STRETCH;
+        }
     }
 
     // For vsync override

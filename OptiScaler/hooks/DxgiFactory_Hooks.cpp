@@ -711,21 +711,32 @@ HRESULT DxgiFactoryHooks::CreateSwapChainForHwnd(IDXGIFactory2* realFactory, IUn
     if (pFullscreenDesc != nullptr)
         memcpy(&localFullscreenDesc, pFullscreenDesc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (pFullscreenDesc != nullptr && !localFullscreenDesc.Windowed)
         {
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.Scaling = DXGI_SCALING_STRETCH;
+        // Only when fullscreen was actually taken away -- see the CreateSwapChain path in this file
+        // for the Monster Hunter: World measurements behind this. XeFG keeps the unconditional
+        // behaviour it shipped with; only the DLSS-NR path narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.Scaling = DXGI_SCALING_STRETCH;
+        }
     }
 
     // For vsync override
@@ -1590,21 +1601,32 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChainForHwnd(IDXGIFactory2* realFactory
     if (pFullscreenDesc != nullptr)
         memcpy(&localFullscreenDesc, pFullscreenDesc, sizeof(DXGI_SWAP_CHAIN_FULLSCREEN_DESC));
 
-    if ((State::Instance().activeFgOutput == FGOutput::XeFG &&
-         Config::Instance()->FGXeFGForceBorderless.value_or_default()) ||
-        Config::Instance()->DlssNrForceBorderless.value_or_default())
+    const bool fbXeFG = State::Instance().activeFgOutput == FGOutput::XeFG &&
+                        Config::Instance()->FGXeFGForceBorderless.value_or_default();
+    const bool fbNr = Config::Instance()->DlssNrForceBorderless.value_or_default();
+
+    if (fbXeFG || fbNr)
     {
+        bool refused = false;
+
         if (pFullscreenDesc != nullptr && !localFullscreenDesc.Windowed)
         {
 
             State::Instance().SCExclusiveFullscreen = true;
             localFullscreenDesc.Windowed = true;
+            refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
         }
 
-        localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-        localDesc.Scaling = DXGI_SCALING_STRETCH;
+        // Only when fullscreen was actually taken away -- see the CreateSwapChain path in this file
+        // for the Monster Hunter: World measurements behind this. XeFG keeps the unconditional
+        // behaviour it shipped with; only the DLSS-NR path narrows.
+        if (fbXeFG || refused)
+        {
+            localDesc.Flags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+            localDesc.Scaling = DXGI_SCALING_STRETCH;
+        }
     }
 
     // For vsync override
