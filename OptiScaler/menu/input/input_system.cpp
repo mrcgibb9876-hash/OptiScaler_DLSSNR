@@ -8,6 +8,31 @@ namespace OptiInput
 
 InputState _state;
 
+// Inside the DLSS5 Feeder's 64-bit helper (dlss5-feed-host64.exe, the 32-bit route) the window this menu draws on
+// is never the foreground window: the helper sits behind the game, the Feeder shows it inside the game as a
+// thumbnail, and while the cursor is over that picture it posts the real mouse and key messages to this window.
+// Those messages are the input. Treating the window as unfocused threw them all away (FeedImGui discarded the
+// mouse), and polling instead reads the real cursor, which is over the game -- so the panel could be seen and not
+// used (Metal Gear Rising: Revengeance, 2026-09-15: "menu is visible but no input was received ... focused: no").
+static bool MessageDrivenInput()
+{
+    static const bool inFeederHost = []
+    {
+        wchar_t path[MAX_PATH] {};
+        GetModuleFileNameW(nullptr, path, MAX_PATH);
+        const wchar_t* name = wcsrchr(path, L'\\');
+        const bool host = _wcsicmp(name != nullptr ? name + 1 : path, L"dlss5-feed-host64.exe") == 0;
+
+        if (host)
+            LOG_INFO("OptiInput: running in the DLSS5 Feeder's helper -- menu input comes from the messages the Feeder "
+                     "posts, focus or not, and the real cursor is not polled");
+
+        return host;
+    }();
+
+    return inFeederHost;
+}
+
 GetAsyncKeyState_t o_GetAsyncKeyState = ::GetAsyncKeyState;
 GetKeyState_t o_GetKeyState = ::GetKeyState;
 GetKeyboardState_t o_GetKeyboardState = ::GetKeyboardState;
@@ -632,8 +657,12 @@ void PollInputFallbackLocked()
 
     const DWORD time = GetTickCount();
 
+    // Not the mouse in the Feeder's helper: the real cursor is over the game, and the Feeder posts the
+    // panel's own mouse messages. The keyboard below still polls -- the menu key is only ever polled here.
+    const bool pollMouse = !MessageDrivenInput();
+
     POINT screenPos {};
-    const bool haveCursor = RealGetCursorPosSafe(&screenPos) != FALSE;
+    const bool haveCursor = pollMouse && RealGetCursorPosSafe(&screenPos) != FALSE;
     const HWND coordinateHwnd = GetPolledCoordinateHwndLocked();
 
     if (haveCursor && coordinateHwnd != nullptr)
@@ -658,11 +687,14 @@ void PollInputFallbackLocked()
         }
     }
 
-    _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_LBUTTON, 0, time);
-    _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_RBUTTON, 1, time);
-    _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_MBUTTON, 2, time);
-    _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_XBUTTON1, 3, time);
-    _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_XBUTTON2, 4, time);
+    if (pollMouse)
+    {
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_LBUTTON, 0, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_RBUTTON, 1, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_MBUTTON, 2, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_XBUTTON1, 3, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_XBUTTON2, 4, time);
+    }
 
     if (_state.PolledMouseUsedThisFrame)
         _state.PolledMouseFrameCount++;
@@ -1131,7 +1163,9 @@ void FeedImGui(bool menuVisible)
         return;
     }
 
-    io.AddFocusEvent(_state.Focused);
+    // The Feeder helper's window never has focus; its input arrives as posted messages (MessageDrivenInput).
+    const bool inputFocused = _state.Focused || MessageDrivenInput();
+    io.AddFocusEvent(inputFocused);
 
     RefreshInputAcquisitionModeLocked();
 
@@ -1143,7 +1177,7 @@ void FeedImGui(bool menuVisible)
                           static_cast<unsigned>(_state.TextInput.size()), _state.Keys[VK_CONTROL].Down ? 1 : 0,
                           _state.Keys[VK_SHIFT].Down ? 1 : 0, _state.Keys[VK_MENU].Down ? 1 : 0);
 
-    if (!_state.Focused)
+    if (!inputFocused)
     {
         UpdateImGuiMouseDrawCursorLocked(io);
         io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
