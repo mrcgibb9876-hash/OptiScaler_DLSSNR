@@ -397,6 +397,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrOpticalFlow.set_from_config(readBool("DlssNr", "OpticalFlow"));
             DlssNrRunBeforeSr.set_from_config(readBool("DlssNr", "RunBeforeSR"));
             DlssNrChainedHistory.set_from_config(readBool("DlssNr", "ChainedHistory"));
+            DlssNrPassRate.set_from_config(readFloat("DlssNr", "PassRate"));
             DlssNrToggleKey.set_from_config(readInt("DlssNr", "ToggleKey"));
             DlssNrTransferStrength.set_from_config(readFloat("DlssNr", "TransferStrength"));
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));
@@ -1308,6 +1309,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "RunBeforeSR", GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ChainedHistory",
                      GetBoolValue(Instance()->DlssNrChainedHistory.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "PassRate", GetFloatValue(Instance()->DlssNrPassRate.value_for_config()).c_str());
         {
             auto toggle = Instance()->DlssNrToggleKey.value_for_config();
             ini.SetValue("DlssNr", "ToggleKey", GetIntValue(toggle, toggle > 0).c_str());

@@ -291,6 +291,25 @@ class Config
     // one "chained temporal history"; the two are worth having side by side, because which reads
     // better depends on the game and on how many passes are stacked.
     CustomOptional<bool> DlssNrChainedHistory { true };
+    // EXPERIMENTAL. How often the stacked passes actually run, as a fraction of frames: 1.0 every
+    // frame (the default, and exactly what this engine has always done), 0.5 every other frame,
+    // 0.25 one frame in four. Only the passes above the first; pass one always runs.
+    //
+    // The point is cost. Two passes cost twice the model time, and the jump from one to two is the
+    // only step there is -- this makes the ground between them reachable, so "one and a bit passes"
+    // becomes a setting rather than a wish.
+    //
+    // It is under Experimental because the price is real and cannot be engineered away: on a frame
+    // where the extra pass is skipped the picture is genuinely less processed than on a frame where
+    // it runs, so the output alternates between two looks. At 60 fps and 0.5 that is a 30 Hz pulse.
+    // Whether it reads as a pulse or as nothing at all depends on the game, the pass count and how
+    // much the extra layer was changing -- which is the whole reason it ships off by default with
+    // the frame rate as the thing to watch, rather than as a recommendation.
+    //
+    // ChainedHistory governs what the skipped frames do to the extra pass's temporal history, as it
+    // already does: on, that history now has gaps in it and the model is not told; off, each run was
+    // stateless anyway and skipping costs it nothing.
+    CustomOptional<float> DlssNrPassRate { 1.0f };
     // Toggles the pass in game. Unbound by default -- a key that does something unexpected is worse
     // than one that does nothing.
     CustomOptional<int> DlssNrToggleKey { UnboundKey };
