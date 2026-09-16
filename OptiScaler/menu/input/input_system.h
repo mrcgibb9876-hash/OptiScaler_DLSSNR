@@ -208,6 +208,10 @@ void ResetMenuInputTransientState();
 
 bool IsFocused();
 
+// True only inside the DLSS5 Feeder's 64-bit helper (dlss5-feed-host64.exe), where this process draws the panel
+// the game shows as a thumbnail and its input arrives as posted messages rather than as focus.
+bool InFeederHelper();
+
 DebugState GetDebugState();
 
 bool IsKeyDown(int vk);

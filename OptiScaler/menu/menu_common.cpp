@@ -7957,7 +7957,11 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
 
     _handle = InHwnd;
     _isVisible = false;
-    _dlssNrVisible = false;
+    // In the Feeder's helper the panel starts open. Nothing else is drawn in that process -- its window exists to
+    // be cast into the game, and the cast is only on screen when the player has asked for it (Alt+Home, the key the
+    // manager writes into dlss5-feed.cfg). Starting closed meant the first Alt+Home showed an empty picture and the
+    // player then had to find the cast with the cursor and press Alt+Home a second time to get the panel itself.
+    _dlssNrVisible = OptiInput::InFeederHelper();
     _isUWP = isUWP;
     lastPosition = { -1000.0f, -1000.0f };
 
@@ -7978,10 +7982,12 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     io.BackendFlags &= 30;
     io.ConfigFlags = ImGuiConfigFlags_NoMouse | ImGuiConfigFlags_NoMouseCursorChange | ImGuiConfigFlags_NoKeyboard;
 
-    io.MouseDrawCursor = _isVisible;
-    io.WantCaptureKeyboard = _isVisible;
-    io.WantCaptureMouse = _isVisible;
-    io.WantSetMousePos = _isVisible;
+    // AnyMenuVisible(), not _isVisible: in the Feeder's helper the DLSS 5 panel is already open here, and it needs
+    // the cursor drawn and input captured from the first frame rather than from whenever the shared menu opens.
+    io.MouseDrawCursor = AnyMenuVisible();
+    io.WantCaptureKeyboard = AnyMenuVisible();
+    io.WantCaptureMouse = AnyMenuVisible();
+    io.WantSetMousePos = AnyMenuVisible();
 
     io.IniFilename = io.LogFilename = nullptr;
 

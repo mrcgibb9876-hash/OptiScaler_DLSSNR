@@ -33,6 +33,8 @@ static bool MessageDrivenInput()
     return inFeederHost;
 }
 
+bool InFeederHelper() { return MessageDrivenInput(); }
+
 GetAsyncKeyState_t o_GetAsyncKeyState = ::GetAsyncKeyState;
 GetKeyState_t o_GetKeyState = ::GetKeyState;
 GetKeyboardState_t o_GetKeyboardState = ::GetKeyboardState;
