@@ -269,6 +269,14 @@ bool LooksLikeANumber(const D3D12_RESOURCE_DESC& rd, std::string* outShape, unsi
 
 void Adopt(ID3D12Resource* resource, const std::string& shape, unsigned int bytes, bool isBuffer, DXGI_FORMAT texFormat)
 {
+    // Adopting holds a reference, and that is only worth its risk when the scan is the white point's
+    // source. Held regardless, Cyberpunk 2077 with DLSS Frame Generation on had 64 references to small
+    // buffers Streamline and the game create, recycle and free every few frames -- and removed the device
+    // with "invalid command" within seconds of Neural Rendering starting (2026-09-16). The cost: a game
+    // that creates its exposure once at start-up has to be restarted after the scan is chosen.
+    if (!Wanted())
+        return;
+
     for (const Tracked& t : g_scan.tracked)
     {
         if (t.resource == resource)
