@@ -878,8 +878,8 @@ void RenderMenu(Config* config, float menuResScale)
                             // Writes the new multiplier into this game's profile and, if Lossless
                             // Scaling is running, restarts it to pick the value up (it only reads
                             // profiles at startup), re-scaling afterwards when it was already active.
-                            LosslessScaling::SetMultiplierAsync(losslessExePath, losslessGameTitle, m, lsMods,
-                                                                lsVk, scalingBelieved);
+                            LosslessScaling::SetMultiplierAsync(losslessExePath, losslessGameTitle, m, lsMods, lsVk,
+                                                                scalingBelieved);
                         }
                     }
                     ImGui::SameLine();
@@ -1198,7 +1198,8 @@ void RenderMenu(Config* config, float menuResScale)
             }
             else
             {
-                ImGui::TextColored(kTextDim, "%s", Tr("Game's DLSS Frame Generation: off in the game's video settings."));
+                ImGui::TextColored(kTextDim, "%s",
+                                   Tr("Game's DLSS Frame Generation: off in the game's video settings."));
             }
             HelpMarker(Tr("This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the"
                           "\ngame's video settings as usual -- the row below only changes the multiplier"

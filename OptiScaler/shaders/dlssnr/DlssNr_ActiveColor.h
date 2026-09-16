@@ -57,8 +57,9 @@ inline void CopyActiveColor(ID3D12GraphicsCommandList* commands, ID3D12Resource*
     }
     else
     {
-        const D3D12_BOX box { active.baseX, active.baseY, 0, active.baseX + active.width,
-                              active.baseY + active.height, 1 };
+        const D3D12_BOX box {
+            active.baseX, active.baseY, 0, active.baseX + active.width, active.baseY + active.height, 1
+        };
         commands->CopyTextureRegion(&dst, 0, 0, 0, &src, &box);
     }
 }

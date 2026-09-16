@@ -176,7 +176,8 @@ struct Flow
             errors->Release();
 
         if (!serialized || blob == nullptr ||
-            FAILED(device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&root))))
+            FAILED(
+                device->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&root))))
         {
             if (blob != nullptr)
                 blob->Release();
@@ -301,9 +302,9 @@ struct Flow
         {
             ID3DBlob* code = nullptr;
             ID3DBlob* errors = nullptr;
-            const HRESULT compiled = D3DCompile(kDownsampleHlsl, std::strlen(kDownsampleHlsl), "OptiOF_Downsample",
-                                               nullptr, nullptr, "main", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0,
-                                               &code, &errors);
+            const HRESULT compiled =
+                D3DCompile(kDownsampleHlsl, std::strlen(kDownsampleHlsl), "OptiOF_Downsample", nullptr, nullptr, "main",
+                           "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3, 0, &code, &errors);
             if (errors != nullptr)
                 errors->Release();
 

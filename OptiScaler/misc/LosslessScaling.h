@@ -82,6 +82,6 @@ class LosslessScaling
     // over the file), edits the game's own <Profile> in Settings.xml (a minimal, backed-up,
     // value-only rewrite -- no structural change, no XML declaration touched), and starts it
     // again, re-activating afterwards when wasActive. All on a detached thread. No window shown.
-    static void SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier,
-                                   int mods, int vk, bool wasActive);
+    static void SetMultiplierAsync(const std::wstring& exePath, const std::wstring& gameTitle, int multiplier, int mods,
+                                   int vk, bool wasActive);
 };

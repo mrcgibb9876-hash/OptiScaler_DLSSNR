@@ -72,8 +72,7 @@ bool QueueSeen(const ID3D12CommandQueue* queue)
     return false;
 }
 
-void STDMETHODCALLTYPE HookedExecuteCommandLists(ID3D12CommandQueue* queue, UINT count,
-                                                 ID3D12CommandList* const* lists)
+void STDMETHODCALLTYPE HookedExecuteCommandLists(ID3D12CommandQueue* queue, UINT count, ID3D12CommandList* const* lists)
 {
     if (queue != nullptr && !QueueSeen(queue))
     {
@@ -345,8 +344,8 @@ bool EnsureInstalled(ID3D12Device* device)
     wc.lpszClassName = className;
     RegisterClassExW(&wc);
 
-    HWND window = CreateWindowExW(0, className, L"", WS_OVERLAPPEDWINDOW, 0, 0, 16, 16, nullptr, nullptr, instance,
-                                  nullptr);
+    HWND window =
+        CreateWindowExW(0, className, L"", WS_OVERLAPPEDWINDOW, 0, 0, 16, 16, nullptr, nullptr, instance, nullptr);
 
     if (window == nullptr)
     {
@@ -420,7 +419,6 @@ bool EnsureInstalled(ID3D12Device* device)
         return GiveUp("the probe swapchain came back wrapped by this app");
     }
 
-
     // The functions are hooked, not the table. Writing the shared vtable entry was the first attempt and it
     // took Resident Evil 2 to one frame a second: REFramework owns that entry and watches it. Every caller --
     // the shared table, a per-object copy of it, an overlay that looked the address up once and kept it --
@@ -441,8 +439,8 @@ bool EnsureInstalled(ID3D12Device* device)
     }
 
     // Every D3D12 queue runs the same ExecuteCommandLists, so the probe queue shows where it is.
-    g_originalExecuteCommandLists =
-        static_cast<ExecuteCommandListsFn>((*static_cast<void***>(static_cast<void*>(queue)))[kSlotExecuteCommandLists]);
+    g_originalExecuteCommandLists = static_cast<ExecuteCommandListsFn>(
+        (*static_cast<void***>(static_cast<void*>(queue)))[kSlotExecuteCommandLists]);
 
     cleanup();
 

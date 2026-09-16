@@ -225,8 +225,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
         {
             LOG_INFO("calling NVNGXProxy::D3D12_Init_Ext");
 
-            auto result = NVNGXProxy::D3D12_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice, DriverSdkVersion(InSDKVersion),
-                                                       &localFeatureInfo);
+            auto result = NVNGXProxy::D3D12_Init_Ext()(InApplicationId, InApplicationDataPath, InDevice,
+                                                       DriverSdkVersion(InSDKVersion), &localFeatureInfo);
             LOG_INFO("calling NVNGXProxy::D3D12_Init_Ext result: {0:X}", (UINT) result);
 
             if (result == NVSDK_NGX_Result_Success)
@@ -278,7 +278,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init(unsigned long long InApplica
 
     // An SDK of version 0x13 or older has no feature info: its fourth argument is the SDK version, and what
     // arrives as InSDKVersion is whatever was left in that register.
-    if (reinterpret_cast<std::uintptr_t>(InFeatureInfo) != 0 && reinterpret_cast<std::uintptr_t>(InFeatureInfo) < 0x10000)
+    if (reinterpret_cast<std::uintptr_t>(InFeatureInfo) != 0 &&
+        reinterpret_cast<std::uintptr_t>(InFeatureInfo) < 0x10000)
         InSDKVersion = static_cast<NVSDK_NGX_Version>(reinterpret_cast<std::uintptr_t>(InFeatureInfo));
 
     InFeatureInfo = SanitizeFeatureInfo(InFeatureInfo);
@@ -1159,7 +1160,6 @@ static NVSDK_NGX_Result TryEvaluateOptiFeature(ID3D12GraphicsCommandList* InCmdL
         // FSR 3.1 supports upscaleSize that doesn't need reinit to change output resolution
         if (!isFSR31OrLater && feature->UpdateOutputResolution(InParameters))
             state.changeBackend[handleId] = true;
-
     }
 
     // To avoid capturing potential upscaler change (creation) and then upscaling itself
@@ -1347,8 +1347,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
 
     // Same pass, for OptiScaler's own upscalers rather than native DLSS.
     if (optiResult == NVSDK_NGX_Result_Success && feature != NVSDK_NGX_Feature_FrameGeneration)
-        DlssNr::EvaluateAfterUpscale(InCmdList, InParameters, nullptr,
-                                     feature == NVSDK_NGX_Feature_RayReconstruction);
+        DlssNr::EvaluateAfterUpscale(InCmdList, InParameters, nullptr, feature == NVSDK_NGX_Feature_RayReconstruction);
 
     return optiResult;
 }

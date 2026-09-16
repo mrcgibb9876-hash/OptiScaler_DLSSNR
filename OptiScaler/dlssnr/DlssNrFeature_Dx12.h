@@ -44,8 +44,7 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 // Runs the same pass over Color immediately before Super Resolution consumes it. The call is a no-op
 // unless RunBeforeSR is enabled. Color is returned in its original readable state.
 void EvaluateBeforeUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,
-                           ID3D12CommandQueue* timingQueue = nullptr,
-                           unsigned long long submissionEpoch = 0);
+                           ID3D12CommandQueue* timingQueue = nullptr, unsigned long long submissionEpoch = 0);
 
 // Frame generation titles tag their UI layer through Streamline; a copy of it makes the HUD mask
 // exact at the finished frame. Called at tag time.
