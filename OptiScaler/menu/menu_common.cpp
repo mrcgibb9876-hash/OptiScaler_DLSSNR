@@ -1371,7 +1371,14 @@ void MenuCommon::UpdateMenuInputMode(RenderMenuContext& ctx)
         if (hasGamepad)
             io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
 
-        io.ConfigFlags = ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+        // Keyboard and gamepad navigation only for OptiScaler's own menu. The DLSS 5 panel on its own is
+        // driven with the mouse, and navigation input the game keeps producing (a controller's resting
+        // stick, arrow keys) moved focus around inside it: the panel's scroll was pinned to one row and
+        // every dropdown's open list jumped between entries (Cyberpunk 2077, 2026-09-16). The panel window's
+        // NoNavInputs flag covered the panel but not the dropdown lists, which are windows of their own.
+        // Typing into a field and the panel's own key bindings do not depend on navigation.
+        io.ConfigFlags = _isVisible ? (ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad)
+                                    : ImGuiConfigFlags_None;
     }
     else
     {

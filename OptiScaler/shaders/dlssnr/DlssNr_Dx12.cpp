@@ -739,6 +739,86 @@ struct NrRetired
 
 std::vector<NrRetired> g_nrRetired;
 
+// Video memory. Cyberpunk 2077 on a 12 GB laptop GPU (path tracing, Ray Reconstruction, DLSS Frame
+// Generation) sat at 9.8 GB; switching DLSS 5 from before Ray Reconstruction to after it rebuilt every
+// feature at 2560x1600 while the old ones were still parked, use reached 11.15 GB, and the device was
+// lost one second later (2026-09-16). Aftermath called the other crashes "Hung" and one a DMA page fault
+// -- what a GPU does when it is made to evict. So features are only built when they fit.
+std::atomic<uint64_t> g_vramUsage { 0 };
+std::atomic<uint64_t> g_vramBudget { 0 };
+IDXGIAdapter3* g_vramAdapter = nullptr;
+LUID g_vramLuid {};
+
+// Reads the process's local video memory use and budget on the device's adapter. Cheap: a kernel query,
+// no allocation after the adapter is found once.
+bool ReadVideoMemory(ID3D12Device* device, uint64_t& usage, uint64_t& budget)
+{
+    if (device == nullptr)
+        return false;
+
+    const LUID luid = device->GetAdapterLuid();
+    if (g_vramAdapter == nullptr || luid.LowPart != g_vramLuid.LowPart || luid.HighPart != g_vramLuid.HighPart)
+    {
+        if (g_vramAdapter != nullptr)
+        {
+            g_vramAdapter->Release();
+            g_vramAdapter = nullptr;
+        }
+
+        IDXGIFactory4* factory = nullptr;
+        if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) || factory == nullptr)
+            return false;
+
+        factory->EnumAdapterByLuid(luid, IID_PPV_ARGS(&g_vramAdapter));
+        factory->Release();
+
+        if (g_vramAdapter == nullptr)
+            return false;
+
+        g_vramLuid = luid;
+    }
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO info {};
+    if (FAILED(g_vramAdapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)) || info.Budget == 0)
+        return false;
+
+    usage = info.CurrentUsage;
+    budget = info.Budget;
+    g_vramUsage = usage;
+    g_vramBudget = budget;
+    return true;
+}
+
+// What one NR feature is taken to cost, per model pixel. Measured on that Cyberpunk run: two features and
+// their surfaces at 2560x1600 added about 1.3 GB, so a little under 150 bytes a pixel each; rounded up.
+constexpr uint64_t kFeatureBytesPerPixel = 192;
+
+// Whether something needing `need` more bytes fits under the budget with room to spare: 5% of the budget,
+// at least 384 MB. Unknown (the query failed) counts as fitting, so a driver without the query is not
+// stopped from running at all.
+bool FitsInVideoMemory(ID3D12Device* device, uint64_t need, uint64_t* usageOut = nullptr, uint64_t* budgetOut = nullptr)
+{
+    uint64_t usage = 0, budget = 0;
+    if (!ReadVideoMemory(device, usage, budget))
+        return true;
+
+    if (usageOut != nullptr)
+        *usageOut = usage;
+    if (budgetOut != nullptr)
+        *budgetOut = budget;
+
+    const uint64_t reserve = std::max<uint64_t>(budget / 20, 384ull << 20);
+    return usage + need + reserve <= budget;
+}
+
+bool AnyFeatureParked()
+{
+    for (const NrRetired& r : g_nrRetired)
+        if (r.feature != nullptr)
+            return true;
+    return false;
+}
+
 void ParkNrFeature(void*& feature)
 {
     if (feature == nullptr)
@@ -2025,6 +2105,38 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
     }
 
+    // Before anything new is built: the old features have to be gone, and the new one has to fit.
+    // Building the new set while the old one was still parked is what put the Cyberpunk run over the
+    // edge. The parked features are released TickNrRetired's 32 evaluates later, so the model is off for
+    // about that long after a rebuild -- ticked here, since this return skips the tick further down.
+    if (g_nr.feature == nullptr)
+    {
+        if (AnyFeatureParked())
+        {
+            TickNrRetired();
+            device->Release();
+            DLSSNR_BAIL();
+        }
+
+        const uint64_t need = (uint64_t) workWidth * workHeight * kFeatureBytesPerPixel +
+                              (uint64_t) width * height * 8ull * 4ull; // the RGBA16F working surfaces
+        uint64_t usage = 0, budget = 0;
+        if (!FitsInVideoMemory(device, need, &usage, &budget))
+        {
+            static uint64_t warnedAtBudget = 0;
+            if (warnedAtBudget != budget)
+            {
+                warnedAtBudget = budget;
+                LOG_WARN("DLSS-NR: not building the model yet -- video memory {} of {} MB in use, and a {}x{} model "
+                         "needs about {} MB more. Waiting for room rather than risking a lost device.",
+                         usage >> 20, budget >> 20, workWidth, workHeight, need >> 20);
+            }
+
+            device->Release();
+            DLSSNR_BAIL();
+        }
+    }
+
     if (g_nr.output == nullptr)
     {
         g_nr.output = CreateScratch(device, desc.Format, workWidth, workHeight);
@@ -2236,6 +2348,28 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             if (g_nr.passCreateFailed[pass])
                 break;
 
+            // An extra pass is optional. When a retired feature is still parked, or this one would not fit
+            // in video memory, run with the passes already built and try again on a later frame.
+            if (AnyFeatureParked())
+                break;
+
+            {
+                const uint64_t need = (uint64_t) workWidth * workHeight * kFeatureBytesPerPixel;
+                uint64_t usage = 0, budget = 0;
+                if (!FitsInVideoMemory(device, need, &usage, &budget))
+                {
+                    static unsigned int warnedPass = 0;
+                    if (warnedPass != pass + 1)
+                    {
+                        warnedPass = pass + 1;
+                        LOG_WARN("DLSS-NR: model pass {} not built -- video memory {} of {} MB in use, and it needs "
+                                 "about {} MB more. Running {} pass(es) until there is room.",
+                                 pass + 1, usage >> 20, budget >> 20, need >> 20, pass);
+                    }
+                    break;
+                }
+            }
+
             auto snippet = Util::FindFilePath(g_dllDir, "nvngx_dlssnr.dll");
             if (!snippet.has_value())
                 snippet = Util::FindFilePath(Util::ExePath().remove_filename(), "nvngx_dlssnr.dll");
@@ -2322,6 +2456,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     ++g_frames;
     TickNrRetired();
     CheckCaptureTrigger();
+
+    // Twice a second or so, for the panel's readout.
+    if ((g_frames % 30) == 0)
+    {
+        uint64_t usage = 0, budget = 0;
+        ReadVideoMemory(device, usage, budget);
+    }
 
     if (g_captureWriteAtFrame != 0 && g_frames >= g_captureWriteAtFrame)
     {
@@ -4514,6 +4655,20 @@ ExposureStatus GameExposureStatus()
 }
 
 std::optional<double> LastGpuTime() { return g_timingTrust.Untrusted() ? std::nullopt : g_lastGpuTime; }
+
+bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes)
+{
+    const uint64_t budget = g_vramBudget.load();
+    if (budget == 0)
+        return false;
+
+    if (usedBytes != nullptr)
+        *usedBytes = g_vramUsage.load();
+    if (budgetBytes != nullptr)
+        *budgetBytes = budget;
+
+    return true;
+}
 
 void RequestCapture(unsigned int frames)
 {

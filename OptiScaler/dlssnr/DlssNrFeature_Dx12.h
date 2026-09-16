@@ -129,6 +129,11 @@ ExposureStatus GameExposureStatus();
 // What the pass last cost on the GPU, in milliseconds, or nothing if it has not been measured yet.
 std::optional<double> LastGpuTime();
 
+// The game process's video memory use and the budget Windows gives it on the GPU the pass runs on, in
+// bytes, as last read by the pass (DXGI QueryVideoMemoryInfo, local segment). False until the pass has
+// read it once. For the panel.
+bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes);
+
 // What the white point meter last settled on, or 0 when it is not running. For the menu.
 
 // Writes a run of consecutive frames, each as the upscaler produced it and again after the model's edit.

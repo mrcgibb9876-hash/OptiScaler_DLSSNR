@@ -1034,6 +1034,34 @@ void RenderMenu(Config* config, float menuResScale)
                                            "\nsee what it is costing you."));
         }
 
+        // Live frame rate and video memory, beside the cost. The memory is what decides whether another
+        // model pass can be built: near the budget the pass waits rather than risk a lost device, and the
+        // readout turns amber so the reason is on screen.
+        {
+            const float fps = ImGui::GetIO().Framerate;
+            uint64_t used = 0, budget = 0;
+
+            if (DlssNr::VideoMemory(&used, &budget))
+            {
+                const double usedGb = used / (1024.0 * 1024.0 * 1024.0);
+                const double budgetGb = budget / (1024.0 * 1024.0 * 1024.0);
+                const bool tight = used * 10 >= budget * 9;
+                ImGui::TextColored(tight ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f) : kTextDim,
+                                   Tr("%.0f fps   VRAM %.1f / %.1f GB"), fps, usedGb, budgetGb);
+                ImGui::SameLine();
+                ImGui::TextColored(kTextDim, "(?)");
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    ImGui::SetTooltip("%s", Tr("Frames per second this panel is drawn at, and the video memory this game"
+                                               "\nis using out of the budget Windows gives it on this GPU."
+                                               "\n\nAmber above 90%: a new model pass is only built when it fits, so"
+                                               "\nnear the budget extra passes wait instead of risking a crash."));
+            }
+            else
+            {
+                ImGui::TextColored(kTextDim, Tr("%.0f fps"), fps);
+            }
+        }
+
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
         SectionCaption(Tr("Global Controls"), rowWidth);
