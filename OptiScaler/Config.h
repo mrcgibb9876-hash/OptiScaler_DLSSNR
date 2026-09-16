@@ -374,6 +374,11 @@ class Config
     // Scaling cannot capture an exclusive-fullscreen window, so OptiDLSS5-UI turns this on for the games it
     // configures Lossless Scaling for. The same mechanism as [XeFG] ForceBorderless, for any output.
     CustomOptional<bool> DlssNrForceBorderless { false };
+    // The borderless window's size, when ForceBorderless makes one. 0 (the default) means the monitor's
+    // full bounds; anything else is centred on the monitor. The game is fitted into it -- whether it then
+    // re-renders at that size or is scaled into it is the game's own windowed-mode behaviour.
+    CustomOptional<uint32_t> DlssNrBorderlessWidth { 0 };
+    CustomOptional<uint32_t> DlssNrBorderlessHeight { 0 };
 
     // The most the pass may multiply or divide a pixel by. A detail pass has no business restyling a
     // light source, whatever the model returns.

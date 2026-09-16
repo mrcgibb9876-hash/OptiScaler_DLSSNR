@@ -314,6 +314,13 @@ HRESULT DxgiFactoryHooks::CreateSwapChain(IDXGIFactory* realFactory, IUnknown* p
             // never calls SetFullscreenState, the detour that restyles the window is never reached.
             Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
+        // A size the user typed is a request about the window itself, so it applies to a game that is
+        // already windowed too -- the switch alone leaves such a game untouched (v1.0.36). DLSS-NR only:
+        // XeFG has no size setting.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a window size is set");
+        }
 
         // Only when fullscreen was actually taken away. A game that created its swapchain windowed
         // never asked for a mode switch and does not need its descriptor rewritten -- and rewriting
@@ -727,6 +734,11 @@ HRESULT DxgiFactoryHooks::CreateSwapChainForHwnd(IDXGIFactory2* realFactory, IUn
             refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
+        }
+        // A typed size applies to an already-windowed game too; see the CreateSwapChain path above.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a window size is set");
         }
 
         // Only when fullscreen was actually taken away -- see the CreateSwapChain path in this file
@@ -1290,6 +1302,13 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChain(IDXGIFactory* realFactory, IUnkno
             // never calls SetFullscreenState, the detour that restyles the window is never reached.
             Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
+        // A size the user typed is a request about the window itself, so it applies to a game that is
+        // already windowed too -- the switch alone leaves such a game untouched (v1.0.36). DLSS-NR only:
+        // XeFG has no size setting.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a window size is set");
+        }
 
         // Only when fullscreen was actually taken away. A game that created its swapchain windowed
         // never asked for a mode switch and does not need its descriptor rewritten -- and rewriting
@@ -1617,6 +1636,11 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChainForHwnd(IDXGIFactory2* realFactory
             refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
+        }
+        // A typed size applies to an already-windowed game too; see the CreateSwapChain path above.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a window size is set");
         }
 
         // Only when fullscreen was actually taken away -- see the CreateSwapChain path in this file

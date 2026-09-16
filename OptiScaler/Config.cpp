@@ -473,6 +473,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrApplyModel.set_from_config(readBool("DlssNr", "ApplyModel"));
             DlssNrHoldFrame.set_from_config(readBool("DlssNr", "HoldFrame"));
             DlssNrForceBorderless.set_from_config(readBool("DlssNr", "ForceBorderless"));
+            DlssNrBorderlessWidth.set_from_config(readUInt("DlssNr", "BorderlessWidth"));
+            DlssNrBorderlessHeight.set_from_config(readUInt("DlssNr", "BorderlessHeight"));
             UseGenericAppIdWithDlss.set_from_config(readBool("DLSS", "UseGenericAppIdWithDlss"));
 
             RenderPresetOverride.set_from_config(readBool("DLSS", "RenderPresetOverride"));
@@ -1407,6 +1409,10 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "HoldFrame", GetBoolValue(Instance()->DlssNrHoldFrame.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ForceBorderless",
                      GetBoolValue(Instance()->DlssNrForceBorderless.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "BorderlessWidth",
+                     GetIntValue(Instance()->DlssNrBorderlessWidth.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "BorderlessHeight",
+                     GetIntValue(Instance()->DlssNrBorderlessHeight.value_for_config()).c_str());
         ini.SetValue("DLSS", "RenderPresetOverride",
                      GetBoolValue(Instance()->RenderPresetOverride.value_for_config()).c_str());
         ini.SetValue("DLSS", "RenderPresetForAll",

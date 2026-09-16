@@ -681,13 +681,32 @@ bool Util::MakeWindowBorderless(HWND hwnd, IDXGIOutput* pTarget, const char* rea
         return false;
     }
 
+    // The monitor's bounds unless a size was asked for, in which case that size centred on the monitor.
+    // Centred rather than clamped: a window larger than the monitor is what the user typed, and
+    // clipping it would silently give them something else.
+    int x = info.x, y = info.y, width = info.width, height = info.height;
+    if (BorderlessSizeRequested())
+    {
+        width = static_cast<int>(Config::Instance()->DlssNrBorderlessWidth.value_or_default());
+        height = static_cast<int>(Config::Instance()->DlssNrBorderlessHeight.value_or_default());
+        x = info.x + (info.width - width) / 2;
+        y = info.y + (info.height - height) / 2;
+    }
+
     SetWindowLongPtr(hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
     SetWindowLongPtr(hwnd, GWL_EXSTYLE, WS_EX_APPWINDOW);
-    SetWindowPos(hwnd, HWND_TOP, info.x, info.y, info.width, info.height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    SetWindowPos(hwnd, HWND_TOP, x, y, width, height, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
-    LOG_INFO("ForceBorderless: {} -- window {:X} is now borderless {}x{} at {},{} on {}", reason, (size_t) hwnd,
-             info.width, info.height, info.x, info.y, wstring_to_string(info.name));
+    LOG_INFO("ForceBorderless: {} -- window {:X} is now borderless {}x{} at {},{} on {} ({})", reason, (size_t) hwnd,
+             width, height, x, y, wstring_to_string(info.name),
+             BorderlessSizeRequested() ? "the size set in [DlssNr] BorderlessWidth/Height" : "the monitor's bounds");
     return true;
+}
+
+bool Util::BorderlessSizeRequested()
+{
+    return Config::Instance()->DlssNrBorderlessWidth.value_or_default() > 0 &&
+           Config::Instance()->DlssNrBorderlessHeight.value_or_default() > 0;
 }
 
 Util::MonitorInfo Util::GetMonitorInfoForOutput(IDXGIOutput* pOutput)

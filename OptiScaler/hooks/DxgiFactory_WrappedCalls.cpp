@@ -143,6 +143,11 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChain(IDXGIFactory* realFactory, Wrap
             // never calls SetFullscreenState, the detour that restyles the window is never reached.
             Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a fullscreen swapchain was asked for");
         }
+        // A typed size applies to an already-windowed game too; see DxgiFactory_Hooks.cpp.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(localDesc.OutputWindow, nullptr, "a window size is set");
+        }
 
         // Only when fullscreen was actually taken away -- see DxgiFactory_Hooks.cpp for the Monster
         // Hunter: World measurements. XeFG keeps its unconditional behaviour; only DLSS-NR narrows.
@@ -537,6 +542,11 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForHwnd(IDXGIFactory2* realFacto
             refused = true;
             // See the note on the CreateSwapChain path: refusing fullscreen is only half of it.
             Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a fullscreen swapchain was asked for");
+        }
+        // A typed size applies to an already-windowed game too; see DxgiFactory_Hooks.cpp.
+        else if (fbNr && Util::BorderlessSizeRequested())
+        {
+            Util::MakeWindowBorderless(hWnd, pRestrictToOutput, "a window size is set");
         }
 
         // Only when fullscreen was actually taken away -- see DxgiFactory_Hooks.cpp for the Monster

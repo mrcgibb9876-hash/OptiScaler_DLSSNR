@@ -53,6 +53,9 @@ MonitorInfo GetMonitorInfoForOutput(IDXGIOutput* pOutput);
 // the caller in the log. pTarget picks the monitor when the game named an output; otherwise the one
 // the window is already on. Returns false when there is no window to change.
 bool MakeWindowBorderless(HWND hwnd, IDXGIOutput* pTarget, const char* reason);
+// True when [DlssNr] BorderlessWidth and BorderlessHeight are both set: the user asked for a window of a
+// particular size, so ForceBorderless sizes the window even for a game that never asked for fullscreen.
+bool BorderlessSizeRequested();
 int GetActiveRefreshRate(HWND hwnd);
 bool CheckForRealObject(std::string functionName, IUnknown* pObject, IUnknown** ppRealObject);
 void GetDeviceRemovedReason(ID3D11Device* pDevice);
