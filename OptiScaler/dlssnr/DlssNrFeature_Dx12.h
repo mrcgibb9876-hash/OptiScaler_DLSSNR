@@ -41,6 +41,12 @@ void EvaluateAfterUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Paramete
 // command list of its own, from the guides the game's last upscale call left behind.
 void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigned long long presentIndex);
 
+// Re-reads OptiScaler.ini if it changed on disk (Config::ReloadIfChangedOnDisk, rate-limited inside) and logs
+// the values now in effect. Called at every entry point BEFORE anything looks at [DlssNr] Enabled: the poll
+// used to live only inside the pass, so once a reload turned the pass off nothing polled again and no later
+// change -- switching it back on included -- was ever read.
+void PollSettingsFromDisk();
+
 // Runs the same pass over Color immediately before Super Resolution consumes it. The call is a no-op
 // unless RunBeforeSR is enabled. Color is returned in its original readable state.
 void EvaluateBeforeUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,

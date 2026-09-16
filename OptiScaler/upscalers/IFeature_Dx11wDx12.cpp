@@ -605,6 +605,10 @@ bool IFeature_Dx11wDx12::Evaluate(ID3D11DeviceContext* InDeviceContext, NVSDK_NG
                      Config::Instance()->DlssNrEnabled.value_or_default());
         }
 
+        // Before the Enabled check, not after it: this gate is what stopped the pass from being entered
+        // once a reload switched it off, and the poll lived inside the pass.
+        DlssNr::PollSettingsFromDisk();
+
         if (dx12EvalResult && Config::Instance()->DlssNrEnabled.value_or_default())
         {
             DlssNr::EvaluateAfterUpscale(cmdList, InParameters, Dx12CommandQueue,

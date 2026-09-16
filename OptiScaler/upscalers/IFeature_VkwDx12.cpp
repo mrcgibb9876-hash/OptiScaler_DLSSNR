@@ -2171,6 +2171,9 @@ bool IFeature_VkwDx12::Evaluate(VkCommandBuffer InCmdBuffer, NVSDK_NGX_Parameter
                      Config::Instance()->DlssNrEnabled.value_or_default());
         }
 
+        // Before the Enabled check -- see the D3D11 bridge for why.
+        DlssNr::PollSettingsFromDisk();
+
         if (dx12EvalResult && Config::Instance()->DlssNrEnabled.value_or_default())
             DlssNr::EvaluateAfterUpscale(cmdList, InParameters, Dx12CommandQueue,
                                          dx12Feature->GetUpscalerType() == Upscaler::DLSSD, _frameCount);

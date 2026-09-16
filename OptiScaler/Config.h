@@ -50,14 +50,26 @@ template <class T, HasDefaultValue defaultState = WithDefault> class CustomOptio
     // True while the current value is a session-only override that SaveIni will not write.
     constexpr bool is_volatile() const { return _volatile; }
 
-    // Use this when first setting a CustomOptional
+    // What the ini says, on first load and on every live reload after it (Config::ReloadIfChangedOnDisk).
+    //
+    // This used to assign only while nothing was set yet -- written for the first load, before live
+    // reload existed, and live reload inherited the guard. The effect was that a reload re-read the file
+    // and then could not change any key that already held a value: the first change to a key that had
+    // been 'auto' landed, every change after it was silently dropped, and the reload still logged as
+    // having happened. From outside the process that is a control that works exactly once and then does
+    // nothing, which is what the manager's pop-out panel did on every route -- Tomb Raider I-III and
+    // Alien: Isolation, 2026-09-16, with the file provably changed and the log provably reloading it.
+    //
+    // A value pinned in-process with set_volatile_value (quirks, session-only overrides SaveIni must not
+    // write) still ranks above the file, as it did before. Everything else follows the file, including
+    // back to unset when the key is absent or 'auto' -- that is what reloading the file means.
     constexpr void set_from_config(const std::optional<T>& opt)
     {
-        if (!this->has_value())
-        {
-            _configIni = opt;
-            std::optional<T>::operator=(opt);
-        }
+        if (_volatile)
+            return;
+
+        _configIni = opt;
+        std::optional<T>::operator=(opt);
     }
 
     constexpr CustomOptional& operator=(const T& value)

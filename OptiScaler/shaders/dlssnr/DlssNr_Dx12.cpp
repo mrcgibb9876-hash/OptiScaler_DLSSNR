@@ -1674,8 +1674,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // taken before the config reference below so a frame runs wholly on one set of values or the
     // other. Create-time settings are compared against what each feature was built with further
     // down and rebuild exactly as the in-game panel's own sliders do.
-    if (Config::Instance()->ReloadIfChangedOnDisk())
-        LOG_INFO("Settings reloaded from disk mid-run");
+    // Still polled here as well as at the entry points: harmless (rate-limited to one stat per 250 ms
+    // inside), and it keeps a caller that reaches the pass some other way current too. Qualified: this
+    // is DlssNr_Dx12::Dispatch, a class method, not code inside namespace DlssNr.
+    DlssNr::PollSettingsFromDisk();
 
     const Config& cfg = *Config::Instance();
 
@@ -3182,11 +3184,16 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             ++beatFailed;
 
         const unsigned long long total = beatOk + beatFailed;
+        const auto now = std::chrono::steady_clock::now();
+        const double seconds = std::chrono::duration<double>(now - beatLastTime).count();
 
-        if (total - beatLastTotal >= 600)
+        // 600 frames, or two seconds, whichever comes first. The frame count alone made the interval
+        // scale with slowness: at 48 fps a line every 12 s, at the 18 fps a three-pass Tomb Raider I-III
+        // ran at, every 33 s -- and the manager's pop-out panel, which reads this line to show what
+        // the pass costs, sat frozen for half a minute after a slider moved and then called the reading
+        // stale. The one place a player most wants live cost figures is the game running slowest.
+        if (total > beatLastTotal && (total - beatLastTotal >= 600 || seconds >= 2.0))
         {
-            const auto now = std::chrono::steady_clock::now();
-            const double seconds = std::chrono::duration<double>(now - beatLastTime).count();
             const double fps = seconds > 0.0 ? double(total - beatLastTotal) / seconds : 0.0;
             beatLastTotal = total;
             beatLastTime = now;
@@ -3614,6 +3621,34 @@ void CaptureForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
     }
 }
 
+// Settings changed from outside this process reach the running game here. That is what makes the
+// 32-bit route tunable at all -- OptiScaler runs inside the Feeder's 64-bit helper, which has no
+// window, so its own panel cannot be shown over the game and the manager writes host64\OptiScaler.ini
+// instead -- and it is what the manager's pop-out panel relies on everywhere else.
+//
+// It has to run before anything reads [DlssNr] Enabled, which is why it is its own function called at
+// each entry point rather than a line inside the pass. It used to be only that line: a reload that
+// switched the pass off meant the pass was never entered again, so nothing polled again, and no later
+// change was read -- switching back on included. From the outside that is "the toggle does nothing
+// and now the sliders do not either" (Tomb Raider I-III, 2026-09-16). The in-game toggle key never
+// showed it because it flips the value in memory.
+//
+// The values in effect go on the same line, so a log can answer "did that slider land" on its own.
+void PollSettingsFromDisk()
+{
+    if (!Config::Instance()->ReloadIfChangedOnDisk())
+        return;
+
+    const Config& r = *Config::Instance();
+    LOG_INFO("Settings reloaded from disk mid-run: enabled {}, apply model {}, preset {}, style {}, passes {}, "
+             "pass rate {:.2f}, intensity {:.2f}, structure {:.3f}, tone {:.3f}, working scale {:.2f}",
+             r.DlssNrEnabled.value_or_default(), r.DlssNrApplyModel.value_or_default(),
+             r.DlssNrPreset.value_or_default(), r.DlssNrStyle.value_or_default(), r.DlssNrPasses.value_or_default(),
+             r.DlssNrPassRate.value_or_default(), r.DlssNrIntensity.value_or_default(),
+             r.DlssNrLocalStructure.value_or_default(), r.DlssNrLocalTone.value_or_default(),
+             r.DlssNrWorkingScale.value_or_default());
+}
+
 void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigned long long presentIndex)
 {
     if (swapChain == nullptr || queue == nullptr)
@@ -3623,6 +3658,8 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
     // is created, and once it is here the pass rides its DLSS call instead (PresentRoute::Wanted).
     if (!PresentRoute::Wanted())
         return;
+
+    PollSettingsFromDisk();
 
     const bool nrOn = Config::Instance()->DlssNrEnabled.value_or_default();
 
@@ -3966,6 +4003,9 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params, bool beforeUpscale,
                       ID3D12CommandQueue* timingQueue, bool forcePost, unsigned long long submissionEpoch)
 {
+    // Before the Enabled check below, which is the return that used to starve the poll.
+    PollSettingsFromDisk();
+
     const Config& cfg = *Config::Instance();
 
     if (!cfg.DlssNrEnabled.value_or_default())
