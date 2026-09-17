@@ -1051,10 +1051,11 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::SameLine();
                 ImGui::TextColored(kTextDim, "(?)");
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                    ImGui::SetTooltip("%s", Tr("Frames per second this panel is drawn at, and the video memory this game"
-                                               "\nis using out of the budget Windows gives it on this GPU."
-                                               "\n\nAmber above 90%: a new model pass is only built when it fits, so"
-                                               "\nnear the budget extra passes wait instead of risking a crash."));
+                    ImGui::SetTooltip("%s",
+                                      Tr("Frames per second this panel is drawn at, and the video memory this game"
+                                         "\nis using out of the budget Windows gives it on this GPU."
+                                         "\n\nAmber above 90%: a new model pass is only built when it fits, so"
+                                         "\nnear the budget extra passes wait instead of risking a crash."));
             }
             else
             {
