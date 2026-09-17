@@ -6,6 +6,9 @@
 #include <hooks/FG_Hooks.h>
 #include <menu/menu_overlay_dx.h>
 
+#include <hudfix/Hudfix_Dx11.h>
+#include <resource_tracking/ResTrack_dx11.h>
+
 #include <Util.h>
 #include <Config.h>
 
@@ -114,6 +117,12 @@ Dx11wDx12SC::Dx11wDx12SC(IDXGISwapChain* real, IDXGISwapChain4* fgSC, ID3D11Devi
             if (FAILED(context4Result))
                 LOG_WARN("ID3D11DeviceContext4 unavailable: {:X}", (UINT) context4Result);
         }
+    }
+
+    if (_dx11Device != nullptr && State::Instance().activeFgInput == FGInput::Upscaler &&
+        !Config::Instance()->FGDisableHUDFix.value_or_default())
+    {
+        ResTrack_Dx11::HookDevice(_dx11Device);
     }
 
     if (WithDx12::PrepareD3D12ForD3D11(_dx11Device, D3D_FEATURE_LEVEL_11_0))
@@ -259,6 +268,8 @@ ULONG STDMETHODCALLTYPE Dx11wDx12SC::Release()
             fg->ReleaseSwapchain(_handle);
         }
 
+        ResTrack_Dx11::OnDeviceReleased(_dx11Device);
+
         delete this;
     }
 
@@ -300,6 +311,15 @@ HRESULT STDMETHODCALLTYPE Dx11wDx12SC::Present(UINT SyncInterval, UINT Flags)
 
     if ((Flags & DXGI_PRESENT_TEST) != 0)
         return _real->Present(SyncInterval, Flags);
+
+    const bool dx11HudfixPresent = Config::Instance()->FGHUDFix.value_or_default() &&
+                                   State::Instance().activeFgInput == FGInput::Upscaler &&
+                                   State::Instance().swapchainInteropApi == SwapchainInteropApi::Dx11wDx12;
+    if (dx11HudfixPresent)
+    {
+        ResTrack_Dx11::ClearPossibleHudless();
+        Hudfix_Dx11::PresentStart();
+    }
 
     if (!_InitInteropObjects())
         return DXGI_ERROR_DEVICE_REMOVED;
@@ -349,6 +369,9 @@ HRESULT STDMETHODCALLTYPE Dx11wDx12SC::Present(UINT SyncInterval, UINT Flags)
     }
 
     auto result = _fgSwapChain->Present(SyncInterval, Flags);
+
+    if (dx11HudfixPresent)
+        Hudfix_Dx11::PresentEnd();
 
     if (SUCCEEDED(result))
         _AdvanceFakeBackBufferIndex();
@@ -598,11 +621,6 @@ HRESULT STDMETHODCALLTYPE Dx11wDx12SC::CheckColorSpaceSupport(DXGI_COLOR_SPACE_T
 
 HRESULT STDMETHODCALLTYPE Dx11wDx12SC::SetColorSpace1(DXGI_COLOR_SPACE_TYPE ColorSpace)
 {
-    State::Instance().isHdrActive = ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
-
     if (_fgSwapChain != nullptr)
         return _fgSwapChain->SetColorSpace1(ColorSpace);
 

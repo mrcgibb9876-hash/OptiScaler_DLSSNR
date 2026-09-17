@@ -18,6 +18,8 @@
 #include <misc/IdentifyGpu.h>
 #include <hooks/Xell_Hooks.h>
 
+#include <magic_enum.hpp>
+
 #ifdef LOW_LATENCY_INPUTS
 #include <low_latency/input/input_antilag2.h>
 #endif
@@ -51,6 +53,126 @@ const GUID IID_IUnwrappedDXGISwapChain = {
 static ID3D12Fence* resizeFence = nullptr;
 static UINT64 resizeFenceValue = 0;
 static HANDLE resizeFenceEvent = nullptr;
+
+static void UpdateOutputColorSpace(DXGI_COLOR_SPACE_TYPE colorSpace)
+{
+    auto& state = State::Instance();
+
+    OutputColorSpace info {};
+    info.dxgiColorSpace = colorSpace;
+
+    switch (colorSpace)
+    {
+        // ------------------------------------------------------------
+        // SDR / Rec.709
+        // ------------------------------------------------------------
+
+    case DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709:
+        info.transfer = ColorTransfer::SRGB;
+        info.primaries = ColorPrimaries::Rec709;
+        info.range = ColorRange::Full;
+        info.model = ColorModel::RGB;
+        info.valid = true;
+
+        break;
+
+    case DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709:
+        info.transfer = ColorTransfer::SRGB;
+        info.primaries = ColorPrimaries::Rec709;
+        info.range = ColorRange::Studio;
+        info.model = ColorModel::RGB;
+        info.valid = true;
+
+        break;
+
+        // ------------------------------------------------------------
+        // scRGB / linear Rec.709
+        // ------------------------------------------------------------
+
+    case DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709:
+        info.transfer = ColorTransfer::Linear;
+        info.primaries = ColorPrimaries::Rec709;
+        info.range = ColorRange::Full;
+        info.model = ColorModel::RGB;
+        info.valid = true;
+
+        break;
+
+        // ------------------------------------------------------------
+        // HDR10 / PQ / Rec.2020
+        // ------------------------------------------------------------
+
+    case DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020:
+        info.transfer = ColorTransfer::PQ;
+        info.primaries = ColorPrimaries::Rec2020;
+        info.range = ColorRange::Full;
+        info.model = ColorModel::RGB;
+        info.valid = true;
+
+        break;
+
+    case DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020:
+        info.transfer = ColorTransfer::PQ;
+        info.primaries = ColorPrimaries::Rec2020;
+        info.range = ColorRange::Studio;
+        info.model = ColorModel::RGB;
+        info.valid = true;
+
+        break;
+
+    case DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_LEFT_P2020:
+    case DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_TOPLEFT_P2020:
+        info.transfer = ColorTransfer::PQ;
+        info.primaries = ColorPrimaries::Rec2020;
+        info.range = ColorRange::Studio;
+        info.model = ColorModel::YCbCr;
+        info.valid = true;
+
+        break;
+
+        // ------------------------------------------------------------
+        // HLG / Rec.2020
+        // ------------------------------------------------------------
+
+    case DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020:
+        info.transfer = ColorTransfer::HLG;
+        info.primaries = ColorPrimaries::Rec2020;
+        info.range = ColorRange::Full;
+        info.model = ColorModel::YCbCr;
+        info.valid = true;
+
+        break;
+
+    case DXGI_COLOR_SPACE_YCBCR_STUDIO_GHLG_TOPLEFT_P2020:
+        info.transfer = ColorTransfer::HLG;
+        info.primaries = ColorPrimaries::Rec2020;
+        info.range = ColorRange::Studio;
+        info.model = ColorModel::YCbCr;
+        info.valid = true;
+
+        break;
+
+        // ------------------------------------------------------------
+        // Unknown / unsupported
+        // ------------------------------------------------------------
+
+    default:
+        info.transfer = ColorTransfer::Unknown;
+        info.primaries = ColorPrimaries::Unknown;
+        info.range = ColorRange::Unknown;
+        info.model = ColorModel::Unknown;
+        info.valid = false;
+
+        break;
+    }
+
+    state.outputColorSpace = info;
+
+    LOG_INFO("Output color space updated: DXGI: {}, Transfer: {}, Primaries: {}, Range: {}, Model: {}, Valid: {}",
+             magic_enum::enum_name(info.dxgiColorSpace), magic_enum::enum_name(info.transfer),
+             magic_enum::enum_name(info.primaries), magic_enum::enum_name(info.range),
+             magic_enum::enum_name(info.model), info.valid);
+}
 
 static void WaitForGPUIdle(IUnknown* object)
 {
@@ -250,45 +372,37 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
         {
             std::optional<double> upscalerTimeOpt {};
 
-            // A standalone DX12 feature's ReadUpscalerTime (IFeature_Dx12) genuinely requires a real
-            // ID3D12CommandQueue* -- it is not safe to call with a D3D11 device context, even though
-            // both overloads take a bare void*. IFeature_Dx11wDx12's own override is fine either way
-            // (it ignores whatever is passed and uses its own tracked D3D12 queue internally), so only
-            // a *standalone* DX12 feature (Api()==DX12 && !IsWithDx12()) needs excluding here.
-            //
-            // This used to be unreachable: currentFeature could only be DX12-standalone when the
-            // swapchain itself was also DX12, so cq was always non-null and this whole else-branch
-            // never ran for that feature type. The DLSS5-Feeder changes that: it opens its own private
-            // D3D12 NGX session independent of the host game's swapchain, so on a D3D11 game (cq
-            // always null) currentFeature can now be a standalone-DX12 feature the Feeder created,
-            // while this code still runs the D3D11 branch below -- passing a real
-            // ID3D11DeviceContext* into IFeature_Dx12::ReadUpscalerTime, which reinterprets it as an
-            // ID3D12CommandQueue* and calls a vtable slot that resolves to something else entirely on
-            // the real D3D11 interface. Confirmed via a real crash (Batman: Arkham Knight + DLSS5-
-            // Feeder, 2026-09-09): symbolicated minidump showed the fault landing inside real
-            // d3d11.dll's ID3D11DeviceContext::SetConstantBuffers, called from GpuTime_Dx12::ReadGpuTime.
-            const bool featureNeedsRealDx12Queue = currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12();
+            // A standalone DX12 feature (Api()==DX12 && !IsWithDx12()) must never be handed a D3D11
+            // context: IFeature_Dx12::ReadUpscalerTime reinterprets it as an ID3D12CommandQueue*. The
+            // DLSS5-Feeder makes that reachable on a D3D11 game (its private D3D12 NGX session), and it
+            // crashed inside d3d11.dll (Batman: Arkham Knight, 2026-09-09). Upstream's split below keeps
+            // that feature on the real queue and every D3D11 path to DX11 / with-DX12 features only.
+            // If using DX11 with DX12 interop
+            if (State::Instance().swapchainInteropApi == SwapchainInteropApi::Dx11wDx12)
+            {
+                if (State::Instance().currentD3D11Device != nullptr &&
+                    (currentFeature->Api() == API::DX11 || currentFeature->IsWithDx12()))
+                {
+                    ID3D11DeviceContext* context = nullptr;
+                    State::Instance().currentD3D11Device->GetImmediateContext(&context);
 
-            if (cq != nullptr && featureNeedsRealDx12Queue)
+                    if (upscalerTimeOpt = currentFeature->ReadUpscalerTime(context); upscalerTimeOpt.has_value())
+                        currentFeature->ReadDetailedGpuTimes(context, State::Instance().detailedGpuTimes);
+
+                    context->Release();
+                }
+            }
+            // If DX12
+            else if (cq != nullptr && currentFeature->Api() == API::DX12 && !currentFeature->IsWithDx12())
             {
                 if (upscalerTimeOpt = currentFeature->ReadUpscalerTime(cq); upscalerTimeOpt.has_value())
                     currentFeature->ReadDetailedGpuTimes(cq, State::Instance().detailedGpuTimes);
             }
-            else if (device != nullptr && !featureNeedsRealDx12Queue)
+            // If DX11
+            else if (device != nullptr && (currentFeature->Api() == API::DX11 || currentFeature->IsWithDx12()))
             {
                 ID3D11DeviceContext* context = nullptr;
                 device->GetImmediateContext(&context);
-
-                if (upscalerTimeOpt = currentFeature->ReadUpscalerTime(context); upscalerTimeOpt.has_value())
-                    currentFeature->ReadDetailedGpuTimes(context, State::Instance().detailedGpuTimes);
-
-                context->Release();
-            }
-            if (!featureNeedsRealDx12Queue && State::Instance().swapchainInteropApi == SwapchainInteropApi::Dx11wDx12 &&
-                State::Instance().currentD3D11Device != nullptr)
-            {
-                ID3D11DeviceContext* context = nullptr;
-                State::Instance().currentD3D11Device->GetImmediateContext(&context);
 
                 if (upscalerTimeOpt = currentFeature->ReadUpscalerTime(context); upscalerTimeOpt.has_value())
                     currentFeature->ReadDetailedGpuTimes(context, State::Instance().detailedGpuTimes);
@@ -388,7 +502,12 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
     {
         // Tick feature to let it know if it's frozen
         if (auto currentFeature = State::Instance().currentFeature; currentFeature != nullptr)
-            currentFeature->TickFrozenCheck();
+        {
+            if (auto currentFg = State::Instance().currentFG; currentFg != nullptr)
+                currentFeature->TickFrozenCheck(currentFg->GetInterpolatedFrameCount());
+            else
+                currentFeature->TickFrozenCheck();
+        }
 
         // Draw overlay
         MenuOverlayDx::Present(pSwapChain, SyncInterval, Flags, pPresentParameters, pDevice, hWnd, isUWP);
@@ -606,7 +725,7 @@ WrappedIDXGISwapChain4::WrappedIDXGISwapChain4(IDXGISwapChain* real, IUnknown* p
     _real->AddRef();
     auto refCount = _real->Release();
 
-    _device2 = _device;
+    CheckForHdrOutput();
 
     LOG_INFO("{} created, real: {:X}, refCount: {}", _id, (UINT64) real, refCount);
 }
@@ -1119,6 +1238,8 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::ResizeBuffers(UINT BufferCount
         State::Instance().currentFG->Mutex.unlockThis(3);
     }
 
+    CheckForHdrOutput();
+
     return result;
 }
 
@@ -1275,10 +1396,7 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::CheckColorSpaceSupport(DXGI_CO
 
 HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::SetColorSpace1(DXGI_COLOR_SPACE_TYPE ColorSpace)
 {
-    State::Instance().isHdrActive = ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020 ||
-                                    ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
+    auto result = _real3->SetColorSpace1(ColorSpace);
 
     // What one unit of the buffer means, which is the question the white point is really asking.
     //
@@ -1317,7 +1435,18 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::SetColorSpace1(DXGI_COLOR_SPAC
 
     LOG_INFO("DLSS-NR: swapchain colour space {} -- {} ({})", (int) ColorSpace, name, meaning);
 
-    return _real3->SetColorSpace1(ColorSpace);
+    if (SUCCEEDED(result))
+    {
+        UpdateOutputColorSpace(ColorSpace);
+
+        CheckForHdrOutput();
+
+        LOG_INFO("Output HDR Active: {}", State::Instance().hdrOutputActive);
+
+        MenuOverlayDx::ApplyThemeStyle();
+    }
+
+    return result;
 }
 
 HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::ResizeBuffers1(UINT BufferCount, UINT Width, UINT Height,
@@ -1569,6 +1698,8 @@ HRESULT STDMETHODCALLTYPE WrappedIDXGISwapChain4::ResizeBuffers1(UINT BufferCoun
         LOG_TRACE("Releasing ffxMutex: {}", State::Instance().currentFG->Mutex.getOwner());
         State::Instance().currentFG->Mutex.unlockThis(3);
     }
+
+    CheckForHdrOutput();
 
     return result;
 }

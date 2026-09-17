@@ -69,24 +69,16 @@ class StreamlineProxy
         if (_dll != nullptr)
             return true;
 
-        // The game may already have its own native Streamline/Reflex loaded and running --
-        // dllmain.cpp's startup scan detects that and leaves the handle in slInterposerModule.
-        // Loading a second, independent sl.interposer.dll (and, transitively, a second
-        // sl.reflex.dll) from OptiScaler/streamline on top of that gives the driver two Reflex
-        // instances fighting over its single global Reflex state: reproduced live as a hard
-        // crash (access violation inside the freshly-loaded sl.reflex.dll) on games that ship
-        // native Streamline. The interposer is designed for multiple SL-aware consumers within
-        // one process (that's what slInit's appId is for), so reuse the game's own already-loaded
-        // interposer instead of bringing a second copy -- its own already-loaded sl.common.dll,
-        // sl.dlss_g.dll and sl.reflex.dll (from the game's own folder) serve both consumers.
-        if (slInterposerModule != nullptr)
-        {
-            LOG_INFO("Reusing the game's own already-loaded sl.interposer.dll instead of loading "
-                     "a second copy from OptiScaler/streamline");
-            State::Instance().optiSlInterposer = slInterposerModule;
-            return HookStreamline(slInterposerModule);
-        }
-
+        // This fork used to reuse a game's own already-loaded sl.interposer.dll here instead of
+        // loading OptiScaler/streamline, after an access violation inside sl.reflex.dll on games
+        // that ship native Streamline (The Witcher 3). Upstream found the actual mechanism and
+        // fixed it (#1157, SetD3DDeviceAndBind below): the DLSS-G, Reflex and PCL entry points are
+        // resolved from the plugins the interposer actually initialised, after the device is set,
+        // instead of from the bundled DLLs the driver may have replaced. The reuse had a cost the
+        // fix does not: a game that ships an old Streamline kept that old Streamline, so the newer
+        // sl.dlss_g.dll in OptiScaler/streamline never loaded and MFG beyond the game's own limit
+        // (6x) was unreachable -- and on one such game the reuse itself crashed at launch
+        // (user report, 2026-09-17). Our own Streamline loads again, as upstream does.
         auto owner = State::GetOwner();
         if (State::Instance().activeFgOutput == FGOutput::DLSSG &&
             State::Instance().activeFgNvngx != FGNvngxReplacement::None)
@@ -303,6 +295,50 @@ class StreamlineProxy
         return _slVersion;
     }
 
+    template <typename T>
+    static bool ResolveActiveFeature(sl::Feature feature, const char* name, T& target, HMODULE& module,
+                                     bool required = true)
+    {
+        void* function = nullptr;
+        auto result = _slGetFeatureFunction(feature, name, function);
+        target = result == sl::Result::eOk ? reinterpret_cast<T>(function) : nullptr;
+        if (target == nullptr)
+        {
+            if (required)
+                LOG_ERROR("Active Streamline function {} unavailable: {}", name, (int) result);
+            return !required;
+        }
+        GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           reinterpret_cast<LPCWSTR>(function), &module);
+        return true;
+    }
+
+    static sl::Result SetD3DDeviceAndBind(void* device)
+    {
+        auto result = _slSetD3DDevice(device);
+        if (result != sl::Result::eOk || !_isD3D12Requested)
+            return result;
+
+        // OTA overrides may replace the bundled DLLs. Resolve only from the plugins
+        // actually initialized by this interposer, after the device has been set.
+        bool ok = true;
+        auto& state = State::Instance();
+        ok &= ResolveActiveFeature(sl::kFeatureDLSS_G, "slDLSSGSetOptions", _slDLSSGSetOptions, state.optiSlDLSSG);
+        ok &= ResolveActiveFeature(sl::kFeatureDLSS_G, "slDLSSGGetState", _slDLSSGGetState, state.optiSlDLSSG);
+        ok &= ResolveActiveFeature(sl::kFeatureReflex, "slReflexGetState", _slReflexGetState, state.optiSlReflex);
+        ok &= ResolveActiveFeature(sl::kFeatureReflex, "slReflexSleep", _slReflexSleep, state.optiSlReflex);
+        ok &= ResolveActiveFeature(sl::kFeatureReflex, "slReflexSetOptions", _slReflexSetOptions, state.optiSlReflex);
+        ResolveActiveFeature(sl::kFeatureReflex, "slReflexSetCameraData", _slReflexSetCameraData, state.optiSlReflex,
+                             false);
+        ResolveActiveFeature(sl::kFeatureReflex, "slReflexGetPredictedCameraData", _slReflexGetPredictedCameraData,
+                             state.optiSlReflex, false);
+        ResolveActiveFeature(sl::kFeaturePCL, "slPCLGetState", _slPCLGetState, state.optiSlPCL, false);
+        ok &= ResolveActiveFeature(sl::kFeaturePCL, "slPCLSetMarker", _slPCLSetMarker, state.optiSlPCL);
+        ok &= ResolveActiveFeature(sl::kFeaturePCL, "slPCLSetOptions", _slPCLSetOptions, state.optiSlPCL);
+        LOG_INFO("Active Streamline feature binding: {}", ok);
+        return ok ? sl::Result::eOk : sl::Result::eErrorFeatureMissing;
+    }
+
     static bool InitWithD3D12(ID3D12Device* device)
     {
         if (_isD3D12Inited)
@@ -376,16 +412,34 @@ class StreamlineProxy
             State::DisableChecks(owner);
         }
 
+        _isD3D12Requested = true;
         auto initResult = StreamlineProxy::Init()(pref, sl::kSDKVersion);
+
+        sl::AdapterInfo adapterInfo {};
+        if (StreamlineProxy::IsFeatureSupported()(sl::kFeatureDLSS_G, adapterInfo) != sl::Result::eOk)
+        {
+            if (State::Instance().activeFgNvngx == FGNvngxReplacement::None)
+            {
+                Config::Instance()->FGNvngxReplacement = FGNvngxReplacement::Nukems;
+                Config::Instance()->SaveIni();
+
+                MessageBoxW(NULL,
+                            L"You've tried to use real DLSSG, but it's not supported\n"
+                            "Opti will try to use a replacement, restart the game",
+                            L"No DLSSG Support", MB_ICONWARNING | MB_OK);
+
+                std::exit(1);
+            }
+            else
+            {
+                LOG_ERROR("FG Nvngx replacement was selected but SL failed to init DLSSG");
+            }
+        }
 
         State::EnableChecks(owner);
 
         if (initResult == sl::Result::eOk)
         {
-            State::Instance().optiSlDLSSG = StreamlineProxy::HookStreamlineDLSSG();
-            State::Instance().optiSlReflex = StreamlineProxy::HookStreamlineReflex();
-            State::Instance().optiSlPCL = StreamlineProxy::HookStreamlinePCL();
-
             if (State::Instance().gameQuirks & GameQuirk::CreateSLOnThe2ndDevice)
             {
                 // slSetD3DDevice moved to hkD3D12CreateDevice
@@ -393,7 +447,7 @@ class StreamlineProxy
             }
             else
             {
-                auto result = _slSetD3DDevice(device);
+                auto result = SetD3DDeviceAndBind(device);
                 if (result == sl::Result::eOk)
                 {
                     auto reflexConst = sl::ReflexOptions {};
@@ -469,7 +523,7 @@ class StreamlineProxy
     static PFN_slGetNativeInterface GetNativeInterface() { return _slGetNativeInterface; }
     static PFN_slGetFeatureFunction GetFeatureFunction() { return _slGetFeatureFunction; }
     static PFN_slGetNewFrameToken GetNewFrameToken() { return _slGetNewFrameToken; }
-    static PFN_slSetD3DDevice SetD3DDevice() { return _slSetD3DDevice; }
+    static PFN_slSetD3DDevice SetD3DDevice() { return &SetD3DDeviceAndBind; }
     static PFN_CreateDxgiFactory CreateDxgiFactory() { return _slCreateDxgiFactory; }
     static PFN_CreateDxgiFactory1 CreateDxgiFactory1() { return _slCreateDxgiFactory1; }
     static PFN_CreateDxgiFactory2 CreateDxgiFactory2() { return _slCreateDxgiFactory2; }
@@ -493,6 +547,7 @@ class StreamlineProxy
     inline static bool _isInited = false;
     inline static bool _isD3D11Inited = false;
     inline static bool _isD3D12Inited = false;
+    inline static bool _isD3D12Requested = false;
 
     // Interposer
     inline static PFN_slInit _slInit = nullptr;
