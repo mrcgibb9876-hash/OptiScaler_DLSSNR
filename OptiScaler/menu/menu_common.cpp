@@ -8157,7 +8157,29 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     // be cast into the game, and the cast is only on screen when the player has asked for it (Alt+Home, the key the
     // manager writes into dlss5-feed.cfg). Starting closed meant the first Alt+Home showed an empty picture and the
     // player then had to find the cast with the cursor and press Alt+Home a second time to get the panel itself.
-    _dlssNrVisible = OptiInput::InFeederHelper();
+    //
+    // First launch per game only, though: opening it every launch put the panel over the game each time the Feeder
+    // cast the helper's window. [DlssNr] PanelShownOnce in host64\OptiScaler.ini remembers that it has opened;
+    // Alt+Home still opens it by hand. autoOpenedThisRun keeps it open across a second Init in that same first run
+    // (a new window handle), which is what the flag being saved would otherwise close (Assassin's Creed II,
+    // 2026-09-18).
+    static bool autoOpenedThisRun = false;
+    _dlssNrVisible = false;
+    if (OptiInput::InFeederHelper())
+    {
+        auto config = Config::Instance();
+        if (autoOpenedThisRun || !config->DlssNrPanelShownOnce.value_or_default())
+        {
+            _dlssNrVisible = true;
+            if (!autoOpenedThisRun)
+            {
+                autoOpenedThisRun = true;
+                config->DlssNrPanelShownOnce = true;
+                config->SaveIni();
+                LOG_INFO("DLSS 5 panel opened on this game's first run in the Feeder's helper; PanelShownOnce saved");
+            }
+        }
+    }
     _isUWP = isUWP;
     lastPosition = { -1000.0f, -1000.0f };
 

@@ -336,6 +336,11 @@ class Config
     // Alt+Home rather than bare Home: Home is a common in-game binding, and the panel can be open
     // at the same time as the shared menu, so it needs a chord of its own that no game will claim.
     CustomOptional<int> DlssNrPanelKey { VK_HOME | KeyModAlt };
+    // Set once the panel has opened by itself inside the DLSS5 Feeder's 64-bit helper (the 32-bit route),
+    // so it does that on the game's first launch only. Opening it on every launch put it over the game each
+    // time the Feeder cast the helper's window (Assassin's Creed II, 2026-09-18). False by default so the
+    // saved true is a non-default value and survives SaveIni's default-to-auto normalising.
+    CustomOptional<bool> DlssNrPanelShownOnce { false };
     CustomOptional<uint32_t> DlssNrPreset { 0 };
     CustomOptional<float> DlssNrIntensity { 1.0f };
     // 0 default (standard), 1 natural, 2 cinematic -- the model's own processing profiles.

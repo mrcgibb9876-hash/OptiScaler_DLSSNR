@@ -466,6 +466,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrSkinStructure.set_from_config(readFloat("DlssNr", "SkinStructure"));
             DlssNrAutoMask.set_from_config(readBool("DlssNr", "AutoMask"));
             DlssNrPanelKey.set_from_config(readInt("DlssNr", "PanelKey"));
+            DlssNrPanelShownOnce.set_from_config(readBool("DlssNr", "PanelShownOnce"));
             DlssNrDepthConvention.set_from_config(readUInt("DlssNr", "DepthConvention"));
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
             DlssNrLightTheme.set_from_config(readBool("DlssNr", "LightTheme"));
@@ -1326,6 +1327,8 @@ bool Config::SaveIni()
             auto panelKey = Instance()->DlssNrPanelKey.value_for_config();
             ini.SetValue("DlssNr", "PanelKey", GetIntValue(panelKey, panelKey > 0).c_str());
         }
+        ini.SetValue("DlssNr", "PanelShownOnce",
+                     GetBoolValue(Instance()->DlssNrPanelShownOnce.value_for_config()).c_str());
         ini.SetValue("DlssNr", "TransferStrength",
                      GetFloatValue(Instance()->DlssNrTransferStrength.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ColourStrength",
