@@ -2196,15 +2196,15 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                 switch (overlayType)
                 {
                 case FpsOverlay_JustFPS:
-                    fpsPart = StrFmt("%6.1f/%5.1f ", frameRate, baseFps);
+                    fpsPart = StrFmt("%6.0f/%5.0f ", frameRate, baseFps);
                     break;
 
                 case FpsOverlay_Simple:
-                    fpsPart = StrFmt("FPS: %6.1f/%5.1f, %7.2f ms", frameRate, baseFps, frameTime);
+                    fpsPart = StrFmt("FPS: %6.0f/%5.0f, %7.2f ms", frameRate, baseFps, frameTime);
                     break;
 
                 default:
-                    fpsPart = StrFmt("FPS: %6.1f/%5.1f, Avg: %6.1f", frameRate, baseFps, 1000.0f / averageFrameTime);
+                    fpsPart = StrFmt("FPS: %6.0f/%5.0f, Avg: %6.0f", frameRate, baseFps, 1000.0f / averageFrameTime);
                     break;
                 }
             }
@@ -2213,15 +2213,15 @@ void MenuCommon::RenderPerformanceOverlay(RenderMenuContext& ctx)
                 switch (overlayType)
                 {
                 case FpsOverlay_JustFPS:
-                    fpsPart = StrFmt("%6.1f ", frameRate);
+                    fpsPart = StrFmt("%6.0f ", frameRate);
                     break;
 
                 case FpsOverlay_Simple:
-                    fpsPart = StrFmt("FPS: %6.1f, %7.2f ms", frameRate, frameTime);
+                    fpsPart = StrFmt("FPS: %6.0f, %7.2f ms", frameRate, frameTime);
                     break;
 
                 default:
-                    fpsPart = StrFmt("FPS: %6.1f, Avg: %6.1f", frameRate, 1000.0f / averageFrameTime);
+                    fpsPart = StrFmt("FPS: %6.0f, Avg: %6.0f", frameRate, 1000.0f / averageFrameTime);
                     break;
                 }
             }

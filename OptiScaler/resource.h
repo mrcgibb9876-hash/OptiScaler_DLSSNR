@@ -26,12 +26,20 @@
 #define STRINGIZE_(s) #s
 #define STRINGIZE(s) STRINGIZE_(s)
 
-#define VER_MAJOR_VERSION 10
+// This fork's own version, and it has to match the tag its releases are cut from, because
+// version_check.cpp compares the two: remoteVersion comes from the latest release tag, local
+// comes from these three numbers. They were 10.0.0 -- upstream OptiScaler's numbering, inherited
+// with the fork -- while this fork tagged its releases v1.0.x. So the comparison was permanently
+// 1.0.41 > 10.0.0 == false and "a new release is available" could never fire, whatever was
+// published. Bringing both to 2.0.0 lines them up and the check works again.
+#define VER_MAJOR_VERSION 2
 #define VER_MINOR_VERSION 0
 #define VER_HOTFIX_VERSION 0
 #define VER_BUILD_NUMBER 1
 
-#define VER_DEV_RELEASE
+// A tagged release is not a dev build: leaving VER_DEV_RELEASE on labelled every shipped DLL
+// "2.0.0-dev" in its own version resource and in the panel.
+// #define VER_DEV_RELEASE
 // #define VER_PRE_RELEASE
 
 #define VER_FILE_VERSION VER_MAJOR_VERSION, VER_MINOR_VERSION, VER_HOTFIX_VERSION, VER_BUILD_NUMBER
