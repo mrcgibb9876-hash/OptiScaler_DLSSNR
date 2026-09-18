@@ -10,6 +10,7 @@
 #include <dlssnr/DlssNr_PresentRoute.h>
 #include <dlssnr/DlssNr_DepthTracker.h>
 #include <menu/menu_dx12.h>
+#include <menu/menu_common.h>
 #include <dlssnr/DlssNrFeature_Dx12.h>
 #include <NVNGX_Parameter.h>
 #include <dxgi1_4.h>
@@ -807,6 +808,13 @@ constexpr uint64_t kFeatureBytesPerPixel = 192;
 // Whether something needing `need` more bytes fits under the budget with room to spare: 5% of the budget,
 // at least 384 MB. Unknown (the query failed) counts as fitting, so a driver without the query is not
 // stopped from running at all.
+uint64_t StandardReserve(uint64_t budget) { return std::max<uint64_t>(budget / 20, 384ull << 20); }
+
+// What model sizes kept or built ahead for adaptive resolution must leave free: at least 1.5 GB, and never
+// less than the standard reserve. They are an optimisation -- a switch without a hitch -- and must never
+// be what pushes a 12 GB laptop GPU back into the eviction that lost the device in Cyberpunk.
+uint64_t CacheReserve(uint64_t budget) { return std::max<uint64_t>(StandardReserve(budget), 1536ull << 20); }
+
 bool FitsInVideoMemory(ID3D12Device* device, uint64_t need, uint64_t* usageOut = nullptr, uint64_t* budgetOut = nullptr)
 {
     uint64_t usage = 0, budget = 0;
@@ -818,9 +826,15 @@ bool FitsInVideoMemory(ID3D12Device* device, uint64_t need, uint64_t* usageOut =
     if (budgetOut != nullptr)
         *budgetOut = budget;
 
-    const uint64_t reserve = std::max<uint64_t>(budget / 20, 384ull << 20);
-    return usage + need + reserve <= budget;
+    return usage + need + StandardReserve(budget) <= budget;
 }
+
+// How long the releases of retired features and surfaces took since the last build line -- the teardown
+// half of a rebuild. The releases happen in TickNrRetired, 32 evaluates after the park, so they are
+// summed here and reported with the build that follows (Resident Evil 2, 2026-09-18: which part of the
+// ~250 ms Present hold is teardown, which CreateFeature, which the first evaluate).
+double g_teardownMs = 0.0;
+unsigned int g_teardownFeatures = 0;
 
 bool AnyFeatureParked()
 {
@@ -862,15 +876,231 @@ void TickNrRetired()
             continue;
         }
 
+        const auto started = std::chrono::steady_clock::now();
+
         if (g_nrRetired[i].feature != nullptr && g_nr.release != nullptr)
+        {
             g_nr.release(g_nrRetired[i].feature);
+            ++g_teardownFeatures;
+        }
 
         if (g_nrRetired[i].resource != nullptr)
             g_nrRetired[i].resource->Release();
 
+        g_teardownMs +=
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+
         g_nrRetired.erase(g_nrRetired.begin() + i);
     }
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Adaptive resolution: the model-size cache.
+//
+// Resident Evil 2 (Present route, 2560x1440, RTX 5070 Ti Laptop, 2026-09-18): every AutoScale move
+// destroyed the NR feature (feature 18) and its surfaces and built new ones at the new size, holding
+// Present ~250 ms each time. The feature is created with one width/height that is both its input and
+// its output, so feeding a smaller picture to a bigger model is not an option. What is left is to stop
+// throwing built sizes away: a size the controller leaves is kept here with its own work-size surfaces,
+// and moving back to it is a pointer swap -- no CreateFeature, no hold.
+//
+// Only model-size changes are cached. Everything else a feature or its surfaces were built for (the
+// device, the frame size, the surface format, placement before/after SR, the HDR colour path, the
+// tuning the model reads at create time) is the cache's generation: any change drops every entry.
+// Entries are parked, never released on the spot, for the same reason ParkNrFeature exists.
+//
+// Only while AutoScale is on: a fixed WorkingScale never holds more than one model.
+struct NrSizeEntry
+{
+    unsigned int workWidth = 0;
+    unsigned int workHeight = 0;
+    float scale = 1.0f;
+
+    void* feature = nullptr;
+    bool pendingSubmission = false;
+    unsigned long long createEpoch = 0;
+
+    // Extra-pass features (index = pass, [0] unused), with the preset/style each was built with, so one
+    // built for an older per-pass profile is never handed back as current.
+    void* passFeature[DlssNr::MaxPassCount] = {};
+    unsigned int passPreset[DlssNr::MaxPassCount] = {};
+    unsigned int passStyle[DlssNr::MaxPassCount] = {};
+    bool passPendingSubmission[DlssNr::MaxPassCount] = {};
+    unsigned long long passCreateEpoch[DlssNr::MaxPassCount] = {};
+
+    // The surfaces sized to the model. The full-frame ones (colorCopy, hdrCopy, activeColor,
+    // outputNative) do not change with the model's size and stay with the live state.
+    ID3D12Resource* output = nullptr;
+    ID3D12Resource* passScratch = nullptr;
+    ID3D12Resource* colorSmall = nullptr;
+
+    uint64_t bytes = 0;              // measured video memory this size costs; 0 = not measured
+    unsigned long long lastUsed = 0; // g_frames when it was last live (or built), for LRU
+    bool prebuilt = false;
+};
+
+std::vector<NrSizeEntry> g_nrCache;
+
+// What the live feature and every cached one were built for. See above.
+struct NrCacheGeneration
+{
+    bool valid = false;
+    ID3D12Device* device = nullptr;
+    unsigned int width = 0;
+    unsigned int height = 0;
+    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    bool beforeUpscale = false;
+    bool hdr = false;
+};
+
+NrCacheGeneration g_nrCacheGen;
+
+// Measured cost of the live size (primary feature, its extra passes and its work-size surfaces), and
+// the bytes per model pixel the last good measurement came to -- the prediction a prebuild is admitted on.
+uint64_t g_liveSizeBytes = 0;
+double g_measuredBytesPerPixel = 0.0;
+
+// Prebuild bookkeeping, reset with the cache.
+struct NrPrebuildState
+{
+    bool burstArmed = false;                // the first build of this generation: build the rest right after
+    unsigned long long liveReadyFrame = 0;  // g_frames when the live feature became evaluable
+    unsigned long long lastFrame = 0;       // g_frames of the last prebuild
+    double lastMs = 0.0;                    // and its wall clock
+    double pausedUntilMs = 0.0;             // after a size did not fit: do not ask again before this
+    double frameEma = 0.0;                  // smoothed frame time, for "this frame is already long"
+    std::set<uint64_t> failed;              // sizes whose create failed this generation
+    std::set<uint64_t> saidSkipped;         // sizes whose memory skip has been logged this generation
+};
+
+NrPrebuildState g_prebuild;
+
+uint64_t SizeKey(unsigned int w, unsigned int h) { return ((uint64_t) w << 32) | h; }
+
+std::string CachedSizesText()
+{
+    if (g_nrCache.empty())
+        return "none";
+
+    std::string s;
+    for (const NrSizeEntry& e : g_nrCache)
+        s += std::format("{}{:.0f}%{}", s.empty() ? "" : ", ", e.scale * 100.0f, e.prebuilt ? " (prebuilt)" : "");
+    return s;
+}
+
+void ParkSizeEntry(NrSizeEntry& e)
+{
+    ParkNrFeature(e.feature);
+    for (unsigned int i = 1; i < DlssNr::MaxPassCount; ++i)
+        ParkNrFeature(e.passFeature[i]);
+
+    ParkNrResource(e.output);
+    ParkNrResource(e.passScratch);
+    ParkNrResource(e.colorSmall);
+}
+
+// Drops every cached size (parked, released 32 evaluates later) and starts prebuilding afresh.
+void FlushNrCache(const char* why)
+{
+    if (!g_nrCache.empty())
+    {
+        LOG_INFO("DLSS-NR model size cache: dropped {} kept size(s) ({}) -- {}", g_nrCache.size(), CachedSizesText(),
+                 why);
+
+        for (NrSizeEntry& e : g_nrCache)
+            ParkSizeEntry(e);
+
+        g_nrCache.clear();
+    }
+
+    const double ema = g_prebuild.frameEma;
+    g_prebuild = {};
+    g_prebuild.frameEma = ema;
+}
+
+int FindCachedSize(unsigned int w, unsigned int h)
+{
+    for (size_t i = 0; i < g_nrCache.size(); ++i)
+        if (g_nrCache[i].workWidth == w && g_nrCache[i].workHeight == h)
+            return (int) i;
+    return -1;
+}
+
+// What a size is expected to cost before it is built: the last measurement's bytes per model pixel when
+// there is one, otherwise the Cyberpunk-derived constant plus the work-size surfaces.
+uint64_t PredictSizeBytes(unsigned int w, unsigned int h, unsigned int features)
+{
+    const uint64_t pixels = (uint64_t) w * h;
+    if (g_measuredBytesPerPixel > 0.0)
+        return (uint64_t) (g_measuredBytesPerPixel * (double) pixels) * std::max(1u, features);
+
+    return pixels * kFeatureBytesPerPixel * std::max(1u, features) + pixels * 8ull * 2ull;
+}
+
+// Periodic, from the pass's twice-a-second video memory read: keep what the cache holds under the
+// cache reserve. Least recently used goes first, one per read, so each release is seen before the next
+// is decided. The last kept size is dropped only when even the standard reserve is no longer met --
+// "the live size plus at least one other, if it fits".
+void EnforceCacheBudget(uint64_t usage, uint64_t budget)
+{
+    if (g_nrCache.empty() || budget == 0)
+        return;
+
+    const uint64_t freeBytes = budget > usage ? budget - usage : 0;
+    if (freeBytes >= CacheReserve(budget))
+        return;
+
+    if (g_nrCache.size() == 1 && freeBytes >= StandardReserve(budget))
+        return;
+
+    size_t lru = 0;
+    for (size_t i = 1; i < g_nrCache.size(); ++i)
+        if (g_nrCache[i].lastUsed < g_nrCache[lru].lastUsed)
+            lru = i;
+
+    NrSizeEntry victim = g_nrCache[lru];
+    g_nrCache.erase(g_nrCache.begin() + lru);
+    ParkSizeEntry(victim);
+
+    LOG_INFO("DLSS-NR model size cache: evicted {:.0f}% ({}x{}, {} MB) -- only {} MB free of {} MB; kept now: {}",
+             victim.scale * 100.0f, victim.workWidth, victim.workHeight, victim.bytes >> 20, freeBytes >> 20,
+             budget >> 20, CachedSizesText());
+}
+
+// Size of a resource in video memory, for taking the full-frame surfaces out of a size's measured cost.
+uint64_t ResourceBytes(ID3D12Device* device, ID3D12Resource* res)
+{
+    if (device == nullptr || res == nullptr)
+        return 0;
+
+    const D3D12_RESOURCE_DESC d = res->GetDesc();
+    return device->GetResourceAllocationInfo(0, 1, &d).SizeInBytes;
+}
+
+// One primary build, measured phase by phase and logged once its first evaluate has run.
+struct NrBuildMeasure
+{
+    bool awaitingFirstEval = false;
+    const void* feature = nullptr;
+    const char* why = "first build";
+    unsigned int workWidth = 0;
+    unsigned int workHeight = 0;
+    unsigned int width = 0;
+    unsigned int height = 0;
+    double teardownMs = 0.0;
+    unsigned int teardownFeatures = 0;
+    double surfacesMs = 0.0;
+    double createMs = 0.0;
+    bool vramKnown = false;
+    uint64_t vramBefore = 0;
+    uint64_t vramAfterCreate = 0;
+    uint64_t fullFrameBytes = 0; // full-frame surfaces allocated by this build, not part of the size's cost
+};
+
+NrBuildMeasure g_buildMeasure;
+
+// Why the next primary build happens, set wherever the live feature is let go.
+const char* g_nextBuildWhy = "first build";
 
 // The inject point decides which buffer is being measured -- the upscaler's linear output or the
 // finished frame in swapchain format -- so a reading taken before a change describes a different
@@ -887,6 +1117,11 @@ void ForgetCalibration()
 void ReleaseSurfaces()
 {
     ForgetCalibration();
+
+    // Everything is being rebuilt from scratch (a format change, or a Present-route list that never ran --
+    // a feature created on it must never be evaluated, Devil May Cry 5), so no cached size survives it.
+    FlushNrCache("the surfaces are being rebuilt from scratch");
+    g_nextBuildWhy = "surfaces rebuilt";
 
     ParkNrFeature(g_nr.feature);
     g_nr.featurePendingSubmission = false;
@@ -1536,6 +1771,316 @@ void RecordBuiltPrimaryTuning(const Config& cfg)
     g_nr.builtSkinStructure = cfg.DlssNrSkinStructure.value_or_default();
     g_nr.builtAutoMask = cfg.DlssNrAutoMask.value_or_default();
     g_nr.builtUICorrection = cfg.DlssNrUICorrection.value_or_default();
+}
+
+// Whether model sizes may be kept and built ahead at all. AutoScale only -- a fixed WorkingScale must
+// never hold more than one model -- and not on the driver-proxy backend, which owns its own feature.
+bool SizeCacheAllowed(const Config& cfg, bool proxyBackend, float workScale)
+{
+    return cfg.DlssNrAutoScale.value_or_default() && cfg.DlssNrAutoScalePrebuild.value_or_default() >= 1 &&
+           !proxyBackend && workScale <= 1.0f;
+}
+
+// Moves the live size -- its features and work-size surfaces -- into the cache. The full-frame surfaces
+// stay live: the frame did not change size, only the model did.
+void StashLiveSize(unsigned int requestedPasses)
+{
+    NrSizeEntry e;
+    e.workWidth = g_nr.workWidth;
+    e.workHeight = g_nr.workHeight;
+    e.scale = g_nr.width != 0 ? (float) g_nr.workWidth / (float) g_nr.width : 1.0f;
+
+    e.feature = g_nr.feature;
+    e.pendingSubmission = g_nr.featurePendingSubmission;
+    e.createEpoch = g_nr.featureCreateEpoch;
+    g_nr.feature = nullptr;
+    g_nr.featurePendingSubmission = false;
+
+    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+    {
+        if (pass < requestedPasses && g_nr.passFeature[pass] != nullptr)
+        {
+            e.passFeature[pass] = g_nr.passFeature[pass];
+            e.passPreset[pass] = g_nr.builtPreset[pass];
+            e.passStyle[pass] = g_nr.builtStyle[pass];
+            e.passPendingSubmission[pass] = g_nr.passPendingSubmission[pass];
+            e.passCreateEpoch[pass] = g_nr.passCreateEpoch[pass];
+            g_nr.passFeature[pass] = nullptr;
+        }
+        else
+        {
+            ParkNrFeature(g_nr.passFeature[pass]);
+        }
+
+        g_nr.passNeedsReset[pass] = false;
+        g_nr.passCreateFailed[pass] = false;
+        g_nr.passPendingSubmission[pass] = false;
+    }
+
+    e.output = g_nr.output;
+    e.passScratch = g_nr.passScratch;
+    e.colorSmall = g_nr.colorSmall;
+    g_nr.output = nullptr;
+    g_nr.passScratch = nullptr;
+    g_nr.colorSmall = nullptr;
+    g_nr.passScratchFailed = false;
+
+    e.bytes = g_liveSizeBytes;
+    g_liveSizeBytes = 0;
+    e.lastUsed = g_frames;
+    g_nrCache.push_back(e);
+}
+
+// Makes a cached size the live one. The model's history is from whenever it was last used, so every
+// layer is reset on its first evaluate.
+void TakeCachedSize(size_t index, const Config& cfg, unsigned int requestedPasses)
+{
+    NrSizeEntry e = g_nrCache[index];
+    g_nrCache.erase(g_nrCache.begin() + index);
+
+    g_nr.feature = e.feature;
+    g_nr.featurePendingSubmission = e.pendingSubmission;
+    g_nr.featureCreateEpoch = e.createEpoch;
+
+    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+    {
+        const bool usable = pass < requestedPasses && e.passFeature[pass] != nullptr &&
+                            e.passPreset[pass] == PassPreset(cfg, pass) && e.passStyle[pass] == PassStyle(cfg, pass);
+
+        if (usable)
+        {
+            g_nr.passFeature[pass] = e.passFeature[pass];
+            g_nr.builtPreset[pass] = e.passPreset[pass];
+            g_nr.builtStyle[pass] = e.passStyle[pass];
+            g_nr.passPendingSubmission[pass] = e.passPendingSubmission[pass];
+            g_nr.passCreateEpoch[pass] = e.passCreateEpoch[pass];
+            g_nr.passNeedsReset[pass] = true;
+        }
+        else
+        {
+            ParkNrFeature(e.passFeature[pass]);
+            g_nr.passPendingSubmission[pass] = false;
+            g_nr.passNeedsReset[pass] = false;
+        }
+
+        g_nr.passCreateFailed[pass] = false;
+    }
+
+    g_nr.output = e.output;
+    g_nr.passScratch = e.passScratch;
+    g_nr.colorSmall = e.colorSmall;
+    g_nr.passScratchFailed = false;
+    g_nr.workWidth = e.workWidth;
+    g_nr.workHeight = e.workHeight;
+    g_nr.reset = true;
+    g_liveSizeBytes = e.bytes;
+
+    if (!g_nr.featurePendingSubmission)
+        g_prebuild.liveReadyFrame = g_frames;
+}
+
+// Builds ONE other rung ahead of time, when this is a moment that already pauses. Returns true when it
+// built (or tried to build) something: the caller then evaluates nothing more on this command list, the
+// same discipline as the extra-pass features -- a feature created on a list is never evaluated, and
+// nothing else is, before that list has been submitted.
+//
+// Resident Evil 2 (2026-09-18): the first build holds the game ~3.2 s, usually in a menu or a loading
+// screen, and each later move held Present ~250 ms mid-play. Paying for the other sizes next to the
+// pause the player already sees, instead of one at a time in the middle of a fight, is the point.
+bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const Config& cfg,
+                   const DlssNrFrameInfo& frame, unsigned int width, unsigned int height, DXGI_FORMAT format,
+                   unsigned int requestedPasses)
+{
+    if (cfg.DlssNrAutoScalePrebuild.value_or_default() < 2 || g_nr.feature == nullptr ||
+        g_nr.featurePendingSubmission || AnyFeatureParked() || g_nrCache.size() >= DlssNrBudget::RungCount - 1)
+        return false;
+
+    const double nowMs =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    double frameMs = 0.0;
+    {
+        auto& state = State::Instance();
+        std::lock_guard<std::mutex> lock(state.frameTimeMutex);
+        if (!state.frameTimes.empty())
+            frameMs = state.frameTimes.back();
+    }
+
+    // Judge "long" against the smoothing BEFORE this frame is folded in.
+    const double ema = g_prebuild.frameEma;
+    if (frameMs > 0.0)
+        g_prebuild.frameEma = ema > 0.0 ? ema * 0.95 + frameMs * 0.05 : frameMs;
+
+    // Let the live feature run a moment first: a settings slider being dragged rebuilds it again within
+    // frames, and building extra sizes for tuning about to be thrown away is waste.
+    if (g_frames < g_prebuild.liveReadyFrame + 60 || nowMs < g_prebuild.pausedUntilMs)
+        return false;
+
+    const char* opportunity = nullptr;
+    const bool pastOwnHitch = g_prebuild.lastFrame == 0 || g_frames >= g_prebuild.lastFrame + 3;
+
+    if (g_prebuild.burstArmed && g_frames <= g_prebuild.liveReadyFrame + 900)
+        opportunity = "right after the first build";
+    else if (pastOwnHitch && ema > 0.0 && frameMs >= std::max(50.0, ema * 3.0))
+        opportunity = "a frame that was already long";
+    else if (MenuCommon::IsVisible() && nowMs - g_prebuild.lastMs >= 1000.0)
+        opportunity = "the panel is open";
+
+    if (opportunity == nullptr)
+        return false;
+
+    // The rungs the controller can actually choose: from the floor to 100%, nearest the live size first
+    // (the likeliest next move), downward first on a tie.
+    const float floor = std::clamp(cfg.DlssNrAutoScaleFloor.value_or_default(),
+                                   DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
+    const float liveScale = width != 0 ? (float) g_nr.workWidth / (float) width : 1.0f;
+
+    struct Candidate
+    {
+        float scale;
+        unsigned int w;
+        unsigned int h;
+    };
+
+    std::vector<Candidate> candidates;
+    for (float r : DlssNrBudget::Rungs)
+    {
+        if (r < floor - 1e-4f)
+            continue;
+
+        const unsigned int w = (unsigned int) (width * r + 0.5f);
+        const unsigned int h = (unsigned int) (height * r + 0.5f);
+
+        if ((w == g_nr.workWidth && h == g_nr.workHeight) || FindCachedSize(w, h) >= 0 ||
+            g_prebuild.failed.count(SizeKey(w, h)) != 0)
+            continue;
+
+        candidates.push_back({ r, w, h });
+    }
+
+    if (candidates.empty())
+    {
+        g_prebuild.burstArmed = false;
+        return false;
+    }
+
+    std::stable_sort(candidates.begin(), candidates.end(),
+                     [&](const Candidate& a, const Candidate& b)
+                     {
+                         const float da = std::fabs(a.scale - liveScale), db = std::fabs(b.scale - liveScale);
+                         if (std::fabs(da - db) > 1e-4f)
+                             return da < db;
+                         return a.scale < b.scale;
+                     });
+
+    const Candidate c = candidates.front();
+
+    uint64_t usage = 0, budget = 0;
+    if (!ReadVideoMemory(device, usage, budget))
+    {
+        // Unknown is not "fits" here: this is optional work, unlike the primary build.
+        static bool said = false;
+        if (!said)
+        {
+            said = true;
+            LOG_INFO("DLSS-NR prebuild: off -- video memory use cannot be read on this adapter");
+        }
+        g_prebuild.pausedUntilMs = nowMs + 30000.0;
+        return false;
+    }
+
+    const uint64_t predicted = PredictSizeBytes(c.w, c.h, 1);
+    const uint64_t reserve = CacheReserve(budget);
+
+    if (usage + predicted + reserve > budget)
+    {
+        if (g_prebuild.saidSkipped.insert(SizeKey(c.w, c.h)).second)
+        {
+            LOG_INFO("DLSS-NR prebuild: skipped {:.0f}% ({}x{}) for memory -- needs about {} MB, {} of {} MB in "
+                     "use, keeping {} MB free; kept now: {}",
+                     c.scale * 100.0f, c.w, c.h, predicted >> 20, usage >> 20, budget >> 20, reserve >> 20,
+                     CachedSizesText());
+        }
+
+        // Nearest-first order means the others are no smaller a risk worth taking right now; wait.
+        g_prebuild.burstArmed = false;
+        g_prebuild.pausedUntilMs = nowMs + 30000.0;
+        return false;
+    }
+
+    auto snippet = Util::FindFilePath(g_dllDir, "nvngx_dlssnr.dll");
+    if (!snippet.has_value())
+        snippet = Util::FindFilePath(Util::ExePath().remove_filename(), "nvngx_dlssnr.dll");
+    if (!snippet.has_value())
+        return false;
+
+    g_prebuild.lastFrame = g_frames;
+    g_prebuild.lastMs = nowMs;
+
+    const auto t0 = std::chrono::steady_clock::now();
+
+    NrSizeEntry e;
+    e.workWidth = c.w;
+    e.workHeight = c.h;
+    e.scale = c.scale;
+    e.prebuilt = true;
+    e.lastUsed = g_frames;
+    e.output = CreateScratch(device, format, c.w, c.h);
+    if (c.w != width || c.h != height)
+        e.colorSmall = CreateScratch(device, format, c.w, c.h);
+    if (requestedPasses > 1)
+        e.passScratch = CreateScratch(device, format, c.w, c.h);
+
+    const auto t1 = std::chrono::steady_clock::now();
+
+    if (e.output == nullptr || ((c.w != width || c.h != height) && e.colorSmall == nullptr))
+    {
+        g_prebuild.failed.insert(SizeKey(c.w, c.h));
+        ParkSizeEntry(e);
+        LOG_WARN("DLSS-NR prebuild: {:.0f}% ({}x{}) not built -- its surfaces could not be allocated", c.scale * 100.0f,
+                 c.w, c.h);
+        return false;
+    }
+
+    SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
+    e.feature = g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
+                            cmdList, g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0),
+                            cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
+                            cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
+                            cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
+                            cfg.DlssNrUICorrection.value_or_default() ? 1 : 0);
+
+    const auto t2 = std::chrono::steady_clock::now();
+    const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    const double createMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+
+    if (e.feature == nullptr)
+    {
+        g_prebuild.failed.insert(SizeKey(c.w, c.h));
+        ParkSizeEntry(e);
+        const auto createResult = (unsigned int) (g_nr.lastCreate != nullptr ? *g_nr.lastCreate : 0);
+        LOG_WARN("DLSS-NR prebuild: {:.0f}% ({}x{}) CreateFeature failed after {:.1f} ms, 0x{:X} ({}) -- not retried "
+                 "until the model is rebuilt; switches to it will build it then",
+                 c.scale * 100.0f, c.w, c.h, createMs, createResult, NgxResultName(createResult));
+        return true;
+    }
+
+    e.pendingSubmission = true;
+    e.createEpoch = frame.SubmissionEpoch;
+
+    uint64_t usageAfter = 0, budgetAfter = 0;
+    if (ReadVideoMemory(device, usageAfter, budgetAfter) && usageAfter > usage)
+        e.bytes = usageAfter - usage;
+
+    g_nrCache.push_back(e);
+
+    LOG_INFO("DLSS-NR prebuild: built {:.0f}% ({}x{}) ahead at {} -- surfaces {:.1f} ms, CreateFeature {:.1f} ms; "
+             "kept now: {}",
+             c.scale * 100.0f, c.w, c.h, opportunity, surfacesMs, createMs, CachedSizesText());
+    LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}, prebuilt; VRAM {} -> {} MB of {} MB, predicted {} MB)",
+             c.scale * 100.0f, e.bytes >> 20, c.w, c.h, usage >> 20, usageAfter >> 20, budget >> 20, predicted >> 20);
+
+    return true;
 }
 
 // Guards the module's state. Every caller is now on the game's render thread, so this is no longer
@@ -2194,6 +2739,35 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     ReleaseSurfacesIfFormatChanged(desc.Format);
 
+    // Adaptive resolution's model-size cache (Resident Evil 2, 2026-09-18). Anything a cached size was
+    // built for other than its own dimensions changing makes every cached size stale: a new device (the
+    // game recreated it), a new frame size (swapchain resize / output resolution), a surface format change
+    // (Devil May Cry 5's R8G8B8A8 -> R10G10B10A2 is caught just above by ReleaseSurfaces too), placement
+    // before/after SR, the HDR colour path. Tuning changes are handled with the rebuild below.
+    const bool sizeCacheAllowed = SizeCacheAllowed(cfg, proxyBackend, workScale);
+    {
+        const NrCacheGeneration gen { true, device, width, height, desc.Format, frame.BeforeUpscale,
+                                      frame.ColourIsLinearHdr };
+        const NrCacheGeneration& was = g_nrCacheGen;
+
+        if (was.valid)
+        {
+            const char* why = was.device != gen.device                                 ? "the device was recreated"
+                              : was.width != gen.width || was.height != gen.height     ? "the frame size changed"
+                              : was.format != gen.format                               ? "the surface format changed"
+                              : was.beforeUpscale != gen.beforeUpscale                 ? "the placement changed"
+                              : was.hdr != gen.hdr                                     ? "the HDR colour path changed"
+                                                                                       : nullptr;
+            if (why != nullptr)
+                FlushNrCache(why);
+        }
+
+        g_nrCacheGen = gen;
+
+        if (!sizeCacheAllowed && !g_nrCache.empty())
+            FlushNrCache("AutoScale or AutoScalePrebuild is off");
+    }
+
     const bool resolutionChanged =
         g_nr.width != width || g_nr.height != height || g_nr.workWidth != workWidth || g_nr.workHeight != workHeight;
     const bool placementChanged = g_nr.feature != nullptr && g_nr.beforeUpscale != frame.BeforeUpscale;
@@ -2204,8 +2778,52 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // else -- a resolution change -- happened to force a rebuild by accident.
     const bool tuningChanged = !TuningMatchesFeature(cfg, requestedPasses);
 
-    if (g_nr.feature != nullptr && (resolutionChanged || tuningChanged || placementChanged))
+    // Only the model's size moved: the one change the cache can absorb.
+    const bool sizeOnlyChange = resolutionChanged && !tuningChanged && !placementChanged && g_nr.width == width &&
+                                g_nr.height == height;
+
+    // Keep the live size rather than destroy it -- when the size being switched to is already built (a
+    // swap costs no memory), or when building it next to the one kept still fits under the standard
+    // reserve. Memory tight: today's destroy-and-rebuild, with every cached size dropped too.
+    bool stashed = false;
+    if (g_nr.feature != nullptr && sizeOnlyChange && sizeCacheAllowed && g_nr.colorCopy != nullptr &&
+        g_nr.hdrCopy != nullptr)
     {
+        const bool haveTarget = FindCachedSize(workWidth, workHeight) >= 0;
+        uint64_t usage = 0, budget = 0;
+        const bool room = haveTarget ||
+                          FitsInVideoMemory(device, PredictSizeBytes(workWidth, workHeight, requestedPasses), &usage,
+                                            &budget);
+
+        if (room)
+        {
+            const float leftScale = (float) g_nr.workWidth / (float) width;
+            StashLiveSize(requestedPasses);
+            stashed = true;
+            g_nextBuildWhy = "size change, not cached";
+            LOG_INFO("DLSS-NR model size cache: kept {:.0f}% ({}x{}) on the move to {:.0f}% ({}x{}); kept now: {}",
+                     leftScale * 100.0f, g_nrCache.back().workWidth, g_nrCache.back().workHeight, workScale * 100.0f,
+                     workWidth, workHeight, CachedSizesText());
+        }
+        else
+        {
+            LOG_INFO("DLSS-NR model size cache: not keeping {}x{} -- video memory {} of {} MB in use is too tight; "
+                     "rebuilding in place",
+                     g_nr.workWidth, g_nr.workHeight, usage >> 20, budget >> 20);
+        }
+    }
+
+    if (!stashed && g_nr.feature != nullptr && (resolutionChanged || tuningChanged || placementChanged))
+    {
+        FlushNrCache(tuningChanged      ? "the model's settings changed (they are read at create time)"
+                     : placementChanged ? "the placement changed"
+                     : sizeOnlyChange   ? "the size change is rebuilding in place"
+                                        : "the frame size changed");
+        g_nextBuildWhy = tuningChanged      ? "settings changed"
+                         : placementChanged ? "placement changed"
+                         : sizeOnlyChange   ? "size change, rebuilt in place"
+                                            : "frame size changed";
+
         // Parked rather than released: with frame generation the GPU can still be several frames
         // deep in work that references all of it.
         ParkNrFeature(g_nr.feature);
@@ -2241,6 +2859,28 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Building the new set while the old one was still parked is what put the Cyberpunk run over the
     // edge. The parked features are released TickNrRetired's 32 evaluates later, so the model is off for
     // about that long after a rebuild -- ticked here, since this return skips the tick further down.
+    //
+    // A size already in the cache is simply made live: no CreateFeature, nothing parked, no hold
+    // (Resident Evil 2, 2026-09-18). A feature prebuilt on a list that has not been submitted yet keeps its
+    // pending flag and waits for the next epoch exactly as a freshly created one does.
+    if (g_nr.feature == nullptr && sizeCacheAllowed && g_nr.colorCopy != nullptr && g_nr.hdrCopy != nullptr &&
+        g_nr.width == width && g_nr.height == height && g_nr.beforeUpscale == frame.BeforeUpscale)
+    {
+        if (const int hit = FindCachedSize(workWidth, workHeight); hit >= 0)
+        {
+            const auto started = std::chrono::steady_clock::now();
+            const bool wasPrebuilt = g_nrCache[hit].prebuilt;
+            TakeCachedSize((size_t) hit, cfg, requestedPasses);
+            const double ms =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+
+            LOG_INFO("DLSS-NR model size cache hit: switched to {:.0f}% ({}x{}, {}) in {:.2f} ms -- no CreateFeature, "
+                     "no rebuild; kept now: {}",
+                     workScale * 100.0f, workWidth, workHeight, wasPrebuilt ? "prebuilt" : "kept from earlier", ms,
+                     CachedSizesText());
+        }
+    }
+
     if (g_nr.feature == nullptr)
     {
         if (AnyFeatureParked())
@@ -2255,6 +2895,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         uint64_t usage = 0, budget = 0;
         if (!FitsInVideoMemory(device, need, &usage, &budget))
         {
+            // Kept sizes are the first thing to give back: the live model matters more than a fast switch.
+            // One at a time, least recently used first; the wait for parked features above then applies.
+            if (!g_nrCache.empty())
+            {
+                EnforceCacheBudget(/* usage as if full: always evicts one */ budget, budget);
+                device->Release();
+                DLSSNR_BAIL();
+            }
+
             static uint64_t warnedAtBudget = 0;
             if (warnedAtBudget != budget)
             {
@@ -2269,11 +2918,31 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
     }
 
+    // A primary build starts here: measure its phases (teardown was summed as the old one was released).
+    const bool buildingPrimary = g_nr.feature == nullptr;
+    const auto buildStarted = std::chrono::steady_clock::now();
+    uint64_t buildVramBefore = 0, buildBudget = 0;
+    bool buildVramKnown = false;
+    bool hadColorCopy = true, hadHdrCopy = true, hadActiveColor = true, hadOutputNative = true;
+
+    if (buildingPrimary)
+    {
+        buildVramKnown = ReadVideoMemory(device, buildVramBefore, buildBudget);
+        hadColorCopy = g_nr.colorCopy != nullptr;
+        hadHdrCopy = g_nr.hdrCopy != nullptr;
+        hadActiveColor = g_nr.activeColor != nullptr;
+        hadOutputNative = g_nr.outputNative != nullptr;
+    }
+
     if (g_nr.output == nullptr)
     {
         g_nr.output = CreateScratch(device, desc.Format, workWidth, workHeight);
-        g_nr.colorCopy = CreateScratch(device, desc.Format, width, height);
-        g_nr.hdrCopy = CreateScratch(device, desc.Format, width, height);
+        // The full-frame surfaces survive a cached size change (the frame did not change size), so they
+        // are only made when missing -- overwriting live ones would leak them mid-flight.
+        if (g_nr.colorCopy == nullptr)
+            g_nr.colorCopy = CreateScratch(device, desc.Format, width, height);
+        if (g_nr.hdrCopy == nullptr)
+            g_nr.hdrCopy = CreateScratch(device, desc.Format, width, height);
         g_nr.workWidth = workWidth;
         g_nr.workHeight = workHeight;
     }
@@ -2369,6 +3038,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             DLSSNR_BAIL();
         }
 
+        // Our own surfaces for this size are all made by now (output, copies, ping-pong, reduced input).
+        const auto createStarted = std::chrono::steady_clock::now();
+        const double surfacesMs =
+            buildingPrimary ? std::chrono::duration<double, std::milli>(createStarted - buildStarted).count() : 0.0;
+
         SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
         g_nr.feature =
             g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
@@ -2377,6 +3051,53 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                         cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                         cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                         cfg.DlssNrUICorrection.value_or_default() ? 1 : 0);
+
+        const double createMs =
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - createStarted).count();
+
+        if (g_nr.feature != nullptr)
+        {
+            // Held until the first evaluate of this feature, which logs the whole build in one line.
+            NrBuildMeasure m;
+            m.awaitingFirstEval = true;
+            m.feature = g_nr.feature;
+            m.why = g_nextBuildWhy;
+            m.workWidth = workWidth;
+            m.workHeight = workHeight;
+            m.width = width;
+            m.height = height;
+            m.teardownMs = g_teardownMs;
+            m.teardownFeatures = g_teardownFeatures;
+            m.surfacesMs = surfacesMs;
+            m.createMs = createMs;
+            m.vramKnown = buildingPrimary && buildVramKnown;
+            m.vramBefore = buildVramBefore;
+
+            uint64_t usageAfter = 0, budgetAfter = 0;
+            if (m.vramKnown && ReadVideoMemory(device, usageAfter, budgetAfter))
+                m.vramAfterCreate = usageAfter;
+            else
+                m.vramKnown = false;
+
+            // Full-frame surfaces made by this build belong to the frame, not to this model size.
+            if (!hadColorCopy)
+                m.fullFrameBytes += ResourceBytes(device, g_nr.colorCopy);
+            if (!hadHdrCopy)
+                m.fullFrameBytes += ResourceBytes(device, g_nr.hdrCopy);
+            if (!hadActiveColor)
+                m.fullFrameBytes += ResourceBytes(device, g_nr.activeColor);
+            if (!hadOutputNative)
+                m.fullFrameBytes += ResourceBytes(device, g_nr.outputNative);
+
+            g_buildMeasure = m;
+            g_teardownMs = 0.0;
+            g_teardownFeatures = 0;
+            g_nextBuildWhy = "rebuild";
+
+            // The first build of a generation (nothing kept yet): the other rungs are built right after it,
+            // next to the pause the player is already sitting through.
+            g_prebuild.burstArmed = g_nrCache.empty();
+        }
 
         if (g_nr.feature == nullptr)
         {
@@ -2432,6 +3153,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
 
         g_nr.featurePendingSubmission = false;
+        g_prebuild.liveReadyFrame = g_frames;
         LOG_INFO("DLSS-NR: primary feature ready after submitted epoch {}", g_nr.featureCreateEpoch);
     }
 
@@ -2513,6 +3235,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             }
             else
             {
+                uint64_t passVramBefore = 0, passBudget = 0;
+                const bool passVramKnown = ReadVideoMemory(device, passVramBefore, passBudget);
+                const auto passStarted = std::chrono::steady_clock::now();
+
                 SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
                 g_nr.passFeature[pass] = g_nr.create(
                     snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device, cmdList,
@@ -2521,6 +3247,23 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     cfg.DlssNrLocalStructure.value_or_default(),
                     // Local tone belongs to the frame and is applied by pass zero only.
                     0.0f, cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
+
+                {
+                    const double passCreateMs =
+                        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - passStarted)
+                            .count();
+                    uint64_t passVramAfter = 0, budgetAfter = 0;
+                    uint64_t passBytes = 0;
+                    if (passVramKnown && ReadVideoMemory(device, passVramAfter, budgetAfter) &&
+                        passVramAfter > passVramBefore)
+                        passBytes = passVramAfter - passVramBefore;
+
+                    if (g_nr.passFeature[pass] != nullptr)
+                        g_liveSizeBytes += passBytes;
+
+                    LOG_INFO("DLSS-NR build: pass {} feature {}x{} -- CreateFeature {:.1f} ms, +{} MB video memory",
+                             pass + 1, workWidth, workHeight, passCreateMs, passBytes >> 20);
+                }
 
                 if (g_nr.passFeature[pass] != nullptr)
                 {
@@ -2544,6 +3287,14 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             device->Release();
             DLSSNR_BAIL();
         }
+    }
+
+    // Every requested layer is built and ready: the moment to build one other rung ahead, if this frame is
+    // one of the pauses that allow it. Like a pass build, a prebuild frame evaluates nothing afterwards.
+    if (sizeCacheAllowed && MaybePrebuild(device, cmdList, cfg, frame, width, height, desc.Format, requestedPasses))
+    {
+        device->Release();
+        DLSSNR_BAIL();
     }
 
     // The upscaler has just written this, so it is a UAV. The model needs it readable.
@@ -2593,7 +3344,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if ((g_frames % 30) == 0)
     {
         uint64_t usage = 0, budget = 0;
-        ReadVideoMemory(device, usage, budget);
+        if (ReadVideoMemory(device, usage, budget))
+            EnforceCacheBudget(usage, budget);
     }
 
     if (g_captureWriteAtFrame != 0 && g_frames >= g_captureWriteAtFrame)
@@ -3100,6 +3852,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         const float passTone = pass == 0 ? cfg.DlssNrLocalTone.value_or_default() : 0.0f;
 
         MakeModelWritable(passOutput);
+        const bool firstEvalOfBuild =
+            pass == 0 && g_buildMeasure.awaitingFirstEval && g_buildMeasure.feature == passFeature;
+        const auto evalStarted = std::chrono::steady_clock::now();
         result =
             g_nr.evaluate(cmdList, passFeature, g_nr.capabilityParams, passInput, depthIn, motionIn, passOutput,
                           workWidth, workHeight, guideWidth, guideHeight, g_nr.guideDepthInverted ? 1 : 0,
@@ -3107,6 +3862,56 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                           cfg.DlssNrLocalStructure.value_or_default(), passTone,
                           cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                           g_nr.guideMvScaleX * mvToWork, g_nr.guideMvScaleY * mvToWork);
+
+        // The build's one line: every phase of it, then what the size costs in video memory. Written on the
+        // first evaluate because that is the last phase, and the one the first build was never timed for
+        // (Resident Evil 2, 2026-09-18). The evaluate is recorded, not waited on: this path has no GPU wait
+        // of its own, so its cost on the GPU shows in the pass timer, not here.
+        if (firstEvalOfBuild)
+        {
+            NrBuildMeasure& m = g_buildMeasure;
+            m.awaitingFirstEval = false;
+
+            const double evalMs =
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - evalStarted).count();
+            const float scale = m.width != 0 ? (float) m.workWidth / (float) m.width : 1.0f;
+
+            LOG_INFO("DLSS-NR build: model {}x{} ({:.0f}% of {}x{}), {} -- teardown {:.1f} ms ({} feature(s) "
+                     "released), surfaces {:.1f} ms, CreateFeature {:.1f} ms, first evaluate {:.1f} ms (CPU; no GPU "
+                     "wait on this path), result {}",
+                     m.workWidth, m.workHeight, scale * 100.0f, m.width, m.height, m.why, m.teardownMs,
+                     m.teardownFeatures, m.surfacesMs, m.createMs, evalMs, NgxResultName((unsigned int) result));
+
+            uint64_t usageNow = 0, budgetNow = 0;
+            if (m.vramKnown && ReadVideoMemory(device, usageNow, budgetNow))
+            {
+                // The larger of after-create and after-first-evaluate: some of a feature's memory may only be
+                // committed when it first runs. Full-frame surfaces made by the same build are not this size's.
+                const uint64_t peak = std::max(usageNow, m.vramAfterCreate);
+                const uint64_t delta = peak > m.vramBefore ? peak - m.vramBefore : 0;
+                const uint64_t bytes = delta > m.fullFrameBytes ? delta - m.fullFrameBytes : 0;
+                const uint64_t pixels = (uint64_t) m.workWidth * m.workHeight;
+
+                g_liveSizeBytes = bytes;
+
+                // Extra-pass features are built between the create and this first evaluate, so they are in
+                // the reading too; the prediction is per feature.
+                unsigned int features = 1;
+                for (unsigned int p = 1; p < DlssNr::MaxPassCount; ++p)
+                    features += g_nr.passFeature[p] != nullptr ? 1u : 0u;
+
+                // Plausible readings only feed the prediction: the game allocates in the same window, and a
+                // reading of nothing (or a texture streamer's gigabyte) must not steer the prebuild.
+                const double bpp = pixels != 0 ? (double) bytes / (double) pixels / (double) features : 0.0;
+                if (bpp >= 32.0 && bpp <= 2048.0)
+                    g_measuredBytesPerPixel = bpp;
+
+                LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}; VRAM {} -> {} MB of {} MB, {} MB of it full-frame "
+                         "surfaces not counted; {} feature(s), {:.0f} bytes per model pixel each)",
+                         scale * 100.0f, bytes >> 20, m.workWidth, m.workHeight, m.vramBefore >> 20, peak >> 20,
+                         budgetNow >> 20, m.fullFrameBytes >> 20, features, bpp);
+            }
+        }
 
         if (result != NVSDK_NGX_Result_Success)
             break;
@@ -3938,6 +4743,10 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 
     const bool nrOn = Config::Instance()->DlssNrEnabled.value_or_default();
 
+    // Taken and released before the capture lock, so the two locks are never nested in a new order.
+    if (!nrOn)
+        IdleWhileOff();
+
     std::lock_guard<std::mutex> lock(g_presentCaptureMutex);
     auto& c = g_presentCapture;
 
@@ -4286,6 +5095,7 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
     if (!cfg.DlssNrEnabled.value_or_default())
     {
         ReportSkipOnce("it is switched off");
+        IdleWhileOff();
         return;
     }
 
@@ -4814,6 +5624,40 @@ void RequestCapture(unsigned int frames)
 
 bool CaptureInProgress() { return g_capture.isActive(); }
 
+void IdleWhileOff()
+{
+    std::lock_guard<std::mutex> nrLock(g_nrMutex);
+
+    // Only drains what this dropped, so with AutoScale off (nothing ever kept) switching DLSS 5 off
+    // behaves exactly as before.
+    static bool draining = false;
+
+    if (!g_nrCache.empty())
+    {
+        FlushNrCache("DLSS 5 is switched off");
+        draining = true;
+    }
+
+    if (!draining)
+        return;
+
+    if (g_nrRetired.empty())
+    {
+        draining = false;
+        return;
+    }
+
+    // The pass is not running, so nothing else ticks the parked list. Rate limited to one tick per 10 ms
+    // so two entry points in one frame cannot halve the 32-evaluate safety margin.
+    static auto lastTick = std::chrono::steady_clock::time_point {};
+    const auto now = std::chrono::steady_clock::now();
+    if (now - lastTick >= std::chrono::milliseconds(10))
+    {
+        lastTick = now;
+        TickNrRetired();
+    }
+}
+
 void Shutdown()
 {
     std::lock_guard<std::mutex> nrLock(g_nrMutex);
@@ -4828,6 +5672,28 @@ void Shutdown()
     }
 
     g_nrRetired.clear();
+
+    // Kept model sizes go with everything else on unload.
+    for (NrSizeEntry& e : g_nrCache)
+    {
+        if (g_nr.release != nullptr)
+        {
+            if (e.feature != nullptr)
+                g_nr.release(e.feature);
+            for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+                if (e.passFeature[pass] != nullptr)
+                    g_nr.release(e.passFeature[pass]);
+        }
+
+        for (ID3D12Resource* r : { e.output, e.passScratch, e.colorSmall })
+            if (r != nullptr)
+                r->Release();
+    }
+
+    g_nrCache.clear();
+    g_nrCacheGen = {};
+    g_prebuild = {};
+    g_buildMeasure = {};
 
     if (g_nr.feature != nullptr && g_nr.release != nullptr)
         g_nr.release(g_nr.feature);

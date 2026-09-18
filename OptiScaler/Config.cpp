@@ -420,6 +420,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrAutoScaleMs.set_from_config(readFloat("DlssNr", "AutoScaleMs"));
             DlssNrAutoScaleShare.set_from_config(readInt("DlssNr", "AutoScaleShare"));
             DlssNrAutoScaleFloor.set_from_config(readFloat("DlssNr", "AutoScaleFloor"));
+            DlssNrAutoScalePrebuild.set_from_config(readUInt("DlssNr", "AutoScalePrebuild"));
 
             if (auto v = readEnum<Scaler>("DlssNr", "ScalingDownscaler"))
                 DlssNrScalingDownscaler.set_from_config(*v);
@@ -1354,6 +1355,8 @@ bool Config::SaveIni()
                      GetIntValue(Instance()->DlssNrAutoScaleShare.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AutoScaleFloor",
                      GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScalePrebuild",
+                     GetIntValue(Instance()->DlssNrAutoScalePrebuild.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());

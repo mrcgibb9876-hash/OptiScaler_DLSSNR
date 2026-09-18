@@ -467,6 +467,14 @@ class Config
     // the bottom one -- which is where the trade stops being cost against quality and starts being
     // cost against artefacts.
     CustomOptional<float> DlssNrAutoScaleFloor { 0.55f };
+    // What AutoScale does with model sizes it is not using. Every size change used to destroy the NR
+    // feature and build a new one, holding Present ~250 ms (Resident Evil 2, 2026-09-18).
+    //   0  off: destroy and rebuild on every move, as before.
+    //   1  keep: a size the controller leaves stays built, so moving back to it is instant.
+    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, one per
+    //      natural pause (right after the first build, a frame that is already long, the panel open).
+    // Both only while video memory allows; a fixed WorkingScale (AutoScale off) never builds extra models.
+    CustomOptional<uint32_t> DlssNrAutoScalePrebuild { 2 };
 
     // Filter used for NR supersampling (working scale > 1): the model runs above native, and this is
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler
