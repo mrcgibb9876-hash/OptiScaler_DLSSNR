@@ -34,12 +34,19 @@ namespace DlssNrBudget
 // The rungs, coarsest first. Quantised because every move costs a rebuild, and repeatable so a
 // scene that oscillates settles between two known values rather than wandering.
 //
-// The default floor is 0.70, not the bottom rung. Community testing of this lever puts 0.75 at
-// "most of the quality retained" and 0.50 at the point where hair and other fine detail visibly
-// break down, so stopping at 0.70 keeps the controller inside the range where the trade is cost
-// against quality rather than cost against artefacts. 0.60 and 0.50 stay reachable for anyone who
-// would rather have the frames and has looked at what it does to their game.
-inline constexpr float Rungs[] = { 1.00f, 0.85f, 0.70f, 0.60f, 0.50f };
+// 0.55 is the bottom, and it is the bottom RUNG rather than a floor set against a deeper ladder --
+// a floor of 0.55 against rungs that stepped 0.60 then 0.50 would silently stop at 0.60 and the
+// number in the setting would be a lie.
+//
+// Why there: community testing of this lever puts 0.75 at "most of the quality retained" and 0.50
+// at the point where hair and other fine detail visibly break down. 0.55 sits just above that, so
+// the controller can take most of the cost that is available to take without ever reaching the
+// range where the trade stops being cost against quality and becomes cost against artefacts.
+//
+// Four rungs, each about a quarter of the cost off the one above it (100%, 72%, 49%, 30% of full
+// cost). Enough resolution to aim with, few enough that a scene which oscillates settles between
+// two known values -- and every extra rung is another rebuild the controller might spend.
+inline constexpr float Rungs[] = { 1.00f, 0.85f, 0.70f, 0.55f };
 inline constexpr std::size_t RungCount = sizeof(Rungs) / sizeof(Rungs[0]);
 
 enum class Mode
@@ -51,15 +58,19 @@ enum class Mode
 
 struct Tuning
 {
-    Mode mode = Mode::Share;
+    // Frame rate by default. It is the one of the three a player already has a number in mind for,
+    // and the only one they can judge the result of without reading a millisecond figure off a
+    // panel. The other two are there for people who want the pass itself pinned.
+    Mode mode = Mode::TargetFps;
     // Share of the frame the pass may take, as a percentage.
     int sharePercent = 15;
     // A flat ceiling on the pass, in milliseconds.
     double fixedMs = 2.0;
     // The frame rate to aim at.
     int targetFps = 60;
-    // The lowest rung the controller may choose. Clamped to a real rung.
-    float floorScale = 0.70f;
+    // The lowest rung the controller may choose. Clamped to a real rung. Raise it to keep more
+    // quality; it cannot go below the bottom rung, which is where the artefacts start.
+    float floorScale = 0.55f;
 
     // A decision is made on a window of samples rather than a spike: a single expensive frame is a
     // loading screen or an alt-tab, not a scene that got heavy.

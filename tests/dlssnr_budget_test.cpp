@@ -66,9 +66,11 @@ static void RunResponsive(Controller& c, const Tuning& t, double costAtFullScale
 int main()
 {
     const double frame60 = 1000.0 / 60.0; // 16.67 ms
-    Tuning t;                             // 15% of the frame = 2.5 ms at 60 fps, floor 0.70
-    Tuning deep = t;                      // for tests about the mechanism rather than the guard
-    deep.floorScale = 0.50f;
+    // The shipped default is a frame-rate target; these tests name the mode they are about.
+    Tuning t;
+    t.mode = Mode::Share;                 // 15% of the frame = 2.5 ms at 60 fps
+    Tuning deep = t;                      // for tests about the mechanism rather than the floor
+    deep.floorScale = 0.55f;
 
     // Comfortably inside budget: never moves, never spends a rebuild.
     {
@@ -81,8 +83,7 @@ int main()
     }
 
     // Over budget: the square law lands the first move rather than crawling a rung at a time.
-    // 6 ms against a 2.5 ms budget wants 1.0 * sqrt(2.5/6) = 0.645, so the 0.60 rung. The floor is
-    // named here rather than inherited: this is testing the law, not the default artefact guard.
+    // 6 ms against a 2.5 ms budget wants 1.0 * sqrt(2.5/6) = 0.645, and 0.70 is the nearest rung.
     {
         Tuning t = deep;
         Controller c;
@@ -95,13 +96,13 @@ int main()
             clock += step;
             first = c.Update(6.0, frame60, clock, t).scale;
         }
-        Check(first.has_value() && std::fabs(*first - 0.60f) < 1e-4f,
-              "6ms against a 2.5ms budget: the first move is straight to 0.60");
+        Check(first.has_value() && std::fabs(*first - 0.70f) < 1e-4f,
+              "6ms against a 2.5ms budget: the first move is straight to the 0.70 rung");
     }
 
     // ...and against a cost that responds to the scale, it converges and then stays put. 6 ms at
-    // full scale becomes 6 * 0.6^2 = 2.16 ms at the 0.60 rung, inside the 2.5 ms budget and above
-    // the 1.75 ms recovery threshold -- the dead band, which is where it should come to rest.
+    // full scale becomes 6 * 0.7^2 = 2.94 ms at the 0.70 rung, still over the 2.5 ms budget, so it
+    // takes the next rung: 6 * 0.55^2 = 1.82 ms, inside budget and above the 1.75 ms recovery line.
     {
         Tuning t = deep;
         Controller c;
@@ -109,8 +110,8 @@ int main()
         double clock = 0.0;
         int changes = 0;
         RunResponsive(c, t, 6.0, frame60, 60000.0, clock, &changes);
-        Check(changes == 1 && std::fabs(c.Scale() - 0.60f) < 1e-4f,
-              "a responsive cost converges in one move and then holds");
+        Check(changes == 2 && std::fabs(c.Scale() - 0.55f) < 1e-4f,
+              "a responsive cost converges and then holds");
     }
 
     // A cost that is only just over budget settles one rung down and does not oscillate: 2.9 ms at
@@ -137,26 +138,27 @@ int main()
         Check(changes == 0, "a sub-2s spike does not cost a rebuild");
     }
 
-    // The artefact guard, which is the point of the default floor. Community testing puts visible
-    // breakdown in hair and fine detail around 0.50, so out of the box the controller is not allowed
-    // to go there however hopeless the budget: it stops at 0.70, where the trade is still cost
-    // against quality rather than cost against artefacts.
+    // The artefact guard. However hopeless the budget, the controller stops at 0.55 -- just above
+    // where community testing puts visible breakdown in hair and fine detail -- because that is the
+    // bottom rung and there is nowhere further to go.
     {
         Controller c;
         c.Reset(1.0f);
         double clock = 0.0;
         Run(c, t, 40.0, frame60, 60000.0, clock);
-        Check(std::fabs(c.Scale() - 0.70f) < 1e-4f,
-              "by default an impossible budget stops at 0.70, short of the artefact range");
+        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f,
+              "an impossible budget stops at 0.55, short of the artefact range");
     }
 
-    // ...and someone who has looked at their own game and wants the frames can still go deeper.
+    // A floor cannot be set below the bottom rung, so the guard cannot be configured away.
     {
+        Tuning below = t;
+        below.floorScale = 0.20f;
         Controller c;
         c.Reset(1.0f);
         double clock = 0.0;
-        Run(c, deep, 40.0, frame60, 60000.0, clock);
-        Check(std::fabs(c.Scale() - 0.50f) < 1e-4f, "a lowered floor is still reachable on purpose");
+        Run(c, below, 40.0, frame60, 60000.0, clock);
+        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f, "asking for a floor below the ladder still stops at 0.55");
     }
 
     // A raised floor is honoured too.
@@ -174,18 +176,18 @@ int main()
     // Recovery: cost falls away, and it climbs back one rung at a time, not in a leap.
     {
         Controller c;
-        c.Reset(0.50f);
+        c.Reset(0.55f);
         double clock = 0.0;
         int changes = 0;
         Run(c, deep, 0.2, frame60, 9000.0, clock, &changes);
-        Check(changes == 1 && std::fabs(c.Scale() - 0.60f) < 1e-4f,
+        Check(changes == 1 && std::fabs(c.Scale() - 0.70f) < 1e-4f,
               "recovery is one rung at a time, never analytic");
     }
 
     // ...and all the way back to full if it stays cheap.
     {
         Controller c;
-        c.Reset(0.50f);
+        c.Reset(0.55f);
         double clock = 0.0;
         Run(c, deep, 0.2, frame60, 60000.0, clock);
         Check(std::fabs(c.Scale() - 1.00f) < 1e-4f, "a cheap scene recovers to full");
@@ -235,11 +237,11 @@ int main()
     // walk the scale back up on a machine whose timer never worked.
     {
         Controller c;
-        c.Reset(0.60f);
+        c.Reset(0.70f);
         double clock = 0.0;
         int changes = 0;
         Run(c, t, 0.0, frame60, 60000.0, clock, &changes);
-        Check(changes == 0 && std::fabs(c.Scale() - 0.60f) < 1e-4f,
+        Check(changes == 0 && std::fabs(c.Scale() - 0.70f) < 1e-4f,
               "no usable measurement means no decision, not free headroom");
     }
 
@@ -268,11 +270,10 @@ int main()
         c.Reset(1.0f);
         double clock = 0.0;
         int changes = 0;
-        // 5 ms at full scale; 5 * 0.6^2 = 1.8 ms fits under 2.0 and sits above the 1.4 ms recovery
-        // line, so it should land on 0.60 and stay there.
+        // 5 ms at full scale: 0.70 gives 2.45 ms, still over the 2.0 ms ceiling, so it takes 0.55
+        // for 1.51 ms -- inside the ceiling and above the 1.4 ms recovery line.
         RunResponsive(c, ms, 5.0, frame60, 60000.0, clock, &changes);
-        Check(changes == 1 && std::fabs(c.Scale() - 0.60f) < 1e-4f,
-              "a millisecond ceiling converges and holds");
+        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f, "a millisecond ceiling converges and holds");
     }
 
     // A millisecond ceiling ignores the frame rate, unlike a share: the same pass cost is judged the
@@ -300,7 +301,7 @@ int main()
         c.Reset(1.0f);
         double clock = 0.0;
         // A 20 ms frame of which the pass is 5 ms: dropping the pass by 3.33 ms reaches the target,
-        // so the pass is aimed at 1.67 ms, which is 0.58 of full scale -- the 0.60 rung.
+        // so the pass is aimed at 1.67 ms, which is 0.58 of full scale -- nearest rung 0.55.
         const double step = 1000.0 / 60.0;
         std::optional<float> first;
         for (double spent = 0.0; spent < 8000.0 && !first.has_value(); spent += step)
@@ -308,8 +309,8 @@ int main()
             clock += step;
             first = c.Update(5.0, 20.0, clock, fps).scale;
         }
-        Check(first.has_value() && std::fabs(*first - 0.60f) < 1e-4f,
-              "a frame rate target aims the pass at exactly the shortfall");
+        Check(first.has_value() && std::fabs(*first - 0.55f) < 1e-4f,
+              "a frame rate target aims the pass at the shortfall");
     }
 
     // The honest failure. Asking 120 fps of a game whose frame is 33 ms cannot be met by shrinking a
@@ -331,7 +332,7 @@ int main()
             if (d.gameLimited)
                 sawGameLimited = true;
         }
-        Check(std::fabs(c.Scale() - 0.50f) < 1e-4f && sawGameLimited,
+        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f && sawGameLimited,
               "an unreachable frame rate hits the floor and reports the game as the limit");
     }
 
