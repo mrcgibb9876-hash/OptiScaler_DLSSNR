@@ -854,6 +854,13 @@ copy NUL "$(SolutionDir)x64\Release\a\!! EXTRACT ALL FILES TO GAME FOLDER !!" /Y
     <ClCompile Include="dlssnr\DlssNr_DepthTracker.cpp" />
     <ClInclude Include="dlssnr\DlssNr_DepthTracker.h" />
     <ClCompile Include="dlssnr\DlssNr_Menu.cpp" />
+    <!-- No pch.h. The budget controller is deliberately free of engine headers so tests/dlssnr_budget_test.cpp
+         can compile it with a host compiler, and the forced precompiled header would undo exactly that.
+         Unconditional rather than per-configuration: it is part of the DLL in all six, Win32 included. -->
+    <ClCompile Include="dlssnr\DlssNrBudget.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClInclude Include="dlssnr\DlssNrBudget.h" />
     <ClCompile Include="dlssnr\DlssNr_I18n.cpp" />
     <ClCompile Include="dlssnr\DlssNr_I18n_Tables.cpp" />
     <ClCompile Include="dlssnr\DlssNr_Api.cpp" />

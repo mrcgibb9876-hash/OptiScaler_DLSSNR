@@ -5,6 +5,7 @@
 #include "DlssNr_ExposureScan.h"
 #include "DlssNr_I18n.h"
 #include "DlssNr_PresentRoute.h"
+#include "DlssNrBudget.h"
 
 #include <Config.h>
 #include <misc/IdentifyGpu.h>
@@ -564,6 +565,182 @@ static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, No
         *opt = (uint32_t) (selected - 1);
 
     return true;
+}
+
+// Adaptive model resolution: the controls, and a live sentence saying what it is doing.
+//
+// The sentence matters as much as the controls. A scale that moves on its own is indistinguishable
+// from a bug unless the panel says why it moved, and the one case a player most needs told -- the
+// frame rate they asked for is out of reach for reasons that have nothing to do with this pass --
+// is the case where a silent floor looks most like a failure.
+static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
+{
+    // The floor cannot go below the controller's own bottom rung; asking for less would set a number
+    // the controller could not honour and then quietly stop above it.
+    const int kFloorMin = (int) std::lroundf(DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1] * 100.0f);
+
+    bool autoOn = config->DlssNrAutoScale.value_or_default();
+
+    if (NrCheckbox(Tr("Adjust it for me"), &autoOn))
+    {
+        config->DlssNrAutoScale = autoOn;
+        anyChanged = true;
+    }
+
+    HelpMarker(Tr("Moves Model resolution up and down while you play, so the pass costs what you asked"
+                  "\nit to cost instead of what one number chosen before the game started happens to"
+                  "\ncost in this scene."
+                  "\n\nIt only ever changes the MODEL's resolution. The frame is never reduced, so this"
+                  "\ncannot soften the picture the way a dynamic render resolution does -- the most it"
+                  "\ncan cost is some of the model's own detail."
+                  "\n\nIt steps between four settings a few seconds apart at most, because each change"
+                  "\nrebuilds the model and rebuilding it every frame would be slower than doing nothing."));
+
+    if (!autoOn)
+        return;
+
+    // Native Vulkan runs its own pass with its own timer and does not go through the controller yet.
+    // Saying so is better than showing controls that quietly do nothing on that route.
+    if (IsRunningVk())
+    {
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+        ImGui::TextColored(kTextDim, "%s",
+                           Tr("Not on the native Vulkan path yet - it runs its own pass. Model resolution "
+                              "stays where you put it here."));
+        ImGui::PopTextWrapPos();
+        return;
+    }
+
+    // The three ways of saying what the budget is, in the words a player would use rather than the
+    // controller's own. Order matches DlssNrBudget::Mode.
+    // Not static: Tr() resolves against the language chosen this frame, and a static array would
+    // freeze whichever language happened to be up the first time this drew.
+    const char* const kModeNames[] = {
+        Tr("Share of the frame"),
+        Tr("Milliseconds"),
+        Tr("Frame rate"),
+    };
+
+    int mode = (int) config->DlssNrAutoScaleMode.value_or_default();
+
+    if (mode < 0 || mode >= IM_ARRAYSIZE(kModeNames))
+        mode = 2;
+
+    if (NrCombo(Tr("Aim at"), &mode, kModeNames, IM_ARRAYSIZE(kModeNames), rowWidth))
+    {
+        config->DlssNrAutoScaleMode = (uint32_t) mode;
+        anyChanged = true;
+    }
+
+    HelpMarker(Tr("Frame rate: aim at a number of frames per second. The one most people want, and the"
+                  "\nonly one that can fall short -- the pass can give back what it costs and no more,"
+                  "\nso if the game itself cannot reach the number, the panel says so."
+                  "\n\nMilliseconds: hold the pass under a flat time. Exactly what the cost line above"
+                  "\nmeasures, with no arithmetic in between."
+                  "\n\nShare of the frame: let the pass take at most a percentage of each frame. This one"
+                  "\nlooks after itself as the frame rate moves - 15% is 2.5 ms at 60 fps and 1.25 at 120."));
+
+    if (mode == 2)
+    {
+        float fps = (float) config->DlssNrAutoScaleFps.value_or_default();
+        auto r = NrSlider(Tr("Frame rate"), &fps, 30.0f, 240.0f, "%.0f fps", rowWidth);
+
+        if (r.changed || r.released)
+        {
+            config->DlssNrAutoScaleFps = std::clamp((int) std::lroundf(fps), 30, 240);
+            if (r.released)
+                anyChanged = true;
+        }
+
+        HelpMarker(Tr("The frame rate to aim at. Applied live - there is nothing to rebuild for a change"
+                      "\nof target, only for a change of model resolution it leads to."));
+    }
+    else if (mode == 1)
+    {
+        float ms = config->DlssNrAutoScaleMs.value_or_default();
+        auto r = NrSlider(Tr("Cost ceiling"), &ms, 0.5f, 10.0f, "%.1f ms", rowWidth);
+
+        if (r.changed || r.released)
+        {
+            config->DlssNrAutoScaleMs = std::clamp(ms, 0.5f, 10.0f);
+            if (r.released)
+                anyChanged = true;
+        }
+
+        HelpMarker(Tr("The most the pass may cost, in milliseconds. Compare it with the cost shown at the"
+                      "\ntop of this panel, which is the same measurement."));
+    }
+    else
+    {
+        float share = (float) config->DlssNrAutoScaleShare.value_or_default();
+        auto r = NrSlider(Tr("Share of the frame"), &share, 2.0f, 50.0f, "%.0f%%", rowWidth);
+
+        if (r.changed || r.released)
+        {
+            config->DlssNrAutoScaleShare = std::clamp((int) std::lroundf(share), 2, 50);
+            if (r.released)
+                anyChanged = true;
+        }
+
+        HelpMarker(Tr("How much of each frame the pass may take."));
+    }
+
+    float floorPercent = config->DlssNrAutoScaleFloor.value_or_default() * 100.0f;
+    auto rFloor = NrSlider(Tr("Never go below"), &floorPercent, (float) kFloorMin, 100.0f, "%.0f%%", rowWidth);
+
+    if (rFloor.changed || rFloor.released)
+    {
+        config->DlssNrAutoScaleFloor = std::clamp((int) std::lroundf(floorPercent), kFloorMin, 100) / 100.0f;
+        if (rFloor.released)
+            anyChanged = true;
+    }
+
+    HelpMarker(Tr("The lowest model resolution this may choose. Raise it to keep more of the model's"
+                  "\ndetail and let the frame rate give way instead."
+                  "\n\nIt stops here because this is where the trade changes character: above it the"
+                  "\nmodel is simply working on a smaller picture, and below it fine detail - hair,"
+                  "\nfoliage, thin edges - starts to break down rather than soften."));
+
+    const AutoScaleStatus st = AutoScale();
+
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+
+    if (!st.running)
+    {
+        // On, but nothing to steer on: either the timer is not trusted on this card and route, or
+        // this route supplies no frame time. Both are already said elsewhere in the panel; here it
+        // only needs to be clear that nothing is moving.
+        ImGui::TextColored(kTextDim, "%s", Tr("Waiting for readings - model resolution is not moving yet."));
+    }
+    else if (st.gameLimited)
+    {
+        ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.20f, 1.0f),
+                           Tr("At %.0f%% and still short of %d fps - the rest of the frame is the game's, "
+                              "not DLSS 5's."),
+                           st.scale * 100.0f, config->DlssNrAutoScaleFps.value_or_default());
+    }
+    else
+    {
+        const ImVec4 kOk(0.55f, 0.85f, 0.45f, 1.0f);
+
+        if (mode == 2)
+            ImGui::TextColored(kOk, Tr("Holding %d fps - model at %.0f%%%s"),
+                               config->DlssNrAutoScaleFps.value_or_default(), st.scale * 100.0f,
+                               st.atFloor ? Tr(", as low as it goes") : "");
+        else if (mode == 1)
+            ImGui::TextColored(kOk, Tr("Holding the pass under %.1f ms - model at %.0f%%%s"),
+                               config->DlssNrAutoScaleMs.value_or_default(), st.scale * 100.0f,
+                               st.atFloor ? Tr(", as low as it goes") : "");
+        else
+            ImGui::TextColored(kOk, Tr("Holding the pass to %d%% of the frame - model at %.0f%%%s"),
+                               config->DlssNrAutoScaleShare.value_or_default(), st.scale * 100.0f,
+                               st.atFloor ? Tr(", as low as it goes") : "");
+
+        if (st.lastPassMs > 0.0)
+            ImGui::TextColored(kTextDim, Tr("Pass %.2f ms against a %.2f ms budget."), st.lastPassMs, st.lastBudgetMs);
+    }
+
+    ImGui::PopTextWrapPos();
 }
 
 void RenderMenu(Config* config, float menuResScale)
@@ -1500,10 +1677,16 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
+        // Model resolution, by hand or by itself. The automatic block below drives this same number,
+        // so the slider is shown disabled rather than hidden while it is on: the value moving is the
+        // clearest possible statement of what the controller is doing.
+        const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
+
         static int pendingScale = -1;
         float scalePercent =
             pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
 
+        ImGui::BeginDisabled(autoScaleOn);
         auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
         if (rScale.changed)
             pendingScale = (int) std::lroundf(scalePercent);
@@ -1514,10 +1697,13 @@ void RenderMenu(Config* config, float menuResScale)
             pendingScale = -1;
             anyChanged = true;
         }
+        ImGui::EndDisabled();
         HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
                       "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
                       "\nitself is never reduced -- only the model's own contribution is computed small"
                       "\nand enlarged. Applied when the handle is let go, not while it is moving."));
+
+        DrawAutoScale(config, rowWidth, anyChanged);
 
         // Above native the model is run supersampled and filtered back down, so the filter is
         // the whole difference between supersampling meaning less noise and meaning more.

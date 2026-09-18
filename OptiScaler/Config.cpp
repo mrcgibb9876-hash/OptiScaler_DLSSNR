@@ -414,6 +414,12 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrCompareTags.set_from_config(readBool("DlssNr", "CompareTags"));
             DlssNrTagScale.set_from_config(readFloat("DlssNr", "TagScale"));
             DlssNrWorkingScale.set_from_config(readFloat("DlssNr", "WorkingScale"));
+            DlssNrAutoScale.set_from_config(readBool("DlssNr", "AutoScale"));
+            DlssNrAutoScaleMode.set_from_config(readUInt("DlssNr", "AutoScaleMode"));
+            DlssNrAutoScaleFps.set_from_config(readInt("DlssNr", "AutoScaleFps"));
+            DlssNrAutoScaleMs.set_from_config(readFloat("DlssNr", "AutoScaleMs"));
+            DlssNrAutoScaleShare.set_from_config(readInt("DlssNr", "AutoScaleShare"));
+            DlssNrAutoScaleFloor.set_from_config(readFloat("DlssNr", "AutoScaleFloor"));
 
             if (auto v = readEnum<Scaler>("DlssNr", "ScalingDownscaler"))
                 DlssNrScalingDownscaler.set_from_config(*v);
@@ -1339,6 +1345,15 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "TagScale", GetFloatValue(Instance()->DlssNrTagScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "WorkingScale",
                      GetFloatValue(Instance()->DlssNrWorkingScale.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScale", GetBoolValue(Instance()->DlssNrAutoScale.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScaleMode",
+                     GetIntValue(Instance()->DlssNrAutoScaleMode.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScaleFps", GetIntValue(Instance()->DlssNrAutoScaleFps.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScaleMs", GetFloatValue(Instance()->DlssNrAutoScaleMs.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScaleShare",
+                     GetIntValue(Instance()->DlssNrAutoScaleShare.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScaleFloor",
+                     GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());
