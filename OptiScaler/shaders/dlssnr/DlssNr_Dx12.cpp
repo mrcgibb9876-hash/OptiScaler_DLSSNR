@@ -25,6 +25,7 @@
 #include <hooks/D3D12_Hooks.h>
 #include <gpu_time/GpuTime_Dx12.h>
 #include <dlssnr/DlssNr_TimingTrust.h>
+#include <dlssnr/DlssNrBudget.h>
 
 #include <mutex>
 #include <map>
@@ -414,6 +415,16 @@ std::optional<double> g_lastGpuTime;
 
 // Whether g_lastGpuTime is fit for the panel at all; see DlssNr_TimingTrust.h.
 NrTimingTrust g_timingTrust;
+
+// Adaptive model resolution. The controller is in dlssnr/DlssNrBudget.h and knows nothing about the
+// engine; this is the join. It is fed once per dispatch from the two numbers that were already being
+// measured -- the pass's own GPU time and the frame time the overlay's graph draws from -- and what
+// it decides is written back to DlssNrWorkingScale, which the top of the NEXT dispatch reads as a
+// resolution change and rebuilds the feature for. That rebuild is the entire reason the controller
+// is quantised to four rungs and rate limited rather than moving every frame.
+DlssNrBudget::Controller g_budget;
+bool g_budgetOn = false;
+DlssNr::AutoScaleStatus g_autoScale;
 
 // Writes matched before/after frames on request, so comparisons stop depending on video.
 capture::FrameCapture g_capture;
@@ -1573,6 +1584,119 @@ void ReportSkipOnce(const char* reason)
 
     if (seen.insert(reason).second)
         LOG_INFO("DLSS-NR did not run: {}", reason);
+}
+
+// Adaptive model resolution, once per dispatch.
+//
+// Everything that can go wrong here is a reading that is not worth steering on, and each of those is
+// a return rather than a guess: a timer the panel itself will not print, a frame time no route has
+// supplied, a scale nobody has enabled. Steering on a number that is not there would move the
+// picture for no reason and rebuild the feature to do it.
+void UpdateAutoScale()
+{
+    auto* cfg = Config::Instance();
+    const bool on = cfg->DlssNrAutoScale.value_or_default();
+
+    if (!on)
+    {
+        // Turning it off leaves the scale wherever it had got to, deliberately: the player can see
+        // the number the controller settled on, and keep it if they like it.
+        if (g_budgetOn)
+        {
+            g_budgetOn = false;
+            g_autoScale = {};
+
+            // Hand the number back. The controller drives WorkingScale as a volatile value (below),
+            // which keeps its choice out of SaveIni and stops the manager's live reload fighting it
+            // for the same number -- but volatile is sticky, so without this a scale the controller
+            // happened to leave behind would be frozen for the rest of the session and the manager's
+            // own slider would silently stop working. A plain assignment clears the flag.
+            if (cfg->DlssNrWorkingScale.is_volatile())
+                cfg->DlssNrWorkingScale = cfg->DlssNrWorkingScale.value_or_default();
+        }
+
+        return;
+    }
+
+    if (!g_budgetOn)
+    {
+        // Seed from whatever the scale already is, so switching this on does not jump the picture.
+        g_budgetOn = true;
+        g_budget.Reset(cfg->DlssNrWorkingScale.value_or_default());
+        g_autoScale = {};
+        g_autoScale.scale = g_budget.Scale();
+    }
+
+    g_autoScale.enabled = true;
+
+    // An untrusted timer is the one case where doing nothing is clearly right: the panel refuses to
+    // print these readings, so the controller has no business steering on them either.
+    if (g_timingTrust.Untrusted() || !g_lastGpuTime.has_value())
+        return;
+
+    double frameMs = 0.0;
+    {
+        auto& state = State::Instance();
+        std::lock_guard<std::mutex> lock(state.frameTimeMutex);
+
+        if (!state.frameTimes.empty())
+            frameMs = state.frameTimes.back();
+    }
+
+    // No frame time on this route. The overlay's own graph is empty here too, so this is not a
+    // failure to report -- it is a mode the controller cannot run in, and the panel says so.
+    if (!(frameMs > 0.0))
+        return;
+
+    DlssNrBudget::Tuning tuning;
+
+    switch (cfg->DlssNrAutoScaleMode.value_or_default())
+    {
+    case 0:
+        tuning.mode = DlssNrBudget::Mode::Share;
+        break;
+    case 1:
+        tuning.mode = DlssNrBudget::Mode::FixedMs;
+        break;
+    default:
+        tuning.mode = DlssNrBudget::Mode::TargetFps;
+        break;
+    }
+
+    tuning.sharePercent = std::clamp(cfg->DlssNrAutoScaleShare.value_or_default(), 1, 100);
+    tuning.fixedMs = std::clamp((double) cfg->DlssNrAutoScaleMs.value_or_default(), 0.1, 50.0);
+    tuning.targetFps = std::clamp(cfg->DlssNrAutoScaleFps.value_or_default(), 20, 360);
+    tuning.floorScale = std::clamp(cfg->DlssNrAutoScaleFloor.value_or_default(),
+                                   DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
+
+    const double nowMs =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+    const DlssNrBudget::Decision d = g_budget.Update(g_lastGpuTime.value(), frameMs, nowMs, tuning);
+
+    g_autoScale.running = true;
+    g_autoScale.scale = DlssNrBudget::Rungs[d.rung];
+    g_autoScale.atFloor = DlssNrBudget::Rungs[d.rung] <= tuning.floorScale + 1e-4f;
+    g_autoScale.gameLimited = d.gameLimited;
+
+    // A tick that did not close a window carries no medians. Keeping the last real pair means the
+    // panel shows the figures the last decision was actually made on rather than blinking to zero.
+    if (d.lastPassMs > 0.0)
+    {
+        g_autoScale.lastPassMs = d.lastPassMs;
+        g_autoScale.lastBudgetMs = d.lastBudgetMs;
+    }
+
+    if (d.scale.has_value())
+    {
+        // Volatile: what the controller picked is a reading of this scene, not a setting the player
+        // made, so SaveIni must not write it over the number they chose. It also outranks the ini,
+        // which is what keeps a live reload from the manager out of the controller's way while it is
+        // driving. Turning the feature off hands the number back, above.
+        cfg->DlssNrWorkingScale.set_volatile_value(d.scale.value());
+        LOG_INFO("DLSS-NR auto resolution: model to {:.0f}% (pass {:.2f} ms over the last window, budget {:.2f} ms)",
+                 d.scale.value() * 100.0f, d.lastPassMs, d.lastBudgetMs);
+    }
 }
 
 } // namespace
@@ -3307,6 +3431,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
     }
 
+    UpdateAutoScale();
+
     // Heartbeat, every 600 frames the pass ran, whatever else is or is not available. The lines above
     // only ever say that a pass started (and the cost split needs a queue this app knows about, which
     // Resident Evil 2 through REFramework never gave it), so a log could not tell "running all session"
@@ -4656,6 +4782,8 @@ ExposureStatus GameExposureStatus()
 
 std::optional<double> LastGpuTime() { return g_timingTrust.Untrusted() ? std::nullopt : g_lastGpuTime; }
 
+AutoScaleStatus AutoScale() { return g_autoScale; }
+
 bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes)
 {
     const uint64_t budget = g_vramBudget.load();
@@ -4837,6 +4965,15 @@ void Shutdown()
     g_ngxTime.reset();
     g_lastNgxTime.reset();
     g_lastGpuTime.reset();
+
+    // The controller's window and its dwell timer are both wall-clock, and a new session starts with
+    // a different feature at a different cost. Carrying either across would let the first decision of
+    // the next run be made on the last one's measurements.
+    g_budgetOn = false;
+    g_autoScale = {};
+
+    if (auto* cfg = Config::Instance(); cfg != nullptr && cfg->DlssNrWorkingScale.is_volatile())
+        cfg->DlssNrWorkingScale = cfg->DlssNrWorkingScale.value_or_default();
 
     g_compose.reset();
 }

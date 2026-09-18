@@ -129,6 +129,21 @@ ExposureStatus GameExposureStatus();
 // What the pass last cost on the GPU, in milliseconds, or nothing if it has not been measured yet.
 std::optional<double> LastGpuTime();
 
+// Where adaptive model resolution has got to. The panel needs all of this to say something a player
+// can act on rather than printing a scale and leaving them to work out why it moved.
+struct AutoScaleStatus
+{
+    bool enabled = false;     // the setting is on
+    bool running = false;     // and it is being fed real readings; off means it has nothing to steer on
+    float scale = 1.0f;       // the rung it is sitting on
+    bool atFloor = false;     // and that rung is as low as the floor allows
+    bool gameLimited = false; // frame rate target only: at the floor and still short, so the rest is the game's
+    double lastPassMs = 0.0;  // the median pass cost over the last window
+    double lastBudgetMs = 0.0;
+};
+
+AutoScaleStatus AutoScale();
+
 // The game process's video memory use and the budget Windows gives it on the GPU the pass runs on, in
 // bytes, as last read by the pass (DXGI QueryVideoMemoryInfo, local segment). False until the pass has
 // read it once. For the panel.
