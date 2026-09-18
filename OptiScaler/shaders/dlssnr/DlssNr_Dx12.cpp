@@ -960,10 +960,51 @@ NrCacheGeneration g_nrCacheGen;
 uint64_t g_liveSizeBytes = 0;
 double g_measuredBytesPerPixel = 0.0;
 
+// Pacing for kept and prebuilt sizes. Resident Evil 2 (2026-09-18, second run): the first build was
+// followed by a burst of three prebuilds back to back (~140 ms held Present each), and in 15 s of panel
+// use every settings change and every off/on flushed all kept sizes, rebuilt the live one and prebuilt
+// three more -- four stalls per change, six "held Present" lines. It even prebuilt with DLSS 5 off.
+// Measured cost of one size there: CreateFeature 130-150 ms, surfaces ~1 ms, first evaluate ~2 ms.
+//
+// How long kept sizes survive DLSS 5 being switched off. Toggling it in the panel to compare is quick;
+// a real "off" lasts longer than this and gives the memory back.
+constexpr double kCacheOffGraceMs = 30000.0;
+// How long the create-time settings (and the on/off switch) must stay unchanged before a prebuild. A
+// slider drag rebuilds the live model several times in a few seconds; building other sizes for tuning
+// about to be thrown away is four stalls instead of one.
+constexpr double kPrebuildSettleMs = 10000.0;
+// At most one prebuild (or primary build followed by a prebuild) per this long: each is a ~140 ms hold,
+// and one every 5 s is a hitch now and then instead of a stutter.
+constexpr double kPrebuildSpacingMs = 5000.0;
+// Once the slot is open, how long to wait for a pause the player is already sitting through (a long
+// frame, the panel open) before taking the timed slot anyway.
+constexpr double kPrebuildNaturalWaitMs = 2000.0;
+// After kept sizes are dropped the driver reuses the freed memory for the next feature, so the process's
+// usage barely moves (RE2: "55%: 9 MB" against ~280 MB measured cleanly). Readings this soon after a
+// drop, or after DLSS 5 was off, do not feed the per-size prediction.
+constexpr double kReadingQuietMs = 3000.0;
+
+// Survives FlushNrCache (unlike g_prebuild): the settle and spacing clocks must not restart just because
+// a flush happened -- the flush is usually the thing that started them.
+struct NrPrebuildPacing
+{
+    double settleFromMs = 0.0;              // last create-time settings change / switch back on / first build
+    double lastStallMs = 0.0;               // last primary build or prebuild (each holds Present)
+    double offSinceMs = 0.0;                // when DLSS 5 was seen switched off; 0 = on
+    double readingsQuietUntilMs = 0.0;      // VRAM readings before this do not feed the prediction
+    double lastOffMemoryCheckMs = 0.0;      // the kept-size memory check while off
+};
+
+NrPrebuildPacing g_pacing;
+
+double NowMs()
+{
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 // Prebuild bookkeeping, reset with the cache.
 struct NrPrebuildState
 {
-    bool burstArmed = false;                // the first build of this generation: build the rest right after
     unsigned long long liveReadyFrame = 0;  // g_frames when the live feature became evaluable
     unsigned long long lastFrame = 0;       // g_frames of the last prebuild
     double lastMs = 0.0;                    // and its wall clock
@@ -999,7 +1040,8 @@ void ParkSizeEntry(NrSizeEntry& e)
     ParkNrResource(e.colorSmall);
 }
 
-// Drops every cached size (parked, released 32 evaluates later) and starts prebuilding afresh.
+// Drops every cached size (parked, released 32 evaluates later -- never evaluated again) and starts
+// prebuilding afresh, under the settle and spacing rules in MaybePrebuild.
 void FlushNrCache(const char* why)
 {
     if (!g_nrCache.empty())
@@ -1011,6 +1053,9 @@ void FlushNrCache(const char* why)
             ParkSizeEntry(e);
 
         g_nrCache.clear();
+
+        // The next feature built lands in the memory these give back without moving the usage figure.
+        g_pacing.readingsQuietUntilMs = NowMs() + kReadingQuietMs;
     }
 
     const double ema = g_prebuild.frameEma;
@@ -1885,18 +1930,22 @@ void TakeCachedSize(size_t index, const Config& cfg, unsigned int requestedPasse
 // nothing else is, before that list has been submitted.
 //
 // Resident Evil 2 (2026-09-18): the first build holds the game ~3.2 s, usually in a menu or a loading
-// screen, and each later move held Present ~250 ms mid-play. Paying for the other sizes next to the
-// pause the player already sees, instead of one at a time in the middle of a fight, is the point.
+// screen, and each later move held Present ~250 ms mid-play. Paying for the other sizes ahead, one at
+// a time and spaced out (see kPrebuildSpacingMs and kPrebuildSettleMs), instead of on the move in the
+// middle of a fight, is the point.
 bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const Config& cfg,
                    const DlssNrFrameInfo& frame, unsigned int width, unsigned int height, DXGI_FORMAT format,
                    unsigned int requestedPasses)
 {
-    if (cfg.DlssNrAutoScalePrebuild.value_or_default() < 2 || g_nr.feature == nullptr ||
+    // Never while DLSS 5 is off (Resident Evil 2, 2026-09-18: it prebuilt "at the panel is open" with the
+    // pass switched off, then dropped what it built). The pass does not run while off, so this is a guard
+    // against the switch flipping between the pass's own reads of the setting.
+    if (!cfg.DlssNrEnabled.value_or_default() || g_pacing.offSinceMs != 0.0 ||
+        cfg.DlssNrAutoScalePrebuild.value_or_default() < 2 || g_nr.feature == nullptr ||
         g_nr.featurePendingSubmission || AnyFeatureParked() || g_nrCache.size() >= DlssNrBudget::RungCount - 1)
         return false;
 
-    const double nowMs =
-        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double nowMs = NowMs();
 
     double frameMs = 0.0;
     {
@@ -1916,15 +1965,24 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     if (g_frames < g_prebuild.liveReadyFrame + 60 || nowMs < g_prebuild.pausedUntilMs)
         return false;
 
-    const char* opportunity = nullptr;
-    const bool pastOwnHitch = g_prebuild.lastFrame == 0 || g_frames >= g_prebuild.lastFrame + 3;
+    // Settings still moving (a slider being dragged, DLSS 5 just switched back on, the first build just
+    // done): wait until they have held still for the settle period. Then one prebuild per spacing slot,
+    // counted from the last hold of either kind -- a primary build is a stall too.
+    if (nowMs - g_pacing.settleFromMs < kPrebuildSettleMs || nowMs - g_pacing.lastStallMs < kPrebuildSpacingMs)
+        return false;
 
-    if (g_prebuild.burstArmed && g_frames <= g_prebuild.liveReadyFrame + 900)
-        opportunity = "right after the first build";
-    else if (pastOwnHitch && ema > 0.0 && frameMs >= std::max(50.0, ema * 3.0))
+    // Inside an open slot a pause the player already sees is preferred; after kPrebuildNaturalWaitMs
+    // without one, the timed slot is taken so the rungs still get built during steady play.
+    const double slotOpenMs = std::max(g_pacing.settleFromMs + kPrebuildSettleMs,
+                                       g_pacing.lastStallMs + kPrebuildSpacingMs);
+    const char* opportunity = nullptr;
+
+    if (ema > 0.0 && frameMs >= std::max(50.0, ema * 3.0))
         opportunity = "a frame that was already long";
-    else if (MenuCommon::IsVisible() && nowMs - g_prebuild.lastMs >= 1000.0)
+    else if (MenuCommon::IsVisible())
         opportunity = "the panel is open";
+    else if (nowMs - slotOpenMs >= kPrebuildNaturalWaitMs)
+        opportunity = "the timed slot";
 
     if (opportunity == nullptr)
         return false;
@@ -1959,10 +2017,7 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     }
 
     if (candidates.empty())
-    {
-        g_prebuild.burstArmed = false;
         return false;
-    }
 
     std::stable_sort(candidates.begin(), candidates.end(),
                      [&](const Candidate& a, const Candidate& b)
@@ -2003,7 +2058,6 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
         }
 
         // Nearest-first order means the others are no smaller a risk worth taking right now; wait.
-        g_prebuild.burstArmed = false;
         g_prebuild.pausedUntilMs = nowMs + 30000.0;
         return false;
     }
@@ -2016,6 +2070,7 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
 
     g_prebuild.lastFrame = g_frames;
     g_prebuild.lastMs = nowMs;
+    g_pacing.lastStallMs = nowMs;
 
     const auto t0 = std::chrono::steady_clock::now();
 
@@ -2068,17 +2123,23 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     e.pendingSubmission = true;
     e.createEpoch = frame.SubmissionEpoch;
 
+    // A reading far under the prediction is the driver reusing memory something else just gave back, not
+    // this size's cost (RE2 2026-09-18: "9 MB" for a size measured at ~280 MB). Such a size is booked at
+    // its prediction instead, so the cache's memory figures stay honest.
     uint64_t usageAfter = 0, budgetAfter = 0;
-    if (ReadVideoMemory(device, usageAfter, budgetAfter) && usageAfter > usage)
-        e.bytes = usageAfter - usage;
+    const uint64_t measured =
+        ReadVideoMemory(device, usageAfter, budgetAfter) && usageAfter > usage ? usageAfter - usage : 0;
+    const bool plausible = nowMs >= g_pacing.readingsQuietUntilMs && measured >= predicted / 4;
+    e.bytes = plausible ? measured : predicted;
 
     g_nrCache.push_back(e);
 
     LOG_INFO("DLSS-NR prebuild: built {:.0f}% ({}x{}) ahead at {} -- surfaces {:.1f} ms, CreateFeature {:.1f} ms; "
              "kept now: {}",
              c.scale * 100.0f, c.w, c.h, opportunity, surfacesMs, createMs, CachedSizesText());
-    LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}, prebuilt; VRAM {} -> {} MB of {} MB, predicted {} MB)",
-             c.scale * 100.0f, e.bytes >> 20, c.w, c.h, usage >> 20, usageAfter >> 20, budget >> 20, predicted >> 20);
+    LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}, prebuilt; VRAM {} -> {} MB of {} MB, predicted {} MB{})",
+             c.scale * 100.0f, e.bytes >> 20, c.w, c.h, usage >> 20, usageAfter >> 20, budget >> 20, predicted >> 20,
+             plausible ? "" : std::format("; reading of {} MB not trusted, predicted used", measured >> 20));
 
     return true;
 }
@@ -2745,6 +2806,22 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // (Devil May Cry 5's R8G8B8A8 -> R10G10B10A2 is caught just above by ReleaseSurfaces too), placement
     // before/after SR, the HDR colour path. Tuning changes are handled with the rebuild below.
     const bool sizeCacheAllowed = SizeCacheAllowed(cfg, proxyBackend, workScale);
+
+    // Back on within IdleWhileOff's grace period: the kept sizes are still here and are reused as they are
+    // (the generation check just below still drops them if anything they were built for changed). The
+    // settle clock restarts -- someone flipping the switch in the panel is not done yet (Resident Evil 2,
+    // 2026-09-18).
+    if (g_pacing.offSinceMs != 0.0)
+    {
+        const double nowMs = NowMs();
+        if (!g_nrCache.empty())
+            LOG_INFO("DLSS-NR model size cache: DLSS 5 back on after {:.1f} s -- {} kept size(s) reused ({})",
+                     (nowMs - g_pacing.offSinceMs) / 1000.0, g_nrCache.size(), CachedSizesText());
+        g_pacing.offSinceMs = 0.0;
+        g_pacing.settleFromMs = nowMs;
+        g_pacing.readingsQuietUntilMs = std::max(g_pacing.readingsQuietUntilMs, nowMs + kReadingQuietMs);
+    }
+
     {
         const NrCacheGeneration gen { true, device, width, height, desc.Format, frame.BeforeUpscale,
                                       frame.ColourIsLinearHdr };
@@ -2815,7 +2892,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     if (!stashed && g_nr.feature != nullptr && (resolutionChanged || tuningChanged || placementChanged))
     {
-        FlushNrCache(tuningChanged      ? "the model's settings changed (they are read at create time)"
+        // A create-time settings change rebuilds only the live size now. Every kept size was built with the
+        // old settings, so it is dropped (parked, released later, never evaluated); the other sizes come
+        // back one at a time through MaybePrebuild once the settings have held still for kPrebuildSettleMs.
+        // Resident Evil 2 (2026-09-18): rebuilding all four on every slider step was four stalls per step.
+        if (tuningChanged)
+            g_pacing.settleFromMs = NowMs();
+
+        FlushNrCache(tuningChanged      ? "the model's settings changed (they are read at create time); rebuilding "
+                                          "the live size only, the others once the settings settle"
                      : placementChanged ? "the placement changed"
                      : sizeOnlyChange   ? "the size change is rebuilding in place"
                                         : "the frame size changed");
@@ -3094,9 +3179,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             g_teardownFeatures = 0;
             g_nextBuildWhy = "rebuild";
 
-            // The first build of a generation (nothing kept yet): the other rungs are built right after it,
-            // next to the pause the player is already sitting through.
-            g_prebuild.burstArmed = g_nrCache.empty();
+            // A primary build is a hold like a prebuild, so it opens the spacing slot. After the first build
+            // of a generation (nothing kept) the other rungs wait for the settle period, then come one per
+            // slot -- no longer a burst of three right after it (Resident Evil 2, 2026-09-18).
+            {
+                const double nowMs = NowMs();
+                g_pacing.lastStallMs = nowMs;
+                if (g_nrCache.empty())
+                    g_pacing.settleFromMs = nowMs;
+            }
         }
 
         if (g_nr.feature == nullptr)
@@ -3902,8 +3993,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
                 // Plausible readings only feed the prediction: the game allocates in the same window, and a
                 // reading of nothing (or a texture streamer's gigabyte) must not steer the prebuild.
+                // Also not a reading taken just after kept sizes were dropped or DLSS 5 came back on: the
+                // driver refills memory it just got back and the usage barely moves (RE2 2026-09-18,
+                // "9 MB" sizes). And never one under a quarter of the estimate it would replace.
                 const double bpp = pixels != 0 ? (double) bytes / (double) pixels / (double) features : 0.0;
-                if (bpp >= 32.0 && bpp <= 2048.0)
+                const double estimate =
+                    g_measuredBytesPerPixel > 0.0 ? g_measuredBytesPerPixel : (double) kFeatureBytesPerPixel;
+                if (bpp >= 32.0 && bpp <= 2048.0 && bpp >= estimate * 0.25 && NowMs() >= g_pacing.readingsQuietUntilMs)
                     g_measuredBytesPerPixel = bpp;
 
                 LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}; VRAM {} -> {} MB of {} MB, {} MB of it full-frame "
@@ -5632,9 +5728,44 @@ void IdleWhileOff()
     // behaves exactly as before.
     static bool draining = false;
 
-    if (!g_nrCache.empty())
+    // Kept sizes are not dropped the moment DLSS 5 goes off. Resident Evil 2 (2026-09-18): toggling it in
+    // the panel to compare flushed three kept sizes each time, and switching back on paid for all of them
+    // again -- ~140 ms held Present each. They are held for kCacheOffGraceMs; back on within that, the pass
+    // reuses them untouched. Only a real "off" gives the memory back.
+    const double nowMs = NowMs();
+    if (g_pacing.offSinceMs == 0.0)
     {
-        FlushNrCache("DLSS 5 is switched off");
+        g_pacing.offSinceMs = nowMs;
+        if (!g_nrCache.empty())
+            LOG_INFO("DLSS-NR model size cache: DLSS 5 switched off -- keeping {} size(s) ({}) for {:.0f} s in case "
+                     "it comes back on",
+                     g_nrCache.size(), CachedSizesText(), kCacheOffGraceMs / 1000.0);
+    }
+
+    // What the pass would do. The memory rule still stands while off: if the game needs the room, kept
+    // sizes are evicted (least recently used first, one per check) without waiting out the grace period.
+    // No device here, so the adapter the pass last read is asked directly.
+    if (!g_nrCache.empty() && g_vramAdapter != nullptr && nowMs - g_pacing.lastOffMemoryCheckMs >= 500.0)
+    {
+        g_pacing.lastOffMemoryCheckMs = nowMs;
+        DXGI_QUERY_VIDEO_MEMORY_INFO info {};
+        if (SUCCEEDED(g_vramAdapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)) &&
+            info.Budget != 0)
+        {
+            g_vramUsage = info.CurrentUsage;
+            g_vramBudget = info.Budget;
+            const size_t before = g_nrCache.size();
+            EnforceCacheBudget(info.CurrentUsage, info.Budget);
+            if (g_nrCache.size() != before)
+                draining = true;
+        }
+    }
+
+    if (!g_nrCache.empty() && nowMs - g_pacing.offSinceMs >= kCacheOffGraceMs)
+    {
+        static const std::string why =
+            std::format("DLSS 5 stayed switched off for {:.0f} s", kCacheOffGraceMs / 1000.0);
+        FlushNrCache(why.c_str());
         draining = true;
     }
 
@@ -5693,6 +5824,7 @@ void Shutdown()
     g_nrCache.clear();
     g_nrCacheGen = {};
     g_prebuild = {};
+    g_pacing = {};
     g_buildMeasure = {};
 
     if (g_nr.feature != nullptr && g_nr.release != nullptr)

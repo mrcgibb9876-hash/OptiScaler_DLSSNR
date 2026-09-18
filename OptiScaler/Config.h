@@ -476,8 +476,9 @@ class Config
     // feature and build a new one, holding Present ~250 ms (Resident Evil 2, 2026-09-18).
     //   0  off: destroy and rebuild on every move, as before.
     //   1  keep: a size the controller leaves stays built, so moving back to it is instant.
-    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, one per
-    //      natural pause (right after the first build, a frame that is already long, the panel open).
+    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, at most
+    //      one per 5 s, only with DLSS 5 on and the create-time settings unchanged for 10 s, preferring
+    //      a natural pause (a frame that is already long, the panel open) over the timed slot.
     // Both only while video memory allows; a fixed WorkingScale (AutoScale off) never builds extra models.
     CustomOptional<uint32_t> DlssNrAutoScalePrebuild { 2 };
 
