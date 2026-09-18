@@ -193,10 +193,14 @@ void OnPresent(IDXGISwapChain* swapChain, UINT flags)
             const auto ms =
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 
-            static unsigned slowReports = 0;
-            if (ms > 50.0 && slowReports < 5)
+            // Rate limited rather than capped. A cap of five hid every stall after the fifth, so in
+            // Resident Evil 2 (2026-09-18) the later adaptive-resolution rebuilds looked free when they
+            // were not; one line per 2 s still keeps a stalling game from flooding the log.
+            static auto lastSlowReport = std::chrono::steady_clock::time_point {};
+            if (ms > 50.0 && (lastSlowReport == std::chrono::steady_clock::time_point {} ||
+                              std::chrono::steady_clock::now() - lastSlowReport > std::chrono::seconds(2)))
             {
-                ++slowReports;
+                lastSlowReport = std::chrono::steady_clock::now();
                 LOG_WARN("DLSS-NR Present route: the pass held Present {} for {:.1f} ms", presentIndex, ms);
             }
 

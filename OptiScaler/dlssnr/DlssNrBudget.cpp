@@ -52,9 +52,9 @@ std::size_t Controller::StepToward(float wantedScale, std::size_t floorRung) con
     // ...and it goes straight there rather than one rung at a time. Clamping the step to one rung
     // was the first shape of this and it was wrong: it defeats the square law, which is the whole
     // reason the pass cost can be aimed at instead of searched for, and it leaves the player over
-    // budget for another few seconds per rung while it crawls. What guards against diving on a
-    // transient is the two seconds of sustained over-budget windows above, not a clamp here -- by
-    // the time this is reached, the scene has genuinely been too expensive for two seconds.
+    // budget for another freeze per rung while it crawls. What guards against diving on a transient
+    // is the run of over-budget windows in Update, not a clamp here -- by the time this is reached,
+    // the scene has genuinely been too expensive for most of the last five seconds.
     return nearest;
 }
 
@@ -73,51 +73,96 @@ void Controller::Reset(float startScale)
     }
     m_passSamples.clear();
     m_frameSamples.clear();
+    m_restSamples.clear();
     m_windowStartMs = 0.0;
-    m_overSinceMs = 0.0;
-    m_underSinceMs = 0.0;
+    m_windowOpen = false;
+    m_settleUntilMs = 0.0;
+    m_overHistory.clear();
+    m_underRun = 0;
+    m_frameEma = 0.0;
+    m_restEma = 0.0;
+    m_emaSeeded = false;
+    m_changed = false;
     m_lastChangeMs = 0.0;
-    m_started = false;
+    m_leftRung = m_rung;
 }
 
-void Controller::Settle(double nowMs)
+void Controller::Discard(double nowMs, const Tuning& tuning)
 {
     m_passSamples.clear();
     m_frameSamples.clear();
-    m_windowStartMs = nowMs;
-    m_overSinceMs = 0.0;
-    m_underSinceMs = 0.0;
-    m_lastChangeMs = nowMs;
+    m_restSamples.clear();
+    m_windowOpen = false;
+    m_settleUntilMs = std::max(m_settleUntilMs, nowMs + tuning.settleMs);
 }
 
-Decision Controller::Update(double passMs, double frameMs, double nowMs, const Tuning& tuning)
+Decision Controller::Update(double passMs, double frameMs, double nowMs, const Tuning& tuning, bool disturbed)
 {
     Decision out;
     out.rung = m_rung;
+
+    // The caller saw the feature rebuilt. Whatever this window held is the rebuild's cost, not the
+    // scene's, and judging it is how one move paid for the next in Resident Evil 2 (2026-09-18).
+    if (disturbed)
+    {
+        Discard(nowMs, tuning);
+        return out;
+    }
 
     // A frame with no usable measurement teaches nothing. Dropping it is not the same as reading it
     // as zero, which would look like free headroom and walk the scale back up.
     if (!(passMs > 0.0) || !(frameMs > 0.0))
         return out;
 
-    if (!m_started)
+    // A hitch -- a held Present, a loading stall, an alt-tab -- throws its whole window away rather
+    // than riding in on a median that happens to be close. Only once there is a smoothed frame time
+    // to compare with: a game that genuinely runs at 5 fps must still be steerable.
+    if (m_emaSeeded && frameMs > std::max(tuning.hitchMinMs, m_frameEma * tuning.hitchFactor))
     {
-        m_started = true;
+        Discard(nowMs, tuning);
+        return out;
+    }
+
+    if (nowMs < m_settleUntilMs)
+        return out;
+
+    if (!m_windowOpen)
+    {
+        m_windowOpen = true;
         m_windowStartMs = nowMs;
-        m_lastChangeMs = nowMs;
     }
 
     m_passSamples.push_back(passMs);
     m_frameSamples.push_back(frameMs);
+    m_restSamples.push_back(std::max(frameMs - passMs, 0.0));
 
-    if (nowMs - m_windowStartMs < tuning.windowMs)
+    const double spanMs = nowMs - m_windowStartMs;
+    if (spanMs < tuning.windowMs)
         return out;
 
     const double medianPass = Median(m_passSamples);
     const double medianFrame = Median(m_frameSamples);
+    const double medianRest = Median(m_restSamples);
     m_passSamples.clear();
     m_frameSamples.clear();
+    m_restSamples.clear();
     m_windowStartMs = nowMs;
+
+    // The budget is built on SMOOTHED frame figures. Built on one window's median it wandered
+    // 5.3-10.2 ms in Resident Evil 2 (2026-09-18) with the scene barely changing, and a goalpost
+    // that moves every second is one the pass is always about to miss or always about to clear.
+    if (!m_emaSeeded)
+    {
+        m_frameEma = medianFrame;
+        m_restEma = medianRest;
+        m_emaSeeded = true;
+    }
+    else
+    {
+        const double alpha = 1.0 - std::exp(-spanMs / std::max(tuning.budgetTauMs, 1.0));
+        m_frameEma += alpha * (medianFrame - m_frameEma);
+        m_restEma += alpha * (medianRest - m_restEma);
+    }
 
     double budgetMs = 0.0;
     switch (tuning.mode)
@@ -127,17 +172,17 @@ Decision Controller::Update(double passMs, double frameMs, double nowMs, const T
         break;
     case Mode::TargetFps:
     {
-        // The pass can only give back what it costs. If the frame is 4 ms longer than the target,
-        // the pass has to lose 4 ms -- so its budget is what it spends now, less the shortfall. The
-        // same arithmetic runs the other way when the frame is already inside the target, which is
-        // what lets the scale climb back once there is room for it.
+        // The pass can only give back what it costs, so its budget is the target frame less the part
+        // of the frame that is the game's. That part does not depend on the model's scale, which is
+        // what makes it the stable thing to smooth: v2.1.0 wrote this as "pass + (target - frame)",
+        // the same number, but from one window's pass and frame, so every wobble in either moved it.
         const double targetFrameMs = 1000.0 / static_cast<double>(tuning.targetFps > 0 ? tuning.targetFps : 60);
-        budgetMs = medianPass + (targetFrameMs - medianFrame);
+        budgetMs = targetFrameMs - m_restEma;
         break;
     }
     case Mode::Share:
     default:
-        budgetMs = medianFrame * (static_cast<double>(tuning.sharePercent) / 100.0);
+        budgetMs = m_frameEma * (static_cast<double>(tuning.sharePercent) / 100.0);
         break;
     }
 
@@ -147,72 +192,71 @@ Decision Controller::Update(double passMs, double frameMs, double nowMs, const T
     const std::size_t floorRung = FloorRung(tuning.floorScale);
 
     // Asking for a frame rate the game itself cannot reach drives the budget to nothing or below.
-    // Shrinking the pass to the floor is everything this can do about that, and once it is there the
-    // honest report is that the remainder is not the pass's to give.
-    if (!(budgetMs > 0.0))
-    {
-        out.gameLimited = tuning.mode == Mode::TargetFps && m_rung >= floorRung;
-        if (m_rung >= floorRung)
-            return out;
-        budgetMs = 1e-6; // below any real measurement, so the step below drives to the floor
-    }
-    const bool over = medianPass > budgetMs;
-    const bool under = medianPass < budgetMs * tuning.recoverAt;
+    // That is over budget however small the pass is, and severely so.
+    const bool hopeless = !(budgetMs > 0.0);
+    const bool over = hopeless || medianPass > budgetMs * tuning.overMargin;
+    const bool severe = hopeless || medianPass > budgetMs * tuning.severeFactor;
+    const bool under = !hopeless && medianPass < budgetMs * tuning.recoverAt;
 
-    // Each direction has to be sustained, and the two runs are exclusive: a window that is over
-    // budget clears any recovery that was building, and the other way round.
-    if (over)
-    {
-        m_underSinceMs = 0.0;
-        if (m_overSinceMs == 0.0)
-            m_overSinceMs = nowMs;
-    }
-    else if (under)
-    {
-        m_overSinceMs = 0.0;
-        if (m_underSinceMs == 0.0)
-            m_underSinceMs = nowMs;
-    }
-    else
-    {
-        // Between the budget and the recovery threshold is where it is meant to sit. Neither run
-        // continues, so a scene hovering here never spends a rebuild.
-        m_overSinceMs = 0.0;
-        m_underSinceMs = 0.0;
-        return out;
-    }
+    m_overHistory.push_back(over);
+    const std::size_t keep = static_cast<std::size_t>(std::max(tuning.downWindows, 1));
+    while (m_overHistory.size() > keep)
+        m_overHistory.erase(m_overHistory.begin());
+    m_underRun = under ? m_underRun + 1 : 0;
 
-    if (nowMs - m_lastChangeMs < tuning.dwellMs)
+    // TargetFps only: shrinking the pass to the floor is everything this can do, and once it is there
+    // the honest report is that the remainder is not the pass's to give.
+    if (tuning.mode == Mode::TargetFps && over && m_rung >= floorRung)
+        out.gameLimited = true;
+
+    // The freeze. Whatever the windows say, a move this recent is not undone or extended yet.
+    if (m_changed && nowMs - m_lastChangeMs < tuning.freezeMs)
         return out;
 
+    const int overCount = static_cast<int>(std::count(m_overHistory.begin(), m_overHistory.end(), true));
     std::size_t wantRung = m_rung;
 
-    if (over && m_overSinceMs != 0.0 && nowMs - m_overSinceMs >= tuning.overBudgetMs && m_rung < floorRung)
+    if (overCount >= tuning.downNeeded && m_rung < floorRung)
     {
         // Cost falls with the square of the scale, so the scale that would have fitted this window is
         // the current one times the square root of the ratio. That is the cost model the lever's own
         // help states, which is why this converges in a step instead of crawling down a rung at a time.
-        const float wanted = static_cast<float>(Rungs[m_rung] * std::sqrt(budgetMs / medianPass));
+        const float wanted =
+            hopeless ? 0.0f : static_cast<float>(Rungs[m_rung] * std::sqrt(budgetMs / medianPass));
         wantRung = StepToward(wanted, floorRung);
         if (wantRung <= m_rung)
             wantRung = m_rung + 1;
     }
-    else if (under && m_underSinceMs != 0.0 && nowMs - m_underSinceMs >= tuning.underBudgetMs && m_rung > 0)
+    else if (m_underRun >= tuning.upWindows && m_rung > 0)
     {
-        // Recovery is one rung at a time and never analytic. The measurement says what the pass costs
-        // HERE; it cannot say what the next rung up would cost, and guessing that from the square law
-        // would overshoot straight back over budget and undo itself.
-        wantRung = m_rung - 1;
+        // Recovery is one rung at a time, and only if the rung above is predicted to fit with room to
+        // spare. The square law overstates what the next rung costs (the model has a fixed part: in
+        // RE2 55% -> 70% cost ~1.3x, not the 1.6x the areas say), so this errs towards staying put --
+        // the cheap direction to be wrong in, since staying costs nothing and moving costs a hitch.
+        const double ratio = static_cast<double>(Rungs[m_rung - 1]) / Rungs[m_rung];
+        if (medianPass * ratio * ratio <= budgetMs * tuning.upHeadroom)
+            wantRung = m_rung - 1;
     }
-
-    if (tuning.mode == Mode::TargetFps && over && m_rung >= floorRung)
-        out.gameLimited = true;
 
     if (wantRung == m_rung)
         return out;
 
+    // Anti-flip: never straight back to the scale just left. Stepping down to it again is allowed
+    // only when the miss is severe -- then the rung it is on is plainly wrong, and holding it for a
+    // minute to save a hitch would be the worse trade. Stepping back UP to it never is: being under
+    // budget is never urgent.
+    if (m_changed && wantRung == m_leftRung && nowMs - m_lastChangeMs < tuning.antiFlipMs &&
+        !(wantRung > m_rung && severe))
+        return out;
+
+    m_leftRung = m_rung;
     m_rung = wantRung;
-    Settle(nowMs);
+    m_changed = true;
+    m_lastChangeMs = nowMs;
+    m_overHistory.clear();
+    m_underRun = 0;
+    Discard(nowMs, tuning);
+
     out.rung = m_rung;
     out.scale = Rungs[m_rung];
     return out;

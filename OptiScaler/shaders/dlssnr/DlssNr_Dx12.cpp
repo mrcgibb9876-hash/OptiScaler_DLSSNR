@@ -1672,7 +1672,15 @@ void UpdateAutoScale()
     const double nowMs =
         std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
 
-    const DlssNrBudget::Decision d = g_budget.Update(g_lastGpuTime.value(), frameMs, nowMs, tuning);
+    // A feature this controller has not seen before means a rebuild happened since the last tick: the
+    // model was off for the parked frames, then held Present ~250 ms while it was created (Resident
+    // Evil 2, 2026-09-18). None of that is the scene's cost, so the controller is told to drop it
+    // rather than left to judge a window that contains it.
+    static const void* seenFeature = nullptr;
+    const bool rebuilt = g_nr.feature != seenFeature;
+    seenFeature = g_nr.feature;
+
+    const DlssNrBudget::Decision d = g_budget.Update(g_lastGpuTime.value(), frameMs, nowMs, tuning, rebuilt);
 
     g_autoScale.running = true;
     g_autoScale.scale = DlssNrBudget::Rungs[d.rung];
