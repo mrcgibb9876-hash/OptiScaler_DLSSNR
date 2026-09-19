@@ -618,9 +618,15 @@ bool EnsureForwarder()
 // [DlssNr] AutoScalePage turns the paging on; [DlssNr] AllocProbe only logs every buffer. Either installs the
 // callbacks, and only for the duration of this engine's own create calls, so the game's own DLSS never sees
 // them. Every buffer is created exactly as NGX describes it.
+bool ReadVideoMemory(ID3D12Device* device, uint64_t& usage, uint64_t& budget);
+
 namespace NrMemory
 {
 ID3D12Device* g_device = nullptr;
+// The proof a page-out gave video memory back: usage just before it, read again a second later.
+uint64_t g_measureBefore = 0;
+uint64_t g_measurePaged = 0;
+ULONGLONG g_measureAt = 0;
 ID3D12Device3* g_device3 = nullptr;
 ID3D12Fence* g_fence = nullptr;
 UINT64 g_fenceValue = 0;
@@ -937,8 +943,27 @@ void Tick()
 
     if (!out.empty() && g_device != nullptr)
     {
+        uint64_t usage = 0, budget = 0;
+        const bool known = ReadVideoMemory(g_device, usage, budget);
         g_device->Evict((UINT) out.size(), out.data());
-        LOG_INFO("DLSS-NR model memory: paged out {} MB of a kept size to system memory", outBytes >> 20);
+        LOG_INFO("DLSS-NR model memory: paged out {} MB of a kept size to system memory (video memory {} MB of {} MB before)",
+                 outBytes >> 20, known ? (usage >> 20) : 0, known ? (budget >> 20) : 0);
+        if (known && g_measureAt == 0)
+        {
+            g_measureBefore = usage;
+            g_measurePaged = outBytes;
+            g_measureAt = GetTickCount64() + 1000;
+        }
+    }
+
+    if (g_measureAt != 0 && GetTickCount64() >= g_measureAt && g_device != nullptr)
+    {
+        g_measureAt = 0;
+        uint64_t usage = 0, budget = 0;
+        if (ReadVideoMemory(g_device, usage, budget))
+            LOG_INFO("DLSS-NR model memory: a second after paging out {} MB, video memory is {} MB (was {} MB: {} MB given back)",
+                     g_measurePaged >> 20, usage >> 20, g_measureBefore >> 20,
+                     g_measureBefore > usage ? (int64_t) ((g_measureBefore - usage) >> 20) : -(int64_t) ((usage - g_measureBefore) >> 20));
     }
 
     for (IUnknown* resource : due)
