@@ -149,6 +149,20 @@ std::string BuildJson()
         s += "},";
     }
 
+    // rates -- rendered and shown, see Rates().
+    {
+        const FrameRates r = Rates(g_fps);
+        s += "\"rates\":{";
+        AppendNum(s, "rendered", r.rendered, 1);
+        s += ',';
+        AppendNum(s, "shown", r.shown, 1);
+        s += ',';
+        AppendNum(s, "multiplier", (double) r.multiplier, 0);
+        s += ',';
+        AppendBool(s, "estimated", r.estimated);
+        s += "},";
+    }
+
     // fg -- what the Frame Generation section decides between.
     {
         auto* fg = state.currentFG;
@@ -244,4 +258,68 @@ void Tick()
     g_lastWrite = now;
     Write();
 }
+int FgMultiplier()
+{
+    auto& state = State::Instance();
+    auto* config = Config::Instance();
+    auto* fg = state.currentFG;
+    const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && fg != nullptr;
+    const bool gameDlssg = !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
+
+    if (gameDlssg)
+    {
+        const int live = state.dlssgDetectedInterpolationCount;
+        return live > 0 ? live + 1 : 0;
+    }
+    if (fg != nullptr && config->FGEnabled.value_or_default())
+        return optiDlssg ? std::max(1, config->FGDLSSGInterpolationCount.value_or_default()) + 1 : 2;
+    return 0;
+}
+
+FrameRates Rates(double presentedFps)
+{
+    // The pass's own rate over the last second or so.
+    static unsigned long long lastFrames = 0;
+    static double lastMs = 0.0;
+    static double passFps = 0.0;
+    const double nowMs =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const unsigned long long frames = DlssNr::PassFrames();
+    if (lastMs == 0.0 || frames < lastFrames)
+    {
+        lastMs = nowMs;
+        lastFrames = frames;
+    }
+    else if (nowMs - lastMs >= 1000.0)
+    {
+        passFps = (double) (frames - lastFrames) * 1000.0 / (nowMs - lastMs);
+        lastMs = nowMs;
+        lastFrames = frames;
+    }
+
+    FrameRates r;
+    r.multiplier = FgMultiplier();
+    const bool passRunning = passFps > 1.0 && (DlssNr::IsRunning() || DlssNr::IsRunningVk());
+    if (r.multiplier < 2)
+    {
+        r.rendered = passRunning ? passFps : presentedFps;
+        r.shown = r.rendered;
+        return r;
+    }
+
+    r.rendered = passRunning ? passFps : presentedFps / r.multiplier;
+    // Does this panel see the generated frames? Then its own rate is what reaches the screen. If it is drawn
+    // at about the rendered rate, the generated frames go past it, and shown is an estimate.
+    if (presentedFps > r.rendered * 1.3)
+    {
+        r.shown = presentedFps;
+    }
+    else
+    {
+        r.shown = r.rendered * r.multiplier;
+        r.estimated = true;
+    }
+    return r;
+}
+
 } // namespace DlssNr::Live

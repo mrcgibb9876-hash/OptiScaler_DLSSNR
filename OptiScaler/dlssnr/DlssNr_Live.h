@@ -16,4 +16,21 @@ namespace DlssNr::Live
 // Once per presented frame, from MenuCommon::RenderMenu (DX11, DX12 and the Present route all draw
 // through it every frame, menu up or not). Cheap: a clock check and an early return on almost every call.
 void Tick();
+
+// Frame generation's multiplier running right now: 3 for 3X, 0 when none is (the game's own DLSS-G, or
+// OptiScaler's own frame generation).
+int FgMultiplier();
+
+// The two frame rates a player can mean. rendered: frames the game actually rendered (the pass's own rate
+// while it runs). shown: what reaches the screen with frame generation -- the rate this panel is presented at
+// when it sees the generated frames, otherwise rendered x the multiplier (estimated set true). With no frame
+// generation both are the presented rate.
+struct FrameRates
+{
+    double rendered = 0.0;
+    double shown = 0.0;
+    int multiplier = 0;
+    bool estimated = false;
+};
+FrameRates Rates(double presentedFps);
 } // namespace DlssNr::Live

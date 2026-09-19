@@ -1,4 +1,5 @@
 ﻿#include "pch.h"
+#include "DlssNr_Live.h"
 
 #include "DlssNr.h"
 #include "DlssNrFeature_Vk.h"
@@ -726,9 +727,15 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
     {
         const ImVec4 kOk(0.55f, 0.85f, 0.45f, 1.0f);
 
-        if (mode == 2)
-            ImGui::TextColored(kOk, Tr("Holding %d fps - model at %.0f%%%s"),
-                               config->DlssNrAutoScaleFps.value_or_default(), st.scale * 100.0f,
+        const int targetFps = config->DlssNrAutoScaleFps.value_or_default();
+
+        if (mode == 2 && st.frameFps > 0.0 && st.frameFps < targetFps * 0.95)
+            // Not there yet, and not at the floor either: the controller is still stepping down. It used to say
+            // "Holding" here whatever the frame rate was (Resident Evil Requiem, 2026-09-19).
+            ImGui::TextColored(kTextDim, Tr("Heading for %d fps - now %.0f, model at %.0f%%"), targetFps,
+                               st.frameFps, st.scale * 100.0f);
+        else if (mode == 2)
+            ImGui::TextColored(kOk, Tr("Holding %d fps - model at %.0f%%%s"), targetFps, st.scale * 100.0f,
                                st.atFloor ? Tr(", as low as it goes") : "");
         else if (mode == 1)
             ImGui::TextColored(kOk, Tr("Holding the pass under %.1f ms - model at %.0f%%%s"),
@@ -920,6 +927,17 @@ void RenderMenu(Config* config, float menuResScale)
         }
 
         ImGui::Spacing();
+
+        // Light panel first, above DLSS ON (2026-09-19): legibility is the first thing to get right over a game.
+        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
+        {
+            config->DlssNrLightTheme = light;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Light is the default. The dark palette this panel was originally styled after put"
+                      "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
+                      "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
+                      "\n\nUnticking restores NVIDIA's own colouring."));
 
         bool enabled = config->DlssNrEnabled.value_or_default();
         if (NrCheckbox(Tr("DLSS ON"), &enabled, true))
@@ -1242,8 +1260,15 @@ void RenderMenu(Config* config, float menuResScale)
                 const double usedGb = used / (1024.0 * 1024.0 * 1024.0);
                 const double budgetGb = budget / (1024.0 * 1024.0 * 1024.0);
                 const bool tight = used * 10 >= budget * 9;
-                ImGui::TextColored(tight ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f) : kTextDim,
-                                   Tr("%.0f fps   VRAM %.1f / %.1f GB"), fps, usedGb, budgetGb);
+                const ImVec4 lineColour = tight ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f) : kTextDim;
+                const DlssNr::Live::FrameRates rates = DlssNr::Live::Rates(fps);
+                if (rates.multiplier >= 2)
+                    // Frame generation on: the frames the game rendered first, then what reaches the screen --
+                    // a target on the Adaptive resolution line means the second, and they are easy to confuse.
+                    ImGui::TextColored(lineColour, Tr("%.0f fps rendered, %s%.0f with frame generation   VRAM %.1f / %.1f GB"),
+                                       rates.rendered, rates.estimated ? "~" : "", rates.shown, usedGb, budgetGb);
+                else
+                    ImGui::TextColored(lineColour, Tr("%.0f fps   VRAM %.1f / %.1f GB"), fps, usedGb, budgetGb);
                 ImGui::SameLine();
                 ImGui::TextColored(kTextDim, "(?)");
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -2388,15 +2413,6 @@ void RenderMenu(Config* config, float menuResScale)
         // panel, over the game, on your own monitor, to know whether it works.
         SectionCaption(Tr("Appearance"), rowWidth);
 
-        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
-        {
-            config->DlssNrLightTheme = light;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Light is the default. The dark palette this panel was originally styled after put"
-                      "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
-                      "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
-                      "\n\nUnticking restores NVIDIA's own colouring."));
 
         if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox(Tr("Vendor colours"), &vendor))
         {

@@ -2761,7 +2761,10 @@ void UpdateAutoScale()
     g_autoScale.running = true;
     g_autoScale.scale = std::min(DlssNrBudget::Rungs[d.rung], g_memCapScale);
     g_autoScale.atFloor = DlssNrBudget::Rungs[d.rung] <= tuning.floorScale + 1e-4f;
-    g_autoScale.gameLimited = d.gameLimited;
+    // The measured frame rate, smoothed over about a second, for the status line: "Holding N fps" is only
+    // said when it is true.
+    const double fpsNow = 1000.0 / frameMs;
+    g_autoScale.frameFps = g_autoScale.frameFps > 0.0 ? g_autoScale.frameFps * 0.95 + fpsNow * 0.05 : fpsNow;
 
     // A tick that did not close a window carries no medians. Keeping the last real pair means the
     // panel shows the figures the last decision was actually made on rather than blinking to zero.
@@ -2769,6 +2772,11 @@ void UpdateAutoScale()
     {
         g_autoScale.lastPassMs = d.lastPassMs;
         g_autoScale.lastBudgetMs = d.lastBudgetMs;
+
+        // Only a closed window carries a verdict. It used to be taken from every tick, and the ticks between
+        // windows say false -- so the panel read "Holding 100 fps" most of the time at the floor with the game
+        // at 75-80 (Resident Evil Requiem, 2026-09-19).
+        g_autoScale.gameLimited = d.gameLimited;
 
         // Which way the next move probably goes: a pass near its budget will step down, one well under it will
         // step up, anything between holds. That neighbour is what stays warm when kept sizes are paged.
@@ -6274,6 +6282,8 @@ CalibrationReading Calibration()
 }
 
 bool IsRunning() { return g_nr.feature != nullptr && !g_nr.failed; }
+
+unsigned long long PassFrames() { return g_frames; }
 
 const char* FailureReason() { return g_nr.failed ? g_nr.reason : ""; }
 

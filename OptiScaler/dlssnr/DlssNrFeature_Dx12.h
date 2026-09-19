@@ -100,6 +100,10 @@ CalibrationReading Calibration();
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 
+// Frames the pass has run since the game started: one per rendered frame, frame generation's inserted frames
+// never pass through it -- which makes its rate the game's real frame rate.
+unsigned long long PassFrames();
+
 // Why it is not, if it is not. Empty while it is running or has not been tried yet.
 const char* FailureReason();
 
@@ -140,6 +144,7 @@ struct AutoScaleStatus
     bool gameLimited = false; // frame rate target only: at the floor and still short, so the rest is the game's
     double lastPassMs = 0.0;  // the median pass cost over the last window
     double lastBudgetMs = 0.0;
+    double frameFps = 0.0;    // the frame rate it steers on, smoothed -- what "Holding N fps" is checked against
 };
 
 AutoScaleStatus AutoScale();
