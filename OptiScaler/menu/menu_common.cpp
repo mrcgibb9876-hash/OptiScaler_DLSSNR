@@ -1538,6 +1538,14 @@ void MenuCommon::UpdateMenuInputMode(RenderMenuContext& ctx)
         // Typing into a field and the panel's own key bindings do not depend on navigation.
         io.ConfigFlags = _isVisible ? (ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad)
                                     : ImGuiConfigFlags_None;
+
+        // In the Feeder's helper this window is only ever seen as the cast inside the game, and the OS cursor is
+        // never over it -- the game has it (often hidden, in mouselook). The Feeder forwards the mouse as posted
+        // messages and leaves drawing the pointer to whatever panel the helper shows; it expects ReShade's overlay,
+        // which the manager keeps closed here so this panel is what shows. So the panel draws its own, every frame:
+        // without it there was no pointer at all over the panel (Castlevania: Lords of Shadow 2 demo, 2026-09-19).
+        if (OptiInput::InFeederHelper())
+            io.MouseDrawCursor = true;
     }
     else
     {
