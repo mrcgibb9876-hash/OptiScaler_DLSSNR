@@ -703,6 +703,9 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
 
     const AutoScaleStatus st = AutoScale();
 
+    // A fixed height, whatever it says: the lines below used to be one, two or three tall as the readings
+    // came and went and the numbers changed length, and every row under them jumped each time they updated.
+    const float statusTop = ImGui::GetCursorPosY();
     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
 
     if (!st.running)
@@ -741,6 +744,11 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
     }
 
     ImGui::PopTextWrapPos();
+
+    const float statusHeight = ImGui::GetTextLineHeightWithSpacing() * 3.0f;
+    const float statusUsed = ImGui::GetCursorPosY() - statusTop;
+    if (statusUsed < statusHeight)
+        ImGui::Dummy(ImVec2(0.0f, statusHeight - statusUsed));
 }
 
 void RenderMenu(Config* config, float menuResScale)
@@ -1256,6 +1264,92 @@ void RenderMenu(Config* config, float menuResScale)
         ImGui::Spacing();
         DrawAutoScale(config, rowWidth, anyChanged);
 
+        // Model passes right under it (2026-09-19): with Adaptive resolution, the two things that decide what the
+        // pass costs, together. The rows that only apply to stacked passes come with it.
+        // Sequential model layers between one encode and one final composition. Deferred on release
+        // for the same reason Model resolution below is: each layer owns a persistent feature and
+        // history, so every distinct value tears those down and rebuilds them.
+        static int pendingPasses = -1;
+        float passes = pendingPasses >= 0
+                           ? (float) pendingPasses
+                           : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
+
+        auto rPasses = NrSlider(Tr("Model passes"), &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
+        if (rPasses.changed)
+            pendingPasses = (int) std::lroundf(passes);
+
+        if (rPasses.released && pendingPasses >= 0)
+        {
+            config->DlssNrPasses = (uint32_t) std::clamp(pendingPasses, 1, (int) DlssNr::MaxPassCount);
+            pendingPasses = -1;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("How many times the model runs before its answer is composed. Each extra layer is"
+                      "\nfed the previous layer's output and keeps its own temporal history."
+                      "\n\nThe base frame stays untouched and the composition happens once at the end, so"
+                      "\ncolour and transfer strength do not compound -- but the model is being asked to"
+                      "\nenhance its own output, which is outside what it was trained on."
+                      "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
+                      "\nand every layer pays it again. Three is the ceiling because later layers converge"
+                      "\nwhile still costing full price."));
+
+        {
+            const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
+            if (shownPasses > 1)
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+                ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
+                                                    : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
+                                   Tr("%dx model cost. Two often reads as richer; three is usually visibly "
+                                      "over-processed."),
+                                   shownPasses);
+                ImGui::PopTextWrapPos();
+
+                bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
+                if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
+                {
+                    config->DlssNrChainedHistory = chainedHistory;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("What the stacked passes do with their temporal history between frames."
+                              "\n\nOn (default): every pass keeps its own history, so each layer accumulates the"
+                              "\nway pass one does. Off: passes 2+ are reset every frame -- stateless refinement,"
+                              "\nwhich cannot compound ghosting."
+                              "\n\nThe trade is real both ways. Keeping history is richer and can compound ghosting"
+                              "\nbehind fast movement; resetting every frame cannot, but NVIDIA documents"
+                              "\nreset-per-frame as a flicker and aliasing risk -- which is what shimmering on two"
+                              "\nor three passes usually is. Try the other setting when a stacked picture shimmers,"
+                              "\nand keep whichever the game looks better with."
+                              "\n\nOnly does anything with more than one pass."));
+
+                const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"), Tr("Model A"),
+                                                              Tr("Model B"), Tr("Model C") };
+                const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),
+                                                             Tr("Natural"), Tr("Cinematic") };
+
+                anyChanged |=
+                    InheritedProfileCombo(Tr("Pass 2 model"), &config->DlssNrPass2Preset, kInheritedPresetNames,
+                                          IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                anyChanged |= InheritedProfileCombo(Tr("Pass 2 style"), &config->DlssNrPass2Style, kInheritedStyleNames,
+                                                    IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+
+                if (shownPasses > 2)
+                {
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 3 model"), &config->DlssNrPass3Preset, kInheritedPresetNames,
+                                              IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 3 style"), &config->DlssNrPass3Style, kInheritedStyleNames,
+                                              IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+                }
+
+                HelpMarker(Tr("Which built-in profile each later layer runs. These select a different"
+                              "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
+                              "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
+                              "\nrebuilds only that layer's feature, and only while that layer is active."));
+            }
+        }
+
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
         SectionCaption(Tr("Global Controls"), rowWidth);
@@ -1547,89 +1641,6 @@ void RenderMenu(Config* config, float menuResScale)
         // developer overlay -- kept under its original names.
         SectionCaption(Tr("Cost"), rowWidth);
 
-        // Sequential model layers between one encode and one final composition. Deferred on release
-        // for the same reason Model resolution below is: each layer owns a persistent feature and
-        // history, so every distinct value tears those down and rebuilds them.
-        static int pendingPasses = -1;
-        float passes = pendingPasses >= 0
-                           ? (float) pendingPasses
-                           : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
-
-        auto rPasses = NrSlider(Tr("Model passes"), &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
-        if (rPasses.changed)
-            pendingPasses = (int) std::lroundf(passes);
-
-        if (rPasses.released && pendingPasses >= 0)
-        {
-            config->DlssNrPasses = (uint32_t) std::clamp(pendingPasses, 1, (int) DlssNr::MaxPassCount);
-            pendingPasses = -1;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("How many times the model runs before its answer is composed. Each extra layer is"
-                      "\nfed the previous layer's output and keeps its own temporal history."
-                      "\n\nThe base frame stays untouched and the composition happens once at the end, so"
-                      "\ncolour and transfer strength do not compound -- but the model is being asked to"
-                      "\nenhance its own output, which is outside what it was trained on."
-                      "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
-                      "\nand every layer pays it again. Three is the ceiling because later layers converge"
-                      "\nwhile still costing full price."));
-
-        {
-            const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
-            if (shownPasses > 1)
-            {
-                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
-                                                    : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
-                                   Tr("%dx model cost. Two often reads as richer; three is usually visibly "
-                                      "over-processed."),
-                                   shownPasses);
-                ImGui::PopTextWrapPos();
-
-                bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
-                if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
-                {
-                    config->DlssNrChainedHistory = chainedHistory;
-                    anyChanged = true;
-                }
-                HelpMarker(Tr("What the stacked passes do with their temporal history between frames."
-                              "\n\nOn (default): every pass keeps its own history, so each layer accumulates the"
-                              "\nway pass one does. Off: passes 2+ are reset every frame -- stateless refinement,"
-                              "\nwhich cannot compound ghosting."
-                              "\n\nThe trade is real both ways. Keeping history is richer and can compound ghosting"
-                              "\nbehind fast movement; resetting every frame cannot, but NVIDIA documents"
-                              "\nreset-per-frame as a flicker and aliasing risk -- which is what shimmering on two"
-                              "\nor three passes usually is. Try the other setting when a stacked picture shimmers,"
-                              "\nand keep whichever the game looks better with."
-                              "\n\nOnly does anything with more than one pass."));
-
-                const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"), Tr("Model A"),
-                                                              Tr("Model B"), Tr("Model C") };
-                const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),
-                                                             Tr("Natural"), Tr("Cinematic") };
-
-                anyChanged |=
-                    InheritedProfileCombo(Tr("Pass 2 model"), &config->DlssNrPass2Preset, kInheritedPresetNames,
-                                          IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
-                anyChanged |= InheritedProfileCombo(Tr("Pass 2 style"), &config->DlssNrPass2Style, kInheritedStyleNames,
-                                                    IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
-
-                if (shownPasses > 2)
-                {
-                    anyChanged |=
-                        InheritedProfileCombo(Tr("Pass 3 model"), &config->DlssNrPass3Preset, kInheritedPresetNames,
-                                              IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
-                    anyChanged |=
-                        InheritedProfileCombo(Tr("Pass 3 style"), &config->DlssNrPass3Style, kInheritedStyleNames,
-                                              IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
-                }
-
-                HelpMarker(Tr("Which built-in profile each later layer runs. These select a different"
-                              "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
-                              "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
-                              "\nrebuilds only that layer's feature, and only while that layer is active."));
-            }
-        }
 
         // Model resolution, by hand or by itself. The automatic block below drives this same number,
         // so the slider is shown disabled rather than hidden while it is on: the value moving is the
