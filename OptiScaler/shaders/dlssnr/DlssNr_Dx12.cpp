@@ -464,23 +464,21 @@ void ClearCaptureDirectory()
 
 unsigned long long g_frames = 0;
 
-// Easing the edit back in after the model changed size.
+// Easing the edit back in after the model changed size WITHOUT the cross-fade -- a rebuild, which has no
+// outgoing size left to fade from.
 //
-// Each size owns its own temporal history, so the frame after a switch -- to a rebuilt size, or to one kept
-// from earlier -- is the first that history has seen. The model's answer settles over a handful of frames, and
-// the composition used to show every one of them at full strength: a flash of brightness on each step, and two
-// a quarter-second apart when Adaptive resolution stepped and then rebuilt. Over kSizeFadeFrames the edit goes
-// from nothing to what the settings ask for, which is well under the time a step takes to be noticed.
+// Each size owns its own temporal history, so the frame after a rebuild is the first that history has seen and
+// the model's answer settles over a handful of frames. Over kSizeFadeFrames the edit goes from nothing to what
+// the settings ask for.
+//
+// Why this is NOT used for an Adaptive resolution step any more. Strength zero is the pass switched off: the
+// resolve hands back exactly what the upscaler produced, with none of the model's brightness or colour on it.
+// So a fade through zero is the largest brightness swing the pass can make, and using it to hide a step made
+// the step more visible, not less -- it is what the player reported as a flash on 2026-09-20. A step between
+// two sizes now cross-fades between the two composed pictures (g_blend) and never passes through zero. This is
+// kept only for the rebuild case, where there is genuinely nothing to fade from.
 constexpr unsigned int kSizeFadeFrames = 8;
 unsigned int g_sizeFadeLeft = 0;
-
-// ... and easing it out BEFORE one. A switch is held for kSizeFadeOutFrames frames while the edit fades to
-// nothing, so what the player sees is the pass easing off and easing back on, never a step between two
-// strengths. Without this the switch frame went from full strength to none in one frame, which is the flash
-// itself -- the fade-in alone did not help (user, 2026-09-20).
-constexpr unsigned int kSizeFadeOutFrames = 6;
-unsigned int g_sizeFadeOutLeft = 0;
-bool g_sizeSwitchHeld = false;
 
 void FadeInAfterSizeChange() { g_sizeFadeLeft = kSizeFadeFrames; }
 
@@ -488,23 +486,11 @@ void FadeInAfterSizeChange() { g_sizeFadeLeft = kSizeFadeFrames; }
 // the fade is itself a step.
 float SizeFadeFactor()
 {
-    float t = 1.0f;
-
-    if (g_sizeFadeOutLeft > 0)
-    {
-        // Counting down to the switch: full strength at the start, nothing at the last held frame.
-        t = (float) (g_sizeFadeOutLeft - 1) / (float) kSizeFadeOutFrames;
-    }
-    else if (g_sizeFadeLeft > 0)
-    {
-        t = 1.0f - (float) g_sizeFadeLeft / (float) kSizeFadeFrames;
-        --g_sizeFadeLeft;
-    }
-    else
-    {
+    if (g_sizeFadeLeft == 0)
         return 1.0f;
-    }
 
+    const float t = 1.0f - (float) g_sizeFadeLeft / (float) kSizeFadeFrames;
+    --g_sizeFadeLeft;
     return t * t * (3.0f - 2.0f * t);
 }
 
@@ -1496,6 +1482,11 @@ struct NrPrebuildState
     double frameEma = 0.0;                  // smoothed frame time, for "this frame is already long"
     std::set<uint64_t> failed;              // sizes whose create failed this generation
     std::set<uint64_t> saidSkipped;         // sizes whose memory skip has been logged this generation
+
+    // The size a move was refused because it was not built (see "NEVER BUILD A MODEL ON THE FRAME A MOVE
+    // HAPPENS"). The controller is waiting on this one, so it is built before any other rung. 0 = nothing
+    // waiting.
+    float wantedScale = 0.0f;
 };
 
 NrPrebuildState g_prebuild;
@@ -1524,10 +1515,103 @@ void ParkSizeEntry(NrSizeEntry& e)
     ParkNrResource(e.colorSmall);
 }
 
+// THE ADAPTIVE RESOLUTION CROSS-FADE.
+//
+// A step between two model sizes used to be a cut: one frame composed at the old size, the next composed at
+// the new one -- whose temporal history is empty, and whose first answers are still settling (it can even
+// come back near-black, which the resolve's empty-answer guard turns into one frame of the raw upscaled
+// picture). That is what the player saw as a flash.
+//
+// Fading the edit out and back in around the cut, which is what 2026-09-19 tried, made it worse rather than
+// better: the fade's own midpoint is TransferStrength zero, and zero is the pass switched OFF -- the frame
+// with none of the model's brightness or colour on it. Hiding a small step behind the largest step the pass
+// can make is not hiding it (user, 2026-09-20: "its still flashing").
+//
+// So the size being left keeps running. For kBlendWarmFrames frames what is on screen is still entirely its
+// picture, while the incoming size fills its history unseen; then over kBlendFadeFrames the two COMPOSED
+// pictures cross-fade (DlssNrMode_Blend). Both ends of that blend are whole, well-formed pictures of the
+// same frame at slightly different fidelity, so nothing is ever missing from the middle of it.
+//
+// What it costs, and why that is the right trade: one extra model evaluate and its downsample per blended
+// frame, plus one extra full-frame resolve during the fade -- for about a third of a second, with no
+// CreateFeature anywhere in it, because a move only ever happens to a size that is already built. A dip of a
+// millisecond or two for twenty frames is not a hitch and is not visible; a flash is.
+struct NrSizeBlend
+{
+    bool active = false;
+    NrSizeEntry from;                   // the size being left: still evaluated, still composed, not yet cached
+    unsigned int warmLeft = 0;          // frames still showing only `from` while the incoming size settles
+    unsigned int fadeLeft = 0;          // frames of cross-fade left after that
+    unsigned long long startedFrame = 0; // g_frames when it began, so a fade that stalls can be given up on
+    ID3D12Resource* composed = nullptr; // `from` composed at full frame size: the fade's other end
+};
+
+// Six frames of warm-up is about what the model takes to settle a fresh history; sixteen of fade is a quarter
+// of a second at 60 fps, slow enough that a difference this small cannot be seen arriving.
+constexpr unsigned int kBlendWarmFrames = 6;
+constexpr unsigned int kBlendFadeFrames = 16;
+
+NrSizeBlend g_blend;
+
+// 0 = the size being left, 1 = the size being taken. Smooth at both ends, so neither the start nor the end of
+// the fade is itself a step. Does not advance the clock; AdvanceBlend does that, once per composed frame.
+float BlendWeight()
+{
+    if (!g_blend.active || g_blend.fadeLeft == 0)
+        return 1.0f;
+    if (g_blend.warmLeft > 0)
+        return 0.0f;
+
+    const float t = 1.0f - (float) g_blend.fadeLeft / (float) kBlendFadeFrames;
+    return t * t * (3.0f - 2.0f * t);
+}
+
+// Ends a cross-fade normally. The size that was fading out goes into the kept-size cache: it is still built,
+// and the controller is as likely to want it back as any other rung. Its memory is paged out on the same
+// terms as any other kept size, which is what StashLiveSize would have done at the moment of the step.
+void FinishBlend(const char* why)
+{
+    if (!g_blend.active)
+        return;
+
+    g_blend.active = false;
+    g_blend.warmLeft = 0;
+    g_blend.fadeLeft = 0;
+
+    NrSizeEntry e = g_blend.from;
+    g_blend.from = {};
+
+    e.lastUsed = g_frames;
+    g_nrCache.push_back(e);
+    NrMemory::PageOut(e.feature);
+    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+        NrMemory::PageOut(e.passFeature[pass]);
+
+    LOG_INFO("DLSS-NR model size cross-fade: done -- {:.0f}% ({}x{}) is kept from here; {}. Kept now: {}",
+             e.scale * 100.0f, e.workWidth, e.workHeight, why, CachedSizesText());
+}
+
+// Ends a cross-fade and keeps nothing: everything the outgoing size owns is parked. For the cases where the
+// cache is being dropped anyway -- a new device, a new frame size, a create-time setting changed -- and
+// handing that size back would hand back something built for a world that no longer exists.
+void DropBlend()
+{
+    if (!g_blend.active)
+        return;
+
+    g_blend.active = false;
+    g_blend.warmLeft = 0;
+    g_blend.fadeLeft = 0;
+    ParkSizeEntry(g_blend.from);
+    g_blend.from = {};
+}
+
 // Drops every cached size (parked, released 32 evaluates later -- never evaluated again) and starts
 // prebuilding afresh, under the settle and spacing rules in MaybePrebuild.
 void FlushNrCache(const char* why)
 {
+    DropBlend();
+
     if (!g_nrCache.empty())
     {
         LOG_INFO("DLSS-NR model size cache: dropped {} kept size(s) ({}) -- {}", g_nrCache.size(), CachedSizesText(),
@@ -1683,7 +1767,7 @@ void ReleaseSurfaces()
     }
 
     for (ID3D12Resource** r : { &g_nr.output, &g_nr.passScratch, &g_nr.colorCopy, &g_nr.hdrCopy, &g_nr.colorSmall,
-                                &g_nr.outputNative, &g_nr.activeColor, &g_nr.guideCoeffs })
+                                &g_nr.outputNative, &g_nr.activeColor, &g_nr.guideCoeffs, &g_blend.composed })
         ParkNrResource(*r);
 
     g_nr.passScratchFailed = false;
@@ -2328,9 +2412,11 @@ bool SizeCacheAllowed(const Config& cfg, bool proxyBackend, float workScale)
            !proxyBackend && workScale <= 1.0f;
 }
 
-// Moves the live size -- its features and work-size surfaces -- into the cache. The full-frame surfaces
-// stay live: the frame did not change size, only the model did.
-void StashLiveSize(unsigned int requestedPasses)
+// Lifts the live size out -- its features and work-size surfaces -- and hands it back as an entry. The
+// full-frame surfaces stay live: the frame did not change size, only the model did. Where it goes is the
+// caller's: the cache (StashLiveSize) or the cross-fade, which keeps evaluating it for a few more frames
+// and caches it when the fade ends.
+NrSizeEntry TakeLiveSizeOut(unsigned int requestedPasses)
 {
     NrSizeEntry e;
     e.workWidth = g_nr.workWidth;
@@ -2375,12 +2461,49 @@ void StashLiveSize(unsigned int requestedPasses)
     e.bytes = g_liveSizeBytes;
     g_liveSizeBytes = 0;
     e.lastUsed = g_frames;
+    return e;
+}
+
+// Moves the live size straight into the cache. What happens when there is no cross-fade to run.
+void StashLiveSize(unsigned int requestedPasses)
+{
+    NrSizeEntry e = TakeLiveSizeOut(requestedPasses);
     g_nrCache.push_back(e);
 
     // Kept, but not in video memory: paged out once nothing in flight can still use it (NrMemory).
     NrMemory::PageOut(e.feature);
     for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
         NrMemory::PageOut(e.passFeature[pass]);
+}
+
+// Starts a cross-fade out of the live size. It is lifted out like any other step, but instead of being put
+// away it keeps its memory resident and goes on being evaluated for the length of the fade. FinishBlend
+// caches it at the end.
+//
+// `composed` is the full-frame surface its picture is composed into while the fade runs. Without it there is
+// nowhere to hold one of the two pictures, so the fade cannot happen and the caller falls back to the step.
+bool StartBlend(ID3D12Device* device, DXGI_FORMAT format, unsigned int width, unsigned int height,
+                unsigned int requestedPasses)
+{
+    if (g_blend.composed != nullptr)
+    {
+        const D3D12_RESOURCE_DESC have = g_blend.composed->GetDesc();
+        if ((unsigned int) have.Width != width || have.Height != height || have.Format != format)
+            ParkNrResource(g_blend.composed);
+    }
+
+    if (g_blend.composed == nullptr)
+        g_blend.composed = CreateScratch(device, format, width, height);
+
+    if (g_blend.composed == nullptr)
+        return false;
+
+    g_blend.from = TakeLiveSizeOut(requestedPasses);
+    g_blend.warmLeft = kBlendWarmFrames;
+    g_blend.fadeLeft = kBlendFadeFrames;
+    g_blend.startedFrame = g_frames;
+    g_blend.active = true;
+    return true;
 }
 
 // Makes a cached size the live one. The model's history is from whenever it was last used, so every
@@ -2540,6 +2663,15 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     std::stable_sort(candidates.begin(), candidates.end(),
                      [&](const Candidate& a, const Candidate& b)
                      {
+                         // A size the controller has already asked for and been refused comes first: a move is
+                         // waiting on it, and every frame it is not built is a frame at the wrong size.
+                         const bool wa = g_prebuild.wantedScale > 0.0f &&
+                                         std::fabs(a.scale - g_prebuild.wantedScale) < 1e-3f;
+                         const bool wb = g_prebuild.wantedScale > 0.0f &&
+                                         std::fabs(b.scale - g_prebuild.wantedScale) < 1e-3f;
+                         if (wa != wb)
+                             return wa;
+
                          const float da = std::fabs(a.scale - liveScale), db = std::fabs(b.scale - liveScale);
                          if (std::fabs(da - db) > 1e-4f)
                              return da < db;
@@ -3353,36 +3485,43 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     auto workWidth = (unsigned int) (width * g_modelBase * workScale + 0.5f);
     auto workHeight = (unsigned int) (height * g_modelBase * workScale + 0.5f);
 
-    // A size change is announced before it happens: the model keeps running at the size it is on while the
-    // edit fades out (SizeFadeFactor), and only then does the switch go through -- where there is no edit on
-    // screen to lose. A frame-size change is not held: that is the game's own resize, and the surfaces have
-    // to follow it immediately.
-    if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
-        (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight))
-    {
-        if (!g_sizeSwitchHeld)
-        {
-            g_sizeSwitchHeld = true;
-            g_sizeFadeOutLeft = kSizeFadeOutFrames;
-        }
+    // NEVER BUILD A MODEL ON THE FRAME A MOVE HAPPENS.
+    //
+    // CreateFeature holds Present about 250 ms, and a move that has to build the size it is moving to pays
+    // that in the middle of play -- the hitch Resident Evil 2 showed on every step (2026-09-18). A size that
+    // is already built is a pointer swap and costs nothing, so a move is only allowed to one of those.
+    //
+    // When the size the controller asks for is not built yet the live size is kept instead, and the wanted
+    // one is handed to the paging/prebuild side as the next thing to make (g_pagePredictScale). MaybePrebuild
+    // builds it in a moment that is already paused, and the move goes through the next time the controller
+    // asks -- by then as a swap. The controller is not told anything: it is already rate limited, and a move
+    // it asked for that has not happened yet simply keeps asking.
+    //
+    // Not a gate on the FIRST model (g_nr.feature == nullptr): there is nothing to keep running then, and the
+    // out-of-memory step-down further down is the same case. Both must still be able to build.
+    g_prebuild.wantedScale = 0.0f;
 
-        if (g_sizeFadeOutLeft > 0)
-        {
-            --g_sizeFadeOutLeft;
-            workWidth = g_nr.workWidth;
-            workHeight = g_nr.workHeight;
-            workScale = (float) g_nr.workWidth / std::max(1.0f, (float) width * g_modelBase);
-        }
-        else
-        {
-            g_sizeSwitchHeld = false;
-        }
-    }
-    else
+    if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
+        (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight) &&
+        SizeCacheAllowed(cfg, cfg.DlssNrUseProxy.value_or_default(), workScale) &&
+        FindCachedSize(workWidth, workHeight) < 0)
     {
-        g_sizeSwitchHeld = false;
-        g_sizeFadeOutLeft = 0;
+        const float wanted = workScale;
+        workWidth = g_nr.workWidth;
+        workHeight = g_nr.workHeight;
+        workScale = (float) g_nr.workWidth / std::max(1.0f, (float) width * g_modelBase);
+        g_prebuild.wantedScale = wanted;
+
+        static unsigned int saidFor = 0;
+        if (saidFor != workWidth + (unsigned int) (wanted * 1000.0f))
+        {
+            saidFor = workWidth + (unsigned int) (wanted * 1000.0f);
+            LOG_INFO("DLSS-NR model size: staying at {:.0f}% -- {:.0f}% is not built yet, and building it on the "
+                     "move would hold the frame. It is next in line to be built ahead.",
+                     workScale * 100.0f, wanted * 100.0f);
+        }
     }
+
     const bool reduced = workWidth != width || workHeight != height;
     const unsigned int configuredPasses = std::clamp(cfg.DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
     const bool proxyBackend = cfg.DlssNrUseProxy.value_or_default();
@@ -3475,12 +3614,33 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         if (room)
         {
             const float leftScale = (float) g_nr.workWidth / ((float) width * g_modelBase);
-            StashLiveSize(requestedPasses);
+            const unsigned int leftW = g_nr.workWidth, leftH = g_nr.workHeight;
+
+            // One fade at a time. A second step inside a quarter of a second is not something the controller
+            // does -- it freezes for 25 s after a move -- but if anything ever forces one, the fade in flight
+            // finishes here rather than being abandoned half way.
+            FinishBlend("a second size change arrived");
+
+            // Fade out of it when the size being moved to is already built. Anything else is a build, and a
+            // build's own first frames are not a picture to fade from.
+            const bool fading =
+                haveTarget && StartBlend(device, desc.Format, width, height, requestedPasses);
+
+            if (!fading)
+                StashLiveSize(requestedPasses);
+
             stashed = true;
             g_nextBuildWhy = "size change, not cached";
-            LOG_INFO("DLSS-NR model size cache: kept {:.0f}% ({}x{}) on the move to {:.0f}% ({}x{}); kept now: {}",
-                     leftScale * 100.0f, g_nrCache.back().workWidth, g_nrCache.back().workHeight, workScale * 100.0f,
-                     workWidth, workHeight, CachedSizesText());
+
+            if (fading)
+                LOG_INFO("DLSS-NR model size: {:.0f}% ({}x{}) -> {:.0f}% ({}x{}), cross-faded over {} frames -- the "
+                         "size being left keeps running until it has faded out. Kept now: {}",
+                         leftScale * 100.0f, leftW, leftH, workScale * 100.0f, workWidth, workHeight,
+                         kBlendWarmFrames + kBlendFadeFrames, CachedSizesText());
+            else
+                LOG_INFO("DLSS-NR model size cache: kept {:.0f}% ({}x{}) on the move to {:.0f}% ({}x{}); kept now: {}",
+                         leftScale * 100.0f, g_nrCache.back().workWidth, g_nrCache.back().workHeight,
+                         workScale * 100.0f, workWidth, workHeight, CachedSizesText());
         }
         else
         {
@@ -3562,7 +3722,12 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const double ms =
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 
-            FadeInAfterSizeChange();
+            // Only when there is no fade running. Under a cross-fade the incoming size is already arriving
+            // gradually, and easing its edit in on top of that would mean a fade whose far end is not the
+            // picture the size actually makes.
+            if (!g_blend.active)
+                FadeInAfterSizeChange();
+
             LOG_INFO("DLSS-NR model size cache hit: switched to {:.0f}% ({}x{}, {}) in {:.2f} ms -- no CreateFeature, "
                      "no rebuild; kept now: {}",
                      workScale * 100.0f, workWidth, workHeight, wasPrebuilt ? "prebuilt" : "kept from earlier", ms,
@@ -4098,6 +4263,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     ++g_frames;
     TickNrRetired();
     CheckCaptureTrigger();
+
+    // A fade that never got to finish. Every frame that composes ticks it along, so the only way to be here
+    // is a run of frames that composed nothing -- the pass bailed, the game stopped handing over a frame --
+    // and the size being faded out would otherwise hold its video memory for as long as that lasted. Five
+    // seconds at 60 fps, which no real fade comes near.
+    if (g_blend.active && g_frames > g_blend.startedFrame + 300)
+        FinishBlend("the fade never finished -- the pass stopped composing");
 
     // Twice a second or so, for the panel's readout.
     if ((g_frames % 30) == 0)
@@ -4743,6 +4915,88 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if (g_ngxTime != nullptr)
         g_ngxTime->End(cmdList);
 
+    // THE SIZE BEING FADED OUT, evaluated alongside the live one.
+    //
+    // Outside the pass timer above on purpose. The timer is what the Adaptive resolution controller budgets
+    // against, and a fade's second model is a cost that lasts twenty frames -- charging it to the scene would
+    // have the controller read the fade as "this scene got expensive" and step again, which is a fade that
+    // causes the next fade.
+    //
+    // Pass 0 only. The stacked layers of a picture that is on its way off screen are not worth their
+    // milliseconds, and the fade itself covers the difference between one layer and three.
+    //
+    // Both surfaces are remembered rather than reached for through g_blend later: the fade can end inside
+    // this frame, which moves the entry into the cache, and the states these are left in still have to be
+    // put back before the frame ends.
+    ID3D12Resource* blendAnswer = nullptr;
+    ID3D12Resource* blendSmall = nullptr;
+
+    if (g_blend.active && result == NVSDK_NGX_Result_Success && g_blend.from.feature != nullptr &&
+        g_blend.from.output != nullptr && g_nr.colorCopy != nullptr && !g_nr.featurePendingSubmission)
+    {
+        const unsigned int fromW = g_blend.from.workWidth;
+        const unsigned int fromH = g_blend.from.workHeight;
+        const bool fromReduced = fromW != width || fromH != height;
+
+        ID3D12Resource* blendInput = g_nr.colorCopy;
+
+        if (fromReduced && g_blend.from.colorSmall != nullptr)
+        {
+            DlssNrConstants down {};
+            down.Mode = DlssNrMode_Downsample;
+            down.Width = fromW;
+            down.Height = fromH;
+            DispatchPass(cmdList, down, g_nr.colorCopy, nullptr, nullptr, nullptr, nullptr, g_blend.from.colorSmall,
+                         nullptr);
+            Barrier(cmdList, g_blend.from.colorSmall, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            blendInput = g_blend.from.colorSmall;
+            blendSmall = g_blend.from.colorSmall;
+        }
+
+        if (fromReduced && blendInput == g_nr.colorCopy)
+        {
+            // No surface to shrink the proxy into: there is nothing to fade from, so the step lands as a cut.
+            // That is the behaviour before any of this existed, and still better than compositing a picture
+            // the model was never shown.
+            FinishBlend("the outgoing size has no input surface");
+        }
+        else if (NrMemory::NeedsPageIn(g_blend.from.feature))
+        {
+            // Never evaluate a model whose memory is not resident. It should never be: nothing pages out a
+            // size that is mid-fade. If it somehow happens, end the fade rather than wait for it here.
+            FinishBlend("the outgoing size was paged out");
+        }
+        else
+        {
+            const float fromMvToWork = width != 0 ? (float) fromW / (float) width : 1.0f;
+
+            NrMemory::SetEvaluating(g_blend.from.feature);
+            const int fromResult =
+                g_nr.evaluate(cmdList, g_blend.from.feature, g_nr.capabilityParams, blendInput, depthIn, motionIn,
+                              g_blend.from.output, fromW, fromH, guideWidth, guideHeight,
+                              g_nr.guideDepthInverted ? 1 : 0, 0, cfg.DlssNrIntensity.value_or_default(),
+                              (int) PassStyle(cfg, 0), cfg.DlssNrLocalStructure.value_or_default(),
+                              cfg.DlssNrLocalTone.value_or_default(), cfg.DlssNrSkinStructure.value_or_default(),
+                              cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, g_nr.guideMvScaleX * fromMvToWork,
+                              g_nr.guideMvScaleY * fromMvToWork);
+            NrMemory::SetEvaluating(nullptr);
+
+            if (fromResult == NVSDK_NGX_Result_Success)
+            {
+                Barrier(cmdList, g_blend.from.output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                blendAnswer = g_blend.from.output;
+            }
+            else
+            {
+                LOG_WARN("DLSS-NR model size cross-fade: the size being left returned {} -- ending the fade here",
+                         NgxResultName((unsigned int) fromResult));
+                FinishBlend("the outgoing model stopped answering");
+            }
+        }
+    }
+
     g_nr.reset = false;
 
     // Supersampling probe: report the model working ABOVE native so a test log tells us whether NGX even
@@ -4921,55 +5175,135 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
 
-        // Enlargement 3 (guided): fit the model's local re-grade at its own size first; the resolve reads the
+        // ONE COMPOSITION, wherever it is going.
+        //
+        // Enlargement 3 (guided) fits the model's local re-grade at its own size first; the resolve reads the
         // coefficients where it used to be handed the motion vectors (which it never read). Only when the
         // model really ran small against this pair; otherwise, or if the surface cannot be had, the resolve
         // takes Enlargement 2 instead.
-        ID3D12Resource* resolveSlot3 = motionIn;
-        bool guidedFitted = false;
-        if (resolveParams.Transfer == 3)
+        //
+        // A function rather than a straight line because the cross-fade composes TWICE -- once for the size
+        // being left, once for the size being taken -- and the two have to be composed by identical code.
+        // Any difference here would show up as a difference between the two ends of the fade, which is the
+        // one thing the fade exists to not have. The coefficient buffer is shared: it is sized to the larger
+        // of the two model sizes and rewritten between the calls, and it only ever grows.
+        // By reference and copied inside: DlssNrConstants is 256-aligned to match the constant buffer, and an
+        // over-aligned type cannot be a by-value parameter.
+        const auto Compose = [&](const DlssNrConstants& base, ID3D12Resource* proxy, ID3D12Resource* answer,
+                                 ID3D12Resource* dest)
         {
-            const D3D12_RESOURCE_DESC pd = resolveProxy->GetDesc();
-            const unsigned int pw = (unsigned int) pd.Width;
-            const unsigned int ph = pd.Height;
-            const bool modelSmall = pw != width || ph != height;
+            DlssNrConstants params = base;
+            ID3D12Resource* slot3 = motionIn;
+            bool fitted = false;
 
-            if (modelSmall && g_nr.guideCoeffs != nullptr)
+            if (params.Transfer == 3)
             {
-                const D3D12_RESOURCE_DESC have = g_nr.guideCoeffs->GetDesc();
-                if ((unsigned int) have.Width < pw * 3 || have.Height < ph)
-                    ParkNrResource(g_nr.guideCoeffs);
+                const D3D12_RESOURCE_DESC pd = proxy->GetDesc();
+                const unsigned int pw = (unsigned int) pd.Width;
+                const unsigned int ph = pd.Height;
+                const bool modelSmall = pw != width || ph != height;
+
+                if (modelSmall && g_nr.guideCoeffs != nullptr)
+                {
+                    const D3D12_RESOURCE_DESC have = g_nr.guideCoeffs->GetDesc();
+                    if ((unsigned int) have.Width < pw * 3 || have.Height < ph)
+                        ParkNrResource(g_nr.guideCoeffs);
+                }
+                if (modelSmall && g_nr.guideCoeffs == nullptr)
+                    g_nr.guideCoeffs = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, pw * 3, ph);
+
+                if (modelSmall && g_nr.guideCoeffs != nullptr)
+                {
+                    DlssNrConstants fitParams {};
+                    fitParams.Mode = DlssNrMode_GuidedFit;
+                    fitParams.Width = pw;
+                    fitParams.Height = ph;
+                    fitParams.Passthrough = params.Passthrough;
+                    fitParams.WhitePoint = whitePoint;
+                    DispatchPass(cmdList, fitParams, proxy, answer, nullptr, nullptr, nullptr, g_nr.guideCoeffs,
+                                 nullptr);
+                    Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                            D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    slot3 = g_nr.guideCoeffs;
+                    fitted = true;
+                }
+                else
+                {
+                    params.Transfer = 2;
+                }
             }
-            if (modelSmall && g_nr.guideCoeffs == nullptr)
-                g_nr.guideCoeffs = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, pw * 3, ph);
 
-            if (modelSmall && g_nr.guideCoeffs != nullptr)
+            DispatchPass(cmdList, params, proxy, answer, resolveOriginal, slot3, exposureTex, dest, nullptr);
+
+            if (fitted)
+                Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        };
+
+        // The cross-fade. `blendAnswer` is the outgoing size's answer for this same frame, and `weight` is
+        // how much of the incoming size is shown: 0 through the warm-up, then smoothly to 1.
+        //
+        // At weight 0 the incoming size is not composed at all -- what is on screen is exactly the picture
+        // the outgoing size was already making, down to the bit, while the incoming one fills its history
+        // where nobody can see it. That is also why the warm-up costs no second resolve.
+        const float weight = blendAnswer != nullptr ? BlendWeight() : 1.0f;
+        const bool crossFading = blendAnswer != nullptr && weight < 1.0f;
+        const bool composeIncoming = !crossFading || weight > 0.0f;
+
+        if (crossFading)
+        {
+            ID3D12Resource* fromProxy = blendSmall != nullptr ? blendSmall : g_nr.colorCopy;
+
+            if (composeIncoming)
             {
-                DlssNrConstants fitParams {};
-                fitParams.Mode = DlssNrMode_GuidedFit;
-                fitParams.Width = pw;
-                fitParams.Height = ph;
-                fitParams.Passthrough = resolveParams.Passthrough;
-                fitParams.WhitePoint = whitePoint;
-                DispatchPass(cmdList, fitParams, resolveProxy, resolveAnswer, nullptr, nullptr, nullptr,
-                             g_nr.guideCoeffs, nullptr);
-                Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                Compose(resolveParams, fromProxy, blendAnswer, g_blend.composed);
+                Barrier(cmdList, g_blend.composed, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-                resolveSlot3 = g_nr.guideCoeffs;
-                guidedFitted = true;
             }
             else
             {
-                resolveParams.Transfer = 2;
+                // Warm-up: the outgoing size goes straight to the screen, and nothing else is composed.
+                Compose(resolveParams, fromProxy, blendAnswer, resolveTarget);
             }
         }
 
-        DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, resolveSlot3, exposureTex,
-                     resolveTarget, nullptr);
+        if (composeIncoming)
+            Compose(resolveParams, resolveProxy, resolveAnswer, resolveTarget);
 
-        if (guidedFitted)
-            Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        if (crossFading && composeIncoming)
+        {
+            DlssNrConstants blendParams {};
+            blendParams.Mode = DlssNrMode_Blend;
+            blendParams.Width = width;
+            blendParams.Height = height;
+            blendParams.TransferStrength = weight;
+            DispatchPass(cmdList, blendParams, g_blend.composed, nullptr, nullptr, nullptr, nullptr, resolveTarget,
+                         nullptr);
+
+            Barrier(cmdList, g_blend.composed, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        }
+
+        // The outgoing size's surfaces go back to the state every frame expects to find them in, exactly as
+        // the live ones do further down. Done here, while the pointers are still in hand: the fade may end
+        // on this frame and hand the entry to the cache.
+        if (blendAnswer != nullptr)
+            Barrier(cmdList, blendAnswer, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        if (blendSmall != nullptr)
+            Barrier(cmdList, blendSmall, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        // One tick of the fade per composed frame -- not per Dispatch call, and not on wall time: what is
+        // being smoothed is what the player sees, and that is frames.
+        if (g_blend.active && blendAnswer != nullptr)
+        {
+            if (g_blend.warmLeft > 0)
+                --g_blend.warmLeft;
+            else if (g_blend.fadeLeft > 0 && --g_blend.fadeLeft == 0)
+                FinishBlend("faded out");
+        }
 
         if (!targetSupportsUav)
         {
@@ -6538,6 +6872,11 @@ void IdleWhileOff()
     const double nowMs = NowMs();
     if (g_pacing.offSinceMs == 0.0)
     {
+        // A fade in flight ends here rather than staying half way for as long as the pass is off. Nothing is
+        // being composed while off, so there is no picture to fade; the size it was fading out of goes back
+        // into the cache like any other kept size.
+        FinishBlend("DLSS 5 was switched off");
+
         g_pacing.offSinceMs = nowMs;
         if (!g_nrCache.empty())
             LOG_INFO("DLSS-NR model size cache: DLSS 5 switched off -- keeping {} size(s) ({}) for {:.0f} s in case "
@@ -6761,6 +7100,12 @@ void Shutdown()
     {
         g_nr.guideCoeffs->Release();
         g_nr.guideCoeffs = nullptr;
+    }
+
+    if (g_blend.composed != nullptr)
+    {
+        g_blend.composed->Release();
+        g_blend.composed = nullptr;
     }
 
     if (g_nr.depthClone != nullptr)

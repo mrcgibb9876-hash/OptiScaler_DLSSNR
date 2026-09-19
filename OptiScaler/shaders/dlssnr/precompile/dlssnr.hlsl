@@ -634,6 +634,27 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // Normalised, so the source may be any size relative to this dispatch.
     float2 uv = (float2(id.xy) + 0.5) / float2(gWidth, gHeight);
 
+    // The Adaptive resolution cross-fade. gTarget already holds this frame composed at the model size
+    // being moved TO; gSource holds the same frame composed at the size being moved FROM. Both are
+    // whole, well-formed pictures of one frame, so everything between them is one too.
+    //
+    // This is what replaced fading gTransferStrength out and back in. That fade's midpoint is strength
+    // zero, which is the pass switched OFF -- the frame with no edit on it at all -- so the "hide the
+    // step" fade was itself the largest brightness swing on screen, and it is what the player saw as a
+    // flash (2026-09-20). Here there is no midpoint that is missing anything.
+    //
+    // gTransferStrength carries the weight rather than a constant of its own: 0 is the size being left,
+    // 1 the size being taken. Reading and writing gTarget at one address from the thread that owns it
+    // is a legal read-modify-write, and it saves composing the incoming size into a second full-frame
+    // surface just to copy it back.
+    if (gMode == 6)
+    {
+        const float4 from = gSource.Load(int3(id.xy, 0));
+        const float4 to = gTarget[id.xy];
+        gTarget[id.xy] = float4(lerp(from.rgb, to.rgb, saturate(gTransferStrength)), to.a);
+        return;
+    }
+
     // The meter. One thread per tile of a 64x64 grid over the frame, writing that tile's mean
     // luminance. The frame is raw linear here -- this runs before the encode, on purpose, because the
     // number being looked for is what the encode's divisor should be.

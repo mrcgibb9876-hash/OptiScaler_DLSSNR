@@ -61,13 +61,22 @@ experiment.
 
 ```
 cd OptiScaler/shaders/dlssnr/precompile
-../../shader_tools/fxc.exe -T cs_5_0 -E CSMain -O3 dlssnr.hlsl -Fo DlssNr_Shader.cso
+../../shader_tools/dxc.exe -T cs_6_0 -E CSMain -O3 -Qstrip_debug -Qstrip_reflect dlssnr.hlsl -Fo DlssNr_Shader.cso
 python ../../shader_tools/create_header.py DlssNr_Shader.cso DlssNr_Shader.h DlssNr_cso
+
+../../shader_tools/dxc.exe -spirv -T cs_6_0 -E CSMain -O3 -Qstrip_debug -D VK_MODE -Cc -Vi dlssnr.hlsl -Fo DlssNr_Shader_Vk.spv
+python ../../shader_tools/create_header.py DlssNr_Shader_Vk.spv DlssNr_Shader_Vk.h dlssnr_spv
 ```
 
-**fxc `cs_5_0`, not the dxc in `build_precompiled_shader.bat` next to it.** Only fxc reproduces the
-committed header byte for byte; dxc emits DXIL and would silently change what the pass runs on.
-Verified by recompiling the unmodified shader both ways and diffing.
+**dxc `cs_6_0`, and BOTH targets.** This paragraph used to say fxc `cs_5_0` and to warn against the
+dxc in `build_precompiled_shader.bat` next to it. That was wrong, and checkable: fxc `cs_5_0` on the
+unmodified shader produces an 84 KB classic DXBC container, while the committed `.cso` is 50 KB of
+DXIL. The two commands above reproduce the committed `.cso` and `.spv` byte for byte (verified by
+md5 against the unmodified tree, 2026-09-20); `build_precompiled_shader.bat` runs exactly them.
+DEVELOPMENT.md rule 6 has always said dxc.
+
+`create_header.py` needs Python. Without it, the header is 12 bytes per line as `0x%02x, ` with a
+four-space indent and CRLF endings -- any generator matching that reproduces it exactly.
 
 ## Attribution
 
