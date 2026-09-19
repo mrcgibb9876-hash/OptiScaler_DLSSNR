@@ -464,6 +464,30 @@ void ClearCaptureDirectory()
 
 unsigned long long g_frames = 0;
 
+// Easing the edit back in after the model changed size.
+//
+// Each size owns its own temporal history, so the frame after a switch -- to a rebuilt size, or to one kept
+// from earlier -- is the first that history has seen. The model's answer settles over a handful of frames, and
+// the composition used to show every one of them at full strength: a flash of brightness on each step, and two
+// a quarter-second apart when Adaptive resolution stepped and then rebuilt. Over kSizeFadeFrames the edit goes
+// from nothing to what the settings ask for, which is well under the time a step takes to be noticed.
+constexpr unsigned int kSizeFadeFrames = 8;
+unsigned int g_sizeFadeLeft = 0;
+
+void FadeInAfterSizeChange() { g_sizeFadeLeft = kSizeFadeFrames; }
+
+// 0..1 for this frame, counted down once per resolve. Smooth at both ends, so neither the start nor the end of
+// the fade is itself a step.
+float SizeFadeFactor()
+{
+    if (g_sizeFadeLeft == 0)
+        return 1.0f;
+
+    const float t = 1.0f - (float) g_sizeFadeLeft / (float) kSizeFadeFrames;
+    --g_sizeFadeLeft;
+    return t * t * (3.0f - 2.0f * t);
+}
+
 // A capture requested from outside the game: when the render path has no fence of its own, the write
 // waits until this frame count, by which point the GPU is certainly past the copies.
 unsigned long long g_captureWriteAtFrame = 0;
@@ -3434,6 +3458,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                          : sizeOnlyChange   ? "size change, rebuilt in place"
                                             : "frame size changed";
 
+        // The rebuilt feature starts with an empty history too.
+        FadeInAfterSizeChange();
+
         // Parked rather than released: with frame generation the GPU can still be several frames
         // deep in work that references all of it.
         ParkNrFeature(g_nr.feature);
@@ -3484,6 +3511,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const double ms =
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 
+            FadeInAfterSizeChange();
             LOG_INFO("DLSS-NR model size cache hit: switched to {:.0f}% ({}x{}, {}) in {:.2f} ms -- no CreateFeature, "
                      "no rebuild; kept now: {}",
                      workScale * 100.0f, workWidth, workHeight, wasPrebuilt ? "prebuilt" : "kept from earlier", ms,
@@ -4731,7 +4759,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.ExposurePreMul = exposurePreMul;
         resolveParams.Width = width;
         resolveParams.Height = height;
-        resolveParams.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
+        // Eased in after a size change (SizeFadeFactor): at 0 the resolve hands back exactly what the upscaler
+        // produced, so the first frames of a fresh history arrive gradually rather than as a flash.
+        resolveParams.TransferStrength = cfg.DlssNrTransferStrength.value_or_default() * SizeFadeFactor();
         resolveParams.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
         resolveParams.DebugView = cfg.DlssNrDebugView.value_or_default();
         resolveParams.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
