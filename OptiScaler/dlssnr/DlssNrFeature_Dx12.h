@@ -33,9 +33,11 @@ inline constexpr unsigned int MaxPassCount = 3;
 // timingQueue is the queue this command list will be executed on, when the caller knows it.
 // State::currentCommandQueue only exists once a D3D12 swapchain has been created, which a Vulkan
 // game never does -- so without this the pass runs and never reports what it cost.
+// renderCost: size the model to the upscaler's render resolution rather than to the output -- what
+// [DlssNr] RunBeforeRR does for Ray Reconstruction, which is never edited before it runs.
 void EvaluateAfterUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,
                           ID3D12CommandQueue* timingQueue = nullptr, bool forcePost = false,
-                          unsigned long long submissionEpoch = 0);
+                          unsigned long long submissionEpoch = 0, bool renderCost = false);
 
 // Present placement (DlssNr_PresentRoute.h): runs the pass over the back buffer about to be presented, on a
 // command list of its own, from the guides the game's last upscale call left behind.

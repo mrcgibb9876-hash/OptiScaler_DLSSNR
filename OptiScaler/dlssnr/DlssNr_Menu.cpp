@@ -1142,21 +1142,22 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nreal size; one offset from the corner still falls back after upscaling."
                       "\n\nD3D12 and its D3D11/Vulkan bridges only; native Vulkan keeps the old placement."));
 
-        // Experimental: the same placement for Ray Reconstruction, whose colour input is the noisy frame it
-        // denoises. Only meaningful with Before Super Resolution on, so greyed out without it.
+        // Ray Reconstruction games: the cost of running before it, without touching its noisy input -- the pass
+        // runs after it with the model at render resolution. Only meaningful with Before Super Resolution on.
         bool beforeRr = config->DlssNrRunBeforeRr.value_or_default();
         ImGui::BeginDisabled(!config->DlssNrRunBeforeSr.value_or_default());
-        if (NrCheckbox(Tr("Before Ray Reconstruction (experimental)"), &beforeRr))
+        if (NrCheckbox(Tr("Ray Reconstruction at render cost"), &beforeRr))
         {
             config->DlssNrRunBeforeRr = beforeRr;
             anyChanged = true;
         }
         ImGui::EndDisabled();
-        HelpMarker(Tr("Also runs the pass before Ray Reconstruction, at render resolution, on the colour it is"
-                      "\nabout to denoise and upscale -- far cheaper than after it. EXPERIMENTAL: that colour"
-                      "\nis the noisy ray-traced frame rather than a finished one, so the model may enhance"
-                      "\nnoise and Ray Reconstruction may smear what it added. Try it, compare, and turn it"
-                      "\noff if it looks worse. Needs Before Super Resolution on."));
+        HelpMarker(Tr("For games with Ray Reconstruction: the pass costs what it would before Ray"
+                      "\nReconstruction, without the damage. It runs after Ray Reconstruction, on its clean"
+                      "\nframe, with the model at the game's render resolution instead of the output's."
+                      "\nRay Reconstruction's own input is never touched, so nothing is smeared, and the"
+                      "\nmodel never sees ray-tracing noise. Model resolution and Adaptive resolution then"
+                      "\ncount from the render resolution. Needs Before Super Resolution on."));
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
@@ -1729,11 +1730,16 @@ void RenderMenu(Config* config, float menuResScale)
         // How the model's work is brought back up when it ran below the frame's size. Classic
         // composes the small picture straight against the full-size frame, which cannot tell the
         // shrink's blur apart from the model's edit.
-        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f;
+        // Adaptive resolution and Ray Reconstruction at render cost shrink the model without Model
+        // resolution saying so, so either counts as reduced too.
+        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f ||
+                             config->DlssNrAutoScale.value_or_default() ||
+                             (config->DlssNrRunBeforeSr.value_or_default() &&
+                              config->DlssNrRunBeforeRr.value_or_default());
 
         ImGui::BeginDisabled(!reduced);
-        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual") };
-        int enlarge = config->DlssNrTransfer.value_or_default() == 1 ? 1 : 0;
+        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware") };
+        int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 2u);
         if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
         {
             config->DlssNrTransfer = (uint32_t) enlarge;
@@ -1744,6 +1750,9 @@ void RenderMenu(Config* config, float menuResScale)
                       "\n\nClassic composes the model's small picture directly against the full-size frame."
                       "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
                       "\ncomposition cannot tell them apart."
+                      "\n\nMatched residual enlarges only the model's edit, laid on the full-size frame."
+                      "\n\nEdge-aware (default) does the same, but never blends the edit across an outline --"
+                      "\nwhich is what drew a thin halo round characters' heads."
                       "\n\nGreyed out at 100%, where there is nothing to enlarge."));
 
         SectionCaption(Tr("How much of it lands"), rowWidth);

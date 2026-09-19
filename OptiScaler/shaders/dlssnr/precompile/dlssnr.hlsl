@@ -23,7 +23,7 @@ cbuffer Params : register(b0)
     float gCompareSplit; // where the wipe cuts, 0..1
     float gCompareZoom;  // side by side: 1 fits the frame, 2 fills the half
     uint  gCompareSwap;  // put the edited frame on the other side
-    uint  gTransfer;     // 0 classic, 1 matched residual -- how a below-size model comes back
+    uint  gTransfer;     // 0 classic, 1 matched residual, 2 edge-aware matched residual -- how a below-size model comes back
     float gDebugScale;   // what the debug views are scaled by, held still while the meter moves
     uint  gReversibleMode; // 0 knee, 1 Neutwo+composed, 2 Neutwo+replace, 3 hybrid+composed, 4 hybrid+replace
     uint  gApplyModel;     // 0 output the clean frame (pass still runs), 1 apply the model's edit
@@ -294,6 +294,60 @@ float3 EditAt(float2 uvq)
     return m - p;
 }
 
+
+// The model's edit at this pixel, enlarged without crossing an edge (Enlargement 2, edge-aware).
+//
+// A model that ran below the frame's size returns an edit at its own size, and a bilinear tap enlarges it
+// by blending the four nearest texels. At a silhouette -- a head against a bright sky -- those texels sit
+// on both sides of it, so the sky's edit lands on the hair and the face's on the sky: a thin ring of light
+// or dark hugging every outline. That is the halo round characters.
+//
+// This is a joint bilateral upsample. The 3x3 texels round the pixel are weighted by distance, as a tap
+// would, and then by how alike their proxy is to THIS pixel's own full-size proxy (fullProxy, the same
+// encode at full resolution): a texel from the other side of an edge looks nothing like the pixel and
+// drops out, one from its own side keeps its weight. Relative luminance, so a dark scene edge counts as
+// much as a bright one. Where nothing is alike (a pixel finer than the model's raster) it falls back to
+// the plain tap rather than inventing an edit.
+float3 EdgeAwareEdit(float2 uvq, float3 fullProxy)
+{
+    uint pw, ph;
+    gSource.GetDimensions(pw, ph);
+    const float2 pos = uvq * float2(pw, ph) - 0.5;
+    const int2 nearest = int2(floor(pos + 0.5));
+    const int2 maxTexel = int2(pw, ph) - 1;
+    const float guide = dot(fullProxy, kLuma);
+
+    float3 sum = 0.0;
+    float weights = 0.0;
+
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            const int2 t = clamp(nearest + int2(x, y), int2(0, 0), maxTexel);
+            float3 p = gSource.Load(int3(t, 0)).rgb;
+            float3 m = gModel.Load(int3(t, 0)).rgb;
+            if (gPassthrough == 0)
+            {
+                p = SrgbToLinear(p);
+                m = SrgbToLinear(m);
+            }
+
+            const float2 d = pos - (float2) t;
+            const float spatial = exp(-dot(d, d) * 1.5);
+            const float pl = dot(p, kLuma);
+            const float range = exp(-12.0 * abs(pl - guide) / (max(pl, guide) + 0.02));
+            const float w = spatial * range;
+
+            sum += (m - p) * w;
+            weights += w;
+        }
+    }
+
+    return weights > 1e-3 ? sum / weights : EditAt(uvq);
+}
 
 // The soft knee, shared by the encode and the resolve.
 //
@@ -831,7 +885,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     gSource.GetDimensions(proxyW, proxyH);
     const bool modelRanSmall = proxyW != gWidth || proxyH != gHeight;
 
-    if (gTransfer == 1 && modelRanSmall)
+    if ((gTransfer == 1 || gTransfer == 2) && modelRanSmall)
     {
         // Saturated, because that is what the encode does and this has to reproduce it exactly.
         //
@@ -863,6 +917,10 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
         // At the same rate there is no residual to carry: the model's own picture is already at the
         // frame's resolution, and P + (m - p) collapses to m exactly.
+        // Edge-aware: the edit enlarged along the frame's own edges instead of across them.
+        if (gTransfer == 2)
+            edit = EdgeAwareEdit(cmpUv, fullProxy);
+
         model = CubeScaleResidual(fullProxy, fullProxy + edit);
     }
 

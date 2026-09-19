@@ -1302,12 +1302,17 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
             LOG_DEBUG("Passthrough to native DLSS EvaluateFeature for handle {}", handleId);
 
             // Pre-SR placement is for Super Resolution. Ray Reconstruction carries a different set of
-            // inputs -- its colour is the noisy frame it denoises -- and stays on the post-upscale path
-            // unless [DlssNr] RunBeforeRR asks to try it there too.
-            const bool preRr =
-                feature == NVSDK_NGX_Feature_RayReconstruction && cfg.DlssNrRunBeforeRr.value_or_default();
+            // inputs -- its colour is the noisy frame it denoises -- and always stays on the post-upscale path.
+            // Ray Reconstruction's own colour is never edited (2026-09-19). Run before it, the model sharpened the
+            // noisy ray-traced frame and Ray Reconstruction smeared the result; laying only the model's edit under
+            // the noise instead had Ray Reconstruction average the edit away with the noise. [DlssNr] RunBeforeRR
+            // now keeps what it was chosen for -- the cost -- and runs after Ray Reconstruction on its clean frame
+            // with the model sized to the render resolution (renderCost below).
+            const bool rrRenderCost = feature == NVSDK_NGX_Feature_RayReconstruction &&
+                                      cfg.DlssNrRunBeforeSr.value_or_default() &&
+                                      cfg.DlssNrRunBeforeRr.value_or_default();
 
-            if (feature == NVSDK_NGX_Feature_SuperSampling || preRr)
+            if (feature == NVSDK_NGX_Feature_SuperSampling)
                 DlssNr::EvaluateBeforeUpscale(InCmdList, InParameters);
 
             NVSDK_NGX_Result result =
@@ -1321,7 +1326,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
             // return, so filtering on the parameter block alone would run the model twice a frame.
             if (result == NVSDK_NGX_Result_Success && feature != NVSDK_NGX_Feature_FrameGeneration)
                 DlssNr::EvaluateAfterUpscale(InCmdList, InParameters, nullptr,
-                                             feature == NVSDK_NGX_Feature_RayReconstruction && !preRr);
+                                             feature == NVSDK_NGX_Feature_RayReconstruction, 0, rrRenderCost);
 
             return result;
         }
@@ -1343,9 +1348,11 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
     if (lastDlssgCameraFar.has_value())
         InParameters->Set("DLSSG.CameraFar", lastDlssgCameraFar.value());
 
-    const bool preRr = feature == NVSDK_NGX_Feature_RayReconstruction && cfg.DlssNrRunBeforeRr.value_or_default();
+    // Ray Reconstruction stays post-upscale; RunBeforeRR sizes the model to the render resolution (see above).
+    const bool rrRenderCost = feature == NVSDK_NGX_Feature_RayReconstruction &&
+                              cfg.DlssNrRunBeforeSr.value_or_default() && cfg.DlssNrRunBeforeRr.value_or_default();
 
-    if (feature == NVSDK_NGX_Feature_SuperSampling || preRr)
+    if (feature == NVSDK_NGX_Feature_SuperSampling)
         DlssNr::EvaluateBeforeUpscale(InCmdList, InParameters);
 
     // OptiScaler internal handling
@@ -1354,7 +1361,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
     // Same pass, for OptiScaler's own upscalers rather than native DLSS.
     if (optiResult == NVSDK_NGX_Result_Success && feature != NVSDK_NGX_Feature_FrameGeneration)
         DlssNr::EvaluateAfterUpscale(InCmdList, InParameters, nullptr,
-                                     feature == NVSDK_NGX_Feature_RayReconstruction && !preRr);
+                                     feature == NVSDK_NGX_Feature_RayReconstruction, 0, rrRenderCost);
 
     return optiResult;
 }

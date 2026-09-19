@@ -3279,6 +3279,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     else if (workScale > g_memCapScale)
         workScale = g_memCapScale;
 
+    // Ray Reconstruction at render cost (RunBeforeRR): the same choice, measured against the render
+    // resolution instead of the output. Floored where the model's smallest working size is.
+    if (!frame.BeforeUpscale && frame.RenderScale > 0.0f && frame.RenderScale < 1.0f)
+        workScale = std::max(0.25f, workScale * frame.RenderScale);
+
     const auto workWidth = (unsigned int) (width * workScale + 0.5f);
     const auto workHeight = (unsigned int) (height * workScale + 0.5f);
     const bool reduced = workWidth != width || workHeight != height;
@@ -5789,7 +5794,8 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 // reprojection stage, a frame generation path, anything that is not the upscaler seam -- calls
 // RunPass directly and never touches an NGX parameter block.
 void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params, bool beforeUpscale,
-                      ID3D12CommandQueue* timingQueue, bool forcePost, unsigned long long submissionEpoch)
+                      ID3D12CommandQueue* timingQueue, bool forcePost, unsigned long long submissionEpoch,
+                      bool renderCost = false)
 {
     // Before the Enabled check below, which is the return that used to starve the poll.
     PollSettingsFromDisk();
@@ -6129,13 +6135,40 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
         return;
     }
 
+    // Sized to the render resolution: the upscaler's input width over the output's. The subrect is what the
+    // game rendered; without one, the colour input's own width.
+    if (renderCost && !beforeUpscale && output != nullptr)
+    {
+        unsigned int renderWidth = frame.RenderSubrectWidth;
+        if (renderWidth == 0)
+        {
+            ID3D12Resource* colourIn = GetResource(params, NVSDK_NGX_Parameter_Color, "DLSSD.Color");
+            if (colourIn != nullptr)
+                renderWidth = (unsigned int) colourIn->GetDesc().Width;
+        }
+
+        const unsigned int outputWidth = (unsigned int) output->GetDesc().Width;
+        if (renderWidth > 0 && outputWidth > 0)
+            frame.RenderScale = std::min(1.0f, (float) renderWidth / (float) outputWidth);
+
+        static float loggedScale = -1.0f;
+        if (std::abs(loggedScale - frame.RenderScale) > 0.01f)
+        {
+            loggedScale = frame.RenderScale;
+            LOG_INFO("DLSS-NR with Ray Reconstruction at render cost: after Ray Reconstruction, model sized to "
+                     "{:.0f}% of the output ({} of {} wide)",
+                     frame.RenderScale * 100.0f, renderWidth, outputWidth);
+        }
+    }
+
     g_compose->Dispatch(cmdList, target, depth, motion, target, frame, timingQueue);
 }
 
 void EvaluateAfterUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,
-                          ID3D12CommandQueue* timingQueue, bool forcePost, unsigned long long submissionEpoch)
+                          ID3D12CommandQueue* timingQueue, bool forcePost, unsigned long long submissionEpoch,
+                          bool renderCost)
 {
-    EvaluateInternal(cmdList, params, false, timingQueue, forcePost, submissionEpoch);
+    EvaluateInternal(cmdList, params, false, timingQueue, forcePost, submissionEpoch, renderCost);
 }
 
 void EvaluateBeforeUpscale(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params,

@@ -293,9 +293,8 @@ class Config
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };
-    // EXPERIMENTAL. With RunBeforeSR on, also run the pass before Ray Reconstruction, on the colour it is
-    // about to denoise and upscale. Off keeps Ray Reconstruction on the post-upscale path. That colour is
-    // the noisy ray-traced frame, not the clean one Super Resolution gets, so this is here to be tried.
+    // With RunBeforeSR on, a Ray Reconstruction game runs the pass at render-resolution cost: after Ray
+    // Reconstruction, with the model sized to the render resolution. Its noisy input is never edited.
     CustomOptional<bool> DlssNrRunBeforeRr { false };
 
     // Do the stacked passes keep their temporal history between frames?
@@ -395,7 +394,9 @@ class Config
 
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
-    CustomOptional<uint32_t> DlssNrTransfer { 1 };
+    // 0 classic, 1 matched residual, 2 edge-aware matched residual (the default since 2026-09-19: the
+    // halo round characters' heads was the enlargement blending across silhouettes).
+    CustomOptional<uint32_t> DlssNrTransfer { 2 };
 
     // Measure the white point from the frame instead of taking it from the slider. On a frame the
     // game already tone mapped there is nothing to measure and this has no effect.

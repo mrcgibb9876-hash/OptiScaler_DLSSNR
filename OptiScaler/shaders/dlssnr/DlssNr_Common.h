@@ -75,6 +75,11 @@ struct DlssNrFrameInfo
     // when a pre-SR colour resource was not created with UAV support.
     bool BeforeUpscale = false;
 
+    // After the upscaler only: render width / output width, when the model is to be sized to the render
+    // resolution rather than the output ([DlssNr] RunBeforeRR on a Ray Reconstruction game). 0 = not asked.
+    // Multiplies Working scale / Adaptive resolution's choice, so their 100% is the render resolution.
+    float RenderScale = 0.0f;
+
     // Submission epoch supplied by the caller. Native DX12 uses the wrapped swapchain Present count;
     // the DX11/Vulkan bridges use their successfully submitted frame counter. A feature created in an
     // epoch is never evaluated until this value changes.
