@@ -1321,6 +1321,11 @@ std::vector<NrSizeEntry> g_nrCache;
 // swap, not a page-in. Everything else kept is paged out.
 float g_pagePredictScale = 0.0f;
 
+// What "100%" of Model resolution means, as a fraction of the output: 1 normally; the render resolution over the
+// output with Ray Reconstruction at render cost (RunBeforeRR). Every rung, cached size, prebuild and memory
+// prediction is width * g_modelBase * scale, so the whole size machinery plans in the same space as the live size.
+float g_modelBase = 1.0f;
+
 // Adaptive resolution's memory cap: the largest model size video memory has room for right now (1 = no cap).
 // Lowered one rung when the size wanted will not fit, lifted one rung at a time once the next one up fits
 // with the cache margin to spare. Resident Evil Requiem (2026-09-19): the game filled 10.6 of 10.9 GB, a
@@ -2286,7 +2291,7 @@ void StashLiveSize(unsigned int requestedPasses)
     NrSizeEntry e;
     e.workWidth = g_nr.workWidth;
     e.workHeight = g_nr.workHeight;
-    e.scale = g_nr.width != 0 ? (float) g_nr.workWidth / (float) g_nr.width : 1.0f;
+    e.scale = g_nr.width != 0 ? (float) g_nr.workWidth / ((float) g_nr.width * g_modelBase) : 1.0f;
 
     e.feature = g_nr.feature;
     e.pendingSubmission = g_nr.featurePendingSubmission;
@@ -2460,7 +2465,7 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     // (the likeliest next move), downward first on a tie.
     const float floor = std::clamp(cfg.DlssNrAutoScaleFloor.value_or_default(),
                                    DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
-    const float liveScale = width != 0 ? (float) g_nr.workWidth / (float) width : 1.0f;
+    const float liveScale = width != 0 ? (float) g_nr.workWidth / ((float) width * g_modelBase) : 1.0f;
 
     struct Candidate
     {
@@ -2475,8 +2480,8 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
         if (r < floor - 1e-4f)
             continue;
 
-        const unsigned int w = (unsigned int) (width * r + 0.5f);
-        const unsigned int h = (unsigned int) (height * r + 0.5f);
+        const unsigned int w = (unsigned int) (width * g_modelBase * r + 0.5f);
+        const unsigned int h = (unsigned int) (height * g_modelBase * r + 0.5f);
 
         if ((w == g_nr.workWidth && h == g_nr.workHeight) || FindCachedSize(w, h) >= 0 ||
             g_prebuild.failed.count(SizeKey(w, h)) != 0)
@@ -3284,12 +3289,25 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         workScale = g_memCapScale;
 
     // Ray Reconstruction at render cost (RunBeforeRR): the same choice, measured against the render
-    // resolution instead of the output. Floored where the model's smallest working size is.
-    if (!frame.BeforeUpscale && frame.RenderScale > 0.0f && frame.RenderScale < 1.0f)
-        workScale = std::max(0.25f, workScale * frame.RenderScale);
+    // resolution instead of the output (g_modelBase). Supersampling above the render size is not offered
+    // there -- the point is the cost. Kept sizes were planned against the old base, so a change of base
+    // lets them go.
+    {
+        const float base = (!frame.BeforeUpscale && frame.RenderScale > 0.0f && frame.RenderScale < 1.0f)
+                               ? frame.RenderScale
+                               : 1.0f;
+        if (std::fabs(base - g_modelBase) > 0.005f)
+        {
+            FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
+                                     : "Ray Reconstruction at render cost switched off");
+            g_modelBase = base;
+        }
+        if (g_modelBase < 1.0f)
+            workScale = std::min(workScale, 1.0f);
+    }
 
-    const auto workWidth = (unsigned int) (width * workScale + 0.5f);
-    const auto workHeight = (unsigned int) (height * workScale + 0.5f);
+    const auto workWidth = (unsigned int) (width * g_modelBase * workScale + 0.5f);
+    const auto workHeight = (unsigned int) (height * g_modelBase * workScale + 0.5f);
     const bool reduced = workWidth != width || workHeight != height;
     const unsigned int configuredPasses = std::clamp(cfg.DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
     const bool proxyBackend = cfg.DlssNrUseProxy.value_or_default();
@@ -3381,7 +3399,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         if (room)
         {
-            const float leftScale = (float) g_nr.workWidth / (float) width;
+            const float leftScale = (float) g_nr.workWidth / ((float) width * g_modelBase);
             StashLiveSize(requestedPasses);
             stashed = true;
             g_nextBuildWhy = "size change, not cached";
@@ -3558,7 +3576,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     break;
                 }
             }
-            const uint64_t upNeed = (uint64_t) (width * up + 0.5f) * (uint64_t) (height * up + 0.5f) * kFeatureBytesPerPixel;
+            const uint64_t upNeed = (uint64_t) (width * g_modelBase * up + 0.5f) *
+                                    (uint64_t) (height * g_modelBase * up + 0.5f) * kFeatureBytesPerPixel;
             uint64_t capUsage = 0, capBudget = 0;
             if (ReadVideoMemory(device, capUsage, capBudget) && capUsage + upNeed + CacheReserve(capBudget) <= capBudget)
             {
@@ -4017,7 +4036,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             //   memory this can give back.
             if (cfg.DlssNrAutoScale.value_or_default() && g_nr.feature != nullptr && g_nr.width != 0)
             {
-                const float live = (float) g_nr.workWidth / (float) g_nr.width;
+                const float live = (float) g_nr.workWidth / ((float) g_nr.width * g_modelBase);
                 const uint64_t freeBytes = budget > usage ? budget - usage : 0;
                 static double steppedDownMs = -1.0e9;
                 const double nowPressureMs = NowMs();
