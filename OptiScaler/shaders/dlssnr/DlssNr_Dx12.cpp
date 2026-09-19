@@ -474,17 +474,37 @@ unsigned long long g_frames = 0;
 constexpr unsigned int kSizeFadeFrames = 8;
 unsigned int g_sizeFadeLeft = 0;
 
+// ... and easing it out BEFORE one. A switch is held for kSizeFadeOutFrames frames while the edit fades to
+// nothing, so what the player sees is the pass easing off and easing back on, never a step between two
+// strengths. Without this the switch frame went from full strength to none in one frame, which is the flash
+// itself -- the fade-in alone did not help (user, 2026-09-20).
+constexpr unsigned int kSizeFadeOutFrames = 6;
+unsigned int g_sizeFadeOutLeft = 0;
+bool g_sizeSwitchHeld = false;
+
 void FadeInAfterSizeChange() { g_sizeFadeLeft = kSizeFadeFrames; }
 
 // 0..1 for this frame, counted down once per resolve. Smooth at both ends, so neither the start nor the end of
 // the fade is itself a step.
 float SizeFadeFactor()
 {
-    if (g_sizeFadeLeft == 0)
-        return 1.0f;
+    float t = 1.0f;
 
-    const float t = 1.0f - (float) g_sizeFadeLeft / (float) kSizeFadeFrames;
-    --g_sizeFadeLeft;
+    if (g_sizeFadeOutLeft > 0)
+    {
+        // Counting down to the switch: full strength at the start, nothing at the last held frame.
+        t = (float) (g_sizeFadeOutLeft - 1) / (float) kSizeFadeOutFrames;
+    }
+    else if (g_sizeFadeLeft > 0)
+    {
+        t = 1.0f - (float) g_sizeFadeLeft / (float) kSizeFadeFrames;
+        --g_sizeFadeLeft;
+    }
+    else
+    {
+        return 1.0f;
+    }
+
     return t * t * (3.0f - 2.0f * t);
 }
 
@@ -3330,8 +3350,39 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             workScale = std::min(workScale, 1.0f);
     }
 
-    const auto workWidth = (unsigned int) (width * g_modelBase * workScale + 0.5f);
-    const auto workHeight = (unsigned int) (height * g_modelBase * workScale + 0.5f);
+    auto workWidth = (unsigned int) (width * g_modelBase * workScale + 0.5f);
+    auto workHeight = (unsigned int) (height * g_modelBase * workScale + 0.5f);
+
+    // A size change is announced before it happens: the model keeps running at the size it is on while the
+    // edit fades out (SizeFadeFactor), and only then does the switch go through -- where there is no edit on
+    // screen to lose. A frame-size change is not held: that is the game's own resize, and the surfaces have
+    // to follow it immediately.
+    if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
+        (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight))
+    {
+        if (!g_sizeSwitchHeld)
+        {
+            g_sizeSwitchHeld = true;
+            g_sizeFadeOutLeft = kSizeFadeOutFrames;
+        }
+
+        if (g_sizeFadeOutLeft > 0)
+        {
+            --g_sizeFadeOutLeft;
+            workWidth = g_nr.workWidth;
+            workHeight = g_nr.workHeight;
+            workScale = (float) g_nr.workWidth / std::max(1.0f, (float) width * g_modelBase);
+        }
+        else
+        {
+            g_sizeSwitchHeld = false;
+        }
+    }
+    else
+    {
+        g_sizeSwitchHeld = false;
+        g_sizeFadeOutLeft = 0;
+    }
     const bool reduced = workWidth != width || workHeight != height;
     const unsigned int configuredPasses = std::clamp(cfg.DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
     const bool proxyBackend = cfg.DlssNrUseProxy.value_or_default();
