@@ -7,6 +7,7 @@
 
 #include <dlssnr/DlssNr.h>
 #include <dlssnr/DlssNr_I18n.h>
+#include <dlssnr/DlssNr_Live.h>
 
 #include "input/input_system.h"
 
@@ -8088,6 +8089,9 @@ bool MenuCommon::RenderMenu()
 {
     if (!_isInited)
         return false;
+
+    // Every frame, menu up or not: the pop-out panel's live readings (DlssNr_Live.h).
+    DlssNr::Live::Tick();
 
     RenderMenuContext ctx { State::Instance(), Config::Instance(), ImGui::GetIO() };
     ctx.now = Util::MillisecondsNow();
