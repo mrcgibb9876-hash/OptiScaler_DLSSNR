@@ -4776,7 +4776,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      "{:.1f}x, colour transform {}, transfer {}, model {}x{}, passes {}, debug view {}, compare {}",
                      composeNow.whitePoint, composeNow.transfer, composeNow.colour, composeNow.maxRatio,
                      composeNow.passthrough != 0 ? "off (frame already tone mapped)" : "on (linear HDR)",
-                     composeNow.residual == 1 ? "matched residual" : "classic", composeNow.workW, composeNow.workH,
+                     composeNow.residual == 2   ? "edge-aware"
+                     : composeNow.residual == 1 ? "matched residual"
+                                                : "classic",
+                     composeNow.workW, composeNow.workH,
                      composeNow.passes, composeNow.debugView, composeNow.compareMode);
         }
 

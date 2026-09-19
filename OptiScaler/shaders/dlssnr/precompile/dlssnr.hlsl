@@ -335,10 +335,21 @@ float3 EdgeAwareEdit(float2 uvq, float3 fullProxy)
                 m = SrgbToLinear(m);
             }
 
-            const float2 d = pos - (float2) t;
-            const float spatial = exp(-dot(d, d) * 1.5);
+            // Spatially it is the bilinear tap itself (a tent of radius one, so only the four nearest texels
+            // count), with a trace of the outer ring so a pixel whose four are all rejected still has a
+            // same-side neighbour to take its edit from. Anything wider blurs the edit, and the edit is detail.
+            const float2 d = abs(pos - (float2) t);
+            const float spatial = max(1.0 - d.x, 0.0) * max(1.0 - d.y, 0.0) + 0.02 * exp(-dot(d, d));
+
+            // Only an outline is rejected, never texture. The first version weighed every brightness
+            // difference (exp(-12 x relative difference)), so on skin, cloth or brick each pixel took its
+            // edit from texels of its own brightness -- bright from bright, dark from dark -- which is a
+            // local contrast boost: "changing the contrast too much" (2026-09-19). Below 30% relative
+            // difference a texel counts in full, exactly as the plain tap would; past 70% -- a head against
+            // the sky -- it does not count at all.
             const float pl = dot(p, kLuma);
-            const float range = exp(-12.0 * abs(pl - guide) / (max(pl, guide) + 0.02));
+            const float rel = abs(pl - guide) / (max(pl, guide) + 0.02);
+            const float range = 1.0 - smoothstep(0.3, 0.7, rel);
             const float w = spatial * range;
 
             sum += (m - p) * w;
