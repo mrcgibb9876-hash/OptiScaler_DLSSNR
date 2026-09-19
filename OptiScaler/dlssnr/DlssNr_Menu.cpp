@@ -1251,6 +1251,11 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
+        // Adaptive resolution directly under the frame rate and memory it steers, where it is seen first
+        // (2026-09-19; it used to sit inside Cost, below Model resolution).
+        ImGui::Spacing();
+        DrawAutoScale(config, rowWidth, anyChanged);
+
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
         SectionCaption(Tr("Global Controls"), rowWidth);
@@ -1270,71 +1275,9 @@ void RenderMenu(Config* config, float menuResScale)
         if (rTone.released)
             anyChanged = true;
         HelpMarker(Tr("The model's tone-remapping strength across the whole frame."));
-        // Model Automask -- DlssNrAutoMask. In NVIDIA's panel this is a letter-tracked caps row
-        // of its own with a "Show Mask" toggle on the right, not a section caption with a divider,
-        // so it is drawn that way here.
-        ImGui::Spacing();
-
-        bool autoMask = config->DlssNrAutoMask.value_or_default();
-        if (NrCheckbox(Tr("Model Automask"), &autoMask, true))
-        {
-            config->DlssNrAutoMask = autoMask;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Lets the model find skin itself rather than treating the frame uniformly."));
-
-        // Greyed out, and not because a setting is off: the model keeps its mask to itself. It is
-        // never handed back as a resource across the interface this fork drives, so there is
-        // nothing for an overlay to draw.
-        ImGui::BeginDisabled(true);
-        bool showMask = false;
-        NrRightCheckbox(Tr("Show Mask"), &showMask, rowWidth);
-        ImGui::EndDisabled();
-
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("%s", Tr("NVIDIA's panel can draw the automask over the frame. The model does not hand"
-                                       "\nits mask back through the interface this fork drives, so there is nothing"
-                                       "\nhere to display."));
-
-        // Matches NVIDIA's own panel: greyed out while Automask is off. The value underneath is
-        // unchanged either way -- this only stops it being dragged while it has nothing to act on.
-        ImGui::BeginDisabled(!autoMask);
-        ImGui::PushID("Automask");
-        float skin = config->DlssNrSkinStructure.value_or_default();
-        auto rSkin = NrSlider(Tr("Structure Intensity"), &skin, -1.0f, 1.0f, "%.2f", rowWidth);
-        if (rSkin.changed)
-            config->DlssNrSkinStructure = skin;
-        if (rSkin.released)
-            anyChanged = true;
-        ImGui::PopID();
-        ImGui::EndDisabled();
-        HelpMarker(Tr("-1 means follow the Global Controls Structure Intensity above, and is the"
-                      "\nmodel's own default. 0 and above set the masked region's structure"
-                      "\nindependently of the rest of the frame."
-                      "\n\nGreyed out while Model Automask is off -- there is no mask for it to"
-                      "\nshape without it."));
-
-        // Developer Masking -- NVIDIA's per-object, engine-level masking. The game's own renderer
-        // tags individual objects (the "Pitcher", "Grapes" and "Bottles" of NVIDIA's demo scene)
-        // and hands those masks to DLSS through Streamline, so an artist can dial each object
-        // separately. There is nothing here for this fork to drive: OptiScaler sits below the
-        // engine, in the graphics API, with no object list and no way to author such masks. The
-        // row is drawn because the panel this copies has it, and is disabled because it cannot be
-        // made to work -- not because a setting is off.
-        ImGui::Spacing();
-
-        ImGui::BeginDisabled(true);
-        bool devMasking = false;
-        bool showMasks = false;
-        NrCheckbox(Tr("Developer Masking"), &devMasking, true);
-        NrRightCheckbox(Tr("Show Masks"), &showMasks, rowWidth);
-        ImGui::EndDisabled();
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("Per-object masks come from the game's own renderer, so this one stays "
-                              "NVIDIA-only -- an injector has no object list to mask."));
-        ImGui::PopTextWrapPos();
+        // Model Automask, its Structure Intensity and Developer Masking are not drawn (2026-09-19): the automask is
+        // on by default and does its job unasked, its mask can never be shown through this interface, and
+        // per-object masking needs the game's own renderer. The keys still work from the ini.
 
         // Models -- DlssNrPreset. NVIDIA ships no letters in the binary; "Model A/B/C" is this
         // fork's best match to the segmented selector in the developer overlay, and matches the
@@ -1713,8 +1656,6 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
                       "\nitself is never reduced -- only the model's own contribution is computed small"
                       "\nand enlarged. Applied when the handle is let go, not while it is moving."));
-
-        DrawAutoScale(config, rowWidth, anyChanged);
 
         // Above native the model is run supersampled and filtered back down, so the filter is
         // the whole difference between supersampling meaning less noise and meaning more.
@@ -2427,61 +2368,8 @@ void RenderMenu(Config* config, float menuResScale)
         HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
                       "\nactually changed, amplified twenty times and centred on grey."));
 
-        // Both of these are experiments toward dropping the forwarder entirely, which is why they
-        // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
-        // "off until it is shown to produce the same picture" -- so they are labelled as such
-        // rather than presented as ordinary settings.
-        SectionCaption(Tr("Experimental"), rowWidth);
-
-        // Only meaningful with something stacked on top of pass one: at one pass there is nothing to
-        // run less often, and a live slider that cannot do anything is worse than a greyed one.
-        const bool stacked = std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount) > 1;
-        ImGui::BeginDisabled(!stacked);
-        float rate = std::clamp(config->DlssNrPassRate.value_or_default(), 0.05f, 1.0f) * 100.0f;
-        auto rRate = NrSlider(Tr("Extra passes run on"), &rate, 5.0f, 100.0f, "%.0f%%", rowWidth);
-        if (rRate.changed)
-            config->DlssNrPassRate = std::clamp(rate, 5.0f, 100.0f) / 100.0f;
-        if (rRate.released)
-            anyChanged = true;
-        ImGui::EndDisabled();
-        HelpMarker(Tr("How often the passes above the first actually run, as a share of frames. 100% is"
-                      "\nevery frame, which is what this has always done; 50% is every other frame."
-                      "\n\nWhat it buys is the ground between one pass and two. Two passes cost twice the"
-                      "\nmodel time and there is no step between them -- this makes one and a half"
-                      "\nreachable. Watch the frame rate: that is the whole point of it."
-                      "\n\nWhat it costs is that a frame where the extra pass was skipped is genuinely"
-                      "\nless processed than one where it ran, so the picture alternates between two"
-                      "\nlooks. Whether that reads as a pulse or as nothing depends on the game and on"
-                      "\nhow much the extra layer was changing. Chained temporal history decides what"
-                      "\nthe skipped frames do to that pass's history: on, it now has gaps in it."
-                      "\n\nNeeds more than one pass to do anything."));
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("The two below are unproven. They exist to test whether the driver's own "
-                              "nvngx.dll can dispatch the model, which would remove the need for "
-                              "the 165 MB copy beside OptiScaler."));
-        ImGui::PopTextWrapPos();
-
-        if (bool probe = config->DlssNrProxyProbe.value_or_default(); NrCheckbox(Tr("Probe the driver"), &probe))
-        {
-            config->DlssNrProxyProbe = probe;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Asks the driver's nvngx.dll once per session whether it already knows the model."
-                      "\nWrites the answer to the log and changes nothing else."
-                      "\n\nRead when the model is built, so it applies from the next session."));
-
-        if (bool useProxy = config->DlssNrUseProxy.value_or_default();
-            NrCheckbox(Tr("Run through the driver"), &useProxy))
-        {
-            config->DlssNrUseProxy = useProxy;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Drives the model through the driver's own nvngx.dll instead of the forwarder --"
-                      "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
-                      "\nunnecessary."
-                      "\n\nCompare before trusting it: turn on Compare above and look for a difference."));
+        // No Experimental section (2026-09-19): Extra passes run on, Probe the driver and Run through the driver
+        // are research switches, not settings a player needs. The keys still work from the ini.
 
         // Appearance last, because it is the section you touch once and then leave alone. Both of
         // these could already be set in the ini; the point of putting them here is that legibility
