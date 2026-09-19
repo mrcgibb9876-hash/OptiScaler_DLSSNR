@@ -1348,6 +1348,14 @@ void ManagePaging()
         {
             if (NrMemory::NeedsPageIn(e.feature))
             {
+                // Only with room for it and the cache margin besides. Resident Evil Requiem (2026-09-19): warming a
+                // 555 MB size into a card already past its budget pushed the game's own memory out, and the game
+                // dropped to 8 fps. Without room, a move to this size pages it in when it happens instead.
+                uint64_t resident = 0, paged = 0, usage = 0, budget = 0;
+                NrMemory::Footprint(e.feature, resident, paged);
+                if (NrMemory::g_device != nullptr && ReadVideoMemory(NrMemory::g_device, usage, budget) &&
+                    usage + paged + CacheReserve(budget) > budget)
+                    continue;
                 NrMemory::PageIn(e.feature, false);
                 for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
                     NrMemory::PageIn(e.passFeature[pass], false);
@@ -3981,7 +3989,46 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     {
         uint64_t usage = 0, budget = 0;
         if (ReadVideoMemory(device, usage, budget))
+        {
             EnforceCacheBudget(usage, budget);
+
+            // Adaptive resolution under memory pressure. Resident Evil Requiem (2026-09-19): the game went past its
+            // budget (11359 of 10907 MB), Windows started moving its memory in and out every frame -- slow motion,
+            // 8 fps -- and the controller, seeing a cheap pass, moved the model UP to 100%, into a full card.
+            //   Tight (less free than the cache margin): hold. The cap drops to the live size -- down, never up.
+            //   Over budget: step the model down one rung, at most every 5 s. It is the one piece of the frame's
+            //   memory this can give back.
+            if (cfg.DlssNrAutoScale.value_or_default() && g_nr.feature != nullptr && g_nr.width != 0)
+            {
+                const float live = (float) g_nr.workWidth / (float) g_nr.width;
+                const uint64_t freeBytes = budget > usage ? budget - usage : 0;
+                static double steppedDownMs = -1.0e9;
+                const double nowPressureMs = NowMs();
+
+                if (usage > budget && nowPressureMs - steppedDownMs >= 5000.0)
+                {
+                    for (std::size_t r = 0; r < DlssNrBudget::RungCount; ++r)
+                    {
+                        if (DlssNrBudget::Rungs[r] < live - 1e-4f && DlssNrBudget::Rungs[r] < g_memCapScale + 1e-4f)
+                        {
+                            steppedDownMs = nowPressureMs;
+                            LOG_INFO("DLSS-NR: video memory over budget ({} of {} MB) -- model {:.0f}% -> {:.0f}% to give "
+                                     "some back",
+                                     usage >> 20, budget >> 20, live * 100.0f, DlssNrBudget::Rungs[r] * 100.0f);
+                            g_memCapScale = DlssNrBudget::Rungs[r];
+                            break;
+                        }
+                    }
+                }
+                else if (freeBytes < CacheReserve(budget) && g_memCapScale > live + 1e-4f)
+                {
+                    LOG_INFO("DLSS-NR: video memory tight ({} of {} MB) -- Adaptive resolution holds at {:.0f}% until "
+                             "there is room",
+                             usage >> 20, budget >> 20, live * 100.0f);
+                    g_memCapScale = live;
+                }
+            }
+        }
     }
 
     if (g_captureWriteAtFrame != 0 && g_frames >= g_captureWriteAtFrame)
