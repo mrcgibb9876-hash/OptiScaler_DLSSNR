@@ -23,7 +23,7 @@ cbuffer Params : register(b0)
     float gCompareSplit; // where the wipe cuts, 0..1
     float gCompareZoom;  // side by side: 1 fits the frame, 2 fills the half
     uint  gCompareSwap;  // put the edited frame on the other side
-    uint  gTransfer;     // 0 classic, 1 matched residual, 2 edge-aware matched residual -- how a below-size model comes back
+    uint  gTransfer;     // 0 classic, 1 matched residual, 2 edge-aware, 3 guided (full-size look) -- how a below-size model comes back
     float gDebugScale;   // what the debug views are scaled by, held still while the meter moves
     uint  gReversibleMode; // 0 knee, 1 Neutwo+composed, 2 Neutwo+replace, 3 hybrid+composed, 4 hybrid+replace
     uint  gApplyModel;     // 0 output the clean frame (pass still runs), 1 apply the model's edit
@@ -221,7 +221,7 @@ Texture2D<float4>   gOriginal : register(t2);  // resolve: the untouched frame.
 #ifdef VK_MODE
 [[vk::binding(4, 0)]]
 #endif
-Texture2D<float4>   gMotion   : register(t3);  // resolve, accumulating: the game's motion vectors.
+Texture2D<float4>   gMotion   : register(t3);  // meter: the exposure. resolve with Transfer 3: the guided fit's coefficients.
 
 // The game's 1x1 exposure texture, bound at t4 (DispatchPass's "prev edit" SRV slot). D3D12 only:
 // Vulkan has no eighth descriptor for it and keeps computing the white point on the CPU, so the whole
@@ -358,6 +358,97 @@ float3 EdgeAwareEdit(float2 uvq, float3 fullProxy)
     }
 
     return weights > 1e-3 ? sum / weights : EditAt(uvq);
+}
+
+// Enlargement 3, "Full-size look": guided upsampling.
+//
+// The model changes a picture in two ways: it re-grades it -- brightness, contrast, colour, saturation, which
+// vary smoothly across the frame -- and it adds detail. Run below the frame's size, the matched residual carried
+// its whole change up as one difference per model pixel and ADDED it to the full-size frame. For the re-grade that
+// is wrong: at full size the model would have applied its contrast and colour to the fine detail as well, while
+// an added difference leaves that detail in the game's own contrast and colour. That is the "different contrast,
+// different colouration" against running the model at full size (2026-09-19).
+//
+// This is the technique image pipelines use to run a heavy operator small and apply it big (He & Sun, Fast
+// Guided Filter, 2015; Chen et al., Bilateral Guided Upsampling, 2016; Gharbi et al., HDRnet, 2017). Round each
+// model pixel, the model's answer is fitted as a colour-guided affine function of what it was shown: a 3x3
+// colour matrix plus an offset, least squares over a 5x5 window (mode 5 below). That function IS the model's
+// local re-grade. Enlarged smoothly and applied to each full-size pixel's own colour, it re-grades the fine
+// detail exactly as the model graded its neighbourhood -- and because it acts on the pixel's own colour it
+// cannot bleed across an outline. What the fit does not explain is the detail the model added; that alone is
+// enlarged as a difference, outline-aware as in Enlargement 2.
+
+// 3x3 inverse of a symmetric positive-definite matrix (the regularised covariance), by cofactors.
+float3x3 InverseSym3(float3x3 m)
+{
+    const float3 c0 = cross(m[1], m[2]);
+    const float3 c1 = cross(m[2], m[0]);
+    const float3 c2 = cross(m[0], m[1]);
+    const float det = dot(m[0], c0);
+    return transpose(float3x3(c0, c1, c2)) / max(det, 1e-12);
+}
+
+// The fit's coefficients for output channel c at model pixel t: xyz the row of the colour matrix, w the offset.
+// Stored side by side in one texture three model-widths wide, channel c at x + c * width.
+float4 GuidedCoeffs(int2 t, uint c, uint pw)
+{
+    return gMotion.Load(int3(t.x + (int) (c * pw), t.y, 0));
+}
+
+float3 GuidedApply(int2 t, uint pw, float3 colour)
+{
+    const float4 r = GuidedCoeffs(t, 0u, pw);
+    const float4 g = GuidedCoeffs(t, 1u, pw);
+    const float4 b = GuidedCoeffs(t, 2u, pw);
+    return float3(dot(r.xyz, colour) + r.w, dot(g.xyz, colour) + g.w, dot(b.xyz, colour) + b.w);
+}
+
+// The model's answer at this full-size pixel, guided: the enlarged local re-grade applied to the pixel's own
+// proxy colour, plus the enlarged remainder the re-grade does not explain.
+float3 GuidedModel(float2 uvq, float3 fullProxy)
+{
+    uint pw, ph;
+    gSource.GetDimensions(pw, ph);
+    const float2 pos = uvq * float2(pw, ph) - 0.5;
+    const int2 base = int2(floor(pos));
+    const float2 f = pos - (float2) base;
+    const int2 maxTexel = int2(pw, ph) - 1;
+    const float guide = dot(fullProxy, kLuma);
+
+    float3 graded = 0.0;
+    float3 remainder = 0.0;
+    float remainderWeight = 0.0;
+
+    [unroll]
+    for (int j = 0; j <= 1; ++j)
+    {
+        [unroll]
+        for (int i = 0; i <= 1; ++i)
+        {
+            const int2 t = clamp(base + int2(i, j), int2(0, 0), maxTexel);
+            const float w = (i == 0 ? 1.0 - f.x : f.x) * (j == 0 ? 1.0 - f.y : f.y);
+
+            graded += GuidedApply(t, pw, fullProxy) * w;
+
+            float3 p = gSource.Load(int3(t, 0)).rgb;
+            float3 m = gModel.Load(int3(t, 0)).rgb;
+            if (gPassthrough == 0)
+            {
+                p = SrgbToLinear(p);
+                m = SrgbToLinear(m);
+            }
+
+            // Outline-only, as in EdgeAwareEdit: texture counts in full, the other side of a silhouette not at all.
+            const float pl = dot(p, kLuma);
+            const float rel = abs(pl - guide) / (max(pl, guide) + 0.02);
+            const float keep = (1.0 - smoothstep(0.3, 0.7, rel)) * w;
+
+            remainder += (m - GuidedApply(t, pw, p)) * keep;
+            remainderWeight += keep;
+        }
+    }
+
+    return graded + (remainderWeight > 1e-4 ? remainder / remainderWeight : 0.0);
 }
 
 // The soft knee, shared by the encode and the resolve.
@@ -569,6 +660,80 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // nothing about scale; the peak says where the top of the range is, which is exactly what the
     // divisor has to match. One specular hit cannot decide the answer because the host takes a
     // percentile across tiles afterwards.
+    // The guided fit (Enlargement 3). Dispatched at the model's size: t0 the proxy the model was shown, t1 its
+    // answer, u0 the coefficients, three model-widths wide (see GuidedModel above). A colour-guided filter:
+    // per output channel c, a = (Cov(I) + eps)^-1 Cov(I, p_c), b = mean(p_c) - a . mean(I), over a 5x5 window.
+    // eps keeps a flat window (no colour variance to fit against) an offset rather than an arbitrary matrix.
+    if (gMode == 5)
+    {
+        uint pw, ph;
+        gSource.GetDimensions(pw, ph);
+        const int2 p = int2(id.xy);
+        const int2 maxTexel = int2(pw, ph) - 1;
+
+        float3 meanI = 0.0;
+        float3 meanP = 0.0;
+        float3 iiDiag = 0.0; // E[rr], E[gg], E[bb]
+        float3 iiOff = 0.0;  // E[rg], E[rb], E[gb]
+        float3 ipR = 0.0;    // E[I * p.r]
+        float3 ipG = 0.0;
+        float3 ipB = 0.0;
+
+        [unroll]
+        for (int y = -2; y <= 2; ++y)
+        {
+            [unroll]
+            for (int x = -2; x <= 2; ++x)
+            {
+                const int2 t = clamp(p + int2(x, y), int2(0, 0), maxTexel);
+                float3 I = gSource.Load(int3(t, 0)).rgb;
+                float3 P = gModel.Load(int3(t, 0)).rgb;
+                if (gPassthrough == 0)
+                {
+                    I = SrgbToLinear(I);
+                    P = SrgbToLinear(P);
+                }
+                I = SanitizeFinite3(I, 0.0);
+                P = SanitizeFinite3(P, 0.0);
+
+                meanI += I;
+                meanP += P;
+                iiDiag += I * I;
+                iiOff += float3(I.r * I.g, I.r * I.b, I.g * I.b);
+                ipR += I * P.r;
+                ipG += I * P.g;
+                ipB += I * P.b;
+            }
+        }
+
+        const float n = 1.0 / 25.0;
+        meanI *= n;
+        meanP *= n;
+        iiDiag *= n;
+        iiOff *= n;
+        ipR *= n;
+        ipG *= n;
+        ipB *= n;
+
+        const float eps = 1e-3;
+        const float srg = iiOff.x - meanI.r * meanI.g;
+        const float srb = iiOff.y - meanI.r * meanI.b;
+        const float sgb = iiOff.z - meanI.g * meanI.b;
+        const float3x3 sigma = float3x3(iiDiag.x - meanI.r * meanI.r + eps, srg, srb,
+                                        srg, iiDiag.y - meanI.g * meanI.g + eps, sgb,
+                                        srb, sgb, iiDiag.z - meanI.b * meanI.b + eps);
+        const float3x3 inv = InverseSym3(sigma);
+
+        const float3 aR = clamp(mul(inv, ipR - meanI * meanP.r), -4.0, 4.0);
+        const float3 aG = clamp(mul(inv, ipG - meanI * meanP.g), -4.0, 4.0);
+        const float3 aB = clamp(mul(inv, ipB - meanI * meanP.b), -4.0, 4.0);
+
+        gTarget[int2(p.x, p.y)] = float4(aR, meanP.r - dot(aR, meanI));
+        gTarget[int2(p.x + (int) pw, p.y)] = float4(aG, meanP.g - dot(aG, meanI));
+        gTarget[int2(p.x + 2 * (int) pw, p.y)] = float4(aB, meanP.b - dot(aB, meanI));
+        return;
+    }
+
     if (gMode == 4)
     {
         uint fullW, fullH;
@@ -896,7 +1061,7 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     gSource.GetDimensions(proxyW, proxyH);
     const bool modelRanSmall = proxyW != gWidth || proxyH != gHeight;
 
-    if ((gTransfer == 1 || gTransfer == 2) && modelRanSmall)
+    if (gTransfer >= 1 && modelRanSmall)
     {
         // Saturated, because that is what the encode does and this has to reproduce it exactly.
         //
@@ -931,6 +1096,9 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         // Edge-aware: the edit enlarged along the frame's own edges instead of across them.
         if (gTransfer == 2)
             edit = EdgeAwareEdit(cmpUv, fullProxy);
+        // Guided: the model's local re-grade applied to this pixel's own colour, plus its added detail.
+        else if (gTransfer == 3)
+            edit = GuidedModel(cmpUv, fullProxy) - fullProxy;
 
         model = CubeScaleResidual(fullProxy, fullProxy + edit);
     }

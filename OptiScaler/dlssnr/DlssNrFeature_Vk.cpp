@@ -860,7 +860,8 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     encode.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
     encode.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
     encode.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
-    encode.Transfer = cfg.DlssNrTransfer.value_or_default();
+    // The guided fit (Enlargement 3) is a D3D12 pass; Vulkan takes Enlargement 2 in its place.
+    encode.Transfer = std::min(cfg.DlssNrTransfer.value_or_default(), 2u);
     encode.DebugScale = cfg.DlssNrWhitePointScale.value_or_default();
     encode.GuideWidth = guideWidth;
     encode.GuideHeight = guideHeight;

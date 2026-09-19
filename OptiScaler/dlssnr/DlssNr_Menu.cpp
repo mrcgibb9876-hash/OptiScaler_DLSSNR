@@ -1738,8 +1738,9 @@ void RenderMenu(Config* config, float menuResScale)
                               config->DlssNrRunBeforeRr.value_or_default());
 
         ImGui::BeginDisabled(!reduced);
-        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware") };
-        int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 2u);
+        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware"),
+                                       Tr("Full-size look") };
+        int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 3u);
         if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
         {
             config->DlssNrTransfer = (uint32_t) enlarge;
@@ -1751,8 +1752,12 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
                       "\ncomposition cannot tell them apart."
                       "\n\nMatched residual enlarges only the model's edit, laid on the full-size frame."
-                      "\n\nEdge-aware (default) does the same, but never blends the edit across an outline --"
+                      "\n\nEdge-aware does the same, but never blends the edit across an outline --"
                       "\nwhich is what drew a thin halo round characters' heads."
+                      "\n\nFull-size look (default) learns how the model re-grades each patch -- its"
+                      "\ncontrast, colour and saturation -- and applies that to every full-size pixel, so a"
+                      "\nsmaller model looks like the full-size one, without halos. D3D12; Vulkan uses"
+                      "\nEdge-aware."
                       "\n\nGreyed out at 100%, where there is nothing to enlarge."));
 
         SectionCaption(Tr("How much of it lands"), rowWidth);

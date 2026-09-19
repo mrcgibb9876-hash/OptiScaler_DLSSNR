@@ -355,6 +355,10 @@ struct NrState
     ID3D12Resource* depthClone = nullptr;
     ID3D12Resource* motionClone = nullptr;
 
+    // Enlargement 3's coefficients: RGBA16F, three model-widths wide. Grown, never shrunk, so Adaptive
+    // resolution moving between sizes does not reallocate it; the shader addresses it by the model's size.
+    ID3D12Resource* guideCoeffs = nullptr;
+
     // The constant-depth probe's surface. Separate from depthClone on purpose: it is defined by
     // never having been written, and sharing a surface with a mode that writes would destroy that.
     ID3D12Resource* depthConstant = nullptr;
@@ -1630,7 +1634,7 @@ void ReleaseSurfaces()
     }
 
     for (ID3D12Resource** r : { &g_nr.output, &g_nr.passScratch, &g_nr.colorCopy, &g_nr.hdrCopy, &g_nr.colorSmall,
-                                &g_nr.outputNative, &g_nr.activeColor })
+                                &g_nr.outputNative, &g_nr.activeColor, &g_nr.guideCoeffs })
         ParkNrResource(*r);
 
     g_nr.passScratchFailed = false;
@@ -4776,7 +4780,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      "{:.1f}x, colour transform {}, transfer {}, model {}x{}, passes {}, debug view {}, compare {}",
                      composeNow.whitePoint, composeNow.transfer, composeNow.colour, composeNow.maxRatio,
                      composeNow.passthrough != 0 ? "off (frame already tone mapped)" : "on (linear HDR)",
-                     composeNow.residual == 2   ? "edge-aware"
+                     composeNow.residual == 3   ? "guided (full-size look)"
+                     : composeNow.residual == 2 ? "edge-aware"
                      : composeNow.residual == 1 ? "matched residual"
                                                 : "classic",
                      composeNow.workW, composeNow.workH,
@@ -4816,8 +4821,55 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
 
-        DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
+        // Enlargement 3 (guided): fit the model's local re-grade at its own size first; the resolve reads the
+        // coefficients where it used to be handed the motion vectors (which it never read). Only when the
+        // model really ran small against this pair; otherwise, or if the surface cannot be had, the resolve
+        // takes Enlargement 2 instead.
+        ID3D12Resource* resolveSlot3 = motionIn;
+        bool guidedFitted = false;
+        if (resolveParams.Transfer == 3)
+        {
+            const D3D12_RESOURCE_DESC pd = resolveProxy->GetDesc();
+            const unsigned int pw = (unsigned int) pd.Width;
+            const unsigned int ph = pd.Height;
+            const bool modelSmall = pw != width || ph != height;
+
+            if (modelSmall && g_nr.guideCoeffs != nullptr)
+            {
+                const D3D12_RESOURCE_DESC have = g_nr.guideCoeffs->GetDesc();
+                if ((unsigned int) have.Width < pw * 3 || have.Height < ph)
+                    ParkNrResource(g_nr.guideCoeffs);
+            }
+            if (modelSmall && g_nr.guideCoeffs == nullptr)
+                g_nr.guideCoeffs = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, pw * 3, ph);
+
+            if (modelSmall && g_nr.guideCoeffs != nullptr)
+            {
+                DlssNrConstants fitParams {};
+                fitParams.Mode = DlssNrMode_GuidedFit;
+                fitParams.Width = pw;
+                fitParams.Height = ph;
+                fitParams.Passthrough = resolveParams.Passthrough;
+                fitParams.WhitePoint = whitePoint;
+                DispatchPass(cmdList, fitParams, resolveProxy, resolveAnswer, nullptr, nullptr, nullptr,
+                             g_nr.guideCoeffs, nullptr);
+                Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                resolveSlot3 = g_nr.guideCoeffs;
+                guidedFitted = true;
+            }
+            else
+            {
+                resolveParams.Transfer = 2;
+            }
+        }
+
+        DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, resolveSlot3, exposureTex,
                      resolveTarget, nullptr);
+
+        if (guidedFitted)
+            Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         if (!targetSupportsUav)
         {
@@ -6599,6 +6651,12 @@ void Shutdown()
         valid = false;
 
     g_nr.meterFrames = 0;
+
+    if (g_nr.guideCoeffs != nullptr)
+    {
+        g_nr.guideCoeffs->Release();
+        g_nr.guideCoeffs = nullptr;
+    }
 
     if (g_nr.depthClone != nullptr)
     {
