@@ -3499,10 +3499,21 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     //
     // Not a gate on the FIRST model (g_nr.feature == nullptr): there is nothing to keep running then, and the
     // out-of-memory step-down further down is the same case. Both must still be able to build.
+    //
+    // And only where something else really will build the size. AutoScalePrebuild 2 is the default and is
+    // what runs MaybePrebuild; at 1 sizes are kept but never built ahead, so refusing to build on a move too
+    // would leave the controller unable to ever reach a rung it has not already been on. There a move builds,
+    // exactly as it always did.
+    //
+    // The memory cap (g_memCapScale below 1) is the other way out. That cap is video memory forcing the model
+    // smaller, and a smaller model has to be reachable even if nothing has built it yet -- waiting for a
+    // prebuild slot while the card is full is how Resident Evil Requiem sat at "waiting for room" for three
+    // and a half minutes. A hitch beats no model.
     g_prebuild.wantedScale = 0.0f;
 
     if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
         (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight) &&
+        cfg.DlssNrAutoScalePrebuild.value_or_default() >= 2 && g_memCapScale >= 1.0f &&
         SizeCacheAllowed(cfg, cfg.DlssNrUseProxy.value_or_default(), workScale) &&
         FindCachedSize(workWidth, workHeight) < 0)
     {
