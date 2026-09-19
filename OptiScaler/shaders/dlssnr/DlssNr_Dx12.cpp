@@ -669,24 +669,58 @@ void __cdecl Alloc(D3D12_RESOURCE_DESC* desc, int state, D3D12_HEAP_PROPERTIES* 
              SUCCEEDED(hr) ? "" : " -- CreateCommittedResource FAILED");
 }
 
+// Freed late, never on the spot. NGX calls this when a feature is released, and the GPU can still be
+// executing frames that use its buffers -- with frame generation, several. Releasing here at once hung the
+// device 0.8 s after the second rebuild in Cyberpunk 2077 (DXGI_ERROR_DEVICE_HUNG, 2026-09-19); without the
+// callback NGX defers the release itself. Two seconds is far past any frame still in flight.
+constexpr ULONGLONG kReleaseDelayMs = 2000;
+struct Retired
+{
+    IUnknown* resource;
+    ULONGLONG at;
+};
+std::vector<Retired> g_retired;
+
 void __cdecl Release(IUnknown* resource)
 {
     if (resource == nullptr)
         return;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    for (auto it = g_live.begin(); it != g_live.end(); ++it)
+    {
+        if (static_cast<IUnknown*>(*it) != resource)
+            continue;
+        const D3D12_RESOURCE_DESC desc = (*it)->GetDesc();
+        const uint64_t bytes = g_device != nullptr ? g_device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes : 0;
+        g_liveBytes = g_liveBytes > bytes ? g_liveBytes - bytes : 0;
+        g_live.erase(it);
+        break;
+    }
+    g_retired.push_back({ resource, GetTickCount64() });
+}
+
+// From the pass every frame: frees what has waited long enough.
+void Tick()
+{
+    std::vector<IUnknown*> due;
     {
         std::lock_guard<std::mutex> lock(g_mutex);
-        for (auto it = g_live.begin(); it != g_live.end(); ++it)
+        if (g_retired.empty())
+            return;
+        const ULONGLONG now = GetTickCount64();
+        for (auto it = g_retired.begin(); it != g_retired.end();)
         {
-            if (static_cast<IUnknown*>(*it) != resource)
-                continue;
-            const D3D12_RESOURCE_DESC desc = (*it)->GetDesc();
-            const uint64_t bytes = g_device != nullptr ? g_device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes : 0;
-            g_liveBytes = g_liveBytes > bytes ? g_liveBytes - bytes : 0;
-            g_live.erase(it);
-            break;
+            if (now - it->at >= kReleaseDelayMs)
+            {
+                due.push_back(it->resource);
+                it = g_retired.erase(it);
+            }
+            else
+                ++it;
         }
     }
-    resource->Release();
+    for (IUnknown* resource : due)
+        resource->Release();
 }
 
 // The block is driven through its vtable like the forwarder does: pointers go in through slot 0, the
@@ -1004,6 +1038,8 @@ void ParkNrResource(ID3D12Resource*& res)
 
 void TickNrRetired()
 {
+    AllocProbe::Tick();
+
     for (size_t i = 0; i < g_nrRetired.size();)
     {
         if (--g_nrRetired[i].framesLeft > 0)
