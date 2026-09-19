@@ -1317,6 +1317,26 @@ std::vector<NrSizeEntry> g_nrCache;
 // swap, not a page-in. Everything else kept is paged out.
 float g_pagePredictScale = 0.0f;
 
+// Adaptive resolution's memory cap: the largest model size video memory has room for right now (1 = no cap).
+// Lowered one rung when the size wanted will not fit, lifted one rung at a time once the next one up fits
+// with the cache margin to spare. Resident Evil Requiem (2026-09-19): the game filled 10.6 of 10.9 GB, a
+// 2-pass model at 85% could not be built, and the pass sat "waiting for room" for three and a half minutes --
+// DLSS 5 off -- when a smaller size would have fitted.
+float g_memCapScale = 1.0f;
+
+// Whether any kept size still holds video memory (not paged out, or not yet).
+bool CacheHoldsVideoMemory()
+{
+    for (const NrSizeEntry& e : g_nrCache)
+    {
+        uint64_t resident = 0, paged = 0;
+        NrMemory::Footprint(e.feature, resident, paged);
+        if (resident > 0)
+            return true;
+    }
+    return false;
+}
+
 void ManagePaging()
 {
     if (!Config::Instance()->DlssNrAutoScalePage.value_or_default())
@@ -2731,7 +2751,7 @@ void UpdateAutoScale()
     const DlssNrBudget::Decision d = g_budget.Update(g_lastGpuTime.value(), frameMs, nowMs, tuning, rebuilt);
 
     g_autoScale.running = true;
-    g_autoScale.scale = DlssNrBudget::Rungs[d.rung];
+    g_autoScale.scale = std::min(DlssNrBudget::Rungs[d.rung], g_memCapScale);
     g_autoScale.atFloor = DlssNrBudget::Rungs[d.rung] <= tuning.floorScale + 1e-4f;
     g_autoScale.gameLimited = d.gameLimited;
 
@@ -3235,6 +3255,14 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Capped at 2x: cost grows with the area and NGX acceptance above native is what this probe tests.
     float workScale = cfg.DlssNrWorkingScale.value_or_default();
     workScale = workScale < 0.25f ? 0.25f : (workScale > 2.0f ? 2.0f : workScale);
+
+    // Adaptive resolution builds what video memory has room for (g_memCapScale). A size set by hand is the
+    // player's choice and is not capped: it waits for room as before.
+    if (!cfg.DlssNrAutoScale.value_or_default())
+        g_memCapScale = 1.0f;
+    else if (workScale > g_memCapScale)
+        workScale = g_memCapScale;
+
     const auto workWidth = (unsigned int) (width * workScale + 0.5f);
     const auto workHeight = (unsigned int) (height * workScale + 0.5f);
     const bool reduced = workWidth != width || workHeight != height;
@@ -3436,24 +3464,83 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         {
             // Kept sizes are the first thing to give back: the live model matters more than a fast switch.
             // One at a time, least recently used first; the wait for parked features above then applies.
-            if (!g_nrCache.empty())
+            // Paged, a kept size holds video memory only until it is paged out, so this waits for that
+            // instead -- and once they are all out there is nothing left to give back here.
+            const bool paging = cfg.DlssNrAutoScalePage.value_or_default();
+            if (!g_nrCache.empty() && (!paging || CacheHoldsVideoMemory()))
             {
                 EnforceCacheBudget(/* usage as if full: always evicts one */ budget, budget);
                 device->Release();
                 DLSSNR_BAIL();
             }
 
-            static uint64_t warnedAtBudget = 0;
-            if (warnedAtBudget != budget)
+            // Adaptive resolution: a smaller model rather than none. One rung down; the next frame tries it.
+            if (cfg.DlssNrAutoScale.value_or_default())
             {
-                warnedAtBudget = budget;
+                for (std::size_t r = 0; r < DlssNrBudget::RungCount; ++r)
+                {
+                    if (DlssNrBudget::Rungs[r] < workScale - 1e-4f)
+                    {
+                        g_memCapScale = DlssNrBudget::Rungs[r];
+                        LOG_INFO("DLSS-NR: a {}x{} model does not fit (video memory {} of {} MB in use, it needs about "
+                                 "{} MB more) -- building at {:.0f}% instead until there is room",
+                                 workWidth, workHeight, usage >> 20, budget >> 20, need >> 20, g_memCapScale * 100.0f);
+                        device->Release();
+                        DLSSNR_BAIL();
+                    }
+                }
+            }
+
+            // Said every few seconds, not every frame: at a frame's rate the log itself was a stutter
+            // (Resident Evil Requiem, 2026-09-19: 1695 lines in three and a half minutes).
+            static double warnedAtMs = -1.0e9;
+            static unsigned int quietSince = 0;
+            const double nowWarnMs = NowMs();
+            if (nowWarnMs - warnedAtMs >= 5000.0)
+            {
                 LOG_WARN("DLSS-NR: not building the model yet -- video memory {} of {} MB in use, and a {}x{} model "
-                         "needs about {} MB more. Waiting for room rather than risking a lost device.",
-                         usage >> 20, budget >> 20, workWidth, workHeight, need >> 20);
+                         "needs about {} MB more. Waiting for room rather than risking a lost device.{}",
+                         usage >> 20, budget >> 20, workWidth, workHeight, need >> 20,
+                         quietSince > 0 ? std::format(" ({} frames since the last line)", quietSince) : std::string());
+                warnedAtMs = nowWarnMs;
+                quietSince = 0;
+            }
+            else
+            {
+                ++quietSince;
             }
 
             device->Release();
             DLSSNR_BAIL();
+        }
+    }
+
+    // The memory cap comes back up one rung at a time, and only when the next size up would fit with the
+    // cache margin to spare -- the margin keeps it from climbing straight back into the wall it came down from.
+    if (g_memCapScale < 1.0f && g_nr.feature != nullptr && cfg.DlssNrAutoScale.value_or_default())
+    {
+        static double capCheckedMs = 0.0;
+        const double nowCapMs = NowMs();
+        if (nowCapMs - capCheckedMs >= 5000.0)
+        {
+            capCheckedMs = nowCapMs;
+            float up = 1.0f;
+            for (std::size_t r = DlssNrBudget::RungCount; r-- > 0;)
+            {
+                if (DlssNrBudget::Rungs[r] > g_memCapScale + 1e-4f)
+                {
+                    up = DlssNrBudget::Rungs[r];
+                    break;
+                }
+            }
+            const uint64_t upNeed = (uint64_t) (width * up + 0.5f) * (uint64_t) (height * up + 0.5f) * kFeatureBytesPerPixel;
+            uint64_t capUsage = 0, capBudget = 0;
+            if (ReadVideoMemory(device, capUsage, capBudget) && capUsage + upNeed + CacheReserve(capBudget) <= capBudget)
+            {
+                LOG_INFO("DLSS-NR: room for a larger model again ({} of {} MB in use) -- memory cap {:.0f}% -> {:.0f}%",
+                         capUsage >> 20, capBudget >> 20, g_memCapScale * 100.0f, up * 100.0f);
+                g_memCapScale = up;
+            }
         }
     }
 

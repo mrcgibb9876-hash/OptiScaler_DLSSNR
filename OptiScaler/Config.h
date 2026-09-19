@@ -672,8 +672,9 @@ class Config
 
     // Adaptive resolution: the model sizes it keeps are paged out to system memory while not in use and paged
     // back before use -- ahead of time for the size it is heading to -- instead of each holding its whole cost
-    // in video memory. Off until it has been proven in games; see NrMemory in DlssNr_Dx12.cpp.
-    CustomOptional<bool> DlssNrAutoScalePage { false };
+    // in video memory. On by default since 2026-09-19: proven in Cyberpunk 2077 (the paged amounts given back
+    // exactly) and Resident Evil Requiem (1.1 GB of kept sizes out of video memory); see NrMemory in DlssNr_Dx12.cpp.
+    CustomOptional<bool> DlssNrAutoScalePage { true };
 
     // Multiplies the (auto or manual) white point before the encode: what the model considers "white".
     // Higher means highlights sit lower on the curve and the model treats them as less extreme.
