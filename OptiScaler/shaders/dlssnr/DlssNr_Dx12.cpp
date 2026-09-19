@@ -6390,6 +6390,11 @@ CalibrationReading Calibration()
 
 bool IsRunning() { return g_nr.feature != nullptr && !g_nr.failed; }
 
+bool ModelIsFullSize()
+{
+    return g_nr.feature != nullptr && g_nr.width != 0 && g_nr.workWidth == g_nr.width && g_nr.workHeight == g_nr.height;
+}
+
 unsigned long long PassFrames() { return g_frames; }
 
 const char* FailureReason() { return g_nr.failed ? g_nr.reason : ""; }

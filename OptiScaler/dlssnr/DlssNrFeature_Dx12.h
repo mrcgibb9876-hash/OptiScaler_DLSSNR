@@ -102,6 +102,11 @@ CalibrationReading Calibration();
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 
+// Is the model running at the frame's own size right now? Then there is nothing to enlarge and every
+// Enlargement choice is the same picture -- which the panel says rather than leaving a control that
+// appears to do nothing. Live, so Adaptive resolution moving is reflected.
+bool ModelIsFullSize();
+
 // Frames the pass has run since the game started: one per rendered frame, frame generation's inserted frames
 // never pass through it -- which makes its rate the game's real frame rate.
 unsigned long long PassFrames();

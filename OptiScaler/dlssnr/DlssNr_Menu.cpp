@@ -1164,12 +1164,15 @@ void RenderMenu(Config* config, float menuResScale)
         // How the model's work is brought back up when it ran below the frame's size. Classic
         // composes the small picture straight against the full-size frame, which cannot tell the
         // shrink's blur apart from the model's edit.
-        // Adaptive resolution and Ray Reconstruction at render cost shrink the model without Model
-        // resolution saying so, so either counts as reduced too.
-        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f ||
-                             config->DlssNrAutoScale.value_or_default() ||
-                             (config->DlssNrRunBeforeSr.value_or_default() &&
-                              config->DlssNrRunBeforeRr.value_or_default());
+        // What the model is running at right now decides this, not the settings that led there: with
+        // Adaptive resolution at 100%, or Model resolution at 100%, the model's answer is already the frame's
+        // size and every choice here is the same picture. Saying so is the difference between a control that
+        // is off and one that looks broken ("Full-size look didn't seem to change anything", 2026-09-19).
+        const bool atFullSize = DlssNr::ModelIsFullSize();
+        const bool reduced = !atFullSize && (config->DlssNrWorkingScale.value_or_default() < 0.999f ||
+                                             config->DlssNrAutoScale.value_or_default() ||
+                                             (config->DlssNrRunBeforeSr.value_or_default() &&
+                                              config->DlssNrRunBeforeRr.value_or_default()));
 
         ImGui::BeginDisabled(!reduced);
         const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware"),
@@ -1192,7 +1195,9 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ncontrast, colour and saturation -- and applies that to every full-size pixel, so a"
                       "\nsmaller model looks like the full-size one, without halos. D3D12; Vulkan uses"
                       "\nEdge-aware."
-                      "\n\nGreyed out at 100%, where there is nothing to enlarge."));
+                      "\n\nGreyed out while the model is running at the frame's own size, where there is nothing"
+                      "\nto enlarge and every choice is the same picture. The difference is biggest at small"
+                      "\nmodel resolutions: to see it, try 25-35% and compare Classic with Full-size look."));
 
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
