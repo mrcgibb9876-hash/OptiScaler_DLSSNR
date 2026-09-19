@@ -8162,27 +8162,17 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     // manager writes into dlss5-feed.cfg). Starting closed meant the first Alt+Home showed an empty picture and the
     // player then had to find the cast with the cursor and press Alt+Home a second time to get the panel itself.
     //
-    // First launch per game only, though: opening it every launch put the panel over the game each time the Feeder
-    // cast the helper's window. [DlssNr] PanelShownOnce in host64\OptiScaler.ini remembers that it has opened;
-    // Alt+Home still opens it by hand. autoOpenedThisRun keeps it open across a second Init in that same first run
-    // (a new window handle), which is what the flag being saved would otherwise close (Assassin's Creed II,
-    // 2026-09-18).
-    static bool autoOpenedThisRun = false;
+    // Every launch, not only the first. It used to be first-launch-only ([DlssNr] PanelShownOnce), from when the
+    // Feeder put the helper's window over the game by itself and an open panel came with it. The Feeder now keeps
+    // that window behind the game and casts it only on the player's key, so after the first run every Alt+Home
+    // showed the Feeder's placeholder page ("press Home... press Insert...") instead of this panel (Castlevania:
+    // Lords of Shadow 2 demo, 2026-09-19). The cast is the only way this window is ever seen, so the panel is
+    // what it should show. PanelShownOnce is still read and written by older builds; this one ignores it.
     _dlssNrVisible = false;
     if (OptiInput::InFeederHelper())
     {
-        auto config = Config::Instance();
-        if (autoOpenedThisRun || !config->DlssNrPanelShownOnce.value_or_default())
-        {
-            _dlssNrVisible = true;
-            if (!autoOpenedThisRun)
-            {
-                autoOpenedThisRun = true;
-                config->DlssNrPanelShownOnce = true;
-                config->SaveIni();
-                LOG_INFO("DLSS 5 panel opened on this game's first run in the Feeder's helper; PanelShownOnce saved");
-            }
-        }
+        _dlssNrVisible = true;
+        LOG_INFO("DLSS 5 panel open in the Feeder's helper: the cast of this window is the panel");
     }
     _isUWP = isUWP;
     lastPosition = { -1000.0f, -1000.0f };
