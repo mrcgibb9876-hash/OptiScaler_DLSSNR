@@ -447,6 +447,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrAutoCapture.set_from_config(readBool("DlssNr", "AutoCapture"));
             DlssNrLiveReload.set_from_config(readBool("DlssNr", "LiveReload"));
             DlssNrAllocProbe.set_from_config(readBool("DlssNr", "AllocProbe"));
+            DlssNrAutoScalePage.set_from_config(readBool("DlssNr", "AutoScalePage"));
             DlssNrWhitePointScale.set_from_config(readFloat("DlssNr", "WhitePointScale"));
             LosslessScalingExePath.set_from_config(readWString("DlssNr", "LosslessScalingExePath"));
             LosslessScalingGameTitle.set_from_config(readWString("DlssNr", "LosslessScalingGameTitle"));
@@ -1365,6 +1366,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AllocProbe", GetBoolValue(Instance()->DlssNrAllocProbe.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScalePage", GetBoolValue(Instance()->DlssNrAutoScalePage.value_for_config()).c_str());
 
         // These were read every launch but never written, so nothing set through the menu survived a
         // restart -- the white-point source, both trims, the anchor, the pass count and the rest all

@@ -670,6 +670,11 @@ class Config
     // could be paged out to system memory (ID3D12Device::Evict) instead of holding video memory.
     CustomOptional<bool> DlssNrAllocProbe { false };
 
+    // Adaptive resolution: the model sizes it keeps are paged out to system memory while not in use and paged
+    // back before use -- ahead of time for the size it is heading to -- instead of each holding its whole cost
+    // in video memory. Off until it has been proven in games; see NrMemory in DlssNr_Dx12.cpp.
+    CustomOptional<bool> DlssNrAutoScalePage { false };
+
     // Multiplies the (auto or manual) white point before the encode: what the model considers "white".
     // Higher means highlights sit lower on the curve and the model treats them as less extreme.
     CustomOptional<float> DlssNrWhitePointScale { 1.0f };

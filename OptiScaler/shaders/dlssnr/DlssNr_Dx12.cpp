@@ -601,27 +601,64 @@ bool EnsureForwarder()
     return true;
 }
 
-// ---- Allocation probe ([DlssNr] AllocProbe, research, off by default) ------------------------------------
+// ---- The model's own memory: owned, and paged when a size is not in use -------------------------------------
 //
-// Whether the model's video memory can be owned by this engine. NGX lets a host create a feature's
-// resources itself (ResourceAllocCallback / ResourceReleaseCallback, the D3D12 signatures from
-// nvsdk_ngx_defs.h); Streamline does exactly that. If the DLSS 5 model (feature 18) sends its buffers through
-// them, the sizes Adaptive resolution keeps could be paged to system memory with ID3D12Device::Evict and
-// brought back with MakeResident, instead of each holding hundreds of MB of video memory -- which is what
-// pushed Resident Evil Requiem to 235 MB free on a 12 GB laptop GPU (2026-09-19). This only logs what goes
-// through, per build, against the build's measured video memory growth; it changes no allocation: every
-// buffer is created exactly as NGX describes it. The callbacks are set on the capability block only for the
-// duration of our own create calls, so the game's own DLSS never sees them.
-namespace AllocProbe
+// NGX lets a host create a feature's resources itself (ResourceAllocCallback / ResourceReleaseCallback, the D3D12
+// signatures from nvsdk_ngx_defs.h); Streamline does exactly that. The DLSS 5 model (feature 18) sends ALL of its
+// memory through them -- measured in Cyberpunk 2077 (2026-09-19): a 141 MB weights buffer at every size, a
+// 141 MB upload copy in system memory, a work buffer that grows with the size (60 MB at 1054x659, 366 MB at
+// 2560x1600) and a few textures, 367 to 680 MB per size.
+//
+// Owning it is what lets the sizes Adaptive resolution keeps stop costing video memory: a size that is not live
+// is paged out to system memory (ID3D12Device::Evict) and paged back (EnqueueMakeResident) before it is used
+// again -- ahead of time for the size the controller is heading to. Each kept size used to hold its whole cost
+// in video memory, which took Resident Evil Requiem to 235 MB free on a 12 GB laptop GPU and then down
+// (2026-09-19).
+//
+// [DlssNr] AutoScalePage turns the paging on; [DlssNr] AllocProbe only logs every buffer. Either installs the
+// callbacks, and only for the duration of this engine's own create calls, so the game's own DLSS never sees
+// them. Every buffer is created exactly as NGX describes it.
+namespace NrMemory
 {
 ID3D12Device* g_device = nullptr;
+ID3D12Device3* g_device3 = nullptr;
+ID3D12Fence* g_fence = nullptr;
+UINT64 g_fenceValue = 0;
+HANDLE g_fenceEvent = nullptr;
 std::mutex g_mutex;
-std::vector<ID3D12Resource*> g_live;
-uint64_t g_liveBytes = 0;
+
+bool g_logEach = false;   // AllocProbe: a line per buffer
+bool g_paging = false;    // AutoScalePage
 bool g_windowOpen = false;
 unsigned int g_windowCount = 0;
 uint64_t g_windowBytes = 0;
 bool g_installedOnce = false;
+void* g_evaluating = nullptr; // the feature an allocation outside a create belongs to (its first evaluate)
+
+// Evicting needs the GPU to be done with an object; two seconds is far past any frame still in flight, with
+// frame generation too. The same margin the releases below take.
+constexpr ULONGLONG kEvictDelayMs = 2000;
+constexpr ULONGLONG kReleaseDelayMs = 2000;
+
+struct Owned
+{
+    ID3D12Resource* res = nullptr;
+    uint64_t bytes = 0;
+    bool videoMemory = false; // a default heap: the only kind worth paging
+    void* feature = nullptr;  // null until the create that made it returns
+    bool evicted = false;
+    ULONGLONG evictAt = 0;    // 0 = not scheduled
+    UINT64 residentFence = 0; // EnqueueMakeResident's fence value, for a page-in not yet waited for
+};
+std::vector<Owned> g_owned;
+std::vector<ID3D12Resource*> g_window; // made by the create in progress
+
+struct Retired
+{
+    IUnknown* resource;
+    ULONGLONG at;
+};
+std::vector<Retired> g_retired;
 
 const char* DimensionName(D3D12_RESOURCE_DIMENSION d)
 {
@@ -640,6 +677,18 @@ const char* DimensionName(D3D12_RESOURCE_DIMENSION d)
     }
 }
 
+bool EnsureFence()
+{
+    if (g_fence != nullptr)
+        return true;
+    if (g_device == nullptr || FAILED(g_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&g_fence))))
+        return false;
+    g_fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    if (FAILED(g_device->QueryInterface(IID_PPV_ARGS(&g_device3))))
+        g_device3 = nullptr; // MakeResident (blocking) instead
+    return true;
+}
+
 void __cdecl Alloc(D3D12_RESOURCE_DESC* desc, int state, D3D12_HEAP_PROPERTIES* heap, ID3D12Resource** out)
 {
     if (out != nullptr)
@@ -655,72 +704,43 @@ void __cdecl Alloc(D3D12_RESOURCE_DESC* desc, int state, D3D12_HEAP_PROPERTIES* 
     std::lock_guard<std::mutex> lock(g_mutex);
     if (SUCCEEDED(hr) && *out != nullptr)
     {
-        g_live.push_back(*out);
-        g_liveBytes += info.SizeInBytes;
+        Owned o;
+        o.res = *out;
+        o.bytes = info.SizeInBytes;
+        o.videoMemory = heap->Type == D3D12_HEAP_TYPE_DEFAULT;
+        o.feature = g_windowOpen ? nullptr : g_evaluating;
+        g_owned.push_back(o);
         if (g_windowOpen)
         {
+            g_window.push_back(*out);
             g_windowCount++;
             g_windowBytes += info.SizeInBytes;
         }
     }
-    LOG_INFO("DLSS-NR alloc probe: {} {}x{}x{} format {} heap type {} state 0x{:X} flags 0x{:X}: {} KB{}",
-             DimensionName(desc->Dimension), desc->Width, desc->Height, desc->DepthOrArraySize, (int) desc->Format,
-             (int) heap->Type, state, (unsigned) desc->Flags, info.SizeInBytes >> 10,
-             SUCCEEDED(hr) ? "" : " -- CreateCommittedResource FAILED");
+    if (g_logEach || FAILED(hr))
+        LOG_INFO("DLSS-NR model memory: {} {}x{}x{} format {} heap type {} state 0x{:X} flags 0x{:X}: {} KB{}",
+                 DimensionName(desc->Dimension), desc->Width, desc->Height, desc->DepthOrArraySize, (int) desc->Format,
+                 (int) heap->Type, state, (unsigned) desc->Flags, info.SizeInBytes >> 10,
+                 SUCCEEDED(hr) ? "" : " -- CreateCommittedResource FAILED");
 }
 
 // Freed late, never on the spot. NGX calls this when a feature is released, and the GPU can still be
 // executing frames that use its buffers -- with frame generation, several. Releasing here at once hung the
 // device 0.8 s after the second rebuild in Cyberpunk 2077 (DXGI_ERROR_DEVICE_HUNG, 2026-09-19); without the
-// callback NGX defers the release itself. Two seconds is far past any frame still in flight.
-constexpr ULONGLONG kReleaseDelayMs = 2000;
-struct Retired
-{
-    IUnknown* resource;
-    ULONGLONG at;
-};
-std::vector<Retired> g_retired;
-
+// callback NGX defers the release itself. An evicted buffer is released as it is: nothing pages it back.
 void __cdecl Release(IUnknown* resource)
 {
     if (resource == nullptr)
         return;
     std::lock_guard<std::mutex> lock(g_mutex);
-    for (auto it = g_live.begin(); it != g_live.end(); ++it)
+    for (size_t i = 0; i < g_owned.size(); ++i)
     {
-        if (static_cast<IUnknown*>(*it) != resource)
+        if (static_cast<IUnknown*>(g_owned[i].res) != resource)
             continue;
-        const D3D12_RESOURCE_DESC desc = (*it)->GetDesc();
-        const uint64_t bytes = g_device != nullptr ? g_device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes : 0;
-        g_liveBytes = g_liveBytes > bytes ? g_liveBytes - bytes : 0;
-        g_live.erase(it);
+        g_owned.erase(g_owned.begin() + i);
         break;
     }
     g_retired.push_back({ resource, GetTickCount64() });
-}
-
-// From the pass every frame: frees what has waited long enough.
-void Tick()
-{
-    std::vector<IUnknown*> due;
-    {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_retired.empty())
-            return;
-        const ULONGLONG now = GetTickCount64();
-        for (auto it = g_retired.begin(); it != g_retired.end();)
-        {
-            if (now - it->at >= kReleaseDelayMs)
-            {
-                due.push_back(it->resource);
-                it = g_retired.erase(it);
-            }
-            else
-                ++it;
-        }
-    }
-    for (IUnknown* resource : due)
-        resource->Release();
 }
 
 // The block is driven through its vtable like the forwarder does: pointers go in through slot 0, the
@@ -732,44 +752,199 @@ void SetPointer(NVSDK_NGX_Parameter* params, const char* name, void* value)
     reinterpret_cast<PFN_SetULL>(vt[0])(params, name, reinterpret_cast<unsigned long long>(value));
 }
 
+bool Wanted(const Config& cfg)
+{
+    return cfg.DlssNrAllocProbe.value_or_default() || cfg.DlssNrAutoScalePage.value_or_default();
+}
+
 void Begin(ID3D12Device* device, const Config& cfg)
 {
-    if (!cfg.DlssNrAllocProbe.value_or_default() || g_nr.capabilityParams == nullptr || device == nullptr)
+    if (!Wanted(cfg) || g_nr.capabilityParams == nullptr || device == nullptr)
         return;
     g_device = device;
+    g_logEach = cfg.DlssNrAllocProbe.value_or_default();
+    g_paging = cfg.DlssNrAutoScalePage.value_or_default();
     SetPointer(g_nr.capabilityParams, "ResourceAllocCallback", reinterpret_cast<void*>(&Alloc));
     SetPointer(g_nr.capabilityParams, "ResourceReleaseCallback", reinterpret_cast<void*>(&Release));
     std::lock_guard<std::mutex> lock(g_mutex);
     g_windowOpen = true;
+    g_window.clear();
     g_windowCount = 0;
     g_windowBytes = 0;
     if (!g_installedOnce)
     {
         g_installedOnce = true;
-        LOG_INFO("DLSS-NR alloc probe: on -- NGX gets this engine's resource callbacks while the model is created");
+        LOG_INFO("DLSS-NR model memory: owned by this engine ({}{})", g_paging ? "kept sizes paged out when not in use" : "not paged",
+                 g_logEach ? ", every buffer logged" : "");
     }
 }
 
 // The release callback stays set: a feature built through it may look it up again when it is released.
-void End(const char* what, unsigned int width, unsigned int height)
+void End(const char* what, unsigned int width, unsigned int height, void* feature)
 {
     unsigned int count = 0;
-    uint64_t bytes = 0, live = 0;
+    uint64_t bytes = 0;
     {
         std::lock_guard<std::mutex> lock(g_mutex);
         if (!g_windowOpen)
             return;
         g_windowOpen = false;
+        for (Owned& o : g_owned)
+            if (std::find(g_window.begin(), g_window.end(), o.res) != g_window.end())
+                o.feature = feature;
+        g_window.clear();
         count = g_windowCount;
         bytes = g_windowBytes;
-        live = g_liveBytes;
     }
     SetPointer(g_nr.capabilityParams, "ResourceAllocCallback", nullptr);
-    LOG_INFO("DLSS-NR alloc probe: {} {}x{} created {} buffer(s) through the callback, {} MB (all live through it: {} "
-             "MB). Compare with this build's measured video memory growth.",
-             what, width, height, count, bytes >> 20, live >> 20);
+    if (g_logEach)
+        LOG_INFO("DLSS-NR model memory: {} {}x{} created {} buffer(s), {} MB", what, width, height, count, bytes >> 20);
 }
-} // namespace AllocProbe
+
+// Around each evaluate, so what the model allocates on a feature's first evaluate is that feature's too.
+void SetEvaluating(void* feature)
+{
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_evaluating = feature;
+}
+
+// Schedules a feature's video memory to be paged out once the GPU is surely done with it.
+void PageOut(void* feature)
+{
+    if (!g_paging || feature == nullptr)
+        return;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    const ULONGLONG at = GetTickCount64() + kEvictDelayMs;
+    for (Owned& o : g_owned)
+        if (o.feature == feature && o.videoMemory && !o.evicted && o.evictAt == 0)
+            o.evictAt = at;
+}
+
+// Brings a feature's video memory back. wait = true returns only once it is resident -- required before the
+// feature is evaluated: using an evicted object is a lost device. wait = false starts the copy and returns, for
+// the size the controller is heading to. Returns the milliseconds spent waiting (0 when there was nothing to do).
+double PageIn(void* feature, bool wait)
+{
+    if (feature == nullptr)
+        return 0.0;
+
+    std::vector<ID3D12Pageable*> back;
+    UINT64 waitFor = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        for (Owned& o : g_owned)
+        {
+            if (o.feature != feature)
+                continue;
+            o.evictAt = 0; // a scheduled page-out is cancelled: it is wanted again
+            if (o.evicted)
+            {
+                back.push_back(o.res);
+                o.evicted = false;
+            }
+            waitFor = std::max(waitFor, o.residentFence);
+        }
+
+        if (!back.empty() && EnsureFence())
+        {
+            if (g_device3 != nullptr)
+            {
+                const UINT64 value = ++g_fenceValue;
+                if (SUCCEEDED(g_device3->EnqueueMakeResident(D3D12_RESIDENCY_FLAG_NONE, (UINT) back.size(),
+                                                             back.data(), g_fence, value)))
+                {
+                    for (Owned& o : g_owned)
+                        if (o.feature == feature)
+                            o.residentFence = value;
+                    waitFor = std::max(waitFor, value);
+                }
+                else
+                {
+                    g_device->MakeResident((UINT) back.size(), back.data());
+                }
+            }
+            else
+            {
+                g_device->MakeResident((UINT) back.size(), back.data());
+            }
+        }
+    }
+
+    if (!wait || waitFor == 0 || g_fence == nullptr || g_fence->GetCompletedValue() >= waitFor)
+        return 0.0;
+
+    const auto started = std::chrono::steady_clock::now();
+    if (SUCCEEDED(g_fence->SetEventOnCompletion(waitFor, g_fenceEvent)))
+        WaitForSingleObject(g_fenceEvent, 10000);
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+}
+
+// Whether a feature has any video memory not resident, or on its way out, or on its way back.
+bool NeedsPageIn(void* feature)
+{
+    if (feature == nullptr)
+        return false;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    for (const Owned& o : g_owned)
+        if (o.feature == feature &&
+            (o.evicted || o.evictAt != 0 || (o.residentFence != 0 && g_fence != nullptr && g_fence->GetCompletedValue() < o.residentFence)))
+            return true;
+    return false;
+}
+
+// What a feature holds in video memory right now, and what it has paged out.
+void Footprint(void* feature, uint64_t& resident, uint64_t& paged)
+{
+    resident = paged = 0;
+    std::lock_guard<std::mutex> lock(g_mutex);
+    for (const Owned& o : g_owned)
+        if (o.feature == feature && o.videoMemory)
+            (o.evicted ? paged : resident) += o.bytes;
+}
+
+// From the pass every frame: the page-outs that are due, and the releases that have waited long enough.
+void Tick()
+{
+    std::vector<IUnknown*> due;
+    std::vector<ID3D12Pageable*> out;
+    uint64_t outBytes = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        const ULONGLONG now = GetTickCount64();
+
+        for (Owned& o : g_owned)
+        {
+            if (o.evictAt != 0 && now >= o.evictAt && !o.evicted)
+            {
+                out.push_back(o.res);
+                outBytes += o.bytes;
+                o.evicted = true;
+                o.evictAt = 0;
+            }
+        }
+
+        for (auto it = g_retired.begin(); it != g_retired.end();)
+        {
+            if (now - it->at >= kReleaseDelayMs)
+            {
+                due.push_back(it->resource);
+                it = g_retired.erase(it);
+            }
+            else
+                ++it;
+        }
+    }
+
+    if (!out.empty() && g_device != nullptr)
+    {
+        g_device->Evict((UINT) out.size(), out.data());
+        LOG_INFO("DLSS-NR model memory: paged out {} MB of a kept size to system memory", outBytes >> 20);
+    }
+
+    for (IUnknown* resource : due)
+        resource->Release();
+}
+} // namespace NrMemory
 
 // The model needs the driver core's own capability block: it carries the snippet and preset callbacks a
 // feature expects at create time, which a freshly allocated block does not have.
@@ -1038,7 +1213,7 @@ void ParkNrResource(ID3D12Resource*& res)
 
 void TickNrRetired()
 {
-    AllocProbe::Tick();
+    NrMemory::Tick();
 
     for (size_t i = 0; i < g_nrRetired.size();)
     {
@@ -1112,6 +1287,37 @@ struct NrSizeEntry
 };
 
 std::vector<NrSizeEntry> g_nrCache;
+
+// Paged cache: the size the controller is expected to move to next (0 = none), kept resident so the move is a
+// swap, not a page-in. Everything else kept is paged out.
+float g_pagePredictScale = 0.0f;
+
+void ManagePaging()
+{
+    if (!Config::Instance()->DlssNrAutoScalePage.value_or_default())
+        return;
+    for (NrSizeEntry& e : g_nrCache)
+    {
+        const bool predicted = g_pagePredictScale > 0.0f && std::fabs(e.scale - g_pagePredictScale) < 0.01f;
+        if (predicted)
+        {
+            if (NrMemory::NeedsPageIn(e.feature))
+            {
+                NrMemory::PageIn(e.feature, false);
+                for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+                    NrMemory::PageIn(e.passFeature[pass], false);
+                LOG_INFO("DLSS-NR model memory: warming {:.0f}% ({}x{}) -- the controller is heading there",
+                         e.scale * 100.0f, e.workWidth, e.workHeight);
+            }
+        }
+        else
+        {
+            NrMemory::PageOut(e.feature);
+            for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+                NrMemory::PageOut(e.passFeature[pass]);
+        }
+    }
+}
 
 // What the live feature and every cached one were built for. See above.
 struct NrCacheGeneration
@@ -1262,6 +1468,24 @@ void EnforceCacheBudget(uint64_t usage, uint64_t budget)
 {
     if (g_nrCache.empty() || budget == 0)
         return;
+
+    // Paged: a kept size costs no video memory once paged out, so tightness pages everything out instead of
+    // throwing sizes away -- the prediction is dropped too; the next decision warms again if there is room.
+    if (Config::Instance()->DlssNrAutoScalePage.value_or_default())
+    {
+        const uint64_t freeNow = budget > usage ? budget - usage : 0;
+        if (freeNow < CacheReserve(budget))
+        {
+            g_pagePredictScale = 0.0f;
+            for (NrSizeEntry& e : g_nrCache)
+            {
+                NrMemory::PageOut(e.feature);
+                for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+                    NrMemory::PageOut(e.passFeature[pass]);
+            }
+        }
+        return;
+    }
 
     const uint64_t freeBytes = budget > usage ? budget - usage : 0;
     if (freeBytes >= CacheReserve(budget))
@@ -2046,6 +2270,11 @@ void StashLiveSize(unsigned int requestedPasses)
     g_liveSizeBytes = 0;
     e.lastUsed = g_frames;
     g_nrCache.push_back(e);
+
+    // Kept, but not in video memory: paged out once nothing in flight can still use it (NrMemory).
+    NrMemory::PageOut(e.feature);
+    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+        NrMemory::PageOut(e.passFeature[pass]);
 }
 
 // Makes a cached size the live one. The model's history is from whenever it was last used, so every
@@ -2054,6 +2283,17 @@ void TakeCachedSize(size_t index, const Config& cfg, unsigned int requestedPasse
 {
     NrSizeEntry e = g_nrCache[index];
     g_nrCache.erase(g_nrCache.begin() + index);
+
+    // Paged back in first, and waited for: evaluating a model whose memory is not resident loses the device.
+    // A size warmed ahead of time (ManagePaging) is already back or on its way, and costs little or nothing.
+    if (NrMemory::NeedsPageIn(e.feature))
+    {
+        double waited = NrMemory::PageIn(e.feature, true);
+        for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
+            waited += NrMemory::PageIn(e.passFeature[pass], true);
+        LOG_INFO("DLSS-NR model memory: {:.0f}% ({}x{}) paged back in for use -- waited {:.1f} ms", e.scale * 100.0f,
+                 e.workWidth, e.workHeight, waited);
+    }
 
     g_nr.feature = e.feature;
     g_nr.featurePendingSubmission = e.pendingSubmission;
@@ -2217,7 +2457,9 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     }
 
     const uint64_t predicted = PredictSizeBytes(c.w, c.h, 1);
-    const uint64_t reserve = CacheReserve(budget);
+    // Paged: a prebuilt size holds video memory only until it is paged out two seconds later, so the build
+    // needs the standard margin, not the one for keeping it.
+    const uint64_t reserve = cfg.DlssNrAutoScalePage.value_or_default() ? StandardReserve(budget) : CacheReserve(budget);
 
     if (usage + predicted + reserve > budget)
     {
@@ -2270,14 +2512,14 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     }
 
     SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
-    AllocProbe::Begin(device, cfg);
+    NrMemory::Begin(device, cfg);
     e.feature = g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
                             cmdList, g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0),
                             cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
                             cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                             cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                             cfg.DlssNrUICorrectionEffective() ? 1 : 0);
-    AllocProbe::End("prebuilt size", c.w, c.h);
+    NrMemory::End("prebuilt size", c.w, c.h, e.feature);
 
     const auto t2 = std::chrono::steady_clock::now();
     const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -2307,6 +2549,7 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     e.bytes = plausible ? measured : predicted;
 
     g_nrCache.push_back(e);
+    NrMemory::PageOut(e.feature);
 
     LOG_INFO("DLSS-NR prebuild: built {:.0f}% ({}x{}) ahead at {} -- surfaces {:.1f} ms, CreateFeature {:.1f} ms; "
              "kept now: {}",
@@ -2473,6 +2716,18 @@ void UpdateAutoScale()
     {
         g_autoScale.lastPassMs = d.lastPassMs;
         g_autoScale.lastBudgetMs = d.lastBudgetMs;
+
+        // Which way the next move probably goes: a pass near its budget will step down, one well under it will
+        // step up, anything between holds. That neighbour is what stays warm when kept sizes are paged.
+        const double pressure = d.lastBudgetMs > 0.0 ? d.lastPassMs / d.lastBudgetMs : 1.0;
+        size_t next = d.rung;
+        if (pressure > 0.85 && d.rung + 1 < DlssNrBudget::RungCount &&
+            DlssNrBudget::Rungs[d.rung + 1] >= tuning.floorScale - 1e-4f)
+            next = d.rung + 1;
+        else if (pressure < 0.55 && d.rung > 0)
+            next = d.rung - 1;
+        g_pagePredictScale = next != d.rung ? DlssNrBudget::Rungs[next] : 0.0f;
+        ManagePaging();
     }
 
     if (d.scale.has_value())
@@ -3303,7 +3558,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             buildingPrimary ? std::chrono::duration<double, std::milli>(createStarted - buildStarted).count() : 0.0;
 
         SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
-        AllocProbe::Begin(device, cfg);
+        NrMemory::Begin(device, cfg);
         g_nr.feature =
             g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
                         cmdList, g_nr.capabilityParams, workWidth, workHeight, (int) PassPreset(cfg, 0),
@@ -3311,7 +3566,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                         cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                         cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                         cfg.DlssNrUICorrectionEffective() ? 1 : 0);
-        AllocProbe::End("live size", workWidth, workHeight);
+        NrMemory::End("live size", workWidth, workHeight, g_nr.feature);
 
         const double createMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - createStarted).count();
@@ -3507,7 +3762,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 const auto passStarted = std::chrono::steady_clock::now();
 
                 SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
-                AllocProbe::Begin(device, cfg);
+                NrMemory::Begin(device, cfg);
                 g_nr.passFeature[pass] = g_nr.create(
                     snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device, cmdList,
                     g_nr.capabilityParams, workWidth, workHeight, (int) PassPreset(cfg, pass),
@@ -3515,7 +3770,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     cfg.DlssNrLocalStructure.value_or_default(),
                     // Local tone belongs to the frame and is applied by pass zero only.
                     0.0f, cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
-                AllocProbe::End("extra pass", workWidth, workHeight);
+                NrMemory::End("extra pass", workWidth, workHeight, g_nr.passFeature[pass]);
 
                 {
                     const double passCreateMs =
@@ -4124,6 +4379,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         const bool firstEvalOfBuild =
             pass == 0 && g_buildMeasure.awaitingFirstEval && g_buildMeasure.feature == passFeature;
         const auto evalStarted = std::chrono::steady_clock::now();
+        // The one rule paging must never break: nothing is evaluated with its memory paged out.
+        if (NrMemory::NeedsPageIn(passFeature))
+        {
+            const double waited = NrMemory::PageIn(passFeature, true);
+            LOG_WARN("DLSS-NR model memory: a feature was about to run paged out -- paged back first ({:.1f} ms)", waited);
+        }
+        NrMemory::SetEvaluating(passFeature);
         result =
             g_nr.evaluate(cmdList, passFeature, g_nr.capabilityParams, passInput, depthIn, motionIn, passOutput,
                           workWidth, workHeight, guideWidth, guideHeight, g_nr.guideDepthInverted ? 1 : 0,
@@ -4131,6 +4393,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                           cfg.DlssNrLocalStructure.value_or_default(), passTone,
                           cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                           g_nr.guideMvScaleX * mvToWork, g_nr.guideMvScaleY * mvToWork);
+        NrMemory::SetEvaluating(nullptr);
 
         // The build's one line: every phase of it, then what the size costs in video memory. Written on the
         // first evaluate because that is the last phase, and the one the first build was never timed for
