@@ -601,6 +601,142 @@ bool EnsureForwarder()
     return true;
 }
 
+// ---- Allocation probe ([DlssNr] AllocProbe, research, off by default) ------------------------------------
+//
+// Whether the model's video memory can be owned by this engine. NGX lets a host create a feature's
+// resources itself (ResourceAllocCallback / ResourceReleaseCallback, the D3D12 signatures from
+// nvsdk_ngx_defs.h); Streamline does exactly that. If the DLSS 5 model (feature 18) sends its buffers through
+// them, the sizes Adaptive resolution keeps could be paged to system memory with ID3D12Device::Evict and
+// brought back with MakeResident, instead of each holding hundreds of MB of video memory -- which is what
+// pushed Resident Evil Requiem to 235 MB free on a 12 GB laptop GPU (2026-09-19). This only logs what goes
+// through, per build, against the build's measured video memory growth; it changes no allocation: every
+// buffer is created exactly as NGX describes it. The callbacks are set on the capability block only for the
+// duration of our own create calls, so the game's own DLSS never sees them.
+namespace AllocProbe
+{
+ID3D12Device* g_device = nullptr;
+std::mutex g_mutex;
+std::vector<ID3D12Resource*> g_live;
+uint64_t g_liveBytes = 0;
+bool g_windowOpen = false;
+unsigned int g_windowCount = 0;
+uint64_t g_windowBytes = 0;
+bool g_installedOnce = false;
+
+const char* DimensionName(D3D12_RESOURCE_DIMENSION d)
+{
+    switch (d)
+    {
+    case D3D12_RESOURCE_DIMENSION_BUFFER:
+        return "buffer";
+    case D3D12_RESOURCE_DIMENSION_TEXTURE1D:
+        return "tex1d";
+    case D3D12_RESOURCE_DIMENSION_TEXTURE2D:
+        return "tex2d";
+    case D3D12_RESOURCE_DIMENSION_TEXTURE3D:
+        return "tex3d";
+    default:
+        return "unknown";
+    }
+}
+
+void __cdecl Alloc(D3D12_RESOURCE_DESC* desc, int state, D3D12_HEAP_PROPERTIES* heap, ID3D12Resource** out)
+{
+    if (out != nullptr)
+        *out = nullptr;
+    if (g_device == nullptr || desc == nullptr || heap == nullptr || out == nullptr)
+        return;
+
+    const HRESULT hr = g_device->CreateCommittedResource(heap, D3D12_HEAP_FLAG_NONE, desc,
+                                                         static_cast<D3D12_RESOURCE_STATES>(state), nullptr,
+                                                         IID_PPV_ARGS(out));
+    const D3D12_RESOURCE_ALLOCATION_INFO info = g_device->GetResourceAllocationInfo(0, 1, desc);
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (SUCCEEDED(hr) && *out != nullptr)
+    {
+        g_live.push_back(*out);
+        g_liveBytes += info.SizeInBytes;
+        if (g_windowOpen)
+        {
+            g_windowCount++;
+            g_windowBytes += info.SizeInBytes;
+        }
+    }
+    LOG_INFO("DLSS-NR alloc probe: {} {}x{}x{} format {} heap type {} state 0x{:X} flags 0x{:X}: {} KB{}",
+             DimensionName(desc->Dimension), desc->Width, desc->Height, desc->DepthOrArraySize, (int) desc->Format,
+             (int) heap->Type, state, (unsigned) desc->Flags, info.SizeInBytes >> 10,
+             SUCCEEDED(hr) ? "" : " -- CreateCommittedResource FAILED");
+}
+
+void __cdecl Release(IUnknown* resource)
+{
+    if (resource == nullptr)
+        return;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        for (auto it = g_live.begin(); it != g_live.end(); ++it)
+        {
+            if (static_cast<IUnknown*>(*it) != resource)
+                continue;
+            const D3D12_RESOURCE_DESC desc = (*it)->GetDesc();
+            const uint64_t bytes = g_device != nullptr ? g_device->GetResourceAllocationInfo(0, 1, &desc).SizeInBytes : 0;
+            g_liveBytes = g_liveBytes > bytes ? g_liveBytes - bytes : 0;
+            g_live.erase(it);
+            break;
+        }
+    }
+    resource->Release();
+}
+
+// The block is driven through its vtable like the forwarder does: pointers go in through slot 0, the
+// 64-bit setter -- the typed setters are not where this driver's block keeps them.
+void SetPointer(NVSDK_NGX_Parameter* params, const char* name, void* value)
+{
+    using PFN_SetULL = void(__thiscall*)(void*, const char*, unsigned long long);
+    void** vt = *reinterpret_cast<void***>(params);
+    reinterpret_cast<PFN_SetULL>(vt[0])(params, name, reinterpret_cast<unsigned long long>(value));
+}
+
+void Begin(ID3D12Device* device, const Config& cfg)
+{
+    if (!cfg.DlssNrAllocProbe.value_or_default() || g_nr.capabilityParams == nullptr || device == nullptr)
+        return;
+    g_device = device;
+    SetPointer(g_nr.capabilityParams, "ResourceAllocCallback", reinterpret_cast<void*>(&Alloc));
+    SetPointer(g_nr.capabilityParams, "ResourceReleaseCallback", reinterpret_cast<void*>(&Release));
+    std::lock_guard<std::mutex> lock(g_mutex);
+    g_windowOpen = true;
+    g_windowCount = 0;
+    g_windowBytes = 0;
+    if (!g_installedOnce)
+    {
+        g_installedOnce = true;
+        LOG_INFO("DLSS-NR alloc probe: on -- NGX gets this engine's resource callbacks while the model is created");
+    }
+}
+
+// The release callback stays set: a feature built through it may look it up again when it is released.
+void End(const char* what, unsigned int width, unsigned int height)
+{
+    unsigned int count = 0;
+    uint64_t bytes = 0, live = 0;
+    {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (!g_windowOpen)
+            return;
+        g_windowOpen = false;
+        count = g_windowCount;
+        bytes = g_windowBytes;
+        live = g_liveBytes;
+    }
+    SetPointer(g_nr.capabilityParams, "ResourceAllocCallback", nullptr);
+    LOG_INFO("DLSS-NR alloc probe: {} {}x{} created {} buffer(s) through the callback, {} MB (all live through it: {} "
+             "MB). Compare with this build's measured video memory growth.",
+             what, width, height, count, bytes >> 20, live >> 20);
+}
+} // namespace AllocProbe
+
 // The model needs the driver core's own capability block: it carries the snippet and preset callbacks a
 // feature expects at create time, which a freshly allocated block does not have.
 void DiscoverFloatSlot(NVSDK_NGX_Parameter* params);
@@ -2098,12 +2234,14 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     }
 
     SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
+    AllocProbe::Begin(device, cfg);
     e.feature = g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
                             cmdList, g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0),
                             cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
                             cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                             cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                             cfg.DlssNrUICorrectionEffective() ? 1 : 0);
+    AllocProbe::End("prebuilt size", c.w, c.h);
 
     const auto t2 = std::chrono::steady_clock::now();
     const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -3129,6 +3267,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             buildingPrimary ? std::chrono::duration<double, std::milli>(createStarted - buildStarted).count() : 0.0;
 
         SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
+        AllocProbe::Begin(device, cfg);
         g_nr.feature =
             g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
                         cmdList, g_nr.capabilityParams, workWidth, workHeight, (int) PassPreset(cfg, 0),
@@ -3136,6 +3275,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                         cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                         cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
                         cfg.DlssNrUICorrectionEffective() ? 1 : 0);
+        AllocProbe::End("live size", workWidth, workHeight);
 
         const double createMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - createStarted).count();
@@ -3331,6 +3471,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 const auto passStarted = std::chrono::steady_clock::now();
 
                 SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
+                AllocProbe::Begin(device, cfg);
                 g_nr.passFeature[pass] = g_nr.create(
                     snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device, cmdList,
                     g_nr.capabilityParams, workWidth, workHeight, (int) PassPreset(cfg, pass),
@@ -3338,6 +3479,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     cfg.DlssNrLocalStructure.value_or_default(),
                     // Local tone belongs to the frame and is applied by pass zero only.
                     0.0f, cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
+                AllocProbe::End("extra pass", workWidth, workHeight);
 
                 {
                     const double passCreateMs =

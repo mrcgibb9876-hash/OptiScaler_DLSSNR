@@ -664,6 +664,12 @@ class Config
     // false off everywhere. See Config::LiveReloadWanted().
     CustomOptional<bool, NoDefault> DlssNrLiveReload;
 
+    // Research, off by default: while the DLSS 5 model is created, hand NGX this engine's own resource
+    // allocation callbacks and log every buffer the model asks for. The question it answers is whether the
+    // model's memory goes through them at all -- if it does, the model sizes Adaptive resolution keeps
+    // could be paged out to system memory (ID3D12Device::Evict) instead of holding video memory.
+    CustomOptional<bool> DlssNrAllocProbe { false };
+
     // Multiplies the (auto or manual) white point before the encode: what the model considers "white".
     // Higher means highlights sit lower on the curve and the model treats them as less extreme.
     CustomOptional<float> DlssNrWhitePointScale { 1.0f };
