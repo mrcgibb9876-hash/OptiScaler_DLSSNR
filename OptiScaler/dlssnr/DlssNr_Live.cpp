@@ -115,7 +115,8 @@ std::string BuildJson()
     // nr -- the same reads the panel's status line makes.
     {
         const bool vulkan = DlssNr::IsRunningVk();
-        const bool running = DlssNr::IsRunning() || vulkan;
+        // Not while switched off: a built model is kept a while after DLSS 5 goes off (issue #55).
+        const bool running = config->DlssNrEnabled.value_or_default() && (DlssNr::IsRunning() || vulkan);
         const auto ms = vulkan ? DlssNr::LastGpuTimeVk() : DlssNr::LastGpuTime();
         s += "\"nr\":{";
         AppendBool(s, "enabled", config->DlssNrEnabled.value_or_default());

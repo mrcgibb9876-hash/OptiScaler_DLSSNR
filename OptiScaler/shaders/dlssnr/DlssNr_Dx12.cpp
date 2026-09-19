@@ -1789,7 +1789,7 @@ bool TuningMatchesFeature(const Config& cfg, unsigned int requestedPasses)
         g_nr.builtLocalTone != cfg.DlssNrLocalTone.value_or_default() ||
         g_nr.builtSkinStructure != cfg.DlssNrSkinStructure.value_or_default() ||
         g_nr.builtAutoMask != cfg.DlssNrAutoMask.value_or_default() ||
-        g_nr.builtUICorrection != cfg.DlssNrUICorrection.value_or_default())
+        g_nr.builtUICorrection != cfg.DlssNrUICorrectionEffective())
         return false;
 
     for (unsigned int pass = 0; pass < requestedPasses; ++pass)
@@ -1815,7 +1815,7 @@ void RecordBuiltPrimaryTuning(const Config& cfg)
     g_nr.builtLocalTone = cfg.DlssNrLocalTone.value_or_default();
     g_nr.builtSkinStructure = cfg.DlssNrSkinStructure.value_or_default();
     g_nr.builtAutoMask = cfg.DlssNrAutoMask.value_or_default();
-    g_nr.builtUICorrection = cfg.DlssNrUICorrection.value_or_default();
+    g_nr.builtUICorrection = cfg.DlssNrUICorrectionEffective();
 }
 
 // Whether model sizes may be kept and built ahead at all. AutoScale only -- a fixed WorkingScale must
@@ -2103,7 +2103,7 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
                             cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
                             cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                             cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
-                            cfg.DlssNrUICorrection.value_or_default() ? 1 : 0);
+                            cfg.DlssNrUICorrectionEffective() ? 1 : 0);
 
     const auto t2 = std::chrono::steady_clock::now();
     const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -3135,7 +3135,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                         cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
                         cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
                         cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
-                        cfg.DlssNrUICorrection.value_or_default() ? 1 : 0);
+                        cfg.DlssNrUICorrectionEffective() ? 1 : 0);
 
         const double createMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - createStarted).count();

@@ -614,6 +614,13 @@ class Config
     // Whether the model corrects for a UI layer. Its own default is on, and on is right whenever a
     // UI resource is fed to it; off is worth having when the correction is itself the artifact.
     CustomOptional<bool> DlssNrUICorrection { true };
+    // What the model is actually built with: never UI correction with the pass before Super Resolution.
+    // The two together froze inZOI on the spot (issue #55, 2026-09-19), and before SR the frame has no UI
+    // on it for the correction to act on. The panel keeps them exclusive; this holds for a hand-edited ini.
+    bool DlssNrUICorrectionEffective() const
+    {
+        return DlssNrUICorrection.value_or_default() && !DlssNrRunBeforeSr.value_or_default();
+    }
 
     // The panel's look. Light by default: the dark palette it was originally styled after put hint
     // text at 2.65:1 against the panel, which is under half the 4.5:1 needed to read comfortably,
