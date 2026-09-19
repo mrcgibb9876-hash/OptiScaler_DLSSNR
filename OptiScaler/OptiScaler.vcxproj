@@ -853,6 +853,8 @@ copy NUL "$(SolutionDir)x64\Release\a\!! EXTRACT ALL FILES TO GAME FOLDER !!" /Y
     <ClInclude Include="dlssnr\DlssNr_PresentRoute.h" />
     <ClCompile Include="dlssnr\DlssNr_Live.cpp" />
     <ClInclude Include="dlssnr\DlssNr_Live.h" />
+    <ClCompile Include="dlssnr\DlssNr_CastMouse.cpp" />
+    <ClInclude Include="dlssnr\DlssNr_CastMouse.h" />
     <ClCompile Include="dlssnr\DlssNr_DepthTracker.cpp" />
     <ClInclude Include="dlssnr\DlssNr_DepthTracker.h" />
     <ClCompile Include="dlssnr\DlssNr_Menu.cpp" />
