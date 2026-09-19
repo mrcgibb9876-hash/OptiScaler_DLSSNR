@@ -1159,6 +1159,41 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nmodel never sees ray-tracing noise. Model resolution and Adaptive resolution then"
                       "\ncount from the render resolution. Needs Before Super Resolution on."));
 
+        // Enlargement sits here, under the render-cost toggle, because that is what makes the model run small in
+        // the first place and it is where people look for it (2026-09-19: it was down in Cost and not found).
+        // How the model's work is brought back up when it ran below the frame's size. Classic
+        // composes the small picture straight against the full-size frame, which cannot tell the
+        // shrink's blur apart from the model's edit.
+        // Adaptive resolution and Ray Reconstruction at render cost shrink the model without Model
+        // resolution saying so, so either counts as reduced too.
+        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f ||
+                             config->DlssNrAutoScale.value_or_default() ||
+                             (config->DlssNrRunBeforeSr.value_or_default() &&
+                              config->DlssNrRunBeforeRr.value_or_default());
+
+        ImGui::BeginDisabled(!reduced);
+        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware"),
+                                       Tr("Full-size look") };
+        int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 3u);
+        if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
+        {
+            config->DlssNrTransfer = (uint32_t) enlarge;
+            anyChanged = true;
+        }
+        ImGui::EndDisabled();
+        HelpMarker(Tr("How the model's work is brought back up when it ran below the frame's size."
+                      "\n\nClassic composes the model's small picture directly against the full-size frame."
+                      "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
+                      "\ncomposition cannot tell them apart."
+                      "\n\nMatched residual enlarges only the model's edit, laid on the full-size frame."
+                      "\n\nEdge-aware does the same, but never blends the edit across an outline --"
+                      "\nwhich is what drew a thin halo round characters' heads."
+                      "\n\nFull-size look (default) learns how the model re-grades each patch -- its"
+                      "\ncontrast, colour and saturation -- and applies that to every full-size pixel, so a"
+                      "\nsmaller model looks like the full-size one, without halos. D3D12; Vulkan uses"
+                      "\nEdge-aware."
+                      "\n\nGreyed out at 100%, where there is nothing to enlarge."));
+
         // Either backend. They keep separate state, and on a native Vulkan game the D3D12 side is
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
         // running.
@@ -1727,39 +1762,6 @@ void RenderMenu(Config* config, float menuResScale)
                           "\ndownscaler, so the two can differ and run at the same time."));
         }
 
-        // How the model's work is brought back up when it ran below the frame's size. Classic
-        // composes the small picture straight against the full-size frame, which cannot tell the
-        // shrink's blur apart from the model's edit.
-        // Adaptive resolution and Ray Reconstruction at render cost shrink the model without Model
-        // resolution saying so, so either counts as reduced too.
-        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f ||
-                             config->DlssNrAutoScale.value_or_default() ||
-                             (config->DlssNrRunBeforeSr.value_or_default() &&
-                              config->DlssNrRunBeforeRr.value_or_default());
-
-        ImGui::BeginDisabled(!reduced);
-        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware"),
-                                       Tr("Full-size look") };
-        int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 3u);
-        if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
-        {
-            config->DlssNrTransfer = (uint32_t) enlarge;
-            anyChanged = true;
-        }
-        ImGui::EndDisabled();
-        HelpMarker(Tr("How the model's work is brought back up when it ran below the frame's size."
-                      "\n\nClassic composes the model's small picture directly against the full-size frame."
-                      "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
-                      "\ncomposition cannot tell them apart."
-                      "\n\nMatched residual enlarges only the model's edit, laid on the full-size frame."
-                      "\n\nEdge-aware does the same, but never blends the edit across an outline --"
-                      "\nwhich is what drew a thin halo round characters' heads."
-                      "\n\nFull-size look (default) learns how the model re-grades each patch -- its"
-                      "\ncontrast, colour and saturation -- and applies that to every full-size pixel, so a"
-                      "\nsmaller model looks like the full-size one, without halos. D3D12; Vulkan uses"
-                      "\nEdge-aware."
-                      "\n\nGreyed out at 100%, where there is nothing to enlarge."));
-
         SectionCaption(Tr("How much of it lands"), rowWidth);
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
@@ -2289,16 +2291,17 @@ void RenderMenu(Config* config, float menuResScale)
                       "\na game that states it wrongly needs correcting by hand."
                       "\n\nIf the pass looks worst where geometry meets sky, try forcing the other one."));
 
+        // Greyed out while Before Super Resolution is on (2026-09-19). It used to be clickable and switch Before
+        // Super Resolution off, which moved the whole pass after the upscaler and rebuilt the model mid-game --
+        // an easy click to make by accident. Before Super Resolution already turns this off when it goes on.
+        ImGui::BeginDisabled(config->DlssNrRunBeforeSr.value_or_default());
         if (bool uiCorrection = config->DlssNrUICorrection.value_or_default();
             NrCheckbox(Tr("UI correction"), &uiCorrection))
         {
             config->DlssNrUICorrection = uiCorrection;
-            // The other half of Before Super Resolution's rule above: turning this on moves the pass back
-            // after the upscaler, where the UI is.
-            if (uiCorrection)
-                config->DlssNrRunBeforeSr = false;
             anyChanged = true;
         }
+        ImGui::EndDisabled();
         HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"
                       "\nand right whenever a UI resource reaches it; turn it off if the correction is"
                       "\nitself what looks wrong."
