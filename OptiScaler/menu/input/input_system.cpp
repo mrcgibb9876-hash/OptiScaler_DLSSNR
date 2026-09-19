@@ -5,6 +5,8 @@
 
 #include <include/imgui/imgui.h>
 
+#include <atomic>
+
 namespace OptiInput
 {
 
@@ -713,9 +715,33 @@ static bool s_castMouseActive = false;
 // first time the cast is used, pumped from the poll below on the thread that made it.
 static HWND s_castWheelSink = nullptr;
 static bool s_castWheelTried = false;
+// Wheel units (WHEEL_DELTA = one notch) not yet handed to the panel. Counted in the window procedure, not in the
+// pump below: the Feeder's helper drains every message on this thread with its own PeekMessage(nullptr) loop and
+// dispatches them, so most WM_INPUT packets never wait for our pump -- they arrive here instead.
+static std::atomic<int> s_castWheelUnits { 0 };
+
+static void CountWheel(HRAWINPUT handle)
+{
+    RAWINPUT raw {};
+    UINT size = sizeof(raw);
+    UINT got = 0;
+    {
+        ScopedHookBypass bypass;
+        got = o_GetRawInputData != nullptr
+                  ? o_GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER))
+                  : GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
+    }
+    if (got != static_cast<UINT>(-1) && got > 0 && raw.header.dwType == RIM_TYPEMOUSE &&
+        (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL) != 0)
+    {
+        s_castWheelUnits += static_cast<SHORT>(raw.data.mouse.usButtonData);
+    }
+}
 
 static LRESULT CALLBACK CastWheelSinkProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (msg == WM_INPUT)
+        CountWheel(reinterpret_cast<HRAWINPUT>(lParam));
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
@@ -765,7 +791,7 @@ static float PumpCastWheel()
     if (s_castWheelSink == nullptr)
         return 0.0f;
 
-    float notches = 0.0f;
+    // Whatever is still queued for the sink goes through its window procedure, which does the counting.
     MSG msg {};
     for (int i = 0; i < 256; ++i)
     {
@@ -777,26 +803,9 @@ static float PumpCastWheel()
         }
         if (!has)
             break;
-        if (msg.message == WM_INPUT)
-        {
-            RAWINPUT raw {};
-            UINT size = sizeof(raw);
-            UINT got = 0;
-            {
-                ScopedHookBypass bypass;
-                got = o_GetRawInputData(reinterpret_cast<HRAWINPUT>(msg.lParam), RID_INPUT, &raw, &size,
-                                        sizeof(RAWINPUTHEADER));
-            }
-            if (got != static_cast<UINT>(-1) && got > 0 && raw.header.dwType == RIM_TYPEMOUSE &&
-                (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL) != 0)
-            {
-                notches += static_cast<float>(static_cast<SHORT>(raw.data.mouse.usButtonData)) /
-                           static_cast<float>(WHEEL_DELTA);
-            }
-        }
-        DefWindowProcW(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+        CastWheelSinkProc(msg.hwnd, msg.message, msg.wParam, msg.lParam);
     }
-    return notches;
+    return static_cast<float>(s_castWheelUnits.exchange(0)) / static_cast<float>(WHEEL_DELTA);
 }
 
 static void PollCastMouseLocked(DWORD time)
