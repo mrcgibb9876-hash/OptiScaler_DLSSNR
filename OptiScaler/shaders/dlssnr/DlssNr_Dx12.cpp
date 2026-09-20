@@ -1373,8 +1373,10 @@ float g_modelBase = 1.0f;
 // never stops. Latching rather than counting down: one steady minute does not mean the next fight will
 // not move it again, and the only cost of being wrong is a cache that holds one size.
 unsigned int g_lastFrameWidth = 0, g_lastFrameHeight = 0;
-// The largest render size this game has reached, for the held model size below.
+// The largest render size this game has reached SINCE IT SETTLED, for the held model size below.
+// Sizes from before that are a menu or a loading screen, not gameplay -- see the note at the use.
 unsigned int g_drsPeakWidth = 0, g_drsPeakHeight = 0;
+constexpr double kSteadyWarmupMs = 6000.0;
 unsigned int g_frameSizeMoves = 0;
 bool g_dynamicResolution = false;
 
@@ -3661,16 +3663,34 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     if (steady)
     {
-        if (width > g_drsPeakWidth)
+        // Nothing seen before the game has settled counts. A menu, a loading screen or the first
+        // seconds of play render at the display resolution -- dynamic resolution has not begun
+        // throttling yet -- and latching one of those as the peak pins the model far above anything
+        // gameplay ever asks for. Assassin's Creed IV latched 2560x1600 from a pre-gameplay frame
+        // while gameplay never went above 2064x1290, so the model ran about half again larger than it
+        // needed to, for the whole session (2026-09-20).
+        //
+        // Until then the model tracks the frame, as it did before any of this. Those few seconds can
+        // churn; a few seconds of it at a loading screen is worth not being wrong for an hour.
+        static double steadyFromMs = 0.0;
+        const double nowMs = NowMs();
+        if (steadyFromMs == 0.0)
+            steadyFromMs = nowMs + kSteadyWarmupMs;
+
+        if (nowMs >= steadyFromMs && width > g_drsPeakWidth)
         {
             g_drsPeakWidth = width;
             g_drsPeakHeight = height;
             LOG_INFO("DLSS-NR: holding the model at {}x{}, the largest render size this game has "
-                     "reached -- its resolution moves, the model's does not.",
+                     "reached since it settled -- its resolution moves, the model's does not.",
                      g_drsPeakWidth, g_drsPeakHeight);
         }
-        sizeWidth = g_drsPeakWidth;
-        sizeHeight = g_drsPeakHeight;
+
+        if (g_drsPeakWidth != 0)
+        {
+            sizeWidth = g_drsPeakWidth;
+            sizeHeight = g_drsPeakHeight;
+        }
     }
 
     auto workWidth = (unsigned int) (sizeWidth * g_modelBase * workScale + 0.5f);
