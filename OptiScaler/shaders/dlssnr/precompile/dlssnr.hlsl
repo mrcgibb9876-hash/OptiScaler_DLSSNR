@@ -29,6 +29,7 @@ cbuffer Params : register(b0)
     uint  gApplyModel;     // 0 output the clean frame (pass still runs), 1 apply the model's edit
     uint  gUseGameExposure;// D3D12 source-1 only: 1 = read the game's live exposure in-shader (t4)
     float gExposurePreMul; // preExposure * trim, so the live white point is gExposurePreMul / exposure
+    float gHaloGuard;      // 0 off, 1 clamp the edit into the range the frame's own neighbourhood had
 };
 
 // Bringing an impossible colour back into a possible one.
@@ -264,6 +265,69 @@ float WhitePoint()
 
 
 static const float3 kLuma = float3(0.2126, 0.7152, 0.0722);
+
+// Halos: the bright or dark rim the model can leave along a high-contrast edge.
+//
+// gMaxRatio, the guard at the end of the composition, cannot see one. It bounds each pixel against
+// ITS OWN original, so a rim that doubles a dark pixel lying beside a bright edge is comfortably
+// inside a 2x ratio and still reads as an obvious halo. A halo is not a property of a pixel; it is a
+// property of a pixel next to its neighbours, and nothing in this file was looking at neighbours.
+//
+// (Enlargement 2 and 3 do remove halos -- the ones made by bringing a SMALLER model's answer back up
+// to full size. At 100% model resolution neither does anything, and that is exactly where a halo
+// from the model itself is left standing.)
+//
+// So: the original frame's own 3x3 luminance range is what the edit is allowed to stay inside. A
+// real edge puts both of its sides in that range, so genuine contrast passes untouched; an overshoot
+// rim lies OUTSIDE both and is pulled back. The range is taken from the ORIGINAL and not from the
+// model's answer for the obvious reason -- the answer is what contains the halo.
+//
+// `suppression` is 0..1: 0 is off and bit-identical to before this existed, 1 clamps hard to the
+// neighbourhood. Between them the allowance is a fraction of the local contrast, so the control
+// means "how much overshoot may an edge have" rather than an absolute number that would say
+// different things in shadow and in highlight.
+//
+// The absolute floor matters as much as the proportional part. In a flat area the 3x3 range is
+// nearly nothing, and clamping to it would erase the fine texture the model is there to add -- which
+// would read as this control destroying detail rather than removing halos. The floor leaves flat
+// areas free and lets the clamp bite only where there is contrast for a halo to stand against.
+//
+// One scalar on the whole triple, taken from luminance, for the same reason the guard gives: a
+// per-channel clamp is a hue distorter on exactly the saturated pixels most likely to breach.
+float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale)
+{
+    if (suppression <= 0.0)
+        return result;
+
+    const int2 lastPixel = int2(max(int(gWidth) - 1, 0), max(int(gHeight) - 1, 0));
+    float mn = 1e30;
+    float mx = -1e30;
+
+    [unroll]
+    for (int dy = -1; dy <= 1; ++dy)
+    {
+        [unroll]
+        for (int dx = -1; dx <= 1; ++dx)
+        {
+            const int2 tap = clamp(int2(pos) + int2(dx, dy), int2(0, 0), lastPixel);
+            const float y = dot(gOriginal.Load(int3(tap, 0)).rgb / normScale, kLuma);
+            mn = min(mn, y);
+            mx = max(mx, y);
+        }
+    }
+
+    const float contrast = max(mx - mn, 0.0);
+    const float allowance = (1.0 - suppression) * contrast + 0.02;
+    const float luma = dot(result, kLuma);
+    const float bounded = clamp(luma, mn - allowance, mx + allowance);
+
+    // Untouched when it was already inside, so a frame that never needed it is bit-identical rather
+    // than rounded through a divide.
+    if (bounded == luma)
+        return result;
+
+    return result * (bounded / max(luma, 1e-6));
+}
 
 // sRGB rather than a plain 2.2 power: it is what an SDR game buffer actually carries, and the model was
 // trained on those.
@@ -1245,6 +1309,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         result = gPassthrough != 0 ? modelDirect : NeutwoDecode(modelDirect);
     else if (gReversibleMode == 4)
         result = gPassthrough != 0 ? modelDirect : HybridDecode(modelDirect);
+
+    // Here, while everything is still in the normalised space the neighbourhood is measured in, and
+    // after the colour work so the rim is judged as it will actually be shown. Not in the replace
+    // modes: those say in as many words that the model's answer IS the picture, with none of the
+    // composition applied, and a clamp against the frame is composition.
+    if (gReversibleMode != 2 && gReversibleMode != 4)
+        result = SuppressHalo(result, id.xy, gHaloGuard, normScale);
 
     // Back out of the normalised space the composition worked in.
     result *= normScale;

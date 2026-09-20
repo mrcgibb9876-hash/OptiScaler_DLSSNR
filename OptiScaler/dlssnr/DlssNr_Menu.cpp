@@ -2106,6 +2106,35 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning"
                       "\ninto a string of coloured cells. Raise it only if bright areas look clipped."));
 
+        // Directly under the guard, because it is the other half of the same job and the half the
+        // guard cannot do: the guard bounds a pixel against ITSELF, this bounds it against its
+        // neighbours. Shown as a percentage, kept as 0..1.
+        float haloPct = config->DlssNrHaloGuard.value_or_default() * 100.0f;
+        auto rHalo = NrSlider(Tr("Halo suppression"), &haloPct, 0.0f, 100.0f, "%.0f%%", rowWidth);
+        if (rHalo.changed)
+            config->DlssNrHaloGuard = haloPct / 100.0f;
+        if (rHalo.released)
+            anyChanged = true;
+
+        ImGui::SameLine();
+
+        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##halo").c_str()))
+        {
+            config->DlssNrHaloGuard = 0.0f;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("The bright or dark rim the model can leave along a high-contrast edge. Highlight"
+                      "\nguard above cannot see one: it bounds a pixel against its own original, and a rim"
+                      "\nthat doubles a dark pixel lying beside a bright edge is well inside 2x and still"
+                      "\nan obvious halo."
+                      "\n\nThis holds the edit inside the brightness range the frame's own neighbourhood"
+                      "\nalready had. A real edge has both of its sides in that range and passes through"
+                      "\nuntouched; only an overshoot beyond both is pulled back. 0% is off; 100% allows"
+                      "\nno overshoot at all. Flat areas are left alone at any setting, so the fine texture"
+                      "\nthe model adds is not what this takes away."
+                      "\n\nEnlargement already removes the halos made by running the model SMALLER than the"
+                      "\nframe. This is for the ones the model makes at any size, 100% included."));
+
         // Directly under the white point, because that is the number it moves and the number the
         // anchor captures. There is deliberately no on/off switch: the source dropdown above says
         // whether the scan is the white point's source, and that is the only reason anyone would

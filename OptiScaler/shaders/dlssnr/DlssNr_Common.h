@@ -206,6 +206,11 @@ struct alignas(256) DlssNrConstants
     // preExposure * trim, so the live white point is ExposurePreMul / exposure. Mirrored in the cbuffer.
     uint32_t UseGameExposure;
     float ExposurePreMul;
+
+    // Halo suppression, 0..1. The composed edit is clamped into the luminance range the frame's own
+    // 3x3 neighbourhood already had, widened by a share of the local contrast. 0 is off and the
+    // shader returns before touching anything. Trailing scalar, mirroring the shader's cbuffer.
+    float HaloGuard;
 };
 
 class DlssNr_Common

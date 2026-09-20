@@ -392,6 +392,14 @@ class Config
     // light source, whatever the model returns.
     CustomOptional<float> DlssNrMaxRatio { 2.0f };
 
+    // [DlssNr] HaloGuard, 0..1. How hard the composed edit is held inside the luminance range the
+    // frame's own 3x3 neighbourhood already had -- 0 off, 1 a hard clamp to it. MaxRatio above cannot
+    // do this: it bounds a pixel against itself, and a halo is a pixel against its neighbours.
+    // Default off. It changes the picture on every game that has ever run this pass, and a control
+    // that removes a rim can also remove wanted local contrast if it is driven too far, so it is
+    // asked for rather than assumed.
+    CustomOptional<float> DlssNrHaloGuard { 0.0f };
+
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
     // 0 classic, 1 matched residual, 2 edge-aware, 3 guided -- "Full-size look", the default since
