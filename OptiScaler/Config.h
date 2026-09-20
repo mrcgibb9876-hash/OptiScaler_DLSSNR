@@ -361,7 +361,13 @@ class Config
     // edit and any colour shift is usually the part you do not want, and allowed past 1.0 because
     // exaggerating an edit is the only honest way to see whether there is one.
     CustomOptional<float> DlssNrTransferStrength { 1.0f };
-    CustomOptional<float> DlssNrColourStrength { 1.0f };
+    // 0.5, not 1. At 1 the composed picture takes the model's colour INSTEAD of the game's, and the
+    // model's is systematically the less saturated of the two -- so the default was replacing every
+    // game's palette with a muted version of it. Reported as "it sucks the colour right out of games",
+    // on every game, by more than one player, both of whom worked around it rather than finding this
+    // slider. Half lets the model contribute colour without overruling the art direction; 0 keeps the
+    // game's own exactly, and above 1 is more saturated than the game ever was.
+    CustomOptional<float> DlssNrColourStrength { 0.5f };
 
     // The RenoDX reversible proxy mode. 0 = today's soft-knee encode + our composition (default,
     // byte-identical); 1 = unclipped Neutwo proxy + our composition; 2 = Neutwo proxy + pure-inverse

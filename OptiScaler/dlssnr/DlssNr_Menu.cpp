@@ -659,7 +659,7 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
     else if (mode == 1)
     {
         float ms = config->DlssNrAutoScaleMs.value_or_default();
-        auto r = NrSlider(Tr("Cost ceiling"), &ms, 0.5f, 10.0f, "%.1f ms", rowWidth);
+        auto r = NrSlider(Tr("Time budget per frame"), &ms, 0.5f, 10.0f, "%.1f ms", rowWidth);
 
         if (r.changed || r.released)
         {
@@ -1209,7 +1209,7 @@ void RenderMenu(Config* config, float menuResScale)
         const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual"), Tr("Edge-aware"),
                                        Tr("Full-size look") };
         int enlarge = (int) std::min(config->DlssNrTransfer.value_or_default(), 3u);
-        if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
+        if (NrCombo(Tr("Scaling method"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
         {
             config->DlssNrTransfer = (uint32_t) enlarge;
             anyChanged = true;
@@ -1403,7 +1403,7 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::PopTextWrapPos();
 
                 bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
-                if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
+                if (NrCheckbox(Tr("Keep history between passes"), &chainedHistory))
                 {
                     config->DlssNrChainedHistory = chainedHistory;
                     anyChanged = true;
@@ -1496,7 +1496,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
                 ds = (int) Scaler::Lanczos3;
 
-            if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
+            if (NrCombo(Tr("Downscale filter"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
             {
                 config->DlssNrScalingDownscaler = (Scaler) ds;
                 anyChanged = true;
@@ -1510,10 +1510,10 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
-        SectionCaption(Tr("Global Controls"), rowWidth);
+        SectionCaption(Tr("Picture"), rowWidth);
 
         float localStructure = config->DlssNrLocalStructure.value_or_default();
-        auto rStruct = NrSlider(Tr("Structure Intensity"), &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
+        auto rStruct = NrSlider(Tr("Texture detail"), &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
         if (rStruct.changed)
             config->DlssNrLocalStructure = localStructure;
         if (rStruct.released)
@@ -1521,7 +1521,7 @@ void RenderMenu(Config* config, float menuResScale)
         HelpMarker(Tr("The model's structure-synthesis strength across the whole frame."));
 
         float localTone = config->DlssNrLocalTone.value_or_default();
-        auto rTone = NrSlider(Tr("Tone Intensity"), &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
+        auto rTone = NrSlider(Tr("Tone strength"), &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
         if (rTone.changed)
             config->DlssNrLocalTone = localTone;
         if (rTone.released)
@@ -1536,7 +1536,7 @@ void RenderMenu(Config* config, float menuResScale)
         // three NVIDIA describes publicly. Default (preset index 0) is kept as a fourth button
         // that NVIDIA's panel does not show, because it is a real, distinct state here: dropping
         // it to match the screenshot exactly would make that state unreachable from the UI.
-        SectionCaption(Tr("Models"), rowWidth);
+        SectionCaption(Tr("Picture: the model"), rowWidth);
 
         const char* nrPresetNames[] = { Tr("Default"), Tr("Model A"), Tr("Model B"), Tr("Model C") };
         int preset = (int) config->DlssNrPreset.value_or_default();
@@ -1581,7 +1581,7 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nNVIDIA ships no names for this control in the binaries."));
 
         float intensity = config->DlssNrIntensity.value_or_default();
-        auto rIntensity = NrSlider(Tr("Intensity"), &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
+        auto rIntensity = NrSlider(Tr("Model intensity"), &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
         if (rIntensity.changed)
             config->DlssNrIntensity = intensity;
         if (rIntensity.released)
@@ -1797,7 +1797,7 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
-        SectionCaption(Tr("How much of it lands"), rowWidth);
+        SectionCaption(Tr("Picture: how much lands"), rowWidth);
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
         auto rTransfer = NrSlider(Tr("Detail strength"), &transfer, 0.0f, 2.0f, "%.2f", rowWidth);
@@ -1828,18 +1828,22 @@ void RenderMenu(Config* config, float menuResScale)
 
         if (ImGui::SmallButton((std::string(Tr("Reset")) + "##colour").c_str()))
         {
-            config->DlssNrColourStrength = 1.0f;
+            config->DlssNrColourStrength = 0.5f;
             anyChanged = true;
         }
-        HelpMarker(Tr("Whether the model's colour arrives with its light. 0 keeps the game's own hue"
-                      "\nexactly -- every pixel the original colour, with only its brightness carrying"
-                      "\nthe model's verdict. 1 brings the model's colour as well, in its own hue,"
-                      "\nclamped into AP1 so nothing unreachable is asked for."
-                      "\n\nAbove 1 it over-saturates: the colour keeps its hue but grows more vivid, and"
-                      "\nrolls off at the edge of what the display can show rather than clipping into a"
-                      "\nflat blown patch. 1 is the model's own colour; push past it for punch."));
+        HelpMarker(Tr("Washed out, grey, colour sucked out of the game? This is the control, and the"
+                      "\nanswer is to turn it DOWN."
+                      "\n\nIt decides whose colour you see. 0 is the game's own, exactly: every pixel its"
+                      "\noriginal colour, with only the brightness carrying the model's verdict. 1 is the"
+                      "\nmodel's colour INSTEAD of the game's -- and the model's is usually the less"
+                      "\nsaturated of the two, which is exactly what that washed-out look is. 0.5, the"
+                      "\ndefault, lets it contribute without overruling the game's art direction."
+                      "\n\nAbove 1 goes the other way and makes the picture MORE colourful than the game"
+                      "\never was -- the same job a colourfulness shader does, done here instead. Hue is"
+                      "\nkept and only saturation grows, and it rolls off at the edge of what the display"
+                      "\ncan show rather than clipping into a flat blown patch. Try 1.5 to 2 for punch."));
 
-        SectionCaption(Tr("Colour"), rowWidth);
+        SectionCaption(Tr("Colour & brightness"), rowWidth);
 
         ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
         ImGui::TextColored(kTextDim, "%s",
@@ -1859,7 +1863,7 @@ void RenderMenu(Config* config, float menuResScale)
         if (reversible < 0 || reversible > 4)
             reversible = 0;
 
-        if (NrCombo(Tr("Reversible proxy"), &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames), rowWidth))
+        if (NrCombo(Tr("Tone-mapping mode"), &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames), rowWidth))
         {
             config->DlssNrReversibleMode = (uint32_t) reversible;
             anyChanged = true;
@@ -1896,7 +1900,7 @@ void RenderMenu(Config* config, float menuResScale)
         if (wpSource < 0 || wpSource > 2)
             wpSource = 0;
 
-        if (NrCombo(Tr("White point from"), &wpSource, kSourceNames, 3, rowWidth))
+        if (NrCombo(Tr("Brightness reference"), &wpSource, kSourceNames, 3, rowWidth))
         {
             config->DlssNrWhitePointSource = (uint32_t) wpSource;
             anyChanged = true;
@@ -2087,7 +2091,7 @@ void RenderMenu(Config* config, float menuResScale)
         }
 
         float maxRatio = config->DlssNrMaxRatio.value_or_default();
-        auto rMax = NrSlider(Tr("Highlight guard"), &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
+        auto rMax = NrSlider(Tr("Brightness limit"), &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
         if (rMax.changed)
             config->DlssNrMaxRatio = maxRatio;
         if (rMax.released)
@@ -2373,11 +2377,11 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Both of these describe the frame to the model rather than shaping its output, which is
         // why they sit together and away from the strength controls.
-        SectionCaption(Tr("Guide"), rowWidth);
+        SectionCaption(Tr("What the model is told"), rowWidth);
 
         const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
         int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
-        if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
+        if (NrCombo(Tr("Depth direction"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
         {
             config->DlssNrDepthConvention = (uint32_t) depthMode;
             anyChanged = true;
@@ -2403,7 +2407,7 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nitself what looks wrong."
                       "\n\nRead when the model is built."));
 
-        SectionCaption(Tr("Inspect"), rowWidth);
+        SectionCaption(Tr("Compare & inspect"), rowWidth);
 
         if (DlssNr::CaptureInProgress())
         {
@@ -2524,7 +2528,7 @@ void RenderMenu(Config* config, float menuResScale)
         // these could already be set in the ini; the point of putting them here is that legibility
         // is the one thing you cannot judge from a config file -- you have to be looking at the
         // panel, over the game, on your own monitor, to know whether it works.
-        SectionCaption(Tr("Appearance"), rowWidth);
+        SectionCaption(Tr("Panel appearance"), rowWidth);
 
 
         if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox(Tr("Vendor colours"), &vendor))
