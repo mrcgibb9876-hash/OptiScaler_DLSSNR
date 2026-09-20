@@ -318,14 +318,25 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
 
     const float contrast = max(mx - mn, 0.0);
 
-    // The allowance keeps a share of the local contrast at EVERY setting. The first version went to a
-    // flat 0.02 at 100% -- no proportional term at all -- so the top of the slider was not the strongest
-    // setting but a cliff: every pixel with any real contrast was pinned to its neighbours' range, and
-    // as the scene moved the pinning moved with it. On Assassin's Creed IV's water and sails that read
-    // as the picture pulsing (2026-09-20). A control whose maximum misbehaves is a broken control, so
-    // the headroom now falls from the whole of the local contrast to a sixth of it and stops there.
-    const float headroom = lerp(1.0, 0.15, saturate(suppression));
-    const float allowance = contrast * headroom + 0.005;
+    // The allowance keeps a share of the local contrast at EVERY setting, and the share is what the
+    // slider moves. Two corrections are baked into these numbers, in this order:
+    //
+    //   v1: (1 - s) * contrast + 0.02. At s = 1 that is a FLAT 0.02 with no proportional term, so the
+    //   top of the slider was not the strongest setting but a different thing: every pixel with any
+    //   contrast pinned to its neighbours' range, and the pinning moving with the scene. Read as the
+    //   picture pulsing on Assassin's Creed IV's water and sails.
+    //
+    //   v2: lerp(1.0, 0.15, s) * contrast + 0.005, gated by smoothstep(0.02, 0.08, contrast). That
+    //   cured the pulsing and went too far the other way -- reported as too weak. The gate was the
+    //   bigger half of it: 0.08 is eight per cent of the white point, and it switched the clamp OFF
+    //   entirely below that, which is most of a frame and where plenty of real rims live.
+    //
+    // So: a tighter share at the top (a twentieth of the local contrast rather than a sixth), no
+    // absolute floor loosening it, and a gate that now only exempts genuinely flat neighbourhoods.
+    // Proportional throughout is what keeps it from pulsing; how small the proportion gets is what
+    // makes it strong. Those are separate, and v2 confused them.
+    const float headroom = lerp(1.0, 0.05, saturate(suppression));
+    const float allowance = contrast * headroom;
 
     const float luma = dot(result, kLuma);
     const float bounded = clamp(luma, mn - allowance, mx + allowance);
@@ -335,11 +346,11 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
     if (bounded == luma)
         return result;
 
-    // And a halo needs an edge to stand against. Where the neighbourhood is flat there is no rim to
-    // remove and whatever the model did is texture -- the thing the pass is FOR -- so the clamp fades
-    // out rather than applying at full force with a tiny allowance. This is what the old absolute
-    // floor was trying to do and did badly: a floor still clamps, it just clamps late.
-    const float bite = smoothstep(0.02, 0.08, contrast);
+    // A halo still needs an edge to stand against. Where the neighbourhood is genuinely flat there is
+    // no rim to remove and whatever the model did there is texture -- the thing the pass is FOR -- so
+    // the clamp fades out. Flat now means flat: under about half a per cent of the white point, not
+    // the eight per cent that was taking most of the frame out of scope.
+    const float bite = smoothstep(0.004, 0.015, contrast);
     if (bite <= 0.0)
         return result;
 
