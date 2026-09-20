@@ -1361,6 +1361,12 @@ float g_modelBase = 1.0f;
 // pass carries the render-cost flag, and a base read off a single call flips whenever one of those arrives.
 float g_renderCostScale = 0.0f;
 
+// A base change only takes effect once this many dispatches in a row have wanted it. A real change of the
+// setting wants it for ever; an odd call out never gets a run this long.
+constexpr int kBaseChangeFrames = 30;
+float g_baseWanted = 1.0f;
+int g_baseWantedRun = 0;
+
 // Adaptive resolution's memory cap: the largest model size video memory has room for right now (1 = no cap).
 // Lowered one rung when the size wanted will not fit, lifted one rung at a time once the next one up fits
 // with the cache margin to spare. Resident Evil Requiem (2026-09-19): the game filled 10.6 of 10.9 GB, a
@@ -3499,12 +3505,50 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         const float base =
             (renderCost && !frame.BeforeUpscale && g_renderCostScale > 0.0f) ? g_renderCostScale : 1.0f;
 
+        // A BASE CHANGE HAS TO LAST TO COUNT.
+        //
+        // Flushing the size cache on the first call that disagrees is what made the setting look dead in
+        // Cyberpunk: something in that game reaches the pass every few frames wanting the other base, every
+        // one of those threw the kept sizes away, and with nothing built the no-build-on-a-move rule kept
+        // the model at full size for the rest of the session. A real change of the setting is permanent, so
+        // it survives this wait easily; a stray call never accumulates the run.
         if (std::fabs(base - g_modelBase) > 0.005f)
         {
-            FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
-                                     : "Ray Reconstruction at render cost switched off");
-            g_modelBase = base;
+            if (std::fabs(base - g_baseWanted) > 0.005f)
+            {
+                g_baseWanted = base;
+                g_baseWantedRun = 0;
+            }
+
+            ++g_baseWantedRun;
+
+            // Whatever the odd call out is, this says so once: the setting as the pass reads it, which
+            // placement the call arrived on, and what it reported.
+            static int saidBase = 0;
+            if (saidBase < 12)
+            {
+                ++saidBase;
+                LOG_WARN("DLSS-NR model base {:.2f} -> {:.2f} wanted ({} in a row): setting {}, call {}, "
+                         "its render scale {:.3f}, target {}x{}, live model {}x{}",
+                         g_modelBase, base, g_baseWantedRun, renderCost ? "on" : "off",
+                         frame.BeforeUpscale ? "before SR" : "after upscale", frame.RenderScale, width, height,
+                         g_nr.workWidth, g_nr.workHeight);
+            }
+
+            if (g_baseWantedRun >= kBaseChangeFrames)
+            {
+                FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
+                                         : "Ray Reconstruction at render cost switched off");
+                g_modelBase = base;
+                g_baseWantedRun = 0;
+            }
         }
+        else
+        {
+            g_baseWanted = g_modelBase;
+            g_baseWantedRun = 0;
+        }
+
         if (g_modelBase < 1.0f)
             workScale = std::min(workScale, 1.0f);
     }
