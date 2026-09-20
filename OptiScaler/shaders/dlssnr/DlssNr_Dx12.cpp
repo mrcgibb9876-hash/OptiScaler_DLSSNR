@@ -3167,8 +3167,19 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
         InDepth != nullptr ? InDepth : InSource,
     };
 
-    for (uint32_t i = 0; i < kSrvCount; ++i)
-        CreateShaderResourceView(_device, srvs[i], currentHeap.GetSrvCPU(i));
+    // CreateShaderResourceView THROWS on a resource that denies shader access. A render pass has no
+    // business taking the process down over a descriptor, and one did (Resident Evil 2, 2026-09-20,
+    // when depth was first bound here). The pass is skipped for the frame instead.
+    try
+    {
+        for (uint32_t i = 0; i < kSrvCount; ++i)
+            CreateShaderResourceView(_device, srvs[i], currentHeap.GetSrvCPU(i));
+    }
+    catch (const std::exception& e)
+    {
+        LOG_ERROR("DLSS-NR: a shader resource view could not be made ({}); skipping this dispatch", e.what());
+        return false;
+    }
 
     ID3D12Resource* const uavs[kUavCount] = {
         OutTarget,
@@ -5572,7 +5583,43 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 }
             }
 
-            DispatchPass(cmdList, params, proxy, answer, resolveOriginal, slot3, exposureTex, dest, nullptr, depthIn);
+            // Depth is only bound when it can BE bound. CreateShaderResourceView throws on a resource
+            // carrying DENY_SHADER_RESOURCE, and a depth buffer very often carries it -- binding it
+            // unconditionally crashed Resident Evil 2 outright (2026-09-20). Where it cannot be read,
+            // the silhouette guard is switched off for the frame rather than left pointing at the
+            // fallback SRV, which is a colour texture and would be read as if it were distances.
+            ID3D12Resource* depthSrv = nullptr;
+            if (params.DepthEdge > 0.0f && depthIn != nullptr)
+            {
+                const D3D12_RESOURCE_DESC dd = depthIn->GetDesc();
+                const bool depthFormat = dd.Format == DXGI_FORMAT_D32_FLOAT ||
+                                         dd.Format == DXGI_FORMAT_D24_UNORM_S8_UINT ||
+                                         dd.Format == DXGI_FORMAT_D16_UNORM ||
+                                         dd.Format == DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+                // A D-format is not a readable format: an SRV has to be made on its R equivalent, and
+                // this path has no way to ask for one. Skipped rather than guessed at.
+                if ((dd.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0 && !depthFormat)
+                {
+                    depthSrv = depthIn;
+                }
+                else
+                {
+                    params.DepthEdge = 0.0f;
+                    static bool saidNoDepthSrv = false;
+                    if (!saidNoDepthSrv)
+                    {
+                        saidNoDepthSrv = true;
+                        LOG_WARN("DLSS-NR: Silhouette guard is off in this game -- its depth buffer is "
+                                 "created without shader-resource access, so the pass cannot read it.");
+                    }
+                }
+            }
+            else if (params.DepthEdge > 0.0f)
+            {
+                params.DepthEdge = 0.0f;
+            }
+
+            DispatchPass(cmdList, params, proxy, answer, resolveOriginal, slot3, exposureTex, dest, nullptr, depthSrv);
 
             if (fitted)
                 Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
