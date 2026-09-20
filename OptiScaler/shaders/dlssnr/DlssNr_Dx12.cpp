@@ -1646,6 +1646,25 @@ void FlushNrCache(const char* why)
     g_prebuild.frameEma = ema;
 }
 
+// A change of base does not invalidate anything kept: a model is built for a pixel size, and all that moves is
+// the label -- what per cent of the base that size is. Relabelling instead of dropping is what makes switching
+// Ray Reconstruction at render cost a pointer swap in both directions. Before this, the flush dropped
+// 1054x658 and the very next line built 1054x658 again (Cyberpunk, 2026-09-20).
+void RebaseNrCache(unsigned int width)
+{
+    if (width == 0 || g_nrCache.empty())
+        return;
+
+    for (NrSizeEntry& e : g_nrCache)
+        e.scale = (float) e.workWidth / ((float) width * g_modelBase);
+
+    // The paging prediction was a scale in the space just left; the controller sets a fresh one next frame.
+    g_pagePredictScale = 0.0f;
+
+    LOG_INFO("DLSS-NR model size cache: {} kept size(s) now read as {} against the new base -- nothing rebuilt",
+             g_nrCache.size(), CachedSizesText());
+}
+
 int FindCachedSize(unsigned int w, unsigned int h)
 {
     for (size_t i = 0; i < g_nrCache.size(); ++i)
@@ -3535,20 +3554,23 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                          frame.BeforeUpscale ? "before SR" : "after upscale", frame.RenderScale, width, height,
                          g_nr.workWidth, g_nr.workHeight);
 
-                FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
-                                         : "Ray Reconstruction at render cost switched off");
+                // Not a flush: the kept sizes are still models of real pixel sizes, so they are relabelled
+                // against the new base and stay available. A size that was 41% of the output reads as 70% of
+                // the render resolution -- same model, same memory, and the move to it costs a pointer swap.
+                DropBlend();
                 g_modelBase = base;
+                RebaseNrCache(width);
                 g_baseWantedRun = 0;
 
-                // AND THE MOVE OFF THE OLD SIZE IS ALLOWED TO BUILD.
+                // AND IF THE SIZE IT WANTS IS STILL NOT AMONG THEM, THE MOVE MAY BUILD.
                 //
-                // Everything kept was just dropped, so the size the controller wants cannot be cached and the
-                // no-build-on-a-move rule below would refuse the move. The live model is not even a size in the
-                // new space -- switching render cost on leaves a full-size model standing at 170% of the render
-                // resolution -- and it stands there until a prebuild slot comes round, which in Cyberpunk meant
-                // the rest of the session at 15 ms while the player toggled the setting and saw nothing happen
-                // (2026-09-20). One build on the frame the setting changed is the right price; a settings change
-                // rebuilds anyway.
+                // Relabelling keeps everything that was there, but the first time the setting is switched
+                // nothing was ever built in the new space, and the no-build-on-a-move rule below would refuse
+                // the move. The live model is not even a size in the new space then -- switching render cost on
+                // leaves a full-size model standing at 170% of the render resolution -- and it stands there
+                // until a prebuild slot comes round, which in Cyberpunk meant the rest of the session at 15 ms
+                // while the player toggled the setting and saw nothing happen (2026-09-20). One build on the
+                // frame the setting changed is the right price; a settings change rebuilds anyway.
                 g_baseChangeMayBuild = true;
             }
         }

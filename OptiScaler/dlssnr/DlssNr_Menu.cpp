@@ -833,8 +833,14 @@ void RenderMenu(Config* config, float menuResScale)
     // widget it lands on -- so input the game keeps producing (a controller's resting stick, arrow keys)
     // pinned this panel to one row and the mouse wheel could not scroll past it (Cyberpunk 2077,
     // 2026-09-16: stuck on the Language combo).
+    //
+    // NoMove since 2026-09-20: the top strip drags it instead (the handle below the title). Dragging from
+    // anywhere meant a mouse-down that missed a slider by a few pixels moved the whole panel, which on a
+    // row of sliders is easy to do and annoying to undo. ConfigWindowsMoveFromTitleBarOnly is not the
+    // answer here -- this window has no title bar, so it would simply never move again.
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs;
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs |
+                             ImGuiWindowFlags_NoMove;
 
     bool anyChanged = false;
 
@@ -881,12 +887,37 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
+        // The title's line is the handle. An invisible button the width of the panel, dragged with the left
+        // button, moves the window; the title, the (?), Reset layout and the close X are all submitted after
+        // it and take their own clicks, which is what SetNextItemAllowOverlap is for. The cursor turns into
+        // the move cursor over it so the strip announces itself.
+        {
+            const ImVec2 handleAt = ImGui::GetCursorScreenPos();
+
+            ImGui::SetNextItemAllowOverlap();
+            ImGui::InvisibleButton("##panelhandle",
+                                   ImVec2(std::max(rowWidth, innerWidth), ImGui::GetFrameHeight()));
+
+            if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+            {
+                const ImVec2 delta = ImGui::GetIO().MouseDelta;
+                const ImVec2 at = ImGui::GetWindowPos();
+                ImGui::SetWindowPos(ImVec2(at.x + delta.x, at.y + delta.y));
+            }
+
+            if (ImGui::IsItemHovered())
+                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+
+            ImGui::SetCursorScreenPos(handleAt);
+        }
+
         ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
         TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
         ImGui::PopStyleColor();
-        HelpMarker(Tr("Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right"
-                      "\ncorner to resize it. It can hang partly off screen, but a strip always stays visible to"
-                      "\ngrab. Position and size are remembered for this game as a fraction of the screen, so"
+        HelpMarker(Tr("Drag this title strip to move the panel, or drag an edge or the bottom-right corner to"
+                      "\nresize it. The rest of the panel no longer moves it, so missing a slider leaves"
+                      "\neverything where it is. It can hang partly off screen, but a strip always stays visible"
+                      "\nto grab. Position and size are remembered for this game as a fraction of the screen, so"
                       "\nthey come back at any resolution."));
 
         if (layout.CustomPos() || layout.CustomSize())
@@ -1416,6 +1447,67 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
+        // Model resolution, by hand or by itself -- beside Model passes since 2026-09-20, because those two
+        // ARE what the pass costs, and the per cent was being hunted for in Cost further down (the Cost
+        // caption held nothing else and went with it). Adaptive resolution, right above, drives this same
+        // number, so while it is on the slider is shown disabled rather than hidden: the value moving is the
+        // clearest possible statement of what the controller is doing.
+        const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
+
+        static int pendingScale = -1;
+        float scalePercent =
+            pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
+
+        ImGui::BeginDisabled(autoScaleOn);
+        auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
+        if (rScale.changed)
+            pendingScale = (int) std::lroundf(scalePercent);
+
+        if (rScale.released && pendingScale >= 0)
+        {
+            config->DlssNrWorkingScale = std::clamp(pendingScale, 25, 200) / 100.0f;
+            pendingScale = -1;
+            anyChanged = true;
+        }
+        ImGui::EndDisabled();
+        HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
+                      "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
+                      "\nitself is never reduced -- only the model's own contribution is computed small"
+                      "\nand enlarged. Applied when the handle is let go, not while it is moving."));
+
+        // Above native the model is run supersampled and filtered back down, so the filter is
+        // the whole difference between supersampling meaning less noise and meaning more.
+        const int shownScale = pendingScale >= 0 ? pendingScale : (int) std::lroundf(scalePercent);
+
+        if (shownScale > 100)
+        {
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+            ImGui::TextColored(kTextDim,
+                               Tr("Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
+                                  "down. Experimental, and costly -- time grows with the area."),
+                               shownScale / 100.0f);
+            ImGui::PopTextWrapPos();
+
+            static const char* const kDownscalerNames[] = { "FSR1",     "Bicubic", "Catmull-Rom", "Lanczos2",
+                                                            "Lanczos3", "Kaiser2", "Kaiser3",     "MAGIC" };
+
+            int ds = (int) config->DlssNrScalingDownscaler.value_or_default();
+
+            if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
+                ds = (int) Scaler::Lanczos3;
+
+            if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
+            {
+                config->DlssNrScalingDownscaler = (Scaler) ds;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("The filter that averages the model's above-native answer back to display size --"
+                          "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
+                          "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
+                          "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
+                          "\ndownscaler, so the two can differ and run at the same time."));
+        }
+
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
         SectionCaption(Tr("Global Controls"), rowWidth);
@@ -1705,68 +1797,6 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
-        SectionCaption(Tr("Cost"), rowWidth);
-
-
-        // Model resolution, by hand or by itself. The automatic block below drives this same number,
-        // so the slider is shown disabled rather than hidden while it is on: the value moving is the
-        // clearest possible statement of what the controller is doing.
-        const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
-
-        static int pendingScale = -1;
-        float scalePercent =
-            pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
-
-        ImGui::BeginDisabled(autoScaleOn);
-        auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
-        if (rScale.changed)
-            pendingScale = (int) std::lroundf(scalePercent);
-
-        if (rScale.released && pendingScale >= 0)
-        {
-            config->DlssNrWorkingScale = std::clamp(pendingScale, 25, 200) / 100.0f;
-            pendingScale = -1;
-            anyChanged = true;
-        }
-        ImGui::EndDisabled();
-        HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
-                      "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
-                      "\nitself is never reduced -- only the model's own contribution is computed small"
-                      "\nand enlarged. Applied when the handle is let go, not while it is moving."));
-
-        // Above native the model is run supersampled and filtered back down, so the filter is
-        // the whole difference between supersampling meaning less noise and meaning more.
-        const int shownScale = pendingScale >= 0 ? pendingScale : (int) std::lroundf(scalePercent);
-
-        if (shownScale > 100)
-        {
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-            ImGui::TextColored(kTextDim,
-                               Tr("Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
-                                  "down. Experimental, and costly -- time grows with the area."),
-                               shownScale / 100.0f);
-            ImGui::PopTextWrapPos();
-
-            static const char* const kDownscalerNames[] = { "FSR1",     "Bicubic", "Catmull-Rom", "Lanczos2",
-                                                            "Lanczos3", "Kaiser2", "Kaiser3",     "MAGIC" };
-
-            int ds = (int) config->DlssNrScalingDownscaler.value_or_default();
-
-            if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
-                ds = (int) Scaler::Lanczos3;
-
-            if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
-            {
-                config->DlssNrScalingDownscaler = (Scaler) ds;
-                anyChanged = true;
-            }
-            HelpMarker(Tr("The filter that averages the model's above-native answer back to display size --"
-                          "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
-                          "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
-                          "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
-                          "\ndownscaler, so the two can differ and run at the same time."));
-        }
-
         SectionCaption(Tr("How much of it lands"), rowWidth);
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
