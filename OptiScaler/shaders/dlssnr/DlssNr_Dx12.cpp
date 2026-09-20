@@ -1356,6 +1356,50 @@ float g_pagePredictScale = 0.0f;
 // prediction is width * g_modelBase * scale, so the whole size machinery plans in the same space as the live size.
 float g_modelBase = 1.0f;
 
+// Does this game move its OWN render resolution? Dynamic resolution, in other words, which nothing in
+// the parameter block announces -- the frame simply arrives at a different size.
+//
+// It matters because of where the pass sits. After the upscaler the model works at the output size,
+// which does not move, so dynamic resolution is invisible to it. Before Super Resolution the model
+// works at the RENDER size, so every step the game takes is a size change for the model too -- and a
+// size change used to mean a teardown and a CreateFeature. Assassin's Creed IV Black Flag walks
+// 2048x1280 -> 1970x1232 -> 1890x1180 and on down to 1176x736, continuously: 74 rebuilds at ~140 ms
+// each in three and a half minutes of play, with the edit fading in from zero after every one of them
+// (the hitching and the flashing, reported 2026-09-20). The sizes repeat, so the cache the Adaptive
+// resolution controller already uses is exactly the right machinery -- it just could not see this.
+//
+// Two distinct frame sizes in one run is the whole test. A game that is merely resized, or that starts
+// at one size and settles at another, does it once and is not dynamic; a game with dynamic resolution
+// never stops. Latching rather than counting down: one steady minute does not mean the next fight will
+// not move it again, and the only cost of being wrong is a cache that holds one size.
+unsigned int g_lastFrameWidth = 0, g_lastFrameHeight = 0;
+unsigned int g_frameSizeMoves = 0;
+bool g_dynamicResolution = false;
+
+void NoteFrameSize(unsigned int width, unsigned int height)
+{
+    if (width == 0 || height == 0)
+        return;
+    if (g_lastFrameWidth == 0)
+    {
+        g_lastFrameWidth = width;
+        g_lastFrameHeight = height;
+        return;
+    }
+    if (width == g_lastFrameWidth && height == g_lastFrameHeight)
+        return;
+
+    g_lastFrameWidth = width;
+    g_lastFrameHeight = height;
+    if (++g_frameSizeMoves >= 2 && !g_dynamicResolution)
+    {
+        g_dynamicResolution = true;
+        LOG_INFO("DLSS-NR: this game moves its own render resolution (now {}x{}). Before Super Resolution the model "
+                 "runs at that resolution, so its sizes are kept and swapped between instead of rebuilt.",
+                 width, height);
+    }
+}
+
 // The last render resolution over the output this game reported while Ray Reconstruction at render cost was
 // on (0 = nothing reported, or the setting is off). Remembered, because not every evaluate that reaches the
 // pass carries the render-cost flag, and a base read off a single call flips whenever one of those arrives.
@@ -2440,10 +2484,19 @@ void RecordBuiltPrimaryTuning(const Config& cfg)
 
 // Whether model sizes may be kept and built ahead at all. AutoScale only -- a fixed WorkingScale must
 // never hold more than one model -- and not on the driver-proxy backend, which owns its own feature.
-bool SizeCacheAllowed(const Config& cfg, bool proxyBackend, float workScale)
+bool SizeCacheAllowed(const Config& cfg, bool proxyBackend, float workScale, bool beforeUpscale)
 {
-    return cfg.DlssNrAutoScale.value_or_default() && cfg.DlssNrAutoScalePrebuild.value_or_default() >= 1 &&
-           !proxyBackend && workScale <= 1.0f;
+    if (proxyBackend || workScale > 1.0f)
+        return false;
+    // The controller's own reason to keep sizes: it is going to step between them.
+    if (cfg.DlssNrAutoScale.value_or_default() && cfg.DlssNrAutoScalePrebuild.value_or_default() >= 1)
+        return true;
+    // And the game's. Before Super Resolution on a game with dynamic resolution, the frame's own size
+    // is the model's size, so the same handful of sizes come round again and again whether Adaptive
+    // resolution is switched on or not -- and it is off by default, so this was the common case going
+    // through the slowest path (Assassin's Creed IV, 2026-09-20). Nothing here starts prebuilding: the
+    // cache only keeps what the game has already made us build.
+    return beforeUpscale && g_dynamicResolution;
 }
 
 // Lifts the live size out -- its features and work-size surfaces -- and hands it back as an entry. The
@@ -3626,7 +3679,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     else if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
         (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight) &&
         cfg.DlssNrAutoScalePrebuild.value_or_default() >= 2 && g_memCapScale >= 1.0f &&
-        SizeCacheAllowed(cfg, cfg.DlssNrUseProxy.value_or_default(), workScale) &&
+        SizeCacheAllowed(cfg, cfg.DlssNrUseProxy.value_or_default(), workScale, frame.BeforeUpscale) &&
         FindCachedSize(workWidth, workHeight) < 0)
     {
         const float wanted = workScale;
@@ -3662,12 +3715,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     ReleaseSurfacesIfFormatChanged(desc.Format);
 
+    // Watched on every dispatch, whatever the placement: a game that moves its render resolution does so
+    // whether the pass is sitting before Super Resolution or after it, and the answer has to be ready the
+    // first time the placement changes rather than learned again from scratch.
+    NoteFrameSize(width, height);
+
     // Adaptive resolution's model-size cache (Resident Evil 2, 2026-09-18). Anything a cached size was
     // built for other than its own dimensions changing makes every cached size stale: a new device (the
     // game recreated it), a new frame size (swapchain resize / output resolution), a surface format change
     // (Devil May Cry 5's R8G8B8A8 -> R10G10B10A2 is caught just above by ReleaseSurfaces too), placement
     // before/after SR, the HDR colour path. Tuning changes are handled with the rebuild below.
-    const bool sizeCacheAllowed = SizeCacheAllowed(cfg, proxyBackend, workScale);
+    const bool sizeCacheAllowed = SizeCacheAllowed(cfg, proxyBackend, workScale, frame.BeforeUpscale);
 
     // Back on within IdleWhileOff's grace period: the kept sizes are still here and are reused as they are
     // (the generation check just below still drops them if anything they were built for changed). The
@@ -3684,6 +3742,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         g_pacing.readingsQuietUntilMs = std::max(g_pacing.readingsQuietUntilMs, nowMs + kReadingQuietMs);
     }
 
+    // A cached model feature is built for its OWN dimensions and for the create-time settings -- not for
+    // the size of the frame it happens to be composed against. That is why the frame size can be left out
+    // of the generation here: the frame's size owns the full-frame scratch (colorCopy, hdrCopy), which is
+    // reallocated when it moves, and the model features are untouched by it.
+    //
+    // It was in the generation because, until dynamic resolution, a frame-size change meant the swapchain
+    // had been resized and nothing about the old sizes was worth keeping. On a game that moves its render
+    // resolution every second it meant the opposite: the whole cache thrown away at every step, so no size
+    // was ever in it when the game came back to that size a moment later, and every step paid a full
+    // CreateFeature (Assassin's Creed IV: 74 of them in three and a half minutes).
+    const bool frameSizeIsTheModelSize = frame.BeforeUpscale && g_dynamicResolution;
     {
         const NrCacheGeneration gen { true, device, width, height, desc.Format, frame.BeforeUpscale,
                                       frame.ColourIsLinearHdr };
@@ -3691,8 +3760,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         if (was.valid)
         {
+            const bool frameResized =
+                !frameSizeIsTheModelSize && (was.width != gen.width || was.height != gen.height);
             const char* why = was.device != gen.device                                 ? "the device was recreated"
-                              : was.width != gen.width || was.height != gen.height     ? "the frame size changed"
+                              : frameResized                                           ? "the frame size changed"
                               : was.format != gen.format                               ? "the surface format changed"
                               : was.beforeUpscale != gen.beforeUpscale                 ? "the placement changed"
                               : was.hdr != gen.hdr                                     ? "the HDR colour path changed"
@@ -3718,8 +3789,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     const bool tuningChanged = !TuningMatchesFeature(cfg, requestedPasses);
 
     // Only the model's size moved: the one change the cache can absorb.
-    const bool sizeOnlyChange = resolutionChanged && !tuningChanged && !placementChanged && g_nr.width == width &&
-                                g_nr.height == height;
+    //
+    // "The frame stayed the same size" is the usual way to know that, and it is what the controller's own
+    // steps look like -- it moves the model inside a frame that is not moving. Under Before Super
+    // Resolution on a game with dynamic resolution the two move TOGETHER, because the frame's size IS the
+    // model's size, and that is still only the model's size moving as far as the cache is concerned. What
+    // the frame's size owns is the full-frame scratch, which the stash path below parks when it moves.
+    const bool frameMoved = g_nr.width != width || g_nr.height != height;
+    const bool sizeOnlyChange = resolutionChanged && !tuningChanged && !placementChanged &&
+                                (!frameMoved || frameSizeIsTheModelSize);
 
     // Keep the live size rather than destroy it -- when the size being switched to is already built (a
     // swap costs no memory), or when building it next to the one kept still fits under the standard
@@ -3746,11 +3824,30 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
             // Fade out of it when the size being moved to is already built. Anything else is a build, and a
             // build's own first frames are not a picture to fade from.
-            const bool fading =
-                haveTarget && StartBlend(device, desc.Format, width, height, requestedPasses);
+            //
+            // Never when the frame itself just changed size. The cross-fade blends two COMPOSED pictures,
+            // and the outgoing one was composed against the frame the game has now stopped drawing -- it is
+            // the wrong size to blend against the incoming frame, and the scratch it lives in is about to be
+            // reallocated underneath it. A dynamic-resolution step is a straight swap.
+            const bool fading = haveTarget && !frameMoved &&
+                                StartBlend(device, desc.Format, width, height, requestedPasses);
 
             if (!fading)
                 StashLiveSize(requestedPasses);
+
+            // The frame's own size owns the full-frame scratch. When it moves, that scratch has to go --
+            // the model features do not, which is the whole point of stashing rather than flushing. Parked
+            // rather than released: the GPU may still be several frames deep in work referencing it.
+            if (frameMoved)
+            {
+                ParkNrResource(g_nr.colorCopy);
+                ParkNrResource(g_nr.hdrCopy);
+                ParkNrResource(g_nr.colorSmall);
+                ParkNrResource(g_nr.outputNative);
+                ParkNrResource(g_nr.activeColor);
+                g_nr.width = width;
+                g_nr.height = height;
+            }
 
             stashed = true;
             g_nextBuildWhy = "size change, not cached";
@@ -3834,8 +3931,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // A size already in the cache is simply made live: no CreateFeature, nothing parked, no hold
     // (Resident Evil 2, 2026-09-18). A feature prebuilt on a list that has not been submitted yet keeps its
     // pending flag and waits for the next epoch exactly as a freshly created one does.
-    if (g_nr.feature == nullptr && sizeCacheAllowed && g_nr.colorCopy != nullptr && g_nr.hdrCopy != nullptr &&
-        g_nr.width == width && g_nr.height == height && g_nr.beforeUpscale == frame.BeforeUpscale)
+    // The full-frame scratch is NOT a condition of taking a cached size any more: on a dynamic-resolution
+    // step it has just been parked for the new frame size, and it is remade a little further down. What a
+    // cached model feature needs is that it was built for this placement -- its own dimensions are what it
+    // was looked up by.
+    if (g_nr.feature == nullptr && sizeCacheAllowed && g_nr.beforeUpscale == frame.BeforeUpscale &&
+        (frameSizeIsTheModelSize || (g_nr.colorCopy != nullptr && g_nr.hdrCopy != nullptr &&
+                                     g_nr.width == width && g_nr.height == height)))
     {
         if (const int hit = FindCachedSize(workWidth, workHeight); hit >= 0)
         {
@@ -3848,7 +3950,12 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             // Only when there is no fade running. Under a cross-fade the incoming size is already arriving
             // gradually, and easing its edit in on top of that would mean a fade whose far end is not the
             // picture the size actually makes.
-            if (!g_blend.active)
+            //
+            // And never on a dynamic-resolution step. This size was live a moment ago -- the game comes back
+            // round to the same handful of sizes every second -- so its history is nearly warm, and ramping
+            // the edit up from zero each time IS the flashing that was reported. A straight swap between two
+            // well-formed pictures at slightly different fidelity is the smaller change by far.
+            if (!g_blend.active && !frameSizeIsTheModelSize)
                 FadeInAfterSizeChange();
 
             LOG_INFO("DLSS-NR model size cache hit: switched to {:.0f}% ({}x{}, {}) in {:.2f} ms -- no CreateFeature, "
@@ -3974,15 +4081,19 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if (g_nr.output == nullptr)
     {
         g_nr.output = CreateScratch(device, desc.Format, workWidth, workHeight);
-        // The full-frame surfaces survive a cached size change (the frame did not change size), so they
-        // are only made when missing -- overwriting live ones would leak them mid-flight.
-        if (g_nr.colorCopy == nullptr)
-            g_nr.colorCopy = CreateScratch(device, desc.Format, width, height);
-        if (g_nr.hdrCopy == nullptr)
-            g_nr.hdrCopy = CreateScratch(device, desc.Format, width, height);
         g_nr.workWidth = workWidth;
         g_nr.workHeight = workHeight;
     }
+
+    // The full-frame surfaces are the FRAME's, not the model's, so they are made here rather than inside
+    // the block above: taking a cached size leaves g_nr.output non-null, and on a dynamic-resolution step
+    // these two have just been parked for the new frame size -- nested inside that block they would never
+    // be remade and the pass would bail for want of them. Only ever made when missing; overwriting live
+    // ones would leak them mid-flight.
+    if (g_nr.colorCopy == nullptr)
+        g_nr.colorCopy = CreateScratch(device, desc.Format, width, height);
+    if (g_nr.hdrCopy == nullptr)
+        g_nr.hdrCopy = CreateScratch(device, desc.Format, width, height);
 
     // Checked against the texture itself, not the rebuild bookkeeping above: that only reallocates
     // while a feature exists, and a staging texture smaller than the active rectangle would turn the
