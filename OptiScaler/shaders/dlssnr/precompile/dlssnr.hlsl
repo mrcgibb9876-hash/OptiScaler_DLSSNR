@@ -350,7 +350,22 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
     // no rim to remove and whatever the model did there is texture -- the thing the pass is FOR -- so
     // the clamp fades out. Flat now means flat: under about half a per cent of the white point, not
     // the eight per cent that was taking most of the frame out of scope.
-    const float bite = smoothstep(0.004, 0.015, contrast);
+    //
+    // And "an edge" is a RELATIVE thing. This gate used to be absolute -- so many hundredths of the
+    // white point -- and an absolute threshold is dead in a dark scene. Resident Evil 2's rainy alley
+    // is almost entirely black: the step from the character's jacket to the wall behind her is a few
+    // thousandths of the white point in absolute terms, and an obvious edge to look at, with an
+    // obvious white rim on it. Every absolute threshold tried, 0.08 and then 0.015, faded the clamp
+    // out across essentially the whole frame, which is why the slider did nothing there at any
+    // setting (2026-09-20, from a screenshot).
+    //
+    // Contrast against the brighter side of the neighbourhood instead. That is how a rim reads to the
+    // eye -- bright RELATIVE to what it sits against, not by a fixed amount -- and it behaves the same
+    // in a black alley as in daylight. The allowance above stays absolute, because what it bounds is
+    // an absolute overshoot. Only "is there an edge here at all" is relative, and the old code
+    // answered both questions the same way.
+    const float relative = contrast / max(mx, 1e-4);
+    const float bite = smoothstep(0.02, 0.08, relative);
     if (bite <= 0.0)
         return result;
 
