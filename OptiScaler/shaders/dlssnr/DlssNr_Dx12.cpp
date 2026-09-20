@@ -1356,6 +1356,11 @@ float g_pagePredictScale = 0.0f;
 // prediction is width * g_modelBase * scale, so the whole size machinery plans in the same space as the live size.
 float g_modelBase = 1.0f;
 
+// The last render resolution over the output this game reported while Ray Reconstruction at render cost was
+// on (0 = nothing reported, or the setting is off). Remembered, because not every evaluate that reaches the
+// pass carries the render-cost flag, and a base read off a single call flips whenever one of those arrives.
+float g_renderCostScale = 0.0f;
+
 // Adaptive resolution's memory cap: the largest model size video memory has room for right now (1 = no cap).
 // Lowered one rung when the size wanted will not fit, lifted one rung at a time once the next one up fits
 // with the cache margin to spare. Resident Evil Requiem (2026-09-19): the game filled 10.6 of 10.9 GB, a
@@ -3468,10 +3473,32 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // resolution instead of the output (g_modelBase). Supersampling above the render size is not offered
     // there -- the point is the cost. Kept sizes were planned against the old base, so a change of base
     // lets them go.
+    //
+    // THE SETTING DECIDES THE BASE, NOT WHETHER THIS PARTICULAR CALL CARRIED A READING. The reading is
+    // remembered instead. Cyberpunk, 2026-09-20: some evaluates reach the pass without the render-cost
+    // flag, and reading the base off each call made it flip 59% <-> 100% every few frames. Every flip
+    // flushed the size cache, and with the no-build-on-a-move rule in force the wanted size was then
+    // never built -- the model sat at full size for as long as the game ran, 12.7 ms instead of 5.9,
+    // and switching the setting off and on again did nothing at all. The prebuilds gave it away: 85%
+    // came out 2176 wide, which is 85% of the output, on frames the base was supposed to be 59%.
     {
-        const float base = (!frame.BeforeUpscale && frame.RenderScale > 0.0f && frame.RenderScale < 1.0f)
-                               ? frame.RenderScale
-                               : 1.0f;
+        const bool renderCost =
+            cfg.DlssNrRunBeforeSr.value_or_default() && cfg.DlssNrRunBeforeRr.value_or_default();
+
+        if (!renderCost)
+        {
+            g_renderCostScale = 0.0f;
+        }
+        else if (!frame.BeforeUpscale && frame.RenderScale > 0.0f && frame.RenderScale < 1.0f)
+        {
+            // A real reading: the game's render resolution over its output. It moves when the player
+            // changes the upscaler's quality, and then the base moves with it.
+            g_renderCostScale = frame.RenderScale;
+        }
+
+        const float base =
+            (renderCost && !frame.BeforeUpscale && g_renderCostScale > 0.0f) ? g_renderCostScale : 1.0f;
+
         if (std::fabs(base - g_modelBase) > 0.005f)
         {
             FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
