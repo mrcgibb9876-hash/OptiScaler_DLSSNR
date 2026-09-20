@@ -3752,7 +3752,20 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // resolution every second it meant the opposite: the whole cache thrown away at every step, so no size
     // was ever in it when the game came back to that size a moment later, and every step paid a full
     // CreateFeature (Assassin's Creed IV: 74 of them in three and a half minutes).
-    const bool frameSizeIsTheModelSize = frame.BeforeUpscale && g_dynamicResolution;
+    // Read from the SETTING, not from this frame's placement. Before SR does not hold every frame: a
+    // single evaluate that arrives post-upscale -- preSrCompatible false for one frame, a settings
+    // re-read, anything -- used to make this false, and then the frame's size was the OUTPUT size and
+    // did not match, so the whole cache went. Assassin's Creed IV, 2026-09-20 18:16:08:
+    //
+    //   guides 1804x1128 for a 2048x1280 frame
+    //   model size cache: dropped 6 kept size(s) -- the frame size changed
+    //   ... running after SR ...
+    //
+    // then all seven ladder sizes rebuilt one by one, each fading its edit in from zero. That burst is
+    // the flashing that was reported, and it repeats every time the pass takes one frame off.
+    // Configured Before SR plus dynamic resolution means the frame size is the model's size for this
+    // GAME, which is a fact about the session and not about the frame in hand.
+    const bool frameSizeIsTheModelSize = cfg.DlssNrRunBeforeSr.value_or_default() && g_dynamicResolution;
     {
         const NrCacheGeneration gen { true, device, width, height, desc.Format, frame.BeforeUpscale,
                                       frame.ColourIsLinearHdr };
@@ -3768,11 +3781,40 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                               : was.beforeUpscale != gen.beforeUpscale                 ? "the placement changed"
                               : was.hdr != gen.hdr                                     ? "the HDR colour path changed"
                                                                                        : nullptr;
-            if (why != nullptr)
-                FlushNrCache(why);
-        }
 
-        g_nrCacheGen = gen;
+            // And nothing flushes on the strength of ONE frame. Every reason above is permanent when it
+            // is real -- a device really was recreated, the placement really was switched -- so waiting
+            // to see it twice running costs a real change one frame and costs a stray frame nothing at
+            // all. The same rule the render-cost base already uses, for the same reason: a real change
+            // repeats, a one-frame excursion never does.
+            //
+            // The generation is deliberately NOT advanced while a change is pending. Advancing it would
+            // make the next frame compare against the excursion instead of against the last ACCEPTED
+            // state, the disagreement would read as resolved, and it could never be seen twice.
+            static const char* pendingWhy = nullptr;
+            if (why == nullptr)
+            {
+                pendingWhy = nullptr;
+                g_nrCacheGen = gen;
+            }
+            else if (pendingWhy == nullptr)
+            {
+                pendingWhy = why;
+                LOG_INFO("DLSS-NR model size cache: {} on one frame -- holding {} kept size(s) until it "
+                         "is seen again",
+                         why, g_nrCache.size());
+            }
+            else
+            {
+                pendingWhy = nullptr;
+                FlushNrCache(why);
+                g_nrCacheGen = gen;
+            }
+        }
+        else
+        {
+            g_nrCacheGen = gen;
+        }
 
         if (!sizeCacheAllowed && !g_nrCache.empty())
             FlushNrCache("AutoScale or AutoScalePrebuild is off");
