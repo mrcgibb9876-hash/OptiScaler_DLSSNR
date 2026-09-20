@@ -33,7 +33,7 @@
 // 1.0.41 > 10.0.0 == false and "a new release is available" could never fire, whatever was
 // published. Bringing both to 2.0.0 lines them up and the check works again.
 #define VER_MAJOR_VERSION 2
-#define VER_MINOR_VERSION 1
+#define VER_MINOR_VERSION 2
 #define VER_HOTFIX_VERSION 0
 #define VER_BUILD_NUMBER 1
 
