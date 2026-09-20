@@ -211,6 +211,12 @@ struct alignas(256) DlssNrConstants
     // 3x3 neighbourhood already had, widened by a share of the local contrast. 0 is off and the
     // shader returns before touching anything. Trailing scalar, mirroring the shader's cbuffer.
     float HaloGuard;
+
+    // Depth-edge suppression, 0..1. The edit is faded back to the untouched frame where the depth
+    // buffer says an object ends -- a silhouette. For the artifact that estimated motion vectors leave
+    // at an occlusion boundary, which no amount of bounding the edit's magnitude can reach. Trailing
+    // scalar, mirroring the shader's cbuffer.
+    float DepthEdge;
 };
 
 class DlssNr_Common

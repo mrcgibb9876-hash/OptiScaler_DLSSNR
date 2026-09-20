@@ -404,6 +404,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrMaxRatio.set_from_config(readFloat("DlssNr", "MaxRatio"));
             DlssNrHaloGuard.set_from_config(readFloat("DlssNr", "HaloGuard"));
             DlssNrSteadyModelSize.set_from_config(readBool("DlssNr", "SteadyModelSize"));
+            DlssNrDepthEdge.set_from_config(readFloat("DlssNr", "DepthEdge"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
 
             DlssNrWhitePointFromExposure.set_from_config(readBool("DlssNr", "WhitePointFromExposure"));
@@ -1340,6 +1341,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "MaxRatio", GetFloatValue(Instance()->DlssNrMaxRatio.value_for_config()).c_str());
         ini.SetValue("DlssNr", "HaloGuard", GetFloatValue(Instance()->DlssNrHaloGuard.value_for_config()).c_str());
         ini.SetValue("DlssNr", "SteadyModelSize", GetBoolValue(Instance()->DlssNrSteadyModelSize.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "DepthEdge", GetFloatValue(Instance()->DlssNrDepthEdge.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Transfer", GetIntValue(Instance()->DlssNrTransfer.value_for_config()).c_str());
 
         ini.SetValue("DlssNr", "ProbeD3D11", GetBoolValue(Instance()->DlssNrProbeD3D11.value_for_config()).c_str());

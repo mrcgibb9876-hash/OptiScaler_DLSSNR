@@ -30,6 +30,7 @@ cbuffer Params : register(b0)
     uint  gUseGameExposure;// D3D12 source-1 only: 1 = read the game's live exposure in-shader (t4)
     float gExposurePreMul; // preExposure * trim, so the live white point is gExposurePreMul / exposure
     float gHaloGuard;      // 0 off, 1 clamp the edit into the range the frame's own neighbourhood had
+    float gDepthEdge;      // 0 off, 1 hold the edit back fully where the depth buffer says an object ends
 };
 
 // Bringing an impossible colour back into a possible one.
@@ -229,6 +230,10 @@ Texture2D<float4>   gMotion   : register(t3);  // meter: the exposure. resolve w
 // live path is compiled out under VK_MODE and gUseGameExposure is never set on that backend.
 #ifndef VK_MODE
 Texture2D<float4>   gExposure : register(t4);
+// The frame's depth, at guide resolution. D3D12 only, for the same reason gExposure is: Vulkan has no
+// spare descriptor here. Read by the depth-edge suppression in the resolve, which is the one thing in
+// this file that needs to know where an object ENDS rather than what it looks like.
+Texture2D<float4>   gDepth    : register(t5);
 #endif
 #ifdef VK_MODE
 [[vk::binding(5, 0)]]
@@ -371,6 +376,62 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
 
     const float scaled = lerp(luma, bounded, bite);
     return result * (scaled / max(luma, 1e-6));
+}
+
+// Silhouettes: hold the edit back where the DEPTH buffer says one object ends and another begins.
+//
+// This exists because everything else aimed at the wrong thing. The artifact that prompted it is a
+// white rim, doubled-looking, following characters' heads and bodies in Resident Evil 2 -- and it
+// survived Enlargement (all four modes), halo suppression at every setting, and a settings sweep. The
+// route line said why: that game makes no upscale call, so the Present route has no engine motion
+// vectors and ESTIMATES them with optical flow. Optical flow's classic failure is the occlusion
+// boundary, which is exactly a character's outline against the wall behind her. The temporal model
+// then fetches its history from the wrong side of the edge, and what lands is a rim.
+//
+// So it is not a countershading halo and no amount of bounding the edit's MAGNITUDE reaches it -- the
+// edit is wrong because it came from the wrong pixels, not because it is too big. What does reach it
+// is knowing where the boundary is, and depth knows exactly that: a silhouette IS a depth
+// discontinuity. Luminance does not know it (a dark jacket against a dark wall is no luminance edge
+// at all, which is why the halo control could not see this one even once its gate was fixed).
+//
+// Relative depth difference, because depth is not linear and an absolute one means different things
+// near and far. Read at guide resolution and mapped from the frame's, since the two differ on every
+// route where the model runs at render resolution.
+float3 SuppressAtDepthEdges(float3 result, float3 original, uint2 pos, float strength)
+{
+#ifdef VK_MODE
+    return result;
+#else
+    if (strength <= 0.0)
+        return result;
+
+    const float2 frameSize = float2(max(gWidth, 1u), max(gHeight, 1u));
+    const float2 guideSize = float2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
+    const int2 lastGuide = int2(guideSize) - int2(1, 1);
+    const float2 atGuide = ((float2(pos) + 0.5) / frameSize) * guideSize;
+
+    const float centre = gDepth.Load(int3(clamp(int2(atGuide), int2(0, 0), lastGuide), 0)).r;
+
+    // Two pixels out, in the four directions. A silhouette is a step, so the neighbour across it
+    // differs hugely while a sloped surface differs barely at all -- one tap each way is enough to
+    // tell those apart, and this runs on every pixel of every frame.
+    float worst = 0.0;
+    const int2 offsets[4] = { int2(2, 0), int2(-2, 0), int2(0, 2), int2(0, -2) };
+
+    [unroll]
+    for (int i = 0; i < 4; ++i)
+    {
+        const int2 tap = clamp(int2(atGuide) + offsets[i], int2(0, 0), lastGuide);
+        const float d = gDepth.Load(int3(tap, 0)).r;
+        const float rel = abs(d - centre) / max(max(d, centre), 1e-6);
+        worst = max(worst, rel);
+    }
+
+    // 2% of the local depth is a slope; 10% is something ending. Between them it ramps, so a curved
+    // surface seen edge-on does not snap in and out of being called a silhouette from frame to frame.
+    const float edge = smoothstep(0.02, 0.10, worst);
+    return lerp(result, original, saturate(strength) * edge);
+#endif
 }
 
 // sRGB rather than a plain 2.2 power: it is what an SDR game buffer actually carries, and the model was
@@ -1359,7 +1420,13 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // modes: those say in as many words that the model's answer IS the picture, with none of the
     // composition applied, and a clamp against the frame is composition.
     if (gReversibleMode != 2 && gReversibleMode != 4)
+    {
         result = SuppressHalo(result, id.xy, gHaloGuard, normScale);
+        // After the halo clamp, so what is handed back at a silhouette is the frame as it arrived and
+        // not a clamped version of a wrong edit. `original` is the untouched frame in this same
+        // normalised space, which is exactly what the edit should fade to where it cannot be trusted.
+        result = SuppressAtDepthEdges(result, original, id.xy, gDepthEdge);
+    }
 
     // Back out of the normalised space the composition worked in.
     result *= normScale;

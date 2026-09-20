@@ -406,6 +406,12 @@ class Config
     // reported on Assassin's Creed IV turned out to be once the rebuilds behind it were fixed.
     CustomOptional<bool> DlssNrSteadyModelSize { true };
 
+    // [DlssNr] DepthEdge, 0..1. Fade the model's edit back to the untouched frame where the DEPTH
+    // buffer says an object ends. For the rim that estimated motion vectors leave at an occlusion
+    // boundary -- a character's outline against what is behind her -- which no control that bounds
+    // the edit's magnitude can reach, because the edit is wrong in ORIGIN, not in size. Default off.
+    CustomOptional<float> DlssNrDepthEdge { 0.0f };
+
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
     // 0 classic, 1 matched residual, 2 edge-aware, 3 guided -- "Full-size look", the default since

@@ -2137,6 +2137,36 @@ void RenderMenu(Config* config, float menuResScale)
                       "\n\nEnlargement already removes the halos made by running the model SMALLER than the"
                       "\nframe. This is for the ones the model makes at any size, 100% included."));
 
+        // The other kind of rim, and the one nothing else here can reach.
+        float depthEdgePct = config->DlssNrDepthEdge.value_or_default() * 100.0f;
+        auto rEdge = NrSlider(Tr("Silhouette guard"), &depthEdgePct, 0.0f, 100.0f, "%.0f%%", rowWidth);
+        if (rEdge.changed)
+            config->DlssNrDepthEdge = depthEdgePct / 100.0f;
+        if (rEdge.released)
+            anyChanged = true;
+
+        ImGui::SameLine();
+
+        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##silhouette").c_str()))
+        {
+            config->DlssNrDepthEdge = 0.0f;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Holds the model's edit back along the outline of an object, using the DEPTH buffer"
+                      "\nto find it."
+                      "\n\nFor a different fault from the one above, which is why Halo suppression cannot"
+                      "\ntouch it. Where a game makes no upscale call of its own, the pass has no engine"
+                      "\nmotion vectors and estimates them -- and an estimate is at its worst exactly where"
+                      "\none object ends and another begins. The model then draws on history from the wrong"
+                      "\nside of that edge, and what lands is a rim that looks like a faint double image"
+                      "\nfollowing characters."
+                      "\n\nThat edit is wrong in ORIGIN, not in size, so bounding how far it may go does"
+                      "\nnothing to it. Fading it out where the depth says an object ends does."
+                      "\n\nDepth knows a silhouette even when brightness does not -- a dark coat against a"
+                      "\ndark wall is no contrast edge at all. 0% is off. Raise it until the rim goes; too"
+                      "\nfar and outlines lose the detail the pass is adding everywhere else."
+                      "\n\nD3D12 only."));
+
         // Directly under the white point, because that is the number it moves and the number the
         // anchor captures. There is deliberately no on/off switch: the source dropdown above says
         // whether the scan is the white point's source, and that is the only reason anyone would

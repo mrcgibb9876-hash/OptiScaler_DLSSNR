@@ -3145,7 +3145,7 @@ DlssNr_Dx12::DlssNr_Dx12(std::string InName, ID3D12Device* InDevice) : Shader_Dx
 bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssNrConstants& InConstants,
                                ID3D12Resource* InSource, ID3D12Resource* InModel, ID3D12Resource* InOriginal,
                                ID3D12Resource* InMotion, ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget,
-                               ID3D12Resource* OutKeep)
+                               ID3D12Resource* OutKeep, ID3D12Resource* InDepth)
 {
     if (!_init || InCmdList == nullptr || _device == nullptr || InSource == nullptr || OutTarget == nullptr)
         return false;
@@ -3164,6 +3164,7 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
         InOriginal != nullptr ? InOriginal : InSource,
         InMotion != nullptr ? InMotion : InSource,
         InPrevEdit != nullptr ? InPrevEdit : InSource,
+        InDepth != nullptr ? InDepth : InSource,
     };
 
     for (uint32_t i = 0; i < kSrvCount; ++i)
@@ -5403,6 +5404,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.DebugView = cfg.DlssNrDebugView.value_or_default();
         resolveParams.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
         resolveParams.HaloGuard = std::clamp(cfg.DlssNrHaloGuard.value_or_default(), 0.0f, 1.0f);
+        resolveParams.DepthEdge = std::clamp(cfg.DlssNrDepthEdge.value_or_default(), 0.0f, 1.0f);
         resolveParams.Transfer = cfg.DlssNrTransfer.value_or_default();
         resolveParams.DebugScale = cfg.DlssNrWhitePointScale.value_or_default();
         resolveParams.Passthrough = isHdrBuffer ? 0u : 1u;
@@ -5570,7 +5572,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 }
             }
 
-            DispatchPass(cmdList, params, proxy, answer, resolveOriginal, slot3, exposureTex, dest, nullptr);
+            DispatchPass(cmdList, params, proxy, answer, resolveOriginal, slot3, exposureTex, dest, nullptr, depthIn);
 
             if (fitted)
                 Barrier(cmdList, g_nr.guideCoeffs, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
