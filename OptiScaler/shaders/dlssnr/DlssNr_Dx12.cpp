@@ -1367,6 +1367,10 @@ constexpr int kBaseChangeFrames = 30;
 float g_baseWanted = 1.0f;
 int g_baseWantedRun = 0;
 
+// Set when a base change is committed: the one move after it may build the size it moves to, because nothing
+// is kept in the new space and the size still standing belongs to the old one.
+bool g_baseChangeMayBuild = false;
+
 // Adaptive resolution's memory cap: the largest model size video memory has room for right now (1 = no cap).
 // Lowered one rung when the size wanted will not fit, lifted one rung at a time once the next one up fits
 // with the cache margin to spare. Resident Evil Requiem (2026-09-19): the game filled 10.6 of 10.9 GB, a
@@ -3522,25 +3526,30 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
             ++g_baseWantedRun;
 
-            // Whatever the odd call out is, this says so once: the setting as the pass reads it, which
-            // placement the call arrived on, and what it reported.
-            static int saidBase = 0;
-            if (saidBase < 12)
-            {
-                ++saidBase;
-                LOG_WARN("DLSS-NR model base {:.2f} -> {:.2f} wanted ({} in a row): setting {}, call {}, "
-                         "its render scale {:.3f}, target {}x{}, live model {}x{}",
-                         g_modelBase, base, g_baseWantedRun, renderCost ? "on" : "off",
-                         frame.BeforeUpscale ? "before SR" : "after upscale", frame.RenderScale, width, height,
-                         g_nr.workWidth, g_nr.workHeight);
-            }
-
             if (g_baseWantedRun >= kBaseChangeFrames)
             {
+                // What the change was made of, so a base that moves on its own can be read off the log.
+                LOG_INFO("DLSS-NR model base {:.2f} -> {:.2f}: setting {}, call {}, its render scale {:.3f}, "
+                         "target {}x{}, live model {}x{}",
+                         g_modelBase, base, renderCost ? "on" : "off",
+                         frame.BeforeUpscale ? "before SR" : "after upscale", frame.RenderScale, width, height,
+                         g_nr.workWidth, g_nr.workHeight);
+
                 FlushNrCache(base < 1.0f ? "Ray Reconstruction at render cost switched on"
                                          : "Ray Reconstruction at render cost switched off");
                 g_modelBase = base;
                 g_baseWantedRun = 0;
+
+                // AND THE MOVE OFF THE OLD SIZE IS ALLOWED TO BUILD.
+                //
+                // Everything kept was just dropped, so the size the controller wants cannot be cached and the
+                // no-build-on-a-move rule below would refuse the move. The live model is not even a size in the
+                // new space -- switching render cost on leaves a full-size model standing at 170% of the render
+                // resolution -- and it stands there until a prebuild slot comes round, which in Cyberpunk meant
+                // the rest of the session at 15 ms while the player toggled the setting and saw nothing happen
+                // (2026-09-20). One build on the frame the setting changed is the right price; a settings change
+                // rebuilds anyway.
+                g_baseChangeMayBuild = true;
             }
         }
         else
@@ -3580,9 +3589,19 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // smaller, and a smaller model has to be reachable even if nothing has built it yet -- waiting for a
     // prebuild slot while the card is full is how Resident Evil Requiem sat at "waiting for room" for three
     // and a half minutes. A hitch beats no model.
+    // And the third way out: the frame a base change lands on (g_baseChangeMayBuild, set where the base is
+    // committed above). The live model is a size in the space that was just left, so keeping it is the worse
+    // of the two, however long the build takes.
     g_prebuild.wantedScale = 0.0f;
 
-    if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
+    if (g_baseChangeMayBuild && (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight))
+    {
+        g_baseChangeMayBuild = false;
+        LOG_INFO("DLSS-NR model size: building {}x{} on the move -- the base changed under it and nothing is "
+                 "kept in the new space",
+                 workWidth, workHeight);
+    }
+    else if (g_nr.feature != nullptr && g_nr.width == width && g_nr.height == height &&
         (workWidth != g_nr.workWidth || workHeight != g_nr.workHeight) &&
         cfg.DlssNrAutoScalePrebuild.value_or_default() >= 2 && g_memCapScale >= 1.0f &&
         SizeCacheAllowed(cfg, cfg.DlssNrUseProxy.value_or_default(), workScale) &&
