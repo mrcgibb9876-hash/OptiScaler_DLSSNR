@@ -5372,6 +5372,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             float transfer;
             float colour;
             float maxRatio;
+            float haloGuard;
             unsigned int passthrough;
             unsigned int debugView;
             unsigned int compareMode;
@@ -5391,6 +5392,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                                          resolveParams.TransferStrength,
                                          resolveParams.ColourStrength,
                                          resolveParams.MaxRatio,
+                                         resolveParams.HaloGuard,
                                          resolveParams.Passthrough,
                                          resolveParams.DebugView,
                                          resolveParams.CompareMode,
@@ -5401,15 +5403,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         if (!loggedCompose.valid || loggedCompose.whitePoint != composeNow.whitePoint ||
             loggedCompose.transfer != composeNow.transfer || loggedCompose.colour != composeNow.colour ||
-            loggedCompose.maxRatio != composeNow.maxRatio || loggedCompose.passthrough != composeNow.passthrough ||
+            loggedCompose.maxRatio != composeNow.maxRatio || loggedCompose.haloGuard != composeNow.haloGuard || loggedCompose.passthrough != composeNow.passthrough ||
             loggedCompose.debugView != composeNow.debugView || loggedCompose.compareMode != composeNow.compareMode ||
             loggedCompose.residual != composeNow.residual || loggedCompose.workW != composeNow.workW ||
             loggedCompose.workH != composeNow.workH || loggedCompose.passes != composeNow.passes)
         {
             loggedCompose = composeNow;
             LOG_INFO("DLSS-NR composition: paper white {:.2f}x, detail {:.2f}, colour {:.2f}, guard "
-                     "{:.1f}x, colour transform {}, transfer {}, model {}x{}, passes {}, debug view {}, compare {}",
+                     "{:.1f}x, halo {:.0f}%, colour transform {}, transfer {}, model {}x{}, passes {}, debug view {}, "
+                     "compare {}",
                      composeNow.whitePoint, composeNow.transfer, composeNow.colour, composeNow.maxRatio,
+                     composeNow.haloGuard * 100.0f,
                      composeNow.passthrough != 0 ? "off (frame already tone mapped)" : "on (linear HDR)",
                      composeNow.residual == 3   ? "guided (full-size look)"
                      : composeNow.residual == 2 ? "edge-aware"

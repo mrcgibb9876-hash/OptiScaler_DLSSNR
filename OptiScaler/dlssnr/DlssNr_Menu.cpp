@@ -2129,9 +2129,11 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nan obvious halo."
                       "\n\nThis holds the edit inside the brightness range the frame's own neighbourhood"
                       "\nalready had. A real edge has both of its sides in that range and passes through"
-                      "\nuntouched; only an overshoot beyond both is pulled back. 0% is off; 100% allows"
-                      "\nno overshoot at all. Flat areas are left alone at any setting, so the fine texture"
-                      "\nthe model adds is not what this takes away."
+                      "\nuntouched; only an overshoot beyond both is pulled back. 0% is off; 100% is the"
+                      "\ntightest, and still leaves an edge a sixth of its own contrast to overshoot by --"
+                      "\nthe top of the slider is the strongest setting, not a hard clamp. Flat areas are"
+                      "\nleft alone at any setting, so the fine texture the model adds is not what this"
+                      "\ntakes away."
                       "\n\nEnlargement already removes the halos made by running the model SMALLER than the"
                       "\nframe. This is for the ones the model makes at any size, 100% included."));
 

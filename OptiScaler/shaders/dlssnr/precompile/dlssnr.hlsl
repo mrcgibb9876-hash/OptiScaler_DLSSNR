@@ -317,7 +317,16 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
     }
 
     const float contrast = max(mx - mn, 0.0);
-    const float allowance = (1.0 - suppression) * contrast + 0.02;
+
+    // The allowance keeps a share of the local contrast at EVERY setting. The first version went to a
+    // flat 0.02 at 100% -- no proportional term at all -- so the top of the slider was not the strongest
+    // setting but a cliff: every pixel with any real contrast was pinned to its neighbours' range, and
+    // as the scene moved the pinning moved with it. On Assassin's Creed IV's water and sails that read
+    // as the picture pulsing (2026-09-20). A control whose maximum misbehaves is a broken control, so
+    // the headroom now falls from the whole of the local contrast to a sixth of it and stops there.
+    const float headroom = lerp(1.0, 0.15, saturate(suppression));
+    const float allowance = contrast * headroom + 0.005;
+
     const float luma = dot(result, kLuma);
     const float bounded = clamp(luma, mn - allowance, mx + allowance);
 
@@ -326,7 +335,16 @@ float3 SuppressHalo(float3 result, uint2 pos, float suppression, float normScale
     if (bounded == luma)
         return result;
 
-    return result * (bounded / max(luma, 1e-6));
+    // And a halo needs an edge to stand against. Where the neighbourhood is flat there is no rim to
+    // remove and whatever the model did is texture -- the thing the pass is FOR -- so the clamp fades
+    // out rather than applying at full force with a tiny allowance. This is what the old absolute
+    // floor was trying to do and did badly: a floor still clamps, it just clamps late.
+    const float bite = smoothstep(0.02, 0.08, contrast);
+    if (bite <= 0.0)
+        return result;
+
+    const float scaled = lerp(luma, bounded, bite);
+    return result * (scaled / max(luma, 1e-6));
 }
 
 // sRGB rather than a plain 2.2 power: it is what an SDR game buffer actually carries, and the model was
