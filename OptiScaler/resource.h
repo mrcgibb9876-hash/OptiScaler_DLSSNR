@@ -34,7 +34,7 @@
 // published. Bringing both to 2.0.0 lines them up and the check works again.
 #define VER_MAJOR_VERSION 2
 #define VER_MINOR_VERSION 2
-#define VER_HOTFIX_VERSION 0
+#define VER_HOTFIX_VERSION 3
 #define VER_BUILD_NUMBER 1
 
 // A tagged release is not a dev build: leaving VER_DEV_RELEASE on labelled every shipped DLL
