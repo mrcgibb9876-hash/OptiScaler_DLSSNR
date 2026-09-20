@@ -1373,6 +1373,8 @@ float g_modelBase = 1.0f;
 // never stops. Latching rather than counting down: one steady minute does not mean the next fight will
 // not move it again, and the only cost of being wrong is a cache that holds one size.
 unsigned int g_lastFrameWidth = 0, g_lastFrameHeight = 0;
+// The largest render size this game has reached, for the held model size below.
+unsigned int g_drsPeakWidth = 0, g_drsPeakHeight = 0;
 unsigned int g_frameSizeMoves = 0;
 bool g_dynamicResolution = false;
 
@@ -3637,8 +3639,42 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             workScale = std::min(workScale, 1.0f);
     }
 
-    auto workWidth = (unsigned int) (width * g_modelBase * workScale + 0.5f);
-    auto workHeight = (unsigned int) (height * g_modelBase * workScale + 0.5f);
+    // Before SR on a game that moves its own render resolution: hold the model at ONE size instead of
+    // following every step the game takes.
+    //
+    // Assassin's Creed IV moved its render size 400+ times in 101 seconds, so the model changed size
+    // about four times a second -- every one a swap of temporal history, on a pass whose whole job is
+    // temporal. The size cache made those swaps free in TIME (no CreateFeature) but they were never
+    // free in PICTURE, and the flashing outlived the rebuilds being gone (2026-09-20).
+    //
+    // The model does not have to match the frame. Running it at a size the frame is not is exactly what
+    // Model resolution below 100% already does, and Enlargement already brings the answer back up -- so
+    // holding it costs nothing structurally. The size is taken from the largest render size the game
+    // has reached: that is the one it renders at when it has headroom, and coming DOWN to a smaller
+    // frame from it is the case Enlargement is best at.
+    //
+    // [DlssNr] SteadyModelSize turns it off for anyone who would rather the model tracked the frame.
+    const bool steady = cfg.DlssNrSteadyModelSize.value_or_default() &&
+                        cfg.DlssNrRunBeforeSr.value_or_default() && g_dynamicResolution;
+    unsigned int sizeWidth = width;
+    unsigned int sizeHeight = height;
+
+    if (steady)
+    {
+        if (width > g_drsPeakWidth)
+        {
+            g_drsPeakWidth = width;
+            g_drsPeakHeight = height;
+            LOG_INFO("DLSS-NR: holding the model at {}x{}, the largest render size this game has "
+                     "reached -- its resolution moves, the model's does not.",
+                     g_drsPeakWidth, g_drsPeakHeight);
+        }
+        sizeWidth = g_drsPeakWidth;
+        sizeHeight = g_drsPeakHeight;
+    }
+
+    auto workWidth = (unsigned int) (sizeWidth * g_modelBase * workScale + 0.5f);
+    auto workHeight = (unsigned int) (sizeHeight * g_modelBase * workScale + 0.5f);
 
     // NEVER BUILD A MODEL ON THE FRAME A MOVE HAPPENS.
     //

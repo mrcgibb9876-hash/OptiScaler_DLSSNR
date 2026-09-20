@@ -400,6 +400,12 @@ class Config
     // asked for rather than assumed.
     CustomOptional<float> DlssNrHaloGuard { 0.0f };
 
+    // [DlssNr] SteadyModelSize. Before Super Resolution on a game with dynamic resolution, hold the
+    // model at one size rather than following the game's render size every step. Default ON: four
+    // size changes a second is four swaps of temporal history a second, which is what the flashing
+    // reported on Assassin's Creed IV turned out to be once the rebuilds behind it were fixed.
+    CustomOptional<bool> DlssNrSteadyModelSize { true };
+
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
     // 0 classic, 1 matched residual, 2 edge-aware, 3 guided -- "Full-size look", the default since
