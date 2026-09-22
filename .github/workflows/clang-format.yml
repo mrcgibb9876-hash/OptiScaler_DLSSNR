@@ -14,7 +14,7 @@ jobs:
         # Three kinds of file are excluded, for one reason: nothing here writes them by hand, so
         # formatting them costs a conflict on every sync and buys nothing a reader will ever see.
         #
-        #   precompile/ and dlssnr/opticalflow/shaders/ hold generated shader bytecode as C arrays
+        #   the precompile/ folders and dlssnr/opticalflow/shaders/ hold generated shader bytecode as C arrays
         #     (the latter open with `#if 0` and a disassembly listing). Upstream regenerates them
         #     unformatted, so a reformat touches every line and then loses to the next regeneration.
         #   dlssnr/opticalflow/fidelityfx/ is AMD's FidelityFX SDK, vendored verbatim. Reformatting
@@ -26,4 +26,4 @@ jobs:
         # What is left is code this project actually writes, which is what a style check is for.
         # Before this the check failed on 96 files, 93% of them by line someone else's or a
         # generator's, so it was permanently red and told nobody anything.
-        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/|OptiScaler/dlssnr/opticalflow/fidelityfx/|OptiScaler/dlssnr/opticalflow/shaders/|OptiScaler/dlssnr/DlssNr_I18n_Tables\.cpp'
+        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/|OptiScaler/shaders/output_scaling/precompile/|OptiScaler/dlssnr/opticalflow/fidelityfx/|OptiScaler/dlssnr/opticalflow/shaders/|OptiScaler/dlssnr/DlssNr_I18n_Tables\.cpp'

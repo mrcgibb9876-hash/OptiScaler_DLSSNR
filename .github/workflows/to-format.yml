@@ -30,7 +30,8 @@ jobs:
           # stay byte-identical to upstream's so a sync does not conflict on whitespace.
           find OptiScaler -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) \
             -not -path 'OptiScaler/include/*' \
-            -not -path 'OptiScaler/shaders/dlssnr/precompile/*' -print0 |
+            -not -path 'OptiScaler/shaders/dlssnr/precompile/*' \
+            -not -path 'OptiScaler/shaders/output_scaling/precompile/*' -print0 |
             xargs -0 clang-format -i --style=file
 
       - name: Commit and push whatever changed
