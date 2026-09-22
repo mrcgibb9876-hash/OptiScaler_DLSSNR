@@ -495,6 +495,12 @@ class Config
     // different things and a good answer for one is not automatically a good answer for the other.
     CustomOptional<Upsampler> DlssNrScalingUpscaler { Upsampler::Bicubic };
 
+    // and its own anti-ringing strength and sigmoid flag, for the same reason again: an Output
+    // Scaling pass and this one are enlarging different pictures at different sizes, and a value
+    // that suits one is not automatically right for the other.
+    CustomOptional<float> DlssNrScalingAntiRinging { 0.8f };
+    CustomOptional<bool> DlssNrScalingSigmoid { false };
+
     // Ask the driver's own nvngx.dll whether it will dispatch Neural Rendering, once per session.
     //
     // Everything here drives the model's DLL directly through a forwarder, because the model refuses

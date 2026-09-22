@@ -3,8 +3,6 @@
 
 #include "OS_Common.h"
 #include "OS_Upsamplers.h"
-
-#include <algorithm>
 #include "../Shader_Common.h"
 
 #define A_CPU
@@ -75,11 +73,11 @@ bool OS_Dx11::Dispatch(ID3D11Device* InDevice, ID3D11DeviceContext* InContext, I
     constants.destWidth = State::Instance().currentFeature->DisplayWidth();
     constants.destHeight = State::Instance().currentFeature->DisplayHeight();
 
-    // See the matching comment in OS_Dx12.cpp: only the resampling upsamplers declare these members.
-    auto& osCfg = *Config::Instance();
-    constants.antiRinging =
-        _upsample ? std::clamp(osCfg.OutputScalingAntiRinging.value_or_default(), 0.0f, 1.0f) : 0.0f;
-    constants.sigmoid = (_upsample && osCfg.OutputScalingSigmoid.value_or_default()) ? 1 : 0;
+    // See the matching comment in OS_Dx12.cpp. Always the Output Scaling keys here: nothing on this
+    // backend builds a Neural Rendering pass.
+    const auto tuning = UpsamplerTuningFor(false);
+    constants.antiRinging = _upsample ? tuning.antiRinging : 0.0f;
+    constants.sigmoid = (_upsample && tuning.sigmoid) ? 1 : 0;
     constants.sigmoidCentre = 0.75f;
     constants.sigmoidSlope = 6.5f;
 

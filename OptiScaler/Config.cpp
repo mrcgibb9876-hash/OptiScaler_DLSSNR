@@ -430,6 +430,11 @@ bool Config::Reload(std::filesystem::path iniPath)
                 DlssNrScalingUpscaler.set_from_config(*v);
             else
                 DlssNrScalingUpscaler.reset();
+
+            if (auto setting = readFloat("DlssNr", "ScalingAntiRinging"); setting.has_value())
+                DlssNrScalingAntiRinging.set_from_config(std::clamp(setting.value(), 0.0f, 1.0f));
+
+            DlssNrScalingSigmoid.set_from_config(readBool("DlssNr", "ScalingSigmoid"));
             DlssNrProxyProbe.set_from_config(readBool("DlssNr", "ProxyProbe"));
             DlssNrUseProxy.set_from_config(readBool("DlssNr", "UseProxy"));
             DlssNrScanExposure.set_from_config(readBool("DlssNr", "ScanExposure"));
@@ -1376,6 +1381,10 @@ bool Config::SaveIni()
                      GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "ScalingUpscaler", GetIntValue(Instance()->DlssNrScalingUpscaler).c_str());
+        ini.SetValue("DlssNr", "ScalingAntiRinging",
+                     GetFloatValue(Instance()->DlssNrScalingAntiRinging.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "ScalingSigmoid",
+                     GetBoolValue(Instance()->DlssNrScalingSigmoid.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());
 

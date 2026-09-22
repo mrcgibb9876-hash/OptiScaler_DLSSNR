@@ -40,5 +40,16 @@ Upsampler ConfiguredNrUpsampler(Scaler downscaler);
 // both stay byte-for-byte what they were.
 const char* UpsamplerShaderSource(Upsampler which);
 
+// The two controls that shape a resampling upsampler's result, for whichever pass is asking. The
+// Neural Rendering up-leg has its own pair of keys for the same reason it has its own filter: it is
+// enlarging a different picture at a different size from an Output Scaling pass.
+struct UpsamplerTuning
+{
+    float antiRinging;
+    bool sigmoid;
+};
+
+UpsamplerTuning UpsamplerTuningFor(bool neuralRendering);
+
 // Short name for the pipeline label that ends up in the log.
 const char* UpsamplerName(Upsampler which);

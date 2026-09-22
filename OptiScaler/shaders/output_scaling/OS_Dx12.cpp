@@ -4,8 +4,6 @@
 #include "OS_Common.h"
 #include "OS_Upsamplers.h"
 
-#include <algorithm>
-
 using Microsoft::WRL::ComPtr;
 
 #define A_CPU
@@ -89,14 +87,14 @@ bool OS_Dx12::Dispatch(ID3D12GraphicsCommandList* InCmdList, ID3D12Resource* InR
     constants.destHeight = dstH;
 
     // Only the resampling upsamplers read these. Everything else declares just the four sizes above,
-    // so what goes here cannot reach a shader that was not written for it. The sigmoid curve's
-    // centre and slope are libplacebo's defaults and are not exposed: they are the shape of the
-    // curve, not a picture control, and a wrong pair looks like a broken filter rather than a
+    // so what goes here cannot reach a shader that was not written for it. An instance carrying an
+    // upsampler override is the Neural Rendering up-leg, which has its own pair of keys. The sigmoid
+    // curve's centre and slope are libplacebo's defaults and are not exposed: they are the shape of
+    // the curve, not a picture control, and a wrong pair looks like a broken filter rather than a
     // different one.
-    auto& osCfg = *Config::Instance();
-    constants.antiRinging =
-        _upsample ? std::clamp(osCfg.OutputScalingAntiRinging.value_or_default(), 0.0f, 1.0f) : 0.0f;
-    constants.sigmoid = (_upsample && osCfg.OutputScalingSigmoid.value_or_default()) ? 1 : 0;
+    const auto tuning = UpsamplerTuningFor(_upsamplerOverride != Upsampler::Count);
+    constants.antiRinging = _upsample ? tuning.antiRinging : 0.0f;
+    constants.sigmoid = (_upsample && tuning.sigmoid) ? 1 : 0;
     constants.sigmoidCentre = 0.75f;
     constants.sigmoidSlope = 6.5f;
 

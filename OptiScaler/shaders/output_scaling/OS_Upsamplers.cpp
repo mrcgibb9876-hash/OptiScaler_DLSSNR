@@ -547,6 +547,18 @@ Upsampler ConfiguredNrUpsampler(Scaler downscaler)
     return configured.has_value() ? configured.value() : ImpliedBy(downscaler);
 }
 
+UpsamplerTuning UpsamplerTuningFor(bool neuralRendering)
+{
+    auto& cfg = *Config::Instance();
+
+    const float strength = neuralRendering ? cfg.DlssNrScalingAntiRinging.value_or_default()
+                                           : cfg.OutputScalingAntiRinging.value_or_default();
+    const bool sigmoid =
+        neuralRendering ? cfg.DlssNrScalingSigmoid.value_or_default() : cfg.OutputScalingSigmoid.value_or_default();
+
+    return { strength < 0.0f ? 0.0f : (strength > 1.0f ? 1.0f : strength), sigmoid };
+}
+
 const char* UpsamplerShaderSource(Upsampler which)
 {
     // Function-local statics: assembled once, on first use, in a defined order. Doing this at
