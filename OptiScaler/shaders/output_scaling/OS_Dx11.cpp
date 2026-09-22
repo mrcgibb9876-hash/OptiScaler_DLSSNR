@@ -76,10 +76,11 @@ bool OS_Dx11::Dispatch(ID3D11Device* InDevice, ID3D11DeviceContext* InContext, I
     // See the matching comment in OS_Dx12.cpp. Always the Output Scaling keys here: nothing on this
     // backend builds a Neural Rendering pass.
     const auto tuning = UpsamplerTuningFor(false);
+    constants.sharpness = _upsample ? tuning.sharpness : 0.0f;
     constants.antiRinging = _upsample ? tuning.antiRinging : 0.0f;
-    constants.sigmoid = (_upsample && tuning.sigmoid) ? 1 : 0;
-    constants.sigmoidCentre = 0.75f;
-    constants.sigmoidSlope = 6.5f;
+    constants.sigmoid = _upsample ? tuning.sigmoid : 0.0f;
+    constants.dither = _upsample ? tuning.dither : 0.0f;
+    constants.frame = (int32_t) (State::Instance().frameCount & 0x7FFFFFFFu);
 
     // fsr upscaling
     if (UsesFsr1())

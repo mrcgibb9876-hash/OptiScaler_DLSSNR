@@ -23,9 +23,10 @@ cbuffer Params : register(b0)
     int _DstWidth;
     int _DstHeight;
     float _AntiRinging;
-    int _Sigmoid;
-    float _SigmoidCentre;
-    float _SigmoidSlope;
+    float _Sharpness;
+    float _Sigmoid;
+    float _Dither;
+    int _Frame;
 };
 
 #ifdef VK_MODE
@@ -74,6 +75,12 @@ static float2 SourceScale()
 // squashing those into range would be a worse artefact than the ringing it is meant to fix, so a
 // component outside (0, 1) passes through untouched. That makes it an SDR control in practice,
 // which is why it defaults to off.
+//
+// The strength slider is the curve's SLOPE, with libplacebo's 6.5 at the top of the range. That is
+// what makes it a real zero-to-max control rather than a switch wearing a slider: a low slope is a
+// curve that barely bends, not a weaker version of a fixed one. Below about 2% of the range the
+// scale factor the inverse divides by gets small enough to be worth avoiding, and a curve that
+// shallow is doing nothing anyway, so the caller treats that as off.
 const char* kSigmoid = R"(
 static float2 SigmoidTerms(float centre, float slope)
 {
@@ -123,7 +130,21 @@ static float3 SigmoidInv(float3 c, float centre, float slope, float2 terms)
 // thing in this folder by a wide margin. That is the known price of EWA, not a bug to tune out.
 const char* kEwaLanczos = R"(
 static const float JINC_ZERO1 = 1.2196698912665045f;
-static const float EWA_RADIUS = 3.2383154841662362f;
+
+// The third and fourth zeros of jinc, which are the radii of the two filters libplacebo names at
+// either end of the sharpness slider, and the kernel stretch of the sharper one.
+static const float JINC_ZERO3 = 3.2383154841662362f;
+static const float JINC_ZERO4 = 4.2410628637960699f;
+static const float BLUR_SHARPEST = 0.8845120932605482f;
+
+// 4x4 Bayer, for the dither at the end. Written out rather than derived, because the bit trick that
+// produces it is harder to check than the matrix is.
+static const float BAYER4[16] = {
+     0.0f,  8.0f,  2.0f, 10.0f,
+    12.0f,  4.0f, 14.0f,  6.0f,
+     3.0f, 11.0f,  1.0f,  9.0f,
+    15.0f,  7.0f, 13.0f,  5.0f
+};
 
 // Bessel J1, Abramowitz and Stegun 9.4.4 and 9.4.6 -- the same family of polynomial approximation
 // the Kaiser downsamplers already use for I0, and good to about 1e-7 across the range this needs.
@@ -162,11 +183,23 @@ static float Jinc(float x)
 // Lanczos windowing, done radially: the kernel is jinc, and the window is jinc stretched so that
 // its own first zero falls exactly on the filter radius. The same construction as sinc(x)*sinc(x/a)
 // in one dimension, with every 1 replaced by the first zero of jinc.
-static float EwaWeight(float d)
+//
+// blur stretches the KERNEL without moving the window, so below 1 the kernel is evaluated further
+// out than the distance asks for and the filter sharpens. This is libplacebo's blur coefficient and
+// it is what separates its three named EWA filters from each other.
+static float EwaWeight(float d, float radius, float blur)
 {
-    if (d >= EWA_RADIUS)
+    if (d >= radius)
         return 0.0f;
-    return Jinc(d) * Jinc(d * JINC_ZERO1 / EWA_RADIUS);
+    return Jinc(d / blur) * Jinc(d * JINC_ZERO1 / radius);
+}
+
+// Ordered dither, advanced per frame by the golden ratio so the pattern is well spread over time
+// rather than sitting still as a texture you can pick out. Returns -0.5 to +0.5.
+static float DitherOffset(uint2 p, int frame)
+{
+    float cell = BAYER4[(p.y & 3) * 4 + (p.x & 3)] / 16.0f;
+    return frac(cell + (float) frame * 0.61803398875f) - 0.5f;
 }
 
 [numthreads(8, 8, 1)]
@@ -182,8 +215,27 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     int2 ip = (int2) floor(srcPos);
     float2 f = srcPos - (float2) ip;
 
-    float2 terms = SigmoidTerms(_SigmoidCentre, _SigmoidSlope);
-    bool useSigmoid = (_Sigmoid != 0);
+    // One slider, three filters. At 0 this is libplacebo's ewa_lanczos. At 1 it is
+    // ewa_lanczos4sharpest -- that filter's radius AND its kernel stretch. ewa_lanczossharp is a
+    // stretch of 0.98125 at ewa_lanczos's radius, so the radius is held flat until the stretch is
+    // already past that point and only then opens up: that puts all three of them on the line,
+    // instead of two of them on it and the third somewhere beside it.
+    float sharpness = saturate(_Sharpness);
+    float blur = lerp(1.0f, BLUR_SHARPEST, sharpness);
+    float radius = lerp(JINC_ZERO3, JINC_ZERO4, smoothstep(0.5f, 1.0f, sharpness));
+
+    // Sharpening widens the support, so the tap count follows the slider instead of always paying
+    // for the widest setting. 8x8 at the soft end, 10x10 at the sharp one.
+    int taps = (int) ceil(radius);
+
+    // The slope of the sigmoid curve, with libplacebo's 6.5 at the top of the slider. Too shallow a
+    // curve is doing nothing and divides the inverse by a scale factor small enough to be worth
+    // avoiding, so the bottom of the range is off rather than nearly off.
+    float sigmoidStrength = saturate(_Sigmoid);
+    bool useSigmoid = sigmoidStrength >= 0.02f;
+    float sigmoidCentre = 0.75f;
+    float sigmoidSlope = 6.5f * sigmoidStrength;
+    float2 terms = SigmoidTerms(sigmoidCentre, sigmoidSlope);
 
     float3 acc = 0.0f;
     float wsum = 0.0f;
@@ -192,17 +244,17 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     float3 lo = 1e30f;
     float3 hi = -1e30f;
 
-    for (int j = -3; j <= 4; ++j)
+    for (int j = -taps + 1; j <= taps; ++j)
     {
-        for (int i = -3; i <= 4; ++i)
+        for (int i = -taps + 1; i <= taps; ++i)
         {
-            float w = EwaWeight(length(float2((float) i - f.x, (float) j - f.y)));
+            float w = EwaWeight(length(float2((float) i - f.x, (float) j - f.y)), radius, blur);
             if (w == 0.0f)
                 continue;
 
             float3 s = FetchTexel(ip.x + i, ip.y + j);
             if (useSigmoid)
-                s = SigmoidFwd(s, _SigmoidCentre, _SigmoidSlope, terms);
+                s = SigmoidFwd(s, sigmoidCentre, sigmoidSlope, terms);
 
             if (i >= 0 && i <= 1 && j >= 0 && j <= 1)
             {
@@ -224,7 +276,18 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     outRgb = lerp(outRgb, clamp(outRgb, lo, hi), saturate(_AntiRinging));
 
     if (useSigmoid)
-        outRgb = SigmoidInv(outRgb, _SigmoidCentre, _SigmoidSlope, terms);
+        outRgb = SigmoidInv(outRgb, sigmoidCentre, sigmoidSlope, terms);
+
+    // Dither last, after the clamp, because it is the final thing before the store that can break a
+    // band -- and because anything applied after it would quantise it straight back out again.
+    //
+    // The amplitude is half a step of an 8-BIT output at the top of the slider. Eight bits is the
+    // assumption, not a reading: this pass cannot see what the swapchain will do with the frame, and
+    // banding is an SDR complaint. On a wider output the dither is simply below the step size and
+    // costs nothing.
+    float ditherStrength = saturate(_Dither);
+    if (ditherStrength > 0.0f)
+        outRgb += DitherOffset(uint2(ox, oy), _Frame) * (ditherStrength / 255.0f);
 
     OutputTexture[uint2(ox, oy)] = float4(outRgb, 1.0f);
 }
@@ -533,6 +596,13 @@ Upsampler ImpliedBy(Scaler downscaler)
     return downscaler == Scaler::FSR1 ? Upsampler::FSR1 : Upsampler::Bicubic;
 }
 
+// Every tuning control is a plain 0..1, so they all come through here rather than each carrying its
+// own clamp. The ini reader clamps too; this is for a value set live from the menu.
+float Unit(float v)
+{
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+}
+
 } // namespace
 
 Upsampler ConfiguredUpsampler(Scaler downscaler)
@@ -551,12 +621,16 @@ UpsamplerTuning UpsamplerTuningFor(bool neuralRendering)
 {
     auto& cfg = *Config::Instance();
 
-    const float strength = neuralRendering ? cfg.DlssNrScalingAntiRinging.value_or_default()
-                                           : cfg.OutputScalingAntiRinging.value_or_default();
-    const bool sigmoid =
-        neuralRendering ? cfg.DlssNrScalingSigmoid.value_or_default() : cfg.OutputScalingSigmoid.value_or_default();
+    if (neuralRendering)
+        return { Unit(cfg.DlssNrScalingSharpness.value_or_default()),
+                 Unit(cfg.DlssNrScalingAntiRinging.value_or_default()),
+                 Unit(cfg.DlssNrScalingSigmoid.value_or_default()),
+                 Unit(cfg.DlssNrScalingDither.value_or_default()) };
 
-    return { strength < 0.0f ? 0.0f : (strength > 1.0f ? 1.0f : strength), sigmoid };
+    return { Unit(cfg.OutputScalingSharpness.value_or_default()),
+             Unit(cfg.OutputScalingAntiRinging.value_or_default()),
+             Unit(cfg.OutputScalingSigmoid.value_or_default()),
+             Unit(cfg.OutputScalingDither.value_or_default()) };
 }
 
 const char* UpsamplerShaderSource(Upsampler which)

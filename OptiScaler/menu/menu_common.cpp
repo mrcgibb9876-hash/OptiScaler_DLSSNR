@@ -5928,8 +5928,10 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     _ssEnabled = config->OutputScalingEnabled.value_or_default();
                     _ssDownsampler = config->OutputScalingDownscaler.value_or_default();
                     _ssUpsampler = ConfiguredUpsampler(_ssDownsampler);
+                    _ssSharpness = config->OutputScalingSharpness.value_or_default();
                     _ssAntiRinging = config->OutputScalingAntiRinging.value_or_default();
                     _ssSigmoid = config->OutputScalingSigmoid.value_or_default();
+                    _ssDither = config->OutputScalingDither.value_or_default();
                 }
 
                 ImGui::BeginDisabled((currentBackend == Upscaler::XeSS || currentBackend == Upscaler::DLSS) &&
@@ -6025,18 +6027,36 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 }
                 ImGui::EndDisabled();
 
+                // EWA Lanczos's four controls. All of them run 0 to 1 with 0 the gentlest setting,
+                // deliberately: one row of identical sliders reads as a set, where a switch beside a
+                // preset name reads as four unrelated things that happen to sit together.
                 ImGui::BeginDisabled(!_ssEnabled || !ssUpsampling || _ssUpsampler != Upsampler::EwaLanczos);
                 {
-                    ImGui::SliderFloat("Anti-ringing", &_ssAntiRinging, 0.0f, 1.0f, "%.2f");
-                    ShowHelpMarker("How hard to pull EWA Lanczos back inside the range of the pixels it is\n"
-                                   "interpolating between -- the bright or dark rim it can leave on a hard edge.\n\n"
-                                   "0 leaves the filter's own answer. 1 allows no overshoot at all.");
+                    ImGui::SliderFloat("Sharpness", &_ssSharpness, 0.0f, 1.0f, "%.2f");
+                    ShowHelpMarker("How hard the filter is pulled in. This is one slider across the three EWA\n"
+                                   "filters libplacebo names: 0.00 is ewa_lanczos, about 0.16 is\n"
+                                   "ewa_lanczossharp, and 1.00 is ewa_lanczos4sharpest.\n\n"
+                                   "It costs more the further up it goes -- the sharpest setting widens the\n"
+                                   "kernel from 64 taps per pixel to 100.");
 
-                    ImGui::Checkbox("Sigmoidal light", &_ssSigmoid);
+                    ImGui::SliderFloat("Anti-ringing", &_ssAntiRinging, 0.0f, 1.0f, "%.2f");
+                    ShowHelpMarker("The bright or dark rim sharpening buys, held back.\n\n"
+                                   "It pulls the filter's answer inside the range of the pixels it is\n"
+                                   "interpolating between. 0 leaves the filter's own answer, 1 allows no\n"
+                                   "overshoot at all. Raise it with Sharpness.");
+
+                    ImGui::SliderFloat("Sigmoidal light", &_ssSigmoid, 0.0f, 1.0f, "%.2f");
                     ShowHelpMarker("Resample on an S-shaped curve, so an overshoot near black or near white is\n"
-                                   "compressed instead of clipping into a visible band.\n\n"
-                                   "SDR only: the transform is defined on 0..1, so anything brighter passes\n"
-                                   "through untouched and an HDR frame is largely unaffected.");
+                                   "compressed instead of clipping into a flat band. The slider is the curve's\n"
+                                   "slope, with the reference value at 1.00.\n\n"
+                                   "SDR only: the curve is only defined between black and white, so anything\n"
+                                   "brighter passes through untouched and an HDR frame is barely affected.");
+
+                    ImGui::SliderFloat("Dither", &_ssDither, 0.0f, 1.0f, "%.2f");
+                    ShowHelpMarker("Breaks a band by adding a pattern below the size of one step, stepped each\n"
+                                   "frame so it does not sit still as a texture you can pick out.\n\n"
+                                   "1.00 is half a step of an 8-bit output. On a wider output it falls below\n"
+                                   "the step size and costs nothing either way.");
                 }
                 ImGui::EndDisabled();
 
@@ -6044,8 +6064,10 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                                     _ssRatio != config->OutputScalingMultiplier.value_or(defaultRatio) ||
                                     _ssDownsampler != config->OutputScalingDownscaler.value_or_default() ||
                                     _ssUpsampler != ConfiguredUpsampler(_ssDownsampler) ||
+                                    _ssSharpness != config->OutputScalingSharpness.value_or_default() ||
                                     _ssAntiRinging != config->OutputScalingAntiRinging.value_or_default() ||
-                                    _ssSigmoid != config->OutputScalingSigmoid.value_or_default();
+                                    _ssSigmoid != config->OutputScalingSigmoid.value_or_default() ||
+                                    _ssDither != config->OutputScalingDither.value_or_default();
 
                 ImGui::BeginDisabled(!applyEnabled);
                 if (ImGui::Button("Apply Change"))
@@ -6058,8 +6080,10 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
                     config->OutputScalingDownscaler = _ssDownsampler;
                     config->OutputScalingUpscaler = _ssUpsampler;
+                    config->OutputScalingSharpness = _ssSharpness;
                     config->OutputScalingAntiRinging = _ssAntiRinging;
                     config->OutputScalingSigmoid = _ssSigmoid;
+                    config->OutputScalingDither = _ssDither;
 
                     const bool usesDlssd = currentFeature->GetUpscalerType() == Upscaler::DLSSD;
                     if (usesDlssd)

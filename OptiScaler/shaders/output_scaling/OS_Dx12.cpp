@@ -88,15 +88,15 @@ bool OS_Dx12::Dispatch(ID3D12GraphicsCommandList* InCmdList, ID3D12Resource* InR
 
     // Only the resampling upsamplers read these. Everything else declares just the four sizes above,
     // so what goes here cannot reach a shader that was not written for it. An instance carrying an
-    // upsampler override is the Neural Rendering up-leg, which has its own pair of keys. The sigmoid
-    // curve's centre and slope are libplacebo's defaults and are not exposed: they are the shape of
-    // the curve, not a picture control, and a wrong pair looks like a broken filter rather than a
-    // different one.
+    // upsampler override is the Neural Rendering up-leg, which has its own set of keys. The frame
+    // index is for the dither, which steps its pattern each frame so it does not settle into
+    // something you can see.
     const auto tuning = UpsamplerTuningFor(_upsamplerOverride != Upsampler::Count);
+    constants.sharpness = _upsample ? tuning.sharpness : 0.0f;
     constants.antiRinging = _upsample ? tuning.antiRinging : 0.0f;
-    constants.sigmoid = (_upsample && tuning.sigmoid) ? 1 : 0;
-    constants.sigmoidCentre = 0.75f;
-    constants.sigmoidSlope = 6.5f;
+    constants.sigmoid = _upsample ? tuning.sigmoid : 0.0f;
+    constants.dither = _upsample ? tuning.dither : 0.0f;
+    constants.frame = (int32_t) (State::Instance().frameCount & 0x7FFFFFFFu);
 
     // fsr upscaling
     bool createdConstantsBuffer = false;

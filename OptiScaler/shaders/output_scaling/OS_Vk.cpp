@@ -165,10 +165,11 @@ bool OS_Vk::Dispatch(VkCommandBuffer InCmdList, const VkImageInfo& InResourceVie
     // Nothing on this backend reads these yet -- bicubic is the only upsampler it has -- but the
     // struct is shared with the other two, so leaving them uninitialised would mean uploading
     // whatever was on the stack.
+    constants.sharpness = 0.0f;
     constants.antiRinging = 0.0f;
-    constants.sigmoid = 0;
-    constants.sigmoidCentre = 0.75f;
-    constants.sigmoidSlope = 6.5f;
+    constants.sigmoid = 0.0f;
+    constants.dither = 0.0f;
+    constants.frame = 0;
 
     if (_mappedConstantBuffer)
     {

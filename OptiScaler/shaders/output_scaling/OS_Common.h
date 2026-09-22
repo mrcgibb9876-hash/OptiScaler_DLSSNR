@@ -13,9 +13,10 @@ struct alignas(256) Constants
     // LARGER than the members a shader names, never smaller, so every shader below -- all of which
     // declare only the four sizes -- is untouched by this. Never insert above this line.
     float antiRinging;
-    int32_t sigmoid;
-    float sigmoidCentre;
-    float sigmoidSlope;
+    float sharpness;
+    float sigmoid;
+    float dither;
+    int32_t frame;
 };
 
 // Lanczos with luminance correction

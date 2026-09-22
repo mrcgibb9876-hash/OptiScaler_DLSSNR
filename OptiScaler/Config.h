@@ -495,11 +495,13 @@ class Config
     // different things and a good answer for one is not automatically a good answer for the other.
     CustomOptional<Upsampler> DlssNrScalingUpscaler { Upsampler::Bicubic };
 
-    // and its own anti-ringing strength and sigmoid flag, for the same reason again: an Output
-    // Scaling pass and this one are enlarging different pictures at different sizes, and a value
-    // that suits one is not automatically right for the other.
+    // and its own copy of the four controls above, for the same reason again: an Output Scaling
+    // pass and this one are enlarging different pictures at different sizes, and a value that suits
+    // one is not automatically right for the other.
+    CustomOptional<float> DlssNrScalingSharpness { 0.0f };
     CustomOptional<float> DlssNrScalingAntiRinging { 0.8f };
-    CustomOptional<bool> DlssNrScalingSigmoid { false };
+    CustomOptional<float> DlssNrScalingSigmoid { 0.0f };
+    CustomOptional<float> DlssNrScalingDither { 0.0f };
 
     // Ask the driver's own nvngx.dll whether it will dispatch Neural Rendering, once per session.
     //
@@ -905,13 +907,17 @@ class Config
     // only what that rule resolves to in the common case.
     CustomOptional<Upsampler> OutputScalingUpscaler { Upsampler::FSR1 };
 
-    // How hard to pull a resampling upscaler's answer back inside the range its nearest neighbours
-    // already covered. Only EWA Lanczos reads it -- the nearest-neighbour family cannot ring, and
-    // the existing downsamplers carry their own fixed clamp that this must not disturb.
+    // EWA Lanczos's four controls, all of them a plain 0..1 where 0 is the gentlest setting. Only
+    // that filter reads them: the nearest-neighbour family cannot ring, and the existing
+    // downsamplers carry their own fixed clamp that none of this may disturb.
+    //
+    // Sharpness runs libplacebo's ewa_lanczos at 0 through to ewa_lanczos4sharpest at 1, radius and
+    // all, so it costs more the further up it goes. AntiRinging bounds the rim that buys.
+    // Sigmoid is the curve's slope, and Dither breaks a band at half an 8-bit step.
+    CustomOptional<float> OutputScalingSharpness { 0.0f };
     CustomOptional<float> OutputScalingAntiRinging { 0.8f };
-
-    // Resample in sigmoidal light. SDR only by construction (see the shader), so it defaults off.
-    CustomOptional<bool> OutputScalingSigmoid { false };
+    CustomOptional<float> OutputScalingSigmoid { 0.0f };
+    CustomOptional<float> OutputScalingDither { 0.0f };
 
     // FSR
     CustomOptional<bool> FsrDebugView { false };
