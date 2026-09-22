@@ -306,6 +306,12 @@ class Config
     // On the Present route with no upscale call: estimate motion vectors from the frames (optical flow, beside
     // OptiScaler as OptiScaler_OpticalFlow.dll) instead of handing the model a motion field of zeros.
     CustomOptional<bool> DlssNrOpticalFlow { true };
+
+    // What the Present route does with the model's temporal history when it has NO motion vectors --
+    // optical flow off, refused, or the guides too odd to locate the picture in the frame. On, each
+    // frame stands on its own; off, the model keeps accumulating against vectors that say nothing
+    // moved, which is the pulsing across textures this route has always had. See DlssNr_Dx12.cpp.
+    CustomOptional<bool> DlssNrResetWhenBlind { true };
     // Run the NR pass on the upscaler's colour input, at render resolution, immediately before SR.
     // Off preserves the v0.2.0 post-upscale placement.
     CustomOptional<bool> DlssNrRunBeforeSr { false };

@@ -3557,6 +3557,10 @@ struct TrackedGuides
     ID3D12Resource* zeroMotion = nullptr;
     bool wasActive = false;
     bool usingFlow = false;
+
+    // Said once. The optical flow module logs its own failure; this is the OTHER way the route ends
+    // up blind, and until now it said nothing at all.
+    bool warnedGuideSize = false;
 };
 
 TrackedGuides g_tracked;
@@ -4167,11 +4171,21 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 
             // Motion: estimated from the frames when the picture and the depth are the same size, zero otherwise.
             bool flowCut = false;
+            const bool guidesLineUp = tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height;
             ID3D12Resource* const motion =
-                tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height
-                    ? PresentOpticalFlow(device, list, backBuffer, frameDesc, pictureY, tracked.width, tracked.height,
-                                         !g_tracked.wasActive, flowCut)
-                    : nullptr;
+                guidesLineUp ? PresentOpticalFlow(device, list, backBuffer, frameDesc, pictureY, tracked.width,
+                                                  tracked.height, !g_tracked.wasActive, flowCut)
+                             : nullptr;
+
+            // The flow module logs when it cannot start. This is the other way to end up blind and it
+            // was silent, which made the commonest cause of the artefact below invisible in a log.
+            if (!guidesLineUp && !g_tracked.warnedGuideSize)
+            {
+                g_tracked.warnedGuideSize = true;
+                LOG_WARN("DLSS-NR Present route: the depth guide is {}x{} against a {}x{} frame, so where the "
+                         "picture sits inside it is unknown -- no optical flow, zero motion vectors",
+                         tracked.width, tracked.height, (unsigned int) frameDesc.Width, frameDesc.Height);
+            }
 
             presentParams->Set(NVSDK_NGX_Parameter_Depth, copy);
             presentParams->Set(NVSDK_NGX_Parameter_MotionVectors, motion != nullptr ? motion : g_tracked.zeroMotion);
@@ -4184,8 +4198,28 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             // and zero motion, leaves nothing to reproject from.
             const bool motionSourceChanged = (motion != nullptr) != g_tracked.usingFlow;
             g_tracked.usingFlow = motion != nullptr;
+
+            // ...and so does history kept against vectors that are all zero.
+            //
+            // Zero motion does not mean "nothing moved". It means "this route could not find out".
+            // The model is temporal: it reprojects its history by those vectors and accumulates on
+            // the result. Told every pixel stayed put, it fetches last frame's history from the same
+            // screen position -- which is right only while the view is still. The moment the camera
+            // moves it blends this frame's detail against history taken from the wrong surface, and
+            // then keeps doing it, because nothing ever tells it otherwise. That is the slow pulsing
+            // or swimming across textures reported on this route, in every game, and it is why no
+            // setting made any difference to it: nothing here was a setting.
+            //
+            // There is no correct reprojection to be had without vectors, so the honest thing is to
+            // keep no history at all and let each frame stand on its own. That gives up the temporal
+            // stability history buys -- NVIDIA documents reset-per-frame as a flicker and aliasing
+            // risk, and the same trade is written up under ChainedHistory -- which is why it is a
+            // key and not a silent change. It costs nothing: a reset is a flag, not a rebuild.
+            const bool blind = motion == nullptr;
+            const bool resetWhileBlind = blind && Config::Instance()->DlssNrResetWhenBlind.value_or_default();
+
             presentParams->Set(NVSDK_NGX_Parameter_Reset,
-                               (!g_tracked.wasActive || flowCut || motionSourceChanged) ? 1u : 0u);
+                               (!g_tracked.wasActive || flowCut || motionSourceChanged || resetWhileBlind) ? 1u : 0u);
             presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_X, 1.0f);
             presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_Y, 1.0f);
 
