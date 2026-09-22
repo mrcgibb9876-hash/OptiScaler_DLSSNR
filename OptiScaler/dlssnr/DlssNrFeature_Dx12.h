@@ -61,6 +61,10 @@ void RenderMenu(::Config* config, float menuResScale);
 // Clears the session failure latch, so a failure caused by transient thrash does not cost a restart.
 void RetryAfterFailure();
 
+// Every [DlssNr] setting back to what it ships with, from the panel's Reset all button. Where the
+// panel sits, the keys that open it and how it looks are the player's and are kept (DlssNr_Api.cpp).
+void ResetSettingsToDefaults();
+
 // Asks the model whether it will work on Direct3D 11 at all, once, and logs the answer.
 //
 // The bridge exists because of a claim nobody tested: "the model refuses on DX11, it answers

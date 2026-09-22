@@ -1769,6 +1769,36 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
+
+        // The two resets, at the foot of the first page: one puts the panel back where it opens, the
+        // other puts this game's tuning back to what it ships with. Together at the bottom rather than
+        // in the title row -- a reset is a thing you go looking for, not something to have under a
+        // thumb while reaching for the close button.
+        ImGui::Spacing();
+
+        if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
+        {
+            config->DlssNrPanelX = -1.0f;
+            config->DlssNrPanelY = -1.0f;
+            config->DlssNrPanelW = -1.0f;
+            config->DlssNrPanelH = -1.0f;
+            s_layout.placeFrames = 2;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Puts the panel back where it opens -- the left edge, halfway down, at its own size."));
+
+        ImGui::SameLine();
+
+        if (ImGui::SmallButton((std::string(Tr("Reset all to defaults")) + "##resetall").c_str()))
+        {
+            DlssNr::ResetSettingsToDefaults();
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Every DLSS 5 setting back to what it ships with: the model and its strengths, the"
+                      "\ncost controls, the picture and the guides."
+                      "\n\nKept: where this panel sits and how big it is (Reset layout, beside this), the"
+                      "\nkeys that open it, and whether it is light or dark. Those are yours, not this"
+                      "\ngame's tuning."));
         }
 
         if (OnPage(kPageCost))
@@ -2761,19 +2791,6 @@ void RenderMenu(Config* config, float menuResScale)
             HelpMarker(Tr("The same panel on a light ground, for a bright scene."));
         }
 
-        if (layout.CustomPos() || layout.CustomSize())
-        {
-            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
-            {
-                config->DlssNrPanelX = -1.0f;
-                config->DlssNrPanelY = -1.0f;
-                config->DlssNrPanelW = -1.0f;
-                config->DlssNrPanelH = -1.0f;
-                s_layout.placeFrames = 2;
-                anyChanged = true;
-            }
-            HelpMarker(Tr("Put the panel back where it opens: the left edge, halfway down, at its own size."));
-        }
 
 
         if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
