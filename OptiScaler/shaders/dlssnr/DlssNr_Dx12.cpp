@@ -762,6 +762,11 @@ struct NrRetired
 {
     void* feature = nullptr;
     ID3D12Resource* resource = nullptr;
+    // A scaling filter the GPU may still be reading from. Changing the Upscaler used to delete its
+    // pipeline and descriptors on the spot, while frames using them were still in flight: the device
+    // hung a few seconds later, every time, the moment the filter was changed (Shadow of the Tomb
+    // Raider, 2026-09-22). It waits its turn here like everything else now.
+    OS_Dx12* scaler = nullptr;
     int framesLeft = 32;
 };
 
@@ -858,6 +863,17 @@ void ParkNrFeature(void*& feature)
     g_nrRetired.push_back(r);
 }
 
+void ParkNrScaler(OS_Dx12*& scaler)
+{
+    if (scaler == nullptr)
+        return;
+
+    NrRetired r;
+    r.scaler = scaler;
+    scaler = nullptr;
+    g_nrRetired.push_back(r);
+}
+
 void ParkNrResource(ID3D12Resource*& res)
 {
     if (res == nullptr)
@@ -884,6 +900,9 @@ void TickNrRetired()
 
         if (g_nrRetired[i].resource != nullptr)
             g_nrRetired[i].resource->Release();
+
+        if (g_nrRetired[i].scaler != nullptr)
+            delete g_nrRetired[i].scaler;
 
         g_nrRetired.erase(g_nrRetired.begin() + i);
     }
@@ -2920,16 +2939,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const Upsampler nrUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
             if (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler)
             {
-                if (g_nr.superUp != nullptr)
-                {
-                    delete g_nr.superUp;
-                    g_nr.superUp = nullptr;
-                }
-                if (g_nr.superDown != nullptr)
-                {
-                    delete g_nr.superDown;
-                    g_nr.superDown = nullptr;
-                }
+                // Parked rather than deleted, for the reason above: the GPU may still be reading
+                // the pipeline a frame or two behind the change.
+                ParkNrScaler(g_nr.superUp);
+                ParkNrScaler(g_nr.superDown);
                 g_nr.nrScaler = nrScaler;
                 g_nr.nrUpsampler = nrUpsampler;
             }
@@ -3321,10 +3334,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
             if (g_nr.editUp != nullptr && (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler))
             {
-                delete g_nr.editUp;
-                delete g_nr.proxyUp;
-                g_nr.editUp = nullptr;
-                g_nr.proxyUp = nullptr;
+                // Parked, not deleted: frames built with the old filter are still in flight.
+                ParkNrScaler(g_nr.editUp);
+                ParkNrScaler(g_nr.proxyUp);
             }
             g_nr.nrScaler = nrScaler;
             g_nr.nrUpsampler = nrUpsampler;
