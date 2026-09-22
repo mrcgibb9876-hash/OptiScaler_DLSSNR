@@ -197,6 +197,9 @@ class MenuCommon
     static void RenderHudlessResourcesWindow(RenderMenuContext& ctx, ImGuiWindowFlags flags);
 
     static void UpdateManualInput(HWND targetHwnd);
+    // The window to attach to this frame: the cached one, or the game's new one when it threw the
+    // old away (a resolution or display-mode change does that).
+    static HWND CurrentGameWindow();
 
   public:
     static void Dx11Inited() { _dx11Ready = true; }

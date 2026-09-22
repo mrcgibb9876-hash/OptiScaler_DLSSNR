@@ -129,6 +129,62 @@ template <class T> const Entry<T>* Find(const Entry<T>* table, size_t count, con
 
 } // namespace
 
+namespace DlssNr
+{
+
+// Every [DlssNr] setting back to the value it ships with, driven from the tables above so a setting
+// added there is reset without anyone remembering to add it here as well.
+//
+// What is NOT reset, and why: where the panel sits and how big it is (Reset layout does that, and it
+// is beside this button), the keys that open it, and how it looks. Those are the player's, not this
+// game's tuning -- the same line Deep Fried Chicken's own reset draws. Anchors from an exposure
+// calibration are left alone too: they are measured, not chosen, and are nowhere in these tables.
+void ResetSettingsToDefaults()
+{
+    static const char* const kPersonal[] = { "PanelX", "PanelY", "PanelW", "PanelH", "PanelKey", "ToggleKey" };
+
+    const auto personal = [](const char* key)
+    {
+        for (const char* p : kPersonal)
+        {
+            if (std::strcmp(p, key) == 0)
+                return true;
+        }
+        return false;
+    };
+
+    Config* config = Config::Instance();
+
+    const auto clear = [&](auto* table, size_t count)
+    {
+        for (size_t i = 0; i < count; ++i)
+        {
+            if (!personal(table[i].key))
+                (config->*(table[i].member)).reset();
+        }
+    };
+
+    clear(kFloats, std::size(kFloats));
+    clear(kBools, std::size(kBools));
+    clear(kInts, std::size(kInts));
+    clear(kUInts, std::size(kUInts));
+    clear(kScalers, std::size(kScalers));
+
+    // Not in the tables (they are panel-side, not drivable from outside), but they are tuning and a
+    // reset is expected to undo them.
+    config->DlssNrScalingUpscaler.reset();
+    config->DlssNrScalingSharpness.reset();
+    config->DlssNrScalingAntiRinging.reset();
+    config->DlssNrScalingSigmoid.reset();
+    config->DlssNrScalingDither.reset();
+    config->DlssNrResetWhenBlind.reset();
+
+    LOG_INFO("DLSS 5 settings reset to defaults (the panel's place, its keys and its look are kept)");
+    config->SaveIni();
+}
+
+} // namespace DlssNr
+
 extern "C"
 {
 

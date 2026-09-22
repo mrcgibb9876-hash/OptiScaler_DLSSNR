@@ -263,6 +263,34 @@ inline std::string StrFmt(const char* fmt, ...)
     return out;
 }
 
+// The window this menu and its input are attached to, re-found when the game throws it away.
+//
+// A game can destroy its window and make a new one, and changing resolution or display mode in RE
+// Engine does exactly that (Onimusha: Way of the Sword, reported 2026-09-22). The handle cached when
+// the swapchain was created is then dead, and every frame after that went: input rejects the handle,
+// clears it, and is handed the same dead handle again next frame. The panel, its keys and the game's
+// Frame Generation were gone for the rest of the session, with Streamline logging an error per frame
+// against the dead window -- 20 seconds of it in that report, which is what "it freezes" looked like.
+//
+// EnumWindows finds this process's window again (Util::GetProcessWindow, the same lookup used when
+// the menu first attaches). Only when the old one has actually stopped being a window: a game whose
+// window is merely hidden or minimised keeps the handle it had.
+HWND MenuCommon::CurrentGameWindow()
+{
+    if (_handle == nullptr || IsWindow(_handle))
+        return _handle;
+
+    HWND fresh = Util::GetProcessWindow();
+    if (fresh == nullptr || fresh == _handle)
+        return _handle;
+
+    LOG_WARN("The game's window changed: {:X} is gone, {:X} is the one now -- a resolution or display-mode "
+             "change does this. Re-attaching the panel and its input to it.",
+             (size_t) _handle, (size_t) fresh);
+    _handle = fresh;
+    return _handle;
+}
+
 void MenuCommon::UpdateManualInput(HWND targetHwnd)
 {
     OptiInput::BeginFrame(targetHwnd);
@@ -1443,7 +1471,7 @@ void MenuCommon::Present()
     lastTime = now;
 
     if (_handle != nullptr)
-        UpdateManualInput(_handle);
+        UpdateManualInput(CurrentGameWindow());
 }
 
 struct VersionCheckStatus
@@ -1504,7 +1532,7 @@ void MenuCommon::UpdateRenderTiming(RenderMenuContext& ctx)
         lastTime = now;
 
         if (_handle != nullptr)
-            UpdateManualInput(_handle);
+            UpdateManualInput(CurrentGameWindow());
     }
     else
     {

@@ -272,6 +272,19 @@ struct NrState
     // nrScaler -- but both are torn down together, so it sits beside nrScaler and is compared with it.
     Upsampler nrUpsampler = Upsampler::Count;
 
+    // Below full resolution (working scale < 1): the model's answer and the small proxy it is measured
+    // against, both enlarged to frame size with the chosen Upscaler before the resolve reads them.
+    //
+    // The resolve used to do this itself, by sampling two small textures bilinearly at full-size UVs --
+    // so the filter the panel offered did nothing at all where a model actually runs small, which is
+    // every reduced-resolution setting (found 2026-09-22, "50% and every filter measures the same").
+    // Both legs take the SAME filter: the edit handed to the composition is model minus proxy, and two
+    // different filters would leave the difference between them inside that edit.
+    ID3D12Resource* editNative = nullptr;
+    ID3D12Resource* proxyNative = nullptr;
+    OS_Dx12* editUp = nullptr;
+    OS_Dx12* proxyUp = nullptr;
+
     // Frame hold (design/frame-hold.md): a persistent copy of the output taken on hold-on and restored
     // over the live output before the encode reads it while held, so a setting change re-renders the
     // same frame. heldWhitePoint is the snapshot used while held -- measurement is suspended.
@@ -749,6 +762,11 @@ struct NrRetired
 {
     void* feature = nullptr;
     ID3D12Resource* resource = nullptr;
+    // A scaling filter the GPU may still be reading from. Changing the Upscaler used to delete its
+    // pipeline and descriptors on the spot, while frames using them were still in flight: the device
+    // hung a few seconds later, every time, the moment the filter was changed (Shadow of the Tomb
+    // Raider, 2026-09-22). It waits its turn here like everything else now.
+    OS_Dx12* scaler = nullptr;
     int framesLeft = 32;
 };
 
@@ -845,6 +863,17 @@ void ParkNrFeature(void*& feature)
     g_nrRetired.push_back(r);
 }
 
+void ParkNrScaler(OS_Dx12*& scaler)
+{
+    if (scaler == nullptr)
+        return;
+
+    NrRetired r;
+    r.scaler = scaler;
+    scaler = nullptr;
+    g_nrRetired.push_back(r);
+}
+
 void ParkNrResource(ID3D12Resource*& res)
 {
     if (res == nullptr)
@@ -871,6 +900,9 @@ void TickNrRetired()
 
         if (g_nrRetired[i].resource != nullptr)
             g_nrRetired[i].resource->Release();
+
+        if (g_nrRetired[i].scaler != nullptr)
+            delete g_nrRetired[i].scaler;
 
         g_nrRetired.erase(g_nrRetired.begin() + i);
     }
@@ -905,7 +937,7 @@ void ReleaseSurfaces()
     }
 
     for (ID3D12Resource** r : { &g_nr.output, &g_nr.passScratch, &g_nr.colorCopy, &g_nr.hdrCopy, &g_nr.colorSmall,
-                                &g_nr.outputNative, &g_nr.activeColor })
+                                &g_nr.outputNative, &g_nr.editNative, &g_nr.proxyNative, &g_nr.activeColor })
         ParkNrResource(*r);
 
     g_nr.passScratchFailed = false;
@@ -2228,6 +2260,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             ParkNrResource(g_nr.hdrCopy);
             ParkNrResource(g_nr.colorSmall);
             ParkNrResource(g_nr.outputNative);
+            ParkNrResource(g_nr.editNative);
+            ParkNrResource(g_nr.proxyNative);
             ParkNrResource(g_nr.activeColor);
             g_nr.passScratchFailed = false;
         }
@@ -2316,6 +2350,17 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // The down-leg target is native (the answer is brought back to frame size before the resolve).
     if (workScale > 1.0f && g_nr.outputNative == nullptr)
         g_nr.outputNative = CreateScratch(device, desc.Format, width, height);
+
+    // The up-leg's pair, for a model working below the frame: the enlarged answer and the enlarged
+    // proxy it is measured against. Two frames of the colour format at frame size, allocated only
+    // where they are used -- nothing is created for a model at or above 100%.
+    if (reduced)
+    {
+        if (g_nr.editNative == nullptr)
+            g_nr.editNative = CreateScratch(device, desc.Format, width, height);
+        if (g_nr.proxyNative == nullptr)
+            g_nr.proxyNative = CreateScratch(device, desc.Format, width, height);
+    }
 
     if (g_nr.meter == nullptr)
     {
@@ -2894,16 +2939,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const Upsampler nrUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
             if (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler)
             {
-                if (g_nr.superUp != nullptr)
-                {
-                    delete g_nr.superUp;
-                    g_nr.superUp = nullptr;
-                }
-                if (g_nr.superDown != nullptr)
-                {
-                    delete g_nr.superDown;
-                    g_nr.superDown = nullptr;
-                }
+                // Parked rather than deleted, for the reason above: the GPU may still be reading
+                // the pipeline a frame or two behind the change.
+                ParkNrScaler(g_nr.superUp);
+                ParkNrScaler(g_nr.superDown);
                 g_nr.nrScaler = nrScaler;
                 g_nr.nrUpsampler = nrUpsampler;
             }
@@ -3282,6 +3321,52 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         ID3D12Resource* resolveProxy = superDownOk ? g_nr.colorCopy : modelInput;
         ID3D12Resource* resolveAnswer = superDownOk ? g_nr.outputNative : finalAnswer;
 
+        // Below full resolution: enlarge the answer and its proxy here, with the filter chosen in the
+        // panel, instead of leaving the resolve to sample them bilinearly at full-size UVs. Both legs
+        // take the same filter -- the composition is handed model minus proxy, and two filters would
+        // put the difference between them inside that edit. On failure nothing changes: the resolve
+        // reads the small pair and enlarges them itself, exactly as it did before.
+        bool enlargedOk = false;
+        if (reduced && !superDownOk && g_nr.editNative != nullptr && g_nr.proxyNative != nullptr)
+        {
+            const Scaler nrScaler = cfg.DlssNrScalingDownscaler.value_or_default();
+            const Upsampler nrUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
+
+            if (g_nr.editUp != nullptr && (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler))
+            {
+                // Parked, not deleted: frames built with the old filter are still in flight.
+                ParkNrScaler(g_nr.editUp);
+                ParkNrScaler(g_nr.proxyUp);
+            }
+            g_nr.nrScaler = nrScaler;
+            g_nr.nrUpsampler = nrUpsampler;
+
+            if (g_nr.editUp == nullptr)
+                g_nr.editUp = new OS_Dx12("DLSS-NR enlarge answer", device, true, nrScaler, nrUpsampler);
+            if (g_nr.proxyUp == nullptr)
+                g_nr.proxyUp = new OS_Dx12("DLSS-NR enlarge proxy", device, true, nrScaler, nrUpsampler);
+
+            if (g_nr.editUp != nullptr && g_nr.proxyUp != nullptr &&
+                g_nr.editUp->Dispatch(cmdList, finalAnswer, g_nr.editNative) &&
+                g_nr.proxyUp->Dispatch(cmdList, modelInput, g_nr.proxyNative))
+            {
+                Barrier(cmdList, g_nr.editNative, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                Barrier(cmdList, g_nr.proxyNative, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                resolveProxy = g_nr.proxyNative;
+                resolveAnswer = g_nr.editNative;
+                enlargedOk = true;
+            }
+        }
+
+        // Matched residual re-bases an edit that came from a reduced raster, so it has to be told when
+        // the pair it is handed has already been enlarged -- their sizes no longer say it. Transfer 2
+        // is matched residual plus that fact; classic (0) needs nothing, because a pre-enlarged answer
+        // IS the complete picture at frame size, which is what classic composes.
+        if (enlargedOk && resolveParams.Transfer == 1)
+            resolveParams.Transfer = 2;
+
         // Pre-SR Color is not guaranteed to have UAV support. Write directly when legal; otherwise
         // resolve into hdrCopy while the original Color remains readable, then copy the result back.
         ID3D12Resource* resolveOriginal = targetSupportsUav ? g_nr.hdrCopy : target;
@@ -3318,6 +3403,18 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         if (superDownOk)
             Barrier(cmdList, g_nr.outputNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        // The enlarged pair goes back to writable for the next frame, exactly as the supersample
+        // target above does. Left in NON_PIXEL_SHADER_RESOURCE, the next frame's upscaler writes a UAV
+        // to a resource that is not in that state -- which is a hung device a second after the filter
+        // is chosen (DXGI_ERROR_DEVICE_HUNG, Shadow of the Tomb Raider, 2026-09-22).
+        if (enlargedOk)
+        {
+            Barrier(cmdList, g_nr.editNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            Barrier(cmdList, g_nr.proxyNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        }
 
         // On-demand capture works in this path too: the staging copy still holds the frame as the
         // upscaler produced it, and the edited frame is the output itself. The write happens a few
@@ -4928,10 +5025,35 @@ void Shutdown()
         g_nr.superDown = nullptr;
     }
 
+    // The pair that enlarges a below-size model answer and its proxy with the chosen filter.
+    if (g_nr.editUp != nullptr)
+    {
+        delete g_nr.editUp;
+        g_nr.editUp = nullptr;
+    }
+
+    if (g_nr.proxyUp != nullptr)
+    {
+        delete g_nr.proxyUp;
+        g_nr.proxyUp = nullptr;
+    }
+
     if (g_nr.outputNative != nullptr)
     {
         g_nr.outputNative->Release();
         g_nr.outputNative = nullptr;
+    }
+
+    if (g_nr.editNative != nullptr)
+    {
+        g_nr.editNative->Release();
+        g_nr.editNative = nullptr;
+    }
+
+    if (g_nr.proxyNative != nullptr)
+    {
+        g_nr.proxyNative->Release();
+        g_nr.proxyNative = nullptr;
     }
 
     if (g_nr.heldColor != nullptr)

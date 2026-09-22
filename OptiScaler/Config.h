@@ -355,9 +355,11 @@ class Config
     // Opens the DLSS 5 Developer Controls panel. Separate from the shared menu's own key, and from
     // DlssNrToggleKey, which turns the feature itself on and off rather than showing the panel.
     //
-    // Alt+Home rather than bare Home: Home is a common in-game binding, and the panel can be open
-    // at the same time as the shared menu, so it needs a chord of its own that no game will claim.
-    CustomOptional<int> DlssNrPanelKey { VK_HOME | KeyModAlt };
+    // Insert, 2026-09-22: one key opens THIS project's panel wherever it is -- here, in the Feeder's
+    // helper on the 32-bit route, and in Deep Fried Chicken's own menu once that is restyled -- so a
+    // player never has to remember which renderer or which consumer a game ended up on. OptiScaler's
+    // own menu, which had Insert, moves to Alt+O (ShortcutKey below). It was Alt+Home until now.
+    CustomOptional<int> DlssNrPanelKey { VK_INSERT };
     CustomOptional<uint32_t> DlssNrPreset { 0 };
     CustomOptional<float> DlssNrIntensity { 1.0f };
     // 0 default (standard), 1 natural, 2 cinematic -- the model's own processing profiles.
@@ -795,7 +797,9 @@ class Config
     // Menu
     CustomOptional<float, NoDefault> MenuScale;
     CustomOptional<bool> OverlayMenu { true };
-    CustomOptional<int> ShortcutKey { VK_INSERT };
+    // Alt+O, 2026-09-22: Insert now belongs to the DLSS 5 panel (DlssNrPanelKey above), which is the
+    // one a player opens. This menu is OptiScaler's own and is reached far less often.
+    CustomOptional<int> ShortcutKey { 'O' | KeyModAlt };
     CustomOptional<bool> ExtendedLimits { false };
     CustomOptional<bool> ShowFps { false };
     /// 0 Top Left, 1 Top Right, 2 Bottom Left, 3 Bottom Right

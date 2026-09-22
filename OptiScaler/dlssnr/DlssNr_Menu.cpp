@@ -154,6 +154,71 @@ static const Palette* g_pal = &Light();
 
 static float PanelWidth(float scale) { return 460.0f * scale; }
 
+// The wipe's divide, over the frame, with a grab handle at its middle. Only while the panel is up:
+// that is when the mouse is ours (the panel blocks it from the game), and it is where Compare was
+// turned on in the first place. Returns true when a drag finished, so the caller saves the ini.
+//
+// Drawn on the foreground list rather than as a window: it must sit over the whole frame, take no
+// focus, and never join the panel's navigation order. Hit-testing is done by hand against the mouse
+// for the same reason -- an InvisibleButton here would be an item in whatever window is current.
+static bool DragCompareSplit(Config* config)
+{
+    if (config->DlssNrCompare.value_or_default() != 2) // Wipe only: side by side has no divide to move
+        return false;
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f)
+        return false;
+
+    static bool dragging = false;
+
+    const float scale = std::max(1.0f, io.DisplaySize.y / 1080.0f);
+    const float split = std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f);
+    const float x = split * io.DisplaySize.x;
+    const ImVec2 centre(x, io.DisplaySize.y * 0.5f);
+    const float radius = 13.0f * scale;
+
+    // The grip, or anywhere down the line within a finger's width of it.
+    const float dx = io.MousePos.x - centre.x;
+    const float dy = io.MousePos.y - centre.y;
+    const bool overGrip = (dx * dx + dy * dy) <= (radius * radius);
+    const bool overLine = std::fabs(dx) <= 12.0f * scale;
+    const bool hot = !ImGui::GetIO().WantCaptureMouse && (overGrip || overLine);
+
+    if (hot && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        dragging = true;
+    if (dragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+        dragging = false;
+        return true; // let go: this is the split from now on
+    }
+    if (dragging)
+        config->DlssNrCompareSplit = std::clamp(io.MousePos.x / io.DisplaySize.x, 0.0f, 1.0f);
+
+    if (hot || dragging)
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+
+    // White on a black hairline, so it reads on a bright frame and a dark one alike.
+    const float px = std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f) * io.DisplaySize.x;
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    dl->AddLine(ImVec2(px, 0.0f), ImVec2(px, io.DisplaySize.y), IM_COL32(0, 0, 0, 90), 4.0f * scale);
+    dl->AddLine(ImVec2(px, 0.0f), ImVec2(px, io.DisplaySize.y), IM_COL32(255, 255, 255, 215), 2.0f * scale);
+
+    const ImVec2 grip(px, io.DisplaySize.y * 0.5f);
+    const ImU32 fill = dragging ? ImGui::GetColorU32(kAccent) : IM_COL32(20, 22, 20, 190);
+    dl->AddCircleFilled(grip, radius, fill);
+    dl->AddCircle(grip, radius, IM_COL32(255, 255, 255, 215), 0, 1.5f * scale);
+
+    // Two arrowheads, left and right: the one thing this control does.
+    const float a = radius * 0.46f;
+    const ImU32 ink = dragging ? ImGui::GetColorU32(g_pal->onAccent) : IM_COL32(255, 255, 255, 235);
+    dl->AddTriangleFilled(ImVec2(grip.x - a * 1.5f, grip.y), ImVec2(grip.x - a * 0.4f, grip.y - a * 0.8f),
+                          ImVec2(grip.x - a * 0.4f, grip.y + a * 0.8f), ink);
+    dl->AddTriangleFilled(ImVec2(grip.x + a * 1.5f, grip.y), ImVec2(grip.x + a * 0.4f, grip.y - a * 0.8f),
+                          ImVec2(grip.x + a * 0.4f, grip.y + a * 0.8f), ink);
+    return false;
+}
+
 // The engine's failure reasons stay English where they are made -- they also go to OptiScaler.log and
 // through the API, where support needs one wording -- and are translated here, at display. A fixed
 // reason is a translation key itself. The add-on conflict is built around a file name, so it is
@@ -332,14 +397,23 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     ImGuiStyle& style = ImGui::GetStyle();
     float labelWidth = rowWidth * 0.44f;
     float valueWidth = 52.0f;
-    float trackWidth = rowWidth - labelWidth - valueWidth - style.ItemSpacing.x * 2.0f;
+
+    // A label that does not fit its column goes ABOVE its slider instead of being run into by it.
+    // The long ones are real ("Trim (x the game's exposure)"), and they get longer in German, in
+    // French, and at any font scale above 1x -- so this is the rule, not a special case.
+    const bool stacked = ImGui::CalcTextSize(label).x > labelWidth - style.ItemSpacing.x;
+
+    float trackWidth = (stacked ? rowWidth : rowWidth - labelWidth) - valueWidth - style.ItemSpacing.x * 2.0f;
     if (trackWidth < 40.0f)
         trackWidth = 40.0f;
 
     ImGui::PushStyleColor(ImGuiCol_Text, kText);
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
-    ImGui::SameLine(labelWidth);
+    if (stacked)
+        labelWidth = 0.0f; // the slider starts at the left edge, on its own line
+    else
+        ImGui::SameLine(labelWidth);
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
     float rowH = ImGui::GetFrameHeight();
@@ -398,6 +472,13 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     return { changed, released };
 }
 
+// One entry in a row of boxed choices, defined below with the Models row it was written for.
+static bool ModelButton(const char* label, bool active, float width);
+
+// A choice of a few: every option in its own box, the chosen one ringed in the accent -- the same
+// shape as the Models row and the page buttons, and as Deep Fried Chicken's menu, so a choice looks
+// like a choice everywhere in this panel. A list too long or too wide to lay out that way stays a
+// dropdown: six filter names across a 460 px row would be three letters each.
 static bool NrCombo(const char* label, int* v, const char* const* items, int count, float rowWidth)
 {
     float labelWidth = rowWidth * 0.44f;
@@ -407,9 +488,48 @@ static bool NrCombo(const char* label, int* v, const char* const* items, int cou
     ImGui::PopStyleColor();
     ImGui::SameLine(labelWidth);
 
-    ImGui::SetNextItemWidth(rowWidth - labelWidth);
-    std::string id = std::string("##") + label;
-    return ImGui::Combo(id.c_str(), v, items, count);
+    const float controlWidth = rowWidth - labelWidth;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+
+    // Boxes only where every one of them can still be read: the widest label has to fit its share.
+    bool boxes = count >= 2 && count <= 4;
+    if (boxes)
+    {
+        float widest = 0.0f;
+        for (int i = 0; i < count; ++i)
+            widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+
+        const float each = (controlWidth - spacing * (count - 1)) / count;
+        boxes = each >= widest + ImGui::GetStyle().FramePadding.x * 2.0f;
+    }
+
+    if (!boxes)
+    {
+        ImGui::SetNextItemWidth(controlWidth);
+        std::string id = std::string("##") + label;
+        return ImGui::Combo(id.c_str(), v, items, count);
+    }
+
+    const float each = (controlWidth - spacing * (count - 1)) / count;
+    bool changed = false;
+
+    ImGui::PushID(label);
+    for (int i = 0; i < count; ++i)
+    {
+        if (i > 0)
+            ImGui::SameLine();
+
+        ImGui::PushID(i);
+        if (ModelButton(items[i], *v == i, each))
+        {
+            *v = i;
+            changed = true;
+        }
+        ImGui::PopID();
+    }
+    ImGui::PopID();
+
+    return changed;
 }
 
 // One entry in the "Models" row -- the segmented Model A / B / C selector.
@@ -742,6 +862,97 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
 
     ImGui::PopTextWrapPos();
 }
+// ── the panel's pages ─────────────────────────────────────────────────────────────────────────
+//
+// One long scroll is hard to read over a moving picture and hard to point anyone at ("under Cost,
+// keep scrolling"). These are the same rows, grouped onto six pages picked at the top, so the panel
+// is a readable height whatever is open and every control has an address. Deep Fried Chicken's own
+// menu is built this way, and ours is what its restyle will follow, so the two match.
+//
+// The page is UI state, not a setting: it lasts the session and opens on Main next time. Nothing
+// here is written to the ini.
+enum PanelPage
+{
+    kPageMain = 0, // whether the pass runs at all, and what it is doing right now
+    kPageModel,    // which model, how strong, and what it must leave alone
+    kPageCost,     // passes, model resolution, and the budget controller
+    kPageImage,    // the filters that scale it, the guards, and how much of it lands
+    kPageInspect,  // what the model is told, and the tools for looking at its work
+    kPageSetup,    // keys and appearance
+    kPageCount,
+};
+
+static int g_page = kPageMain;
+static bool OnPage(int page) { return g_page == page; }
+
+// The state of the pass in one word, filled in the accent when it is actually running and drawn flat
+// when it is not, so "is this doing anything" is answered before any sentence is read.
+static void StatusBadge(const char* text, bool live)
+{
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 pad(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 0.6f);
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    const ImVec2 max(min.x + size.x + pad.x * 2.0f, min.y + size.y + pad.y * 2.0f);
+
+    dl->AddRectFilled(min, max, ImGui::GetColorU32(live ? kAccentFill : g_pal->overlay(0.14f)), 3.0f);
+    dl->AddText(ImVec2(min.x + pad.x, min.y + pad.y), ImGui::GetColorU32(live ? g_pal->onAccent : kTextDim), text);
+
+    ImGui::Dummy(ImVec2(max.x - min.x, max.y - min.y));
+}
+
+// The panel moves by its top strip only -- the title row down to the page buttons. Everything below
+// is controls, and a drag that starts there is someone who missed a slider, not someone moving the
+// panel. The window carries NoMove; this is the move. Called with the strip's bottom edge in screen
+// space, right after the page buttons are drawn.
+static void DragByHeader(float stripBottomY)
+{
+    static bool dragging = false;
+    static ImVec2 grab(0.0f, 0.0f);
+
+    ImGuiIO& io = ImGui::GetIO();
+    const ImVec2 pos = ImGui::GetWindowPos();
+    const ImVec2 size = ImGui::GetWindowSize();
+    const bool inStrip = io.MousePos.x >= pos.x && io.MousePos.x <= pos.x + size.x && io.MousePos.y >= pos.y &&
+                         io.MousePos.y <= stripBottomY;
+
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        dragging = false;
+    // Not over a control: the strip carries the theme button, Reset layout, the X, DLSS ON and the
+    // page buttons, and every one of them is a press, not a handle.
+    else if (!dragging && inStrip && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered() &&
+             !ImGui::IsAnyItemActive())
+    {
+        dragging = true;
+        grab = ImVec2(io.MousePos.x - pos.x, io.MousePos.y - pos.y);
+    }
+
+    if (dragging)
+    {
+        ImGui::SetWindowPos(ImVec2(io.MousePos.x - grab.x, io.MousePos.y - grab.y), ImGuiCond_Always);
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+    }
+}
+
+// Drawn once, under the status lines: the same buttons the Models row uses, so the panel has one
+// way of offering a choice of several.
+static void PagePicker(float rowWidth)
+{
+    const char* names[kPageCount] = { Tr("Main"), Tr("Model"), Tr("Cost"), Tr("Image"), Tr("Inspect"), Tr("Setup") };
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float width = (rowWidth - spacing * (kPageCount - 1)) / kPageCount;
+
+    for (int i = 0; i < kPageCount; ++i)
+    {
+        if (i > 0)
+            ImGui::SameLine();
+
+        ImGui::PushID(i);
+        if (ModelButton(names[i], g_page == i, width))
+            g_page = i;
+        ImGui::PopID();
+    }
+}
 
 void RenderMenu(Config* config, float menuResScale)
 {
@@ -818,8 +1029,11 @@ void RenderMenu(Config* config, float menuResScale)
     // widget it lands on -- so input the game keeps producing (a controller's resting stick, arrow keys)
     // pinned this panel to one row and the mouse wheel could not scroll past it (Cyberpunk 2077,
     // 2026-09-16: stuck on the Language combo).
+    // NoMove: the panel is moved by its top strip only (DragByHeader below), not by its background.
+    // Dragging the background meant a missed slider or an empty gap beside a row moved the whole
+    // panel, which is not what anyone was reaching for.
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs;
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs | ImGuiWindowFlags_NoMove;
 
     bool anyChanged = false;
 
@@ -866,50 +1080,12 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
-        ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
-        TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
-        ImGui::PopStyleColor();
-        HelpMarker(Tr("Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right"
-                      "\ncorner to resize it. It can hang partly off screen, but a strip always stays visible to"
-                      "\ngrab. Position and size are remembered for this game as a fraction of the screen, so"
-                      "\nthey come back at any resolution."));
-
-        if (layout.CustomPos() || layout.CustomSize())
-        {
-            ImGui::SameLine();
-            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
-            {
-                config->DlssNrPanelX = -1.0f;
-                config->DlssNrPanelY = -1.0f;
-                config->DlssNrPanelW = -1.0f;
-                config->DlssNrPanelH = -1.0f;
-                s_layout.placeFrames = 2;
-                anyChanged = true;
-            }
-        }
-
-        // Close: a bright red square X flush with the panel's right edge. A plain X: every font
-        // this panel can be drawn in has one, which is not true of the multiplication sign or the
-        // box-drawing crosses. Placed against the window's actual inner width, not rowWidth -- at a
-        // large font scale the title, the (?) and Reset layout run wider than rowWidth and the window
-        // grows to fit them, and an X placed at rowWidth then lands on top of Reset. Inner width, not
-        // window width: a size-capped panel has a scrollbar, and the X must not sit under it.
-        {
-            const float side = ImGui::GetFrameHeight();
-            ImGui::SameLine(std::max(rowWidth, innerWidth) - side);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.22f, 0.22f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.15f, 0.15f, 0.16f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.15f, 0.15f, 0.40f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.10f, 0.10f, 0.65f));
-            if (ImGui::Button("X##closepanel", ImVec2(side, side)))
-                MenuCommon::CloseDlssNrPanel();
-            ImGui::PopStyleColor(4);
-            if (ImGui::BeginItemTooltip())
-            {
-                ImGui::TextUnformatted(Tr("Close the panel. Its key opens it again."));
-                ImGui::EndTooltip();
-            }
-        }
+        // The top of the panel: a bare strip to take hold of, then the pages. No title row -- the
+        // panel says what it is on every row in it, and the strip is what a hand reaches for. Light
+        // and Reset layout are settings and live under Setup; the panel closes on its own key.
+        ImGui::Dummy(ImVec2(rowWidth, ImGui::GetTextLineHeight() * 0.45f));
+        PagePicker(rowWidth);
+        DragByHeader(ImGui::GetCursorScreenPos().y);
 
         ImGui::Spacing();
 
@@ -1077,27 +1253,6 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
-        // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
-        // panel is usable on its own, without going looking for the other window.
-        MenuCommon::RenderKeybindRow(Tr("Toggle key"), 14, config->DlssNrToggleKey);
-        HelpMarker(Tr("Toggles Neural Rendering without opening this panel. Press the button, then the"
-                      "\nkey you want. Escape cancels, Backspace unbinds, R resets it."));
-
-        MenuCommon::RenderKeybindRow(Tr("Panel key"), 15, config->DlssNrPanelKey);
-        HelpMarker(Tr("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
-                      "\ntwo can be up together or on their own."));
-
-        bool applyModel = config->DlssNrApplyModel.value_or_default();
-        if (NrCheckbox(Tr("Apply the model"), &applyModel))
-        {
-            config->DlssNrApplyModel = applyModel;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
-                      "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
-                      "\nand toggle this to see the same frozen frame with and without Neural Rendering."
-                      "\nLeave it on for normal use."));
-
         bool beforeSr = config->DlssNrRunBeforeSr.value_or_default();
         if (NrCheckbox(Tr("Before Super Resolution"), &beforeSr))
         {
@@ -1132,6 +1287,16 @@ void RenderMenu(Config* config, float menuResScale)
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
         // running.
         const bool vulkan = DlssNr::IsRunningVk();
+
+        // One badge, above the sentence that explains it: the answer to "is this actually doing
+        // anything in this game" should be readable at a glance, on every page, without reading a
+        // line of prose. Deep Fried Chicken's menu carries the same badge in the same place, so a
+        // player moving between a DLSS 5 game and a Chicken game reads one panel, not two.
+        StatusBadge(!enabled                          ? Tr("Paused")
+                    : (DlssNr::IsRunning() || vulkan) ? Tr("Ready")
+                    : DlssNr::FailureReason()[0] != 0 ? Tr("Blocked")
+                                                      : Tr("Waiting"),
+                    enabled && (DlssNr::IsRunning() || vulkan));
 
         if (!DlssNr::IsRunning() && !vulkan)
         {
@@ -1190,7 +1355,10 @@ void RenderMenu(Config* config, float menuResScale)
             // With "Apply the model" off the pass STILL RUNS -- it only outputs the clean frame. The
             // cost is real, and saying so stops the reading looking like a bug. Turning DLSS ON off
             // is what zeroes it.
-            const char* runSuffix = !applyModel ? Tr("  (model running, edit hidden)") : "";
+            // Read from the config, not from the checkbox: that row lives under Inspect now, and this
+            // line is drawn on every page.
+            const char* runSuffix =
+                !config->DlssNrApplyModel.value_or_default() ? Tr("  (model running, edit hidden)") : "";
 
             if (ms.has_value())
                 ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running%s - %.2f ms per frame%s"),
@@ -1242,297 +1410,217 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
-        SectionCaption(Tr("Global Controls"), rowWidth);
-
-        float localStructure = config->DlssNrLocalStructure.value_or_default();
-        auto rStruct = NrSlider(Tr("Structure Intensity"), &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rStruct.changed)
-            config->DlssNrLocalStructure = localStructure;
-        if (rStruct.released)
-            anyChanged = true;
-        HelpMarker(Tr("The model's structure-synthesis strength across the whole frame."));
-
-        float localTone = config->DlssNrLocalTone.value_or_default();
-        auto rTone = NrSlider(Tr("Tone Intensity"), &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rTone.changed)
-            config->DlssNrLocalTone = localTone;
-        if (rTone.released)
-            anyChanged = true;
-        HelpMarker(Tr("The model's tone-remapping strength across the whole frame."));
-        // Model Automask -- DlssNrAutoMask. In NVIDIA's panel this is a letter-tracked caps row
-        // of its own with a "Show Mask" toggle on the right, not a section caption with a divider,
-        // so it is drawn that way here.
-        ImGui::Spacing();
-
-        bool autoMask = config->DlssNrAutoMask.value_or_default();
-        if (NrCheckbox(Tr("Model Automask"), &autoMask, true))
+        if (OnPage(kPageModel))
         {
-            config->DlssNrAutoMask = autoMask;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Lets the model find skin itself rather than treating the frame uniformly."));
+            SectionCaption(Tr("Global Controls"), rowWidth);
 
-        // Greyed out, and not because a setting is off: the model keeps its mask to itself. It is
-        // never handed back as a resource across the interface this fork drives, so there is
-        // nothing for an overlay to draw.
-        ImGui::BeginDisabled(true);
-        bool showMask = false;
-        NrRightCheckbox(Tr("Show Mask"), &showMask, rowWidth);
-        ImGui::EndDisabled();
+            float localStructure = config->DlssNrLocalStructure.value_or_default();
+            auto rStruct = NrSlider(Tr("Structure Intensity"), &localStructure, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rStruct.changed)
+                config->DlssNrLocalStructure = localStructure;
+            if (rStruct.released)
+                anyChanged = true;
+            HelpMarker(Tr("The model's structure-synthesis strength across the whole frame."));
 
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            ImGui::SetTooltip("%s", Tr("NVIDIA's panel can draw the automask over the frame. The model does not hand"
-                                       "\nits mask back through the interface this fork drives, so there is nothing"
-                                       "\nhere to display."));
+            float localTone = config->DlssNrLocalTone.value_or_default();
+            auto rTone = NrSlider(Tr("Tone Intensity"), &localTone, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rTone.changed)
+                config->DlssNrLocalTone = localTone;
+            if (rTone.released)
+                anyChanged = true;
+            HelpMarker(Tr("The model's tone-remapping strength across the whole frame."));
+            // Model Automask -- DlssNrAutoMask. In NVIDIA's panel this is a letter-tracked caps row
+            // of its own with a "Show Mask" toggle on the right, not a section caption with a divider,
+            // so it is drawn that way here.
+            ImGui::Spacing();
 
-        // Matches NVIDIA's own panel: greyed out while Automask is off. The value underneath is
-        // unchanged either way -- this only stops it being dragged while it has nothing to act on.
-        ImGui::BeginDisabled(!autoMask);
-        ImGui::PushID("Automask");
-        float skin = config->DlssNrSkinStructure.value_or_default();
-        auto rSkin = NrSlider(Tr("Structure Intensity"), &skin, -1.0f, 1.0f, "%.2f", rowWidth);
-        if (rSkin.changed)
-            config->DlssNrSkinStructure = skin;
-        if (rSkin.released)
-            anyChanged = true;
-        ImGui::PopID();
-        ImGui::EndDisabled();
-        HelpMarker(Tr("-1 means follow the Global Controls Structure Intensity above, and is the"
-                      "\nmodel's own default. 0 and above set the masked region's structure"
-                      "\nindependently of the rest of the frame."
-                      "\n\nGreyed out while Model Automask is off -- there is no mask for it to"
-                      "\nshape without it."));
-
-        // Developer Masking -- NVIDIA's per-object, engine-level masking. The game's own renderer
-        // tags individual objects (the "Pitcher", "Grapes" and "Bottles" of NVIDIA's demo scene)
-        // and hands those masks to DLSS through Streamline, so an artist can dial each object
-        // separately. There is nothing here for this fork to drive: OptiScaler sits below the
-        // engine, in the graphics API, with no object list and no way to author such masks. The
-        // row is drawn because the panel this copies has it, and is disabled because it cannot be
-        // made to work -- not because a setting is off.
-        ImGui::Spacing();
-
-        ImGui::BeginDisabled(true);
-        bool devMasking = false;
-        bool showMasks = false;
-        NrCheckbox(Tr("Developer Masking"), &devMasking, true);
-        NrRightCheckbox(Tr("Show Masks"), &showMasks, rowWidth);
-        ImGui::EndDisabled();
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("Per-object masks come from the game's own renderer, so this one stays "
-                              "NVIDIA-only -- an injector has no object list to mask."));
-        ImGui::PopTextWrapPos();
-
-        // Models -- DlssNrPreset. NVIDIA ships no letters in the binary; "Model A/B/C" is this
-        // fork's best match to the segmented selector in the developer overlay, and matches the
-        // three NVIDIA describes publicly. Default (preset index 0) is kept as a fourth button
-        // that NVIDIA's panel does not show, because it is a real, distinct state here: dropping
-        // it to match the screenshot exactly would make that state unreachable from the UI.
-        SectionCaption(Tr("Models"), rowWidth);
-
-        const char* nrPresetNames[] = { Tr("Default"), Tr("Model A"), Tr("Model B"), Tr("Model C") };
-        int preset = (int) config->DlssNrPreset.value_or_default();
-
-        {
-            float spacing = ImGui::GetStyle().ItemSpacing.x;
-            float btnWidth = (rowWidth - spacing * (IM_ARRAYSIZE(nrPresetNames) - 1)) / IM_ARRAYSIZE(nrPresetNames);
-
-            for (int i = 0; i < IM_ARRAYSIZE(nrPresetNames); i++)
+            bool autoMask = config->DlssNrAutoMask.value_or_default();
+            if (NrCheckbox(Tr("Model Automask"), &autoMask, true))
             {
-                if (i > 0)
-                    ImGui::SameLine();
-
-                ImGui::PushID(i);
-                if (ModelButton(nrPresetNames[i], preset == i, btnWidth))
-                {
-                    preset = i;
-                    config->DlssNrPreset = (uint32_t) preset;
-                    anyChanged = true;
-                }
-                ImGui::PopID();
+                config->DlssNrAutoMask = autoMask;
+                anyChanged = true;
             }
-        }
-        HelpMarker(Tr("Not the same scale as the super resolution or ray reconstruction presets --"
-                      "\nthe same letter means something different here."
-                      "\n\nRead when the model is built, so a change rebuilds it after a moment."));
+            HelpMarker(Tr("Lets the model find skin itself rather than treating the frame uniformly."));
 
-        const char* nrStyleNames[] = { Tr("Default (standard)"), Tr("Natural"), Tr("Cinematic") };
-        int style = (int) config->DlssNrStyle.value_or_default();
-        if (style > 2)
-            style = 2;
-        if (NrCombo(Tr("Style"), &style, nrStyleNames, IM_ARRAYSIZE(nrStyleNames), rowWidth))
-        {
-            config->DlssNrStyle = (uint32_t) style;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("The model's own processing profiles."
-                      "\n\nDefault (standard): the strongest, and most likely to look 'stylised'."
-                      "\nNatural: the same detail work with a gentler hand."
-                      "\nCinematic: tones down the shine and over-processing for a film-like look."
-                      "\n\nThe names come from community testing, unlike the panel labels above --"
-                      "\nNVIDIA ships no names for this control in the binaries."));
+            // Greyed out, and not because a setting is off: the model keeps its mask to itself. It is
+            // never handed back as a resource across the interface this fork drives, so there is
+            // nothing for an overlay to draw.
+            ImGui::BeginDisabled(true);
+            bool showMask = false;
+            NrRightCheckbox(Tr("Show Mask"), &showMask, rowWidth);
+            ImGui::EndDisabled();
 
-        float intensity = config->DlssNrIntensity.value_or_default();
-        auto rIntensity = NrSlider(Tr("Intensity"), &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
-        if (rIntensity.changed)
-            config->DlssNrIntensity = intensity;
-        if (rIntensity.released)
-            anyChanged = true;
-        HelpMarker(Tr("The model's own strength control, applied inside it. Distinct from the Global"
-                      "\nControls above, and from Detail strength below, which scales the result"
-                      "\nafterwards."));
+            if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                ImGui::SetTooltip("%s",
+                                  Tr("NVIDIA's panel can draw the automask over the frame. The model does not hand"
+                                     "\nits mask back through the interface this fork drives, so there is nothing"
+                                     "\nhere to display."));
 
-        // Frame Generation -- NVIDIA's own DLSS-G (Streamline). Two ways it can be running:
-        //
-        //  1. The GAME's own DLSS Frame Generation (the common case for every title that ships
-        //     sl.dlss_g.dll: Cyberpunk, Stellar Blade, Witcher 3...). Turning it on or off is the
-        //     game's own video setting; what this panel can do is override the multiplier the game
-        //     asks the driver for, through config->FGDLSSGOverrideInterpolationCount /
-        //     FGDLSSGOverrideForceDMFG, which StreamlineHooks::hkslDLSSGSetOptions applies to every
-        //     slDLSSGSetOptions the game makes (and updateDlssgOptions() re-sends the last one so a
-        //     change here lands immediately, not on the game's next settings change).
-        //
-        //  2. OptiScaler's OWN DLSS-G instance (FGOutput=dlssg, for a game that only has DLSS
-        //     upscaling), driven the same way the old shared menu's "MFG" combo did: straight
-        //     through config->FGDLSSGInterpolationCount / FGDLSSGForceDMFG, which
-        //     DLSSG_Dx12::Dispatch() reads every frame.
-        //
-        // Until 2026-09-12 only case 2 had controls here, and the manager app never enables that
-        // output (it leaves frame gen to the game -- see OptiDLSS5-UI's autoConfigureGame), so on
-        // every native-DLSS game the section only ever said "not the active output".
-        //
-        // Nothing here touches OptiFG (the FSR3-based fallback used when the game has no frame
-        // generation at all) -- that path is FGOutput::FSRFG/XeFG and is deliberately left out.
-        SectionCaption(Tr("Frame Generation"), rowWidth);
+            // Matches NVIDIA's own panel: greyed out while Automask is off. The value underneath is
+            // unchanged either way -- this only stops it being dragged while it has nothing to act on.
+            ImGui::BeginDisabled(!autoMask);
+            ImGui::PushID("Automask");
+            float skin = config->DlssNrSkinStructure.value_or_default();
+            auto rSkin = NrSlider(Tr("Structure Intensity"), &skin, -1.0f, 1.0f, "%.2f", rowWidth);
+            if (rSkin.changed)
+                config->DlssNrSkinStructure = skin;
+            if (rSkin.released)
+                anyChanged = true;
+            ImGui::PopID();
+            ImGui::EndDisabled();
+            HelpMarker(Tr("-1 means follow the Global Controls Structure Intensity above, and is the"
+                          "\nmodel's own default. 0 and above set the masked region's structure"
+                          "\nindependently of the rest of the frame."
+                          "\n\nGreyed out while Model Automask is off -- there is no mask for it to"
+                          "\nshape without it."));
 
-        const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr;
-        // The game's sl.dlss_g.dll got hooked -- it ships and loads DLSS-G of its own. Streamline
-        // loads the plugin at startup whether or not the user has the option on, so this is true
-        // from the first frame; dlssgMfgMax (below) only fills in once FG has actually been on.
-        const bool gameDlssg = !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
+            // Developer Masking -- NVIDIA's per-object, engine-level masking. The game's own renderer
+            // tags individual objects (the "Pitcher", "Grapes" and "Bottles" of NVIDIA's demo scene)
+            // and hands those masks to DLSS through Streamline, so an artist can dial each object
+            // separately. There is nothing here for this fork to drive: OptiScaler sits below the
+            // engine, in the graphics API, with no object list and no way to author such masks. The
+            // row is drawn because the panel this copies has it, and is disabled because it cannot be
+            // made to work -- not because a setting is off.
+            ImGui::Spacing();
 
-        if (gameDlssg)
-        {
-            // What the game is doing right now: the count NGX saw on its last DLSS-G evaluate
-            // (0 = off, 1 = 2X, ...), reset to 0 a few frames after FG stops being evaluated.
-            const int live = state.dlssgDetectedInterpolationCount;
-            if (live > 0)
-            {
-                char running[96];
-                snprintf(running, sizeof(running), Tr("Game's DLSS Frame Generation: running at %dX"), live + 1);
-                ImGui::TextUnformatted(running);
-            }
-            else
-            {
-                ImGui::TextColored(kTextDim, "%s",
-                                   Tr("Game's DLSS Frame Generation: off in the game's video settings."));
-            }
-            HelpMarker(Tr("This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the"
-                          "\ngame's video settings as usual -- the row below only changes the multiplier"
-                          "\nit asks the driver for."));
+            ImGui::BeginDisabled(true);
+            bool devMasking = false;
+            bool showMasks = false;
+            NrCheckbox(Tr("Developer Masking"), &devMasking, true);
+            NrRightCheckbox(Tr("Show Masks"), &showMasks, rowWidth);
+            ImGui::EndDisabled();
 
-            // 4X (3 generated frames) is the most any card does today, and the hook clamps the
-            // override to what the driver reported once FG has been on (dlssgMfgMax) -- so before
-            // that is known, offer up to 4X and let it clamp. An RTX 40 card gets 2X either way.
-            const int maxCount = std::clamp(state.dlssgMfgMax.value_or(3), 1, 5);
-            static const char* gameMultNames[] = { "2X", "3X", "4X", "5X", "6X" };
-            const int shown = maxCount + 1; // "Game" + one button per multiplier
-            const int currentOverride = config->FGDLSSGOverrideInterpolationCount.has_value()
-                                            ? config->FGDLSSGOverrideInterpolationCount.value()
-                                            : 0;
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+            ImGui::TextColored(kTextDim, "%s",
+                               Tr("Per-object masks come from the game's own renderer, so this one stays "
+                                  "NVIDIA-only -- an injector has no object list to mask."));
+            ImGui::PopTextWrapPos();
 
-            const bool dmfgForced = state.dlssgGameDMFGSupported && config->FGDLSSGOverrideForceDMFG.value_or_default();
+            // Models -- DlssNrPreset. NVIDIA ships no letters in the binary; "Model A/B/C" is this
+            // fork's best match to the segmented selector in the developer overlay, and matches the
+            // three NVIDIA describes publicly. Default (preset index 0) is kept as a fourth button
+            // that NVIDIA's panel does not show, because it is a real, distinct state here: dropping
+            // it to match the screenshot exactly would make that state unreachable from the UI.
+            SectionCaption(Tr("Models"), rowWidth);
 
-            ImGui::BeginDisabled(dmfgForced);
+            const char* nrPresetNames[] = { Tr("Default"), Tr("Model A"), Tr("Model B"), Tr("Model C") };
+            int preset = (int) config->DlssNrPreset.value_or_default();
+
             {
                 float spacing = ImGui::GetStyle().ItemSpacing.x;
-                float btnWidth = (rowWidth - spacing * (shown - 1)) / shown;
+                float btnWidth = (rowWidth - spacing * (IM_ARRAYSIZE(nrPresetNames) - 1)) / IM_ARRAYSIZE(nrPresetNames);
 
-                for (int i = 0; i < shown; i++)
+                for (int i = 0; i < IM_ARRAYSIZE(nrPresetNames); i++)
                 {
                     if (i > 0)
                         ImGui::SameLine();
 
-                    ImGui::PushID(100 + i);
-                    const char* label = i == 0 ? Tr("Game") : gameMultNames[i - 1];
-                    if (ModelButton(label, currentOverride == i, btnWidth))
+                    ImGui::PushID(i);
+                    if (ModelButton(nrPresetNames[i], preset == i, btnWidth))
                     {
-                        if (i == 0)
-                        {
-                            LOG_DEBUG("DLSSG override cleared -- game's own multiplier");
-                            config->FGDLSSGOverrideInterpolationCount.reset();
-                        }
-                        else
-                        {
-                            LOG_DEBUG("DLSSG override interpolation count set to: {}", i);
-                            config->FGDLSSGOverrideInterpolationCount = i;
-                        }
-                        StreamlineHooks::updateDlssgOptions();
+                        preset = i;
+                        config->DlssNrPreset = (uint32_t) preset;
                         anyChanged = true;
                     }
                     ImGui::PopID();
                 }
             }
-            ImGui::EndDisabled();
-            HelpMarker(Tr("Overrides how many extra frames the game's DLSS-G inserts between real ones."
-                          "\n\"Game\" leaves it at whatever the game's own menu says. 2X inserts one, 3X"
-                          "\ninserts two, and so on. 3X and 4X need an RTX 50 series -- other cards are"
-                          "\ncapped at 2X by the driver, whatever is picked here."
-                          "\n\nGreyed out while Multi is on below -- the driver picks the count then."));
+            HelpMarker(Tr("Not the same scale as the super resolution or ray reconstruction presets --"
+                          "\nthe same letter means something different here."
+                          "\n\nRead when the model is built, so a change rebuilds it after a moment."));
 
-            if (state.dlssgGameDMFGSupported)
+            const char* nrStyleNames[] = { Tr("Default (standard)"), Tr("Natural"), Tr("Cinematic") };
+            int style = (int) config->DlssNrStyle.value_or_default();
+            if (style > 2)
+                style = 2;
+            if (NrCombo(Tr("Style"), &style, nrStyleNames, IM_ARRAYSIZE(nrStyleNames), rowWidth))
             {
-                bool dynamic = config->FGDLSSGOverrideForceDMFG.value_or_default();
-                if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dynamic))
-                {
-                    config->FGDLSSGOverrideForceDMFG = dynamic;
-                    StreamlineHooks::updateDlssgOptions();
-                    anyChanged = true;
-                }
-                HelpMarker(Tr("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
-                              "\nthe FPS target below -- instead of a fixed 2X/3X/4X."));
-
-                ImGui::BeginDisabled(!dynamic);
-                float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
-                auto rFps = NrSlider(Tr("DMFG FPS Target"), &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
-                if (rFps.changed)
-                    config->FGDLSSGFramerateTargetDMFG = fpsTarget;
-                if (rFps.released)
-                {
-                    StreamlineHooks::updateDlssgOptions();
-                    anyChanged = true;
-                }
-                ImGui::EndDisabled();
-                HelpMarker(Tr("0 auto-detects your display's refresh rate."));
-            }
-        }
-        else if (optiDlssg)
-        {
-            auto* fg = state.currentFG;
-
-            bool fgActive = config->FGEnabled.value_or_default();
-            if (NrCheckbox(Tr("Frame Generation"), &fgActive))
-            {
-                config->FGEnabled = fgActive;
-                state.fgChanged = true;
+                config->DlssNrStyle = (uint32_t) style;
                 anyChanged = true;
-
-                // The other half of the Lossless Scaling row's rule: only one frame generator at a time.
-                if (fgActive && LosslessScaling::IsRunning())
-                    LosslessScaling::Close();
             }
-            HelpMarker(Tr("NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG."));
+            HelpMarker(Tr("The model's own processing profiles."
+                          "\n\nDefault (standard): the strongest, and most likely to look 'stylised'."
+                          "\nNatural: the same detail work with a gentler hand."
+                          "\nCinematic: tones down the shine and over-processing for a film-like look."
+                          "\n\nThe names come from community testing, unlike the panel labels above --"
+                          "\nNVIDIA ships no names for this control in the binaries."));
 
-            int maxCount = fg->GetMaxInterpolationCount();
-            if (maxCount > 1)
+            float intensity = config->DlssNrIntensity.value_or_default();
+            auto rIntensity = NrSlider(Tr("Intensity"), &intensity, 0.0f, 2.0f, "%.2f", rowWidth);
+            if (rIntensity.changed)
+                config->DlssNrIntensity = intensity;
+            if (rIntensity.released)
+                anyChanged = true;
+            HelpMarker(Tr("The model's own strength control, applied inside it. Distinct from the Global"
+                          "\nControls above, and from Detail strength below, which scales the result"
+                          "\nafterwards."));
+
+            // Frame Generation -- NVIDIA's own DLSS-G (Streamline). Two ways it can be running:
+            //
+            //  1. The GAME's own DLSS Frame Generation (the common case for every title that ships
+            //     sl.dlss_g.dll: Cyberpunk, Stellar Blade, Witcher 3...). Turning it on or off is the
+            //     game's own video setting; what this panel can do is override the multiplier the game
+            //     asks the driver for, through config->FGDLSSGOverrideInterpolationCount /
+            //     FGDLSSGOverrideForceDMFG, which StreamlineHooks::hkslDLSSGSetOptions applies to every
+            //     slDLSSGSetOptions the game makes (and updateDlssgOptions() re-sends the last one so a
+            //     change here lands immediately, not on the game's next settings change).
+            //
+            //  2. OptiScaler's OWN DLSS-G instance (FGOutput=dlssg, for a game that only has DLSS
+            //     upscaling), driven the same way the old shared menu's "MFG" combo did: straight
+            //     through config->FGDLSSGInterpolationCount / FGDLSSGForceDMFG, which
+            //     DLSSG_Dx12::Dispatch() reads every frame.
+            //
+            // Until 2026-09-12 only case 2 had controls here, and the manager app never enables that
+            // output (it leaves frame gen to the game -- see OptiDLSS5-UI's autoConfigureGame), so on
+            // every native-DLSS game the section only ever said "not the active output".
+            //
+            // Nothing here touches OptiFG (the FSR3-based fallback used when the game has no frame
+            // generation at all) -- that path is FGOutput::FSRFG/XeFG and is deliberately left out.
+        }
+
+        if (OnPage(kPageMain))
+        {
+            SectionCaption(Tr("Frame Generation"), rowWidth);
+
+            const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr;
+            // The game's sl.dlss_g.dll got hooked -- it ships and loads DLSS-G of its own. Streamline
+            // loads the plugin at startup whether or not the user has the option on, so this is true
+            // from the first frame; dlssgMfgMax (below) only fills in once FG has actually been on.
+            const bool gameDlssg =
+                !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
+
+            if (gameDlssg)
             {
-                static const char* multNames[] = { "2X", "3X", "4X", "5X", "6X" };
-                int shown = std::min(maxCount, (int) IM_ARRAYSIZE(multNames));
-                int current = std::clamp((int) fg->GetInterpolatedFrameCount() - 1, 0, shown - 1);
+                // What the game is doing right now: the count NGX saw on its last DLSS-G evaluate
+                // (0 = off, 1 = 2X, ...), reset to 0 a few frames after FG stops being evaluated.
+                const int live = state.dlssgDetectedInterpolationCount;
+                if (live > 0)
+                {
+                    char running[96];
+                    snprintf(running, sizeof(running), Tr("Game's DLSS Frame Generation: running at %dX"), live + 1);
+                    ImGui::TextUnformatted(running);
+                }
+                else
+                {
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Game's DLSS Frame Generation: off in the game's video settings."));
+                }
+                HelpMarker(Tr("This game has NVIDIA DLSS Frame Generation of its own. Turn it on or off in the"
+                              "\ngame's video settings as usual -- the row below only changes the multiplier"
+                              "\nit asks the driver for."));
 
-                bool dmfgForced = config->FGDLSSGForceDMFG.value_or_default();
+                // 4X (3 generated frames) is the most any card does today, and the hook clamps the
+                // override to what the driver reported once FG has been on (dlssgMfgMax) -- so before
+                // that is known, offer up to 4X and let it clamp. An RTX 40 card gets 2X either way.
+                const int maxCount = std::clamp(state.dlssgMfgMax.value_or(3), 1, 5);
+                static const char* gameMultNames[] = { "2X", "3X", "4X", "5X", "6X" };
+                const int shown = maxCount + 1; // "Game" + one button per multiplier
+                const int currentOverride = config->FGDLSSGOverrideInterpolationCount.has_value()
+                                                ? config->FGDLSSGOverrideInterpolationCount.value()
+                                                : 0;
+
+                const bool dmfgForced =
+                    state.dlssgGameDMFGSupported && config->FGDLSSGOverrideForceDMFG.value_or_default();
 
                 ImGui::BeginDisabled(dmfgForced);
                 {
@@ -1544,1079 +1632,1210 @@ void RenderMenu(Config* config, float menuResScale)
                         if (i > 0)
                             ImGui::SameLine();
 
-                        ImGui::PushID(i);
-                        if (ModelButton(multNames[i], current == i, btnWidth))
+                        ImGui::PushID(100 + i);
+                        const char* label = i == 0 ? Tr("Game") : gameMultNames[i - 1];
+                        if (ModelButton(label, currentOverride == i, btnWidth))
                         {
-                            LOG_DEBUG("DLSSG Interpolation Count set to: {}", i + 1);
-                            config->FGDLSSGInterpolationCount = i + 1;
+                            if (i == 0)
+                            {
+                                LOG_DEBUG("DLSSG override cleared -- game's own multiplier");
+                                config->FGDLSSGOverrideInterpolationCount.reset();
+                            }
+                            else
+                            {
+                                LOG_DEBUG("DLSSG override interpolation count set to: {}", i);
+                                config->FGDLSSGOverrideInterpolationCount = i;
+                            }
+                            StreamlineHooks::updateDlssgOptions();
                             anyChanged = true;
                         }
                         ImGui::PopID();
                     }
                 }
                 ImGui::EndDisabled();
-                HelpMarker(Tr("Sets Streamline's numFramesToGenerate directly -- how many extra frames"
-                              "\nDLSS-G inserts between real ones. 2X inserts one, 3X inserts two, and"
-                              "\nso on. Capped by what your GPU and driver report supporting."
+                HelpMarker(Tr("Overrides how many extra frames the game's DLSS-G inserts between real ones."
+                              "\n\"Game\" leaves it at whatever the game's own menu says. 2X inserts one, 3X"
+                              "\ninserts two, and so on. 3X and 4X need an RTX 50 series -- other cards are"
+                              "\ncapped at 2X by the driver, whatever is picked here."
                               "\n\nGreyed out while Multi is on below -- the driver picks the count then."));
 
-                if (fg->GetDMFGSupport())
+                if (state.dlssgGameDMFGSupported)
                 {
-                    if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dmfgForced))
+                    bool dynamic = config->FGDLSSGOverrideForceDMFG.value_or_default();
+                    if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dynamic))
                     {
-                        config->FGDLSSGForceDMFG = dmfgForced;
+                        config->FGDLSSGOverrideForceDMFG = dynamic;
+                        StreamlineHooks::updateDlssgOptions();
                         anyChanged = true;
                     }
                     HelpMarker(Tr("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
                                   "\nthe FPS target below -- instead of a fixed 2X/3X/4X."));
 
-                    ImGui::BeginDisabled(!dmfgForced);
+                    ImGui::BeginDisabled(!dynamic);
                     float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
                     auto rFps = NrSlider(Tr("DMFG FPS Target"), &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
                     if (rFps.changed)
                         config->FGDLSSGFramerateTargetDMFG = fpsTarget;
                     if (rFps.released)
+                    {
+                        StreamlineHooks::updateDlssgOptions();
                         anyChanged = true;
+                    }
                     ImGui::EndDisabled();
                     HelpMarker(Tr("0 auto-detects your display's refresh rate."));
                 }
             }
-        }
-        else
-        {
-            // Neither the game nor OptiScaler has DLSS-G here. (The old text, "not the active
-            // output", read as a fault on every native-DLSS game; it was really this case.)
-            ImGui::TextColored(kTextDim, "%s", Tr("This game has no NVIDIA DLSS Frame Generation of its own."));
-        }
-
-        // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
-        // developer overlay -- kept under its original names.
-        SectionCaption(Tr("Cost"), rowWidth);
-
-        // Sequential model layers between one encode and one final composition. Deferred on release
-        // for the same reason Model resolution below is: each layer owns a persistent feature and
-        // history, so every distinct value tears those down and rebuilds them.
-        static int pendingPasses = -1;
-        float passes = pendingPasses >= 0
-                           ? (float) pendingPasses
-                           : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
-
-        auto rPasses = NrSlider(Tr("Model passes"), &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
-        if (rPasses.changed)
-            pendingPasses = (int) std::lroundf(passes);
-
-        if (rPasses.released && pendingPasses >= 0)
-        {
-            config->DlssNrPasses = (uint32_t) std::clamp(pendingPasses, 1, (int) DlssNr::MaxPassCount);
-            pendingPasses = -1;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("How many times the model runs before its answer is composed. Each extra layer is"
-                      "\nfed the previous layer's output and keeps its own temporal history."
-                      "\n\nThe base frame stays untouched and the composition happens once at the end, so"
-                      "\ncolour and transfer strength do not compound -- but the model is being asked to"
-                      "\nenhance its own output, which is outside what it was trained on."
-                      "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
-                      "\nand every layer pays it again. Three is the ceiling because later layers converge"
-                      "\nwhile still costing full price."));
-
-        {
-            const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
-            if (shownPasses > 1)
+            else if (optiDlssg)
             {
-                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
-                                                    : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
-                                   Tr("%dx model cost. Two often reads as richer; three is usually visibly "
-                                      "over-processed."),
-                                   shownPasses);
-                ImGui::PopTextWrapPos();
+                auto* fg = state.currentFG;
 
-                bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
-                if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
+                bool fgActive = config->FGEnabled.value_or_default();
+                if (NrCheckbox(Tr("Frame Generation"), &fgActive))
                 {
-                    config->DlssNrChainedHistory = chainedHistory;
+                    config->FGEnabled = fgActive;
+                    state.fgChanged = true;
                     anyChanged = true;
+
+                    // The other half of the Lossless Scaling row's rule: only one frame generator at a time.
+                    if (fgActive && LosslessScaling::IsRunning())
+                        LosslessScaling::Close();
                 }
-                HelpMarker(Tr("What the stacked passes do with their temporal history between frames."
-                              "\n\nOn (default): every pass keeps its own history, so each layer accumulates the"
-                              "\nway pass one does. Off: passes 2+ are reset every frame -- stateless refinement,"
-                              "\nwhich cannot compound ghosting."
-                              "\n\nThe trade is real both ways. Keeping history is richer and can compound ghosting"
-                              "\nbehind fast movement; resetting every frame cannot, but NVIDIA documents"
-                              "\nreset-per-frame as a flicker and aliasing risk -- which is what shimmering on two"
-                              "\nor three passes usually is. Try the other setting when a stacked picture shimmers,"
-                              "\nand keep whichever the game looks better with."
-                              "\n\nOnly does anything with more than one pass."));
+                HelpMarker(Tr("NVIDIA's own DLSS Frame Generation, via Streamline. Not OptiFG."));
 
-                const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"), Tr("Model A"),
-                                                              Tr("Model B"), Tr("Model C") };
-                const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),
-                                                             Tr("Natural"), Tr("Cinematic") };
-
-                anyChanged |=
-                    InheritedProfileCombo(Tr("Pass 2 model"), &config->DlssNrPass2Preset, kInheritedPresetNames,
-                                          IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
-                anyChanged |= InheritedProfileCombo(Tr("Pass 2 style"), &config->DlssNrPass2Style, kInheritedStyleNames,
-                                                    IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
-
-                if (shownPasses > 2)
+                int maxCount = fg->GetMaxInterpolationCount();
+                if (maxCount > 1)
                 {
-                    anyChanged |=
-                        InheritedProfileCombo(Tr("Pass 3 model"), &config->DlssNrPass3Preset, kInheritedPresetNames,
-                                              IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
-                    anyChanged |=
-                        InheritedProfileCombo(Tr("Pass 3 style"), &config->DlssNrPass3Style, kInheritedStyleNames,
-                                              IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+                    static const char* multNames[] = { "2X", "3X", "4X", "5X", "6X" };
+                    int shown = std::min(maxCount, (int) IM_ARRAYSIZE(multNames));
+                    int current = std::clamp((int) fg->GetInterpolatedFrameCount() - 1, 0, shown - 1);
+
+                    bool dmfgForced = config->FGDLSSGForceDMFG.value_or_default();
+
+                    ImGui::BeginDisabled(dmfgForced);
+                    {
+                        float spacing = ImGui::GetStyle().ItemSpacing.x;
+                        float btnWidth = (rowWidth - spacing * (shown - 1)) / shown;
+
+                        for (int i = 0; i < shown; i++)
+                        {
+                            if (i > 0)
+                                ImGui::SameLine();
+
+                            ImGui::PushID(i);
+                            if (ModelButton(multNames[i], current == i, btnWidth))
+                            {
+                                LOG_DEBUG("DLSSG Interpolation Count set to: {}", i + 1);
+                                config->FGDLSSGInterpolationCount = i + 1;
+                                anyChanged = true;
+                            }
+                            ImGui::PopID();
+                        }
+                    }
+                    ImGui::EndDisabled();
+                    HelpMarker(Tr("Sets Streamline's numFramesToGenerate directly -- how many extra frames"
+                                  "\nDLSS-G inserts between real ones. 2X inserts one, 3X inserts two, and"
+                                  "\nso on. Capped by what your GPU and driver report supporting."
+                                  "\n\nGreyed out while Multi is on below -- the driver picks the count then."));
+
+                    if (fg->GetDMFGSupport())
+                    {
+                        if (NrCheckbox(Tr("Multi (Dynamic Frame Generation)"), &dmfgForced))
+                        {
+                            config->FGDLSSGForceDMFG = dmfgForced;
+                            anyChanged = true;
+                        }
+                        HelpMarker(Tr("Lets NVIDIA's driver vary the multiplier itself, frame to frame, to hold"
+                                      "\nthe FPS target below -- instead of a fixed 2X/3X/4X."));
+
+                        ImGui::BeginDisabled(!dmfgForced);
+                        float fpsTarget = config->FGDLSSGFramerateTargetDMFG.value_or_default();
+                        auto rFps = NrSlider(Tr("DMFG FPS Target"), &fpsTarget, 0.0f, 200.0f, "%.0f", rowWidth);
+                        if (rFps.changed)
+                            config->FGDLSSGFramerateTargetDMFG = fpsTarget;
+                        if (rFps.released)
+                            anyChanged = true;
+                        ImGui::EndDisabled();
+                        HelpMarker(Tr("0 auto-detects your display's refresh rate."));
+                    }
                 }
-
-                HelpMarker(Tr("Which built-in profile each later layer runs. These select a different"
-                              "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
-                              "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
-                              "\nrebuilds only that layer's feature, and only while that layer is active."));
             }
-        }
-
-        // Model resolution, by hand or by itself. The automatic block below drives this same number,
-        // so the slider is shown disabled rather than hidden while it is on: the value moving is the
-        // clearest possible statement of what the controller is doing.
-        const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
-
-        static int pendingScale = -1;
-        float scalePercent =
-            pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
-
-        ImGui::BeginDisabled(autoScaleOn);
-        auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
-        if (rScale.changed)
-            pendingScale = (int) std::lroundf(scalePercent);
-
-        if (rScale.released && pendingScale >= 0)
-        {
-            config->DlssNrWorkingScale = std::clamp(pendingScale, 25, 200) / 100.0f;
-            pendingScale = -1;
-            anyChanged = true;
-        }
-        ImGui::EndDisabled();
-        HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
-                      "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
-                      "\nitself is never reduced -- only the model's own contribution is computed small"
-                      "\nand enlarged. Applied when the handle is let go, not while it is moving."));
-
-        DrawAutoScale(config, rowWidth, anyChanged);
-
-        // Above native the model is run supersampled and filtered back down, so the filter is
-        // the whole difference between supersampling meaning less noise and meaning more.
-        const int shownScale = pendingScale >= 0 ? pendingScale : (int) std::lroundf(scalePercent);
-
-        if (shownScale > 100)
-        {
-            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-            ImGui::TextColored(kTextDim,
-                               Tr("Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
-                                  "down. Experimental, and costly -- time grows with the area."),
-                               shownScale / 100.0f);
-            ImGui::PopTextWrapPos();
-
-            static const char* const kDownscalerNames[] = { "FSR1",     "Bicubic", "Catmull-Rom", "Lanczos2",
-                                                            "Lanczos3", "Kaiser2", "Kaiser3",     "MAGIC" };
-
-            int ds = (int) config->DlssNrScalingDownscaler.value_or_default();
-
-            if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
-                ds = (int) Scaler::Lanczos3;
-
-            if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
+            else
             {
-                config->DlssNrScalingDownscaler = (Scaler) ds;
+                // Neither the game nor OptiScaler has DLSS-G here. (The old text, "not the active
+                // output", read as a fault on every native-DLSS game; it was really this case.)
+                ImGui::TextColored(kTextDim, "%s", Tr("This game has no NVIDIA DLSS Frame Generation of its own."));
+            }
+
+            // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
+            // developer overlay -- kept under its original names.
+
+            // The two resets, at the foot of the first page: one puts the panel back where it opens, the
+            // other puts this game's tuning back to what it ships with. Together at the bottom rather than
+            // in the title row -- a reset is a thing you go looking for, not something to have under a
+            // thumb while reaching for the close button.
+            ImGui::Spacing();
+
+            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
+            {
+                config->DlssNrPanelX = -1.0f;
+                config->DlssNrPanelY = -1.0f;
+                config->DlssNrPanelW = -1.0f;
+                config->DlssNrPanelH = -1.0f;
+                s_layout.placeFrames = 2;
                 anyChanged = true;
             }
-            HelpMarker(Tr("The filter that averages the model's above-native answer back to display size --"
-                          "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
-                          "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
-                          "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
-                          "\ndownscaler, so the two can differ and run at the same time."));
-        }
+            HelpMarker(Tr("Puts the panel back where it opens -- the left edge, halfway down, at its own size."));
 
-        // How the model's work is brought back up when it ran below the frame's size. Classic
-        // composes the small picture straight against the full-size frame, which cannot tell the
-        // shrink's blur apart from the model's edit.
-        const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f;
+            ImGui::SameLine();
 
-        ImGui::BeginDisabled(!reduced);
-        const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual") };
-        int enlarge = config->DlssNrTransfer.value_or_default() == 1 ? 1 : 0;
-        if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
-        {
-            config->DlssNrTransfer = (uint32_t) enlarge;
-            anyChanged = true;
-        }
-        ImGui::EndDisabled();
-        HelpMarker(Tr("How the model's work is brought back up when it ran below the frame's size."
-                      "\n\nClassic composes the model's small picture directly against the full-size frame."
-                      "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
-                      "\ncomposition cannot tell them apart."
-                      "\n\nGreyed out at 100%, where there is nothing to enlarge."));
-
-        // The filter that does the enlarging, and the four controls that shape the one of them that
-        // reads them. Greyed by the same condition as Enlargement above: nothing to enlarge at 100%.
-        const char* upscalerNames[] = { Tr("Bicubic"),        Tr("EWA Lanczos"),   Tr("xBR-lv2"),
-                                        Tr("Sharp bilinear"), Tr("Integer scale"), Tr("Nearest") };
-
-        int upscaler = (int) config->DlssNrScalingUpscaler.value_or_default();
-
-        if (upscaler < 0 || upscaler >= IM_ARRAYSIZE(upscalerNames))
-            upscaler = (int) Upsampler::Bicubic;
-
-        ImGui::BeginDisabled(!reduced);
-        if (NrCombo(Tr("Upscaler"), &upscaler, upscalerNames, IM_ARRAYSIZE(upscalerNames), rowWidth))
-        {
-            config->DlssNrScalingUpscaler = (Upsampler) upscaler;
-            anyChanged = true;
-        }
-        ImGui::EndDisabled();
-        HelpMarker(Tr("The filter that enlarges the model's answer back to display size when the model"
-                      "\nran SMALLER than the frame."
-                      "\n\nBicubic is the default because it is the cheapest and cannot go wrong, not"
-                      "\nbecause it is good -- it is soft. On a rendered 3D game the one to try is EWA"
-                      "\nLanczos, which weighs pixels by how far away they really are rather than by row"
-                      "\nand column, so a diagonal edge comes out as clean as a horizontal one."
-                      "\n\nxBR-lv2, Sharp bilinear, Integer scale and Nearest are for PIXEL ART and 2D."
-                      "\nOn a rendered 3D frame they will look wrong."));
-
-        // EWA Lanczos's own four. All 0 to 1 with 0 the gentlest, so they read as one set.
-        const bool ewa = reduced && config->DlssNrScalingUpscaler.value_or_default() == Upsampler::EwaLanczos;
-
-        ImGui::BeginDisabled(!ewa);
-
-        float nrSharpness = config->DlssNrScalingSharpness.value_or_default();
-        auto rNrSharp = NrSlider(Tr("Sharpness"), &nrSharpness, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rNrSharp.changed)
-            config->DlssNrScalingSharpness = nrSharpness;
-        if (rNrSharp.released)
-            anyChanged = true;
-        HelpMarker(Tr("How hard the filter is pulled in. One slider across the three EWA filters there"
-                      "\nare: 0.00 the gentlest, about 0.16 the middle one, 1.00 the sharpest."
-                      "\n\nThe top of it reads 100 pixels for every one it draws, against 64 at the"
-                      "\nbottom, so watch the cost line as you climb. Raise Ring suppression with it."));
-
-        float nrRing = config->DlssNrScalingAntiRinging.value_or_default();
-        auto rNrRing = NrSlider(Tr("Ring suppression"), &nrRing, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rNrRing.changed)
-            config->DlssNrScalingAntiRinging = nrRing;
-        if (rNrRing.released)
-            anyChanged = true;
-        HelpMarker(Tr("The bright or dark rim sharpening buys, held back: it keeps the filter's answer"
-                      "\ninside the range of the pixels it is interpolating between. 0 leaves the"
-                      "\nfilter's own answer, 1 allows no overshoot at all."
-                      "\n\nNot the same control as Highlight guard: that one bounds what the MODEL did,"
-                      "\nthis one bounds what the scaling filter did."));
-
-        float nrSigmoid = config->DlssNrScalingSigmoid.value_or_default();
-        auto rNrSigmoid = NrSlider(Tr("Sigmoidal light"), &nrSigmoid, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rNrSigmoid.changed)
-            config->DlssNrScalingSigmoid = nrSigmoid;
-        if (rNrSigmoid.released)
-            anyChanged = true;
-        HelpMarker(Tr("Resample on an S-shaped curve, so an overshoot near black or near white is"
-                      "\ncompressed instead of clipping into a flat band. The slider is how hard the"
-                      "\ncurve bends, with the reference setting at 1.00."
-                      "\n\nSDR only by construction: anything brighter than white passes through"
-                      "\nuntouched, so an HDR frame is barely affected."));
-
-        float nrDither = config->DlssNrScalingDither.value_or_default();
-        auto rNrDither = NrSlider(Tr("Dither"), &nrDither, 0.0f, 1.0f, "%.2f", rowWidth);
-        if (rNrDither.changed)
-            config->DlssNrScalingDither = nrDither;
-        if (rNrDither.released)
-            anyChanged = true;
-        ImGui::EndDisabled();
-        HelpMarker(Tr("Breaks a band by adding a pattern finer than one step of colour, moved on each"
-                      "\nframe so it does not settle into something you can pick out. 1.00 is half a"
-                      "\nstep of an 8-bit picture."
-                      "\n\nFor banding in a sky or a gradient, where Ring suppression is for a rim"
-                      "\nalong an edge."));
-
-        SectionCaption(Tr("How much of it lands"), rowWidth);
-
-        float transfer = config->DlssNrTransferStrength.value_or_default();
-        auto rTransfer = NrSlider(Tr("Detail strength"), &transfer, 0.0f, 2.0f, "%.2f", rowWidth);
-        if (rTransfer.changed)
-            config->DlssNrTransferStrength = transfer;
-        if (rTransfer.released)
-            anyChanged = true;
-
-        ImGui::SameLine();
-
-        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##detail").c_str()))
-        {
-            config->DlssNrTransferStrength = 1.0f;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("How far the frame moves toward the model's picture. 0 gives back exactly what"
-                      "\nthe upscaler produced. 1 is the model's picture. Above 1 carries on past"
-                      "\nit in the same direction."));
-
-        float colour = config->DlssNrColourStrength.value_or_default();
-        auto rColour = NrSlider(Tr("Colour strength"), &colour, 0.0f, 4.0f, "%.2f", rowWidth);
-        if (rColour.changed)
-            config->DlssNrColourStrength = colour;
-        if (rColour.released)
-            anyChanged = true;
-
-        ImGui::SameLine();
-
-        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##colour").c_str()))
-        {
-            config->DlssNrColourStrength = 1.0f;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Whether the model's colour arrives with its light. 0 keeps the game's own hue"
-                      "\nexactly -- every pixel the original colour, with only its brightness carrying"
-                      "\nthe model's verdict. 1 brings the model's colour as well, in its own hue,"
-                      "\nclamped into AP1 so nothing unreachable is asked for."
-                      "\n\nAbove 1 it over-saturates: the colour keeps its hue but grows more vivid, and"
-                      "\nrolls off at the edge of what the display can show rather than clipping into a"
-                      "\nflat blown patch. 1 is the model's own colour; push past it for punch."));
-
-        SectionCaption(Tr("Colour"), rowWidth);
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("The model was trained on finished, sRGB-encoded frames. These decide how "
-                              "the upscaler's linear output is mapped into something it recognises."));
-        ImGui::PopTextWrapPos();
-
-        // 0 off (soft knee), 1 Neutwo + composition, 2 Neutwo + pure-inverse replace, 3 hybrid +
-        // composed, 4 hybrid + replace. This decides what every control below is working on, so it
-        // opens the section rather than trailing it.
-        const char* const kReversibleNames[] = { Tr("Off (soft knee)"), Tr("Neutwo proxy + composed"),
-                                                 Tr("Neutwo proxy + replace"), Tr("Hybrid proxy + composed"),
-                                                 Tr("Hybrid proxy + replace") };
-
-        int reversible = (int) config->DlssNrReversibleMode.value_or_default();
-
-        if (reversible < 0 || reversible > 4)
-            reversible = 0;
-
-        if (NrCombo(Tr("Reversible proxy"), &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames), rowWidth))
-        {
-            config->DlssNrReversibleMode = (uint32_t) reversible;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("What the model is shown, and how its answer comes back. Experimental."
-                      "\n\nOff (soft knee): the default, and byte-identical to before. It rolls highlights"
-                      "\noff so hard the model cannot resolve detail in them -- fine in soft-lit scenes,"
-                      "\nweak in bright ones."
-                      "\n\nNeutwo composed: an unclipped curve, so the model sees highlight detail, then"
-                      "\neverything above it (strengths, highlight guard, palette). Wins in bright scenes,"
-                      "\nbut the curve compresses midtones too, so soft-lit content can be worse than Off."
-                      "\nIt also shifts paper white -- re-check that when you switch."
-                      "\n\nHybrid composed: the one to use. Identity in the midtones -- as good as Off"
-                      "\nthere -- with the unclipped roll only in the highlights, so it recovers the detail"
-                      "\nOff crushes without giving up the midtones Neutwo does. Barely shifts paper white."
-                      "\n\nReplace: the raw model straight back through the exact inverse, none of the"
-                      "\ncomposition -- no guard, no palette, no strengths. Gorgeous where there are no"
-                      "\nbright lights, but they FLASH in motion. A reference, not a daily setting."
-                      "\n\nHybrid replace: Replace's raw model on the hybrid curve, so the flashing is"
-                      "\nconfined to genuine highlights instead of everywhere. Most of Replace's detail,"
-                      "\nfar more stable."));
-
-        // Where the number that divides the frame comes from. This used to be a checkbox on
-        // DlssNrWhitePointFromExposure; upstream replaced that flag with a three-way source, and the
-        // engine no longer reads the old one -- the checkbox would have kept setting a value nothing
-        // consults. The scan asks the source whether it is wanted, so choosing it here is the whole
-        // of switching it on: there is no second flag to keep in step, and so no way for two to
-        // disagree.
-        const char* const kSourceNames[] = { Tr("Paper white only"), Tr("The game's own exposure"),
-                                             Tr("A buffer the scan found") };
-
-        int wpSource = (int) config->DlssNrWhitePointSource.value_or_default();
-
-        if (wpSource < 0 || wpSource > 2)
-            wpSource = 0;
-
-        if (NrCombo(Tr("White point from"), &wpSource, kSourceNames, 3, rowWidth))
-        {
-            config->DlssNrWhitePointSource = (uint32_t) wpSource;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Paper white only -- the slider below and nothing else. Right for a game whose"
-                      "\nexposure never moves, wrong the moment it does: one constant cannot serve a"
-                      "\ncave and a field."
-                      "\n\nThe game's own exposure -- read from the texture the game hands the upscaler."
-                      "\nThe best source there is, because it is decided upstream and nothing this pass"
-                      "\ndoes can move it. Not every game supplies one."
-                      "\n\nA buffer the scan found -- for games that compute an exposure and never pass"
-                      "\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels"
-                      "\nthe scale. Needs anchoring once, in the Experimental section, and checking after."));
-
-        // Which anchor row the paper-white slider edits, or -1 for the live unanchored point.
-        // Menu-local and not persisted; the anchor table under Experimental sets it when a row is
-        // clicked. Declared here because the slider and the table read it in the same frame.
-        static int selectedAnchor = -1;
-        auto anchors = DlssNr::ExposureScan::Anchors();
-
-        if (selectedAnchor >= (int) anchors.size())
-            selectedAnchor = -1;
-
-        // Paper white and the trim swap places by source, because they are not the same control:
-        // paper white is the absolute number, the trim is a multiplier on a number that came from
-        // somewhere else. Showing both at once asked people to set "paper white" next to a control
-        // that was not paper white.
-        if (wpSource == 2)
-        {
-            const bool editingRow = selectedAnchor >= 0 && selectedAnchor < (int) anchors.size();
-
-            if (!anchors.empty())
+            if (ImGui::SmallButton((std::string(Tr("Reset all to defaults")) + "##resetall").c_str()))
             {
-                const float liveScan = DlssNr::ExposureScan::BestValue();
-
-                if (liveScan > 0.0f)
-                {
-                    const float w = DlssNr::ExposureScan::AnchoredWhitePoint(
-                        liveScan, config->DlssNrScanInverted.value_or_default(),
-                        config->DlssNrScanTrim.value_or_default());
-
-                    ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
-                                       anchors.size() == 1 ? Tr("Scan %.5f  ->  white point %.2f   (1 point)")
-                                                           : Tr("Scan %.5f  ->  white point %.2f   (%u points)"),
-                                       liveScan, w, (unsigned) anchors.size());
-                }
+                DlssNr::ResetSettingsToDefaults();
+                anyChanged = true;
             }
+            HelpMarker(Tr("Every DLSS 5 setting back to what it ships with: the model and its strengths, the"
+                          "\ncost controls, the picture and the guides."
+                          "\n\nKept: where this panel sits and how big it is (Reset layout, beside this), the"
+                          "\nkeys that open it, and whether it is light or dark. Those are yours, not this"
+                          "\ngame's tuning."));
+        }
 
-            // Only where there is a point to set: before the first anchor, or while editing a row.
-            // Once points exist and none is selected the white point is fixed by the anchors, and
-            // only the trim moves the live picture.
-            if (anchors.empty() || editingRow)
+        if (OnPage(kPageCost))
+        {
+            SectionCaption(Tr("Cost"), rowWidth);
+
+            // Sequential model layers between one encode and one final composition. Deferred on release
+            // for the same reason Model resolution below is: each layer owns a persistent feature and
+            // history, so every distinct value tears those down and rebuilds them.
+            static int pendingPasses = -1;
+            float passes = pendingPasses >= 0
+                               ? (float) pendingPasses
+                               : (float) std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount);
+
+            auto rPasses = NrSlider(Tr("Model passes"), &passes, 1.0f, (float) DlssNr::MaxPassCount, "%.0f", rowWidth);
+            if (rPasses.changed)
+                pendingPasses = (int) std::lroundf(passes);
+
+            if (rPasses.released && pendingPasses >= 0)
             {
-                float pw =
-                    editingRow ? anchors[selectedAnchor].white : config->DlssNrWhitePointScale.value_or_default();
+                config->DlssNrPasses = (uint32_t) std::clamp(pendingPasses, 1, (int) DlssNr::MaxPassCount);
+                pendingPasses = -1;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("How many times the model runs before its answer is composed. Each extra layer is"
+                          "\nfed the previous layer's output and keeps its own temporal history."
+                          "\n\nThe base frame stays untouched and the composition happens once at the end, so"
+                          "\ncolour and transfer strength do not compound -- but the model is being asked to"
+                          "\nenhance its own output, which is outside what it was trained on."
+                          "\n\nCost is very nearly linear: the model is almost the whole expense of the pass"
+                          "\nand every layer pays it again. Three is the ceiling because later layers converge"
+                          "\nwhile still costing full price."));
 
-                char lbl[48];
-
-                if (editingRow)
-                    snprintf(lbl, sizeof(lbl), Tr("Paper white (point %d)"), selectedAnchor + 1);
-                else
-                    snprintf(lbl, sizeof(lbl), Tr("Paper white"));
-
-                auto rPw = NrSlider(lbl, &pw, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
-
-                if (rPw.changed)
+            {
+                const int shownPasses = pendingPasses >= 0 ? pendingPasses : (int) std::lroundf(passes);
+                if (shownPasses > 1)
                 {
-                    if (editingRow)
+                    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+                    ImGui::TextColored(shownPasses == 2 ? ImVec4(0.95f, 0.70f, 0.20f, 1.0f)
+                                                        : ImVec4(0.92f, 0.30f, 0.25f, 1.0f),
+                                       Tr("%dx model cost. Two often reads as richer; three is usually visibly "
+                                          "over-processed."),
+                                       shownPasses);
+                    ImGui::PopTextWrapPos();
+
+                    bool chainedHistory = config->DlssNrChainedHistory.value_or_default();
+                    if (NrCheckbox(Tr("Chained temporal history"), &chainedHistory))
                     {
-                        DlssNr::ExposureScan::AnchorSetWhite(selectedAnchor, pw);
-                        config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
+                        config->DlssNrChainedHistory = chainedHistory;
+                        anyChanged = true;
                     }
-                    else
-                        config->DlssNrWhitePointScale = pw;
+                    HelpMarker(Tr("What the stacked passes do with their temporal history between frames."
+                                  "\n\nOn (default): every pass keeps its own history, so each layer accumulates the"
+                                  "\nway pass one does. Off: passes 2+ are reset every frame -- stateless refinement,"
+                                  "\nwhich cannot compound ghosting."
+                                  "\n\nThe trade is real both ways. Keeping history is richer and can compound ghosting"
+                                  "\nbehind fast movement; resetting every frame cannot, but NVIDIA documents"
+                                  "\nreset-per-frame as a flicker and aliasing risk -- which is what shimmering on two"
+                                  "\nor three passes usually is. Try the other setting when a stacked picture shimmers,"
+                                  "\nand keep whichever the game looks better with."
+                                  "\n\nOnly does anything with more than one pass."));
+
+                    const char* const kInheritedPresetNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default"),
+                                                                  Tr("Model A"), Tr("Model B"), Tr("Model C") };
+                    const char* const kInheritedStyleNames[] = { Tr("Auto (inherit pass 1)"), Tr("Default (standard)"),
+                                                                 Tr("Natural"), Tr("Cinematic") };
+
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 2 model"), &config->DlssNrPass2Preset, kInheritedPresetNames,
+                                              IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                    anyChanged |=
+                        InheritedProfileCombo(Tr("Pass 2 style"), &config->DlssNrPass2Style, kInheritedStyleNames,
+                                              IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+
+                    if (shownPasses > 2)
+                    {
+                        anyChanged |=
+                            InheritedProfileCombo(Tr("Pass 3 model"), &config->DlssNrPass3Preset, kInheritedPresetNames,
+                                                  IM_ARRAYSIZE(kInheritedPresetNames), rowWidth);
+                        anyChanged |=
+                            InheritedProfileCombo(Tr("Pass 3 style"), &config->DlssNrPass3Style, kInheritedStyleNames,
+                                                  IM_ARRAYSIZE(kInheritedStyleNames), rowWidth);
+                    }
+
+                    HelpMarker(Tr("Which built-in profile each later layer runs. These select a different"
+                                  "\nprofile inside the same NVIDIA model file -- nothing extra is loaded."
+                                  "\n\nAuto means the layer runs whatever pass 1 is set to. Changing one"
+                                  "\nrebuilds only that layer's feature, and only while that layer is active."));
                 }
-
-                if (rPw.released)
-                    anyChanged = true;
-
-                HelpMarker(Tr("The white point for the selected calibration point, or -- with no row"
-                              "\nselected -- the value the next Anchor press captures."
-                              "\n\nSet it until the picture looks right here, then Anchor. Move to very"
-                              "\ndifferent light and do it again: two points fix the buffer's real"
-                              "\nrelationship and the white point holds between them."));
             }
 
-            // In the steady state this is what stands in for paper white: adjust until the picture
-            // looks right in the current light, then Anchor bakes the trimmed value into a new point
-            // and resets the trim to 1.
-            if (!anchors.empty())
+            // Model resolution, by hand or by itself. The automatic block below drives this same number,
+            // so the slider is shown disabled rather than hidden while it is on: the value moving is the
+            // clearest possible statement of what the controller is doing.
+            const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
+
+            static int pendingScale = -1;
+            float scalePercent =
+                pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
+
+            ImGui::BeginDisabled(autoScaleOn);
+            auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
+            if (rScale.changed)
+                pendingScale = (int) std::lroundf(scalePercent);
+
+            if (rScale.released && pendingScale >= 0)
             {
-                float trim = config->DlssNrScanTrim.value_or_default();
-                auto rTrim = NrSlider(Tr("Trim (x the scan)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+                config->DlssNrWorkingScale = std::clamp(pendingScale, 25, 200) / 100.0f;
+                pendingScale = -1;
+                anyChanged = true;
+            }
+            ImGui::EndDisabled();
+            HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
+                          "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
+                          "\nitself is never reduced -- only the model's own contribution is computed small"
+                          "\nand enlarged. Applied when the handle is let go, not while it is moving."));
+
+            DrawAutoScale(config, rowWidth, anyChanged);
+
+            // Above native the model is run supersampled and filtered back down, so the filter is
+            // the whole difference between supersampling meaning less noise and meaning more.
+            const int shownScale = pendingScale >= 0 ? pendingScale : (int) std::lroundf(scalePercent);
+
+            if (shownScale > 100)
+            {
+                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+                ImGui::TextColored(kTextDim,
+                                   Tr("Supersampling %.2fx: the model runs ABOVE native, then is sampled back "
+                                      "down. Experimental, and costly -- time grows with the area."),
+                                   shownScale / 100.0f);
+                ImGui::PopTextWrapPos();
+
+                static const char* const kDownscalerNames[] = { "FSR1",     "Bicubic", "Catmull-Rom", "Lanczos2",
+                                                                "Lanczos3", "Kaiser2", "Kaiser3",     "MAGIC" };
+
+                int ds = (int) config->DlssNrScalingDownscaler.value_or_default();
+
+                if (ds < 0 || ds >= IM_ARRAYSIZE(kDownscalerNames))
+                    ds = (int) Scaler::Lanczos3;
+
+                if (NrCombo(Tr("Downscaler"), &ds, kDownscalerNames, IM_ARRAYSIZE(kDownscalerNames), rowWidth))
+                {
+                    config->DlssNrScalingDownscaler = (Scaler) ds;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("The filter that averages the model's above-native answer back to display size --"
+                              "\nthis is what turns supersampling into LESS noise rather than more. Sharper"
+                              "\nfilters (Lanczos3, Kaiser3) keep the most detail; softer ones (Bicubic,"
+                              "\nCatmull-Rom) are gentler on ringing. Independent of the Output Scaling"
+                              "\ndownscaler, so the two can differ and run at the same time."));
+            }
+        }
+
+        if (OnPage(kPageImage))
+        {
+            // How the model's work is brought back up when it ran below the frame's size. Classic
+            // composes the small picture straight against the full-size frame, which cannot tell the
+            // shrink's blur apart from the model's edit.
+            const bool reduced = config->DlssNrWorkingScale.value_or_default() < 0.999f;
+
+            ImGui::BeginDisabled(!reduced);
+            const char* enlargeNames[] = { Tr("Classic"), Tr("Matched residual") };
+            int enlarge = config->DlssNrTransfer.value_or_default() == 1 ? 1 : 0;
+            if (NrCombo(Tr("Enlargement"), &enlarge, enlargeNames, IM_ARRAYSIZE(enlargeNames), rowWidth))
+            {
+                config->DlssNrTransfer = (uint32_t) enlarge;
+                anyChanged = true;
+            }
+            ImGui::EndDisabled();
+            HelpMarker(Tr("How the model's work is brought back up when it ran below the frame's size."
+                          "\n\nClassic composes the model's small picture directly against the full-size frame."
+                          "\nThose two disagree by the shrink's blur as well as by the model's edit, and the"
+                          "\ncomposition cannot tell them apart."
+                          "\n\nGreyed out at 100%, where there is nothing to enlarge."));
+
+            // The filter that enlarges the proxy for a model working ABOVE the frame's size, and the four
+            // controls that shape the one of them that reads them.
+            //
+            // Greyed below 100%, which is the opposite of what this said until 2026-09-22. Only the
+            // supersample leg uses this filter (DlssNr_Dx12.cpp: `if (workScale > 1.0f)` builds superUp
+            // with it); a model working BELOW the frame is enlarged inside the resolve shader, which has
+            // its own control -- Enlargement, above. So the rows were live exactly when they did nothing
+            // and dead when they mattered, which is how a player came to change every filter at 50% and
+            // measure no difference at all.
+            // Live whenever the model is not working at exactly the frame's size, in either direction: it
+            // enlarges the proxy for a model working ABOVE it, and the model's answer for one working below.
+            const float workScaleNow = config->DlssNrWorkingScale.value_or_default();
+            const bool scaledEither = workScaleNow < 0.999f || workScaleNow > 1.001f;
+
+            const char* upscalerNames[] = { Tr("Bicubic"),        Tr("EWA Lanczos"),   Tr("xBR-lv2"),
+                                            Tr("Sharp bilinear"), Tr("Integer scale"), Tr("Nearest") };
+
+            int upscaler = (int) config->DlssNrScalingUpscaler.value_or_default();
+
+            if (upscaler < 0 || upscaler >= IM_ARRAYSIZE(upscalerNames))
+                upscaler = (int) Upsampler::Bicubic;
+
+            ImGui::BeginDisabled(!scaledEither);
+            if (NrCombo(Tr("Upscaler"), &upscaler, upscalerNames, IM_ARRAYSIZE(upscalerNames), rowWidth))
+            {
+                config->DlssNrScalingUpscaler = (Upsampler) upscaler;
+                anyChanged = true;
+            }
+            ImGui::EndDisabled();
+            HelpMarker(Tr("The filter used whenever the model is not working at the frame's own size: it"
+                          "\nenlarges the model's answer back up when Model resolution is below 100%, and"
+                          "\nenlarges the frame for the model when it is above. Greyed out at exactly 100%,"
+                          "\nwhere nothing is being resized."
+                          "\n\nBicubic is the default because it is the cheapest and cannot go wrong, not"
+                          "\nbecause it is good -- it is soft. On a rendered 3D game the one to try is EWA"
+                          "\nLanczos, which weighs pixels by how far away they really are rather than by row"
+                          "\nand column, so a diagonal edge comes out as clean as a horizontal one."
+                          "\n\nxBR-lv2, Sharp bilinear, Integer scale and Nearest are for PIXEL ART and 2D."
+                          "\nOn a rendered 3D frame they will look wrong."));
+
+            // EWA Lanczos's own four. All 0 to 1 with 0 the gentlest, so they read as one set.
+            const bool ewa = scaledEither && config->DlssNrScalingUpscaler.value_or_default() == Upsampler::EwaLanczos;
+
+            ImGui::BeginDisabled(!ewa);
+
+            float nrSharpness = config->DlssNrScalingSharpness.value_or_default();
+            auto rNrSharp = NrSlider(Tr("Sharpness"), &nrSharpness, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rNrSharp.changed)
+                config->DlssNrScalingSharpness = nrSharpness;
+            if (rNrSharp.released)
+                anyChanged = true;
+            HelpMarker(Tr("How hard the filter is pulled in. One slider across the three EWA filters there"
+                          "\nare: 0.00 the gentlest, about 0.16 the middle one, 1.00 the sharpest."
+                          "\n\nThe top of it reads 100 pixels for every one it draws, against 64 at the"
+                          "\nbottom, so watch the cost line as you climb. Raise Ring suppression with it."));
+
+            float nrRing = config->DlssNrScalingAntiRinging.value_or_default();
+            auto rNrRing = NrSlider(Tr("Ring suppression"), &nrRing, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rNrRing.changed)
+                config->DlssNrScalingAntiRinging = nrRing;
+            if (rNrRing.released)
+                anyChanged = true;
+            HelpMarker(Tr("The bright or dark rim sharpening buys, held back: it keeps the filter's answer"
+                          "\ninside the range of the pixels it is interpolating between. 0 leaves the"
+                          "\nfilter's own answer, 1 allows no overshoot at all."
+                          "\n\nNot the same control as Highlight guard: that one bounds what the MODEL did,"
+                          "\nthis one bounds what the scaling filter did."));
+
+            float nrSigmoid = config->DlssNrScalingSigmoid.value_or_default();
+            auto rNrSigmoid = NrSlider(Tr("Sigmoidal light"), &nrSigmoid, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rNrSigmoid.changed)
+                config->DlssNrScalingSigmoid = nrSigmoid;
+            if (rNrSigmoid.released)
+                anyChanged = true;
+            HelpMarker(Tr("Resample on an S-shaped curve, so an overshoot near black or near white is"
+                          "\ncompressed instead of clipping into a flat band. The slider is how hard the"
+                          "\ncurve bends, with the reference setting at 1.00."
+                          "\n\nSDR only by construction: anything brighter than white passes through"
+                          "\nuntouched, so an HDR frame is barely affected."));
+
+            float nrDither = config->DlssNrScalingDither.value_or_default();
+            auto rNrDither = NrSlider(Tr("Dither"), &nrDither, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rNrDither.changed)
+                config->DlssNrScalingDither = nrDither;
+            if (rNrDither.released)
+                anyChanged = true;
+            ImGui::EndDisabled();
+            HelpMarker(Tr("Breaks a band by adding a pattern finer than one step of colour, moved on each"
+                          "\nframe so it does not settle into something you can pick out. 1.00 is half a"
+                          "\nstep of an 8-bit picture."
+                          "\n\nFor banding in a sky or a gradient, where Ring suppression is for a rim"
+                          "\nalong an edge."));
+
+            SectionCaption(Tr("How much of it lands"), rowWidth);
+
+            float transfer = config->DlssNrTransferStrength.value_or_default();
+            auto rTransfer = NrSlider(Tr("Detail strength"), &transfer, 0.0f, 2.0f, "%.2f", rowWidth);
+            if (rTransfer.changed)
+                config->DlssNrTransferStrength = transfer;
+            if (rTransfer.released)
+                anyChanged = true;
+
+            ImGui::SameLine();
+
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##detail").c_str()))
+            {
+                config->DlssNrTransferStrength = 1.0f;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("How far the frame moves toward the model's picture. 0 gives back exactly what"
+                          "\nthe upscaler produced. 1 is the model's picture. Above 1 carries on past"
+                          "\nit in the same direction."));
+
+            float colour = config->DlssNrColourStrength.value_or_default();
+            auto rColour = NrSlider(Tr("Colour strength"), &colour, 0.0f, 4.0f, "%.2f", rowWidth);
+            if (rColour.changed)
+                config->DlssNrColourStrength = colour;
+            if (rColour.released)
+                anyChanged = true;
+
+            ImGui::SameLine();
+
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##colour").c_str()))
+            {
+                config->DlssNrColourStrength = 1.0f;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Whether the model's colour arrives with its light. 0 keeps the game's own hue"
+                          "\nexactly -- every pixel the original colour, with only its brightness carrying"
+                          "\nthe model's verdict. 1 brings the model's colour as well, in its own hue,"
+                          "\nclamped into AP1 so nothing unreachable is asked for."
+                          "\n\nAbove 1 it over-saturates: the colour keeps its hue but grows more vivid, and"
+                          "\nrolls off at the edge of what the display can show rather than clipping into a"
+                          "\nflat blown patch. 1 is the model's own colour; push past it for punch."));
+
+            SectionCaption(Tr("Colour"), rowWidth);
+
+            ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+            ImGui::TextColored(kTextDim, "%s",
+                               Tr("The model was trained on finished, sRGB-encoded frames. These decide how "
+                                  "the upscaler's linear output is mapped into something it recognises."));
+            ImGui::PopTextWrapPos();
+
+            // 0 off (soft knee), 1 Neutwo + composition, 2 Neutwo + pure-inverse replace, 3 hybrid +
+            // composed, 4 hybrid + replace. This decides what every control below is working on, so it
+            // opens the section rather than trailing it.
+            const char* const kReversibleNames[] = { Tr("Off (soft knee)"), Tr("Neutwo proxy + composed"),
+                                                     Tr("Neutwo proxy + replace"), Tr("Hybrid proxy + composed"),
+                                                     Tr("Hybrid proxy + replace") };
+
+            int reversible = (int) config->DlssNrReversibleMode.value_or_default();
+
+            if (reversible < 0 || reversible > 4)
+                reversible = 0;
+
+            if (NrCombo(Tr("Reversible proxy"), &reversible, kReversibleNames, IM_ARRAYSIZE(kReversibleNames),
+                        rowWidth))
+            {
+                config->DlssNrReversibleMode = (uint32_t) reversible;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("What the model is shown, and how its answer comes back. Experimental."
+                          "\n\nOff (soft knee): the default, and byte-identical to before. It rolls highlights"
+                          "\noff so hard the model cannot resolve detail in them -- fine in soft-lit scenes,"
+                          "\nweak in bright ones."
+                          "\n\nNeutwo composed: an unclipped curve, so the model sees highlight detail, then"
+                          "\neverything above it (strengths, highlight guard, palette). Wins in bright scenes,"
+                          "\nbut the curve compresses midtones too, so soft-lit content can be worse than Off."
+                          "\nIt also shifts paper white -- re-check that when you switch."
+                          "\n\nHybrid composed: the one to use. Identity in the midtones -- as good as Off"
+                          "\nthere -- with the unclipped roll only in the highlights, so it recovers the detail"
+                          "\nOff crushes without giving up the midtones Neutwo does. Barely shifts paper white."
+                          "\n\nReplace: the raw model straight back through the exact inverse, none of the"
+                          "\ncomposition -- no guard, no palette, no strengths. Gorgeous where there are no"
+                          "\nbright lights, but they FLASH in motion. A reference, not a daily setting."
+                          "\n\nHybrid replace: Replace's raw model on the hybrid curve, so the flashing is"
+                          "\nconfined to genuine highlights instead of everywhere. Most of Replace's detail,"
+                          "\nfar more stable."));
+
+            // Where the number that divides the frame comes from. This used to be a checkbox on
+            // DlssNrWhitePointFromExposure; upstream replaced that flag with a three-way source, and the
+            // engine no longer reads the old one -- the checkbox would have kept setting a value nothing
+            // consults. The scan asks the source whether it is wanted, so choosing it here is the whole
+            // of switching it on: there is no second flag to keep in step, and so no way for two to
+            // disagree.
+            const char* const kSourceNames[] = { Tr("Paper white only"), Tr("The game's own exposure"),
+                                                 Tr("A buffer the scan found") };
+
+            int wpSource = (int) config->DlssNrWhitePointSource.value_or_default();
+
+            if (wpSource < 0 || wpSource > 2)
+                wpSource = 0;
+
+            if (NrCombo(Tr("White point from"), &wpSource, kSourceNames, 3, rowWidth))
+            {
+                config->DlssNrWhitePointSource = (uint32_t) wpSource;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Paper white only -- the slider below and nothing else. Right for a game whose"
+                          "\nexposure never moves, wrong the moment it does: one constant cannot serve a"
+                          "\ncave and a field."
+                          "\n\nThe game's own exposure -- read from the texture the game hands the upscaler."
+                          "\nThe best source there is, because it is decided upstream and nothing this pass"
+                          "\ndoes can move it. Not every game supplies one."
+                          "\n\nA buffer the scan found -- for games that compute an exposure and never pass"
+                          "\nit on. A guess: candidates are matched by shape, and the anchor's ratio cancels"
+                          "\nthe scale. Needs anchoring once, in the Experimental section, and checking after."));
+
+            // Which anchor row the paper-white slider edits, or -1 for the live unanchored point.
+            // Menu-local and not persisted; the anchor table under Experimental sets it when a row is
+            // clicked. Declared here because the slider and the table read it in the same frame.
+            static int selectedAnchor = -1;
+            auto anchors = DlssNr::ExposureScan::Anchors();
+
+            if (selectedAnchor >= (int) anchors.size())
+                selectedAnchor = -1;
+
+            // Paper white and the trim swap places by source, because they are not the same control:
+            // paper white is the absolute number, the trim is a multiplier on a number that came from
+            // somewhere else. Showing both at once asked people to set "paper white" next to a control
+            // that was not paper white.
+            if (wpSource == 2)
+            {
+                const bool editingRow = selectedAnchor >= 0 && selectedAnchor < (int) anchors.size();
+
+                if (!anchors.empty())
+                {
+                    const float liveScan = DlssNr::ExposureScan::BestValue();
+
+                    if (liveScan > 0.0f)
+                    {
+                        const float w = DlssNr::ExposureScan::AnchoredWhitePoint(
+                            liveScan, config->DlssNrScanInverted.value_or_default(),
+                            config->DlssNrScanTrim.value_or_default());
+
+                        ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f),
+                                           anchors.size() == 1 ? Tr("Scan %.5f  ->  white point %.2f   (1 point)")
+                                                               : Tr("Scan %.5f  ->  white point %.2f   (%u points)"),
+                                           liveScan, w, (unsigned) anchors.size());
+                    }
+                }
+
+                // Only where there is a point to set: before the first anchor, or while editing a row.
+                // Once points exist and none is selected the white point is fixed by the anchors, and
+                // only the trim moves the live picture.
+                if (anchors.empty() || editingRow)
+                {
+                    float pw =
+                        editingRow ? anchors[selectedAnchor].white : config->DlssNrWhitePointScale.value_or_default();
+
+                    char lbl[48];
+
+                    if (editingRow)
+                        snprintf(lbl, sizeof(lbl), Tr("Paper white (point %d)"), selectedAnchor + 1);
+                    else
+                        snprintf(lbl, sizeof(lbl), Tr("Paper white"));
+
+                    auto rPw = NrSlider(lbl, &pw, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
+
+                    if (rPw.changed)
+                    {
+                        if (editingRow)
+                        {
+                            DlssNr::ExposureScan::AnchorSetWhite(selectedAnchor, pw);
+                            config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
+                        }
+                        else
+                            config->DlssNrWhitePointScale = pw;
+                    }
+
+                    if (rPw.released)
+                        anyChanged = true;
+
+                    HelpMarker(Tr("The white point for the selected calibration point, or -- with no row"
+                                  "\nselected -- the value the next Anchor press captures."
+                                  "\n\nSet it until the picture looks right here, then Anchor. Move to very"
+                                  "\ndifferent light and do it again: two points fix the buffer's real"
+                                  "\nrelationship and the white point holds between them."));
+                }
+
+                // In the steady state this is what stands in for paper white: adjust until the picture
+                // looks right in the current light, then Anchor bakes the trimmed value into a new point
+                // and resets the trim to 1.
+                if (!anchors.empty())
+                {
+                    float trim = config->DlssNrScanTrim.value_or_default();
+                    auto rTrim = NrSlider(Tr("Exposure (scan)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+
+                    if (rTrim.changed)
+                        config->DlssNrScanTrim = std::clamp(trim, 0.25f, 4.0f);
+
+                    if (rTrim.released)
+                        anyChanged = true;
+
+                    ImGui::SameLine();
+
+                    if (ImGui::SmallButton((std::string(Tr("Reset")) + "##scantrim").c_str()))
+                    {
+                        config->DlssNrScanTrim = 1.0f;
+                        anyChanged = true;
+                    }
+
+                    HelpMarker(Tr("A multiplier on the scan's white point, and the control to adjust between"
+                                  "\nanchor points: dial it until the picture looks right in the current light,"
+                                  "\nthen press Anchor under Experimental -- that captures the trimmed value as"
+                                  "\na new point and resets this to 1."));
+                }
+            }
+            else if (wpSource == 1)
+            {
+                const auto ex = DlssNr::GameExposureStatus();
+
+                // Whether this game supplies one at all, shown either way -- without it, a game that
+                // offers nothing looks identical to the option working quietly.
+                if (vulkan)
+                    ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), "%s",
+                                       DlssNr::ExposureOfferedVk()
+                                           ? Tr("This game supplies an exposure and it is being read.")
+                                           : Tr("This game supplies no exposure. Try the scan instead."));
+                else if (ex.seenFrames == 0)
+                    ImGui::TextColored(kTextDim, "%s", Tr("Waiting for a frame..."));
+                else if (!ex.everOffered)
+                    ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.25f, 1.0f), "%s",
+                                       Tr("This game supplies no exposure. Try the scan instead."));
+                else if (ex.exposure > 1e-6f)
+                {
+                    const float trim = std::clamp(config->DlssNrWhitePointTrim.value_or_default(), 0.25f, 4.0f);
+                    ImGui::TextColored(
+                        ImVec4(0.45f, 0.8f, 0.45f, 1.0f), Tr("Game exposure %.4f  ->  white point %.2f%s"), ex.exposure,
+                        ex.preExposure / ex.exposure * trim, ex.offeredNow ? "" : Tr("  (held: absent this frame)"));
+                }
+                else
+                    ImGui::TextColored(kTextDim, "%s", Tr("Reading the exposure..."));
+
+                float trim = config->DlssNrWhitePointTrim.value_or_default();
+                auto rTrim = NrSlider(Tr("Exposure"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
 
                 if (rTrim.changed)
-                    config->DlssNrScanTrim = std::clamp(trim, 0.25f, 4.0f);
+                    config->DlssNrWhitePointTrim = std::clamp(trim, 0.25f, 4.0f);
 
                 if (rTrim.released)
                     anyChanged = true;
 
                 ImGui::SameLine();
 
-                if (ImGui::SmallButton((std::string(Tr("Reset")) + "##scantrim").c_str()))
+                // Always present rather than greyed at 1: the point is that the safe value is one click
+                // away without having to know what the safe value is.
+                if (ImGui::SmallButton((std::string(Tr("Reset")) + "##wptrim").c_str()))
                 {
-                    config->DlssNrScanTrim = 1.0f;
+                    config->DlssNrWhitePointTrim = 1.0f;
                     anyChanged = true;
                 }
 
-                HelpMarker(Tr("A multiplier on the scan's white point, and the control to adjust between"
-                              "\nanchor points: dial it until the picture looks right in the current light,"
-                              "\nthen press Anchor under Experimental -- that captures the trimmed value as"
-                              "\na new point and resets this to 1."));
-            }
-        }
-        else if (wpSource == 1)
-        {
-            const auto ex = DlssNr::GameExposureStatus();
-
-            // Whether this game supplies one at all, shown either way -- without it, a game that
-            // offers nothing looks identical to the option working quietly.
-            if (vulkan)
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), "%s",
-                                   DlssNr::ExposureOfferedVk()
-                                       ? Tr("This game supplies an exposure and it is being read.")
-                                       : Tr("This game supplies no exposure. Try the scan instead."));
-            else if (ex.seenFrames == 0)
-                ImGui::TextColored(kTextDim, "%s", Tr("Waiting for a frame..."));
-            else if (!ex.everOffered)
-                ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.25f, 1.0f), "%s",
-                                   Tr("This game supplies no exposure. Try the scan instead."));
-            else if (ex.exposure > 1e-6f)
-            {
-                const float trim = std::clamp(config->DlssNrWhitePointTrim.value_or_default(), 0.25f, 4.0f);
-                ImGui::TextColored(ImVec4(0.45f, 0.8f, 0.45f, 1.0f), Tr("Game exposure %.4f  ->  white point %.2f%s"),
-                                   ex.exposure, ex.preExposure / ex.exposure * trim,
-                                   ex.offeredNow ? "" : Tr("  (held: absent this frame)"));
+                HelpMarker(Tr("A multiplier on the exposure the game supplied. 1.00x takes its number exactly,"
+                              "\nand that is the right answer here."
+                              "\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look"
+                              "\nright is evidence the exposure being read is wrong for that game, not that the"
+                              "\ngame wants trimming. Roughly 0.8 to 1.25 is honest tuning; reaching for 4 means"
+                              "\nsomething upstream is broken and this is hiding it."
+                              "\n\nYour manual paper white is kept separately and comes back untouched if you"
+                              "\nswitch the source back."));
             }
             else
-                ImGui::TextColored(kTextDim, "%s", Tr("Reading the exposure..."));
+            {
+                // Logarithmic, because the useful range is not. A quarter to 2000: the low end because a
+                // frame the game already tone mapped wants roughly 1, the high end because there is no
+                // principled ceiling -- this is a divisor on an open-ended linear buffer, and how far up
+                // a game needs to go is a property of that game rather than anything boundable here.
+                float wpScale = config->DlssNrWhitePointScale.value_or_default();
+                auto rWp = NrSlider(Tr("Paper white"), &wpScale, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
 
-            float trim = config->DlssNrWhitePointTrim.value_or_default();
-            auto rTrim =
-                NrSlider(Tr("Trim (x the game's exposure)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+                if (rWp.changed)
+                    config->DlssNrWhitePointScale = wpScale;
 
-            if (rTrim.changed)
-                config->DlssNrWhitePointTrim = std::clamp(trim, 0.25f, 4.0f);
+                if (rWp.released)
+                    anyChanged = true;
 
-            if (rTrim.released)
+                HelpMarker(Tr("What the frame is divided by before the model sees it. There is no other white"
+                              "\npoint; this is the whole of it. Above 1 the picture handed over is darker, so"
+                              "\nhighlights sit lower on the curve."));
+            }
+
+            float maxRatio = config->DlssNrMaxRatio.value_or_default();
+            auto rMax = NrSlider(Tr("Highlight guard"), &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
+            if (rMax.changed)
+                config->DlssNrMaxRatio = maxRatio;
+            if (rMax.released)
                 anyChanged = true;
 
             ImGui::SameLine();
 
-            // Always present rather than greyed at 1: the point is that the safe value is one click
-            // away without having to know what the safe value is.
-            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##wptrim").c_str()))
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##guard").c_str()))
             {
-                config->DlssNrWhitePointTrim = 1.0f;
+                config->DlssNrMaxRatio = 2.0f;
                 anyChanged = true;
             }
+            HelpMarker(Tr("The most the pass may move any pixel, as a multiple of what it already was, in both"
+                          "\ndirections -- a pixel may not be brightened past this nor darkened past its"
+                          "\nreciprocal. Lights are where the model has least to say and rescaling its answer"
+                          "\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning"
+                          "\ninto a string of coloured cells. Raise it only if bright areas look clipped."));
 
-            HelpMarker(Tr("A multiplier on the exposure the game supplied. 1.00x takes its number exactly,"
-                          "\nand that is the right answer here."
-                          "\n\nThis is not a fudge factor. A game that needs the trim far from 1 to look"
-                          "\nright is evidence the exposure being read is wrong for that game, not that the"
-                          "\ngame wants trimming. Roughly 0.8 to 1.25 is honest tuning; reaching for 4 means"
-                          "\nsomething upstream is broken and this is hiding it."
-                          "\n\nYour manual paper white is kept separately and comes back untouched if you"
-                          "\nswitch the source back."));
-        }
-        else
-        {
-            // Logarithmic, because the useful range is not. A quarter to 2000: the low end because a
-            // frame the game already tone mapped wants roughly 1, the high end because there is no
-            // principled ceiling -- this is a divisor on an open-ended linear buffer, and how far up
-            // a game needs to go is a property of that game rather than anything boundable here.
-            float wpScale = config->DlssNrWhitePointScale.value_or_default();
-            auto rWp = NrSlider(Tr("Paper white"), &wpScale, 0.25f, 2000.0f, "%.2fx", rowWidth, true, true);
-
-            if (rWp.changed)
-                config->DlssNrWhitePointScale = wpScale;
-
-            if (rWp.released)
-                anyChanged = true;
-
-            HelpMarker(Tr("What the frame is divided by before the model sees it. There is no other white"
-                          "\npoint; this is the whole of it. Above 1 the picture handed over is darker, so"
-                          "\nhighlights sit lower on the curve."));
-        }
-
-        float maxRatio = config->DlssNrMaxRatio.value_or_default();
-        auto rMax = NrSlider(Tr("Highlight guard"), &maxRatio, 1.0f, 8.0f, "%.1fx", rowWidth);
-        if (rMax.changed)
-            config->DlssNrMaxRatio = maxRatio;
-        if (rMax.released)
-            anyChanged = true;
-
-        ImGui::SameLine();
-
-        if (ImGui::SmallButton((std::string(Tr("Reset")) + "##guard").c_str()))
-        {
-            config->DlssNrMaxRatio = 2.0f;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("The most the pass may move any pixel, as a multiple of what it already was, in both"
-                      "\ndirections -- a pixel may not be brightened past this nor darkened past its"
-                      "\nreciprocal. Lights are where the model has least to say and rescaling its answer"
-                      "\ndoes the most damage; 2x leaves detail intact while stopping a strip light turning"
-                      "\ninto a string of coloured cells. Raise it only if bright areas look clipped."));
-
-        // Directly under the white point, because that is the number it moves and the number the
-        // anchor captures. There is deliberately no on/off switch: the source dropdown above says
-        // whether the scan is the white point's source, and that is the only reason anyone would
-        // want it running. A second control could only agree with the dropdown or contradict it.
-        // The ini key survives as a developer override for the one case a user has no reason to
-        // want -- running the scan in a game that supplies a real exposure, so the log can compare.
-        //
-        // Worth writing down, since the panel no longer says it: the scan matches buffers by SHAPE,
-        // and shape is a weak filter. In GTA V the best candidate was a 1x1 R32_FLOAT that climbed
-        // in a straight line for seventeen minutes while the true exposure held still. That is an
-        // accumulator, not an eye adaptation.
-        if (DlssNr::ExposureScan::Scanning())
-        {
-            SectionCaption(Tr("Exposure scan"), rowWidth);
-
-            const bool isSource = wpSource == 2;
-
-            // Only where it means something: the lamp reads the scan, so offering it beside a white
-            // point that comes from somewhere else is offering a control that cannot light up.
-            if (isSource)
+            // Directly under the white point, because that is the number it moves and the number the
+            // anchor captures. There is deliberately no on/off switch: the source dropdown above says
+            // whether the scan is the white point's source, and that is the only reason anyone would
+            // want it running. A second control could only agree with the dropdown or contradict it.
+            // The ini key survives as a developer override for the one case a user has no reason to
+            // want -- running the scan in a game that supplies a real exposure, so the log can compare.
+            //
+            // Worth writing down, since the panel no longer says it: the scan matches buffers by SHAPE,
+            // and shape is a weak filter. In GTA V the best candidate was a 1x1 R32_FLOAT that climbed
+            // in a straight line for seventeen minutes while the true exposure held still. That is an
+            // accumulator, not an eye adaptation.
+            if (DlssNr::ExposureScan::Scanning())
             {
-                if (bool meter = config->DlssNrScanMeter.value_or_default();
-                    NrCheckbox(Tr("Show the light meter on screen"), &meter))
+                SectionCaption(Tr("Exposure scan"), rowWidth);
+
+                const bool isSource = wpSource == 2;
+
+                // Only where it means something: the lamp reads the scan, so offering it beside a white
+                // point that comes from somewhere else is offering a control that cannot light up.
+                if (isSource)
                 {
-                    config->DlssNrScanMeter = meter;
-                    anyChanged = true;
-                }
-                HelpMarker(Tr("A lamp in the corner: red for dark, green for full light, and the shades"
-                              "\nbetween, with the reading beside it."
-                              "\n\nIt is how you see at a glance that the scan is TRACKING rather than"
-                              "\nmerely running. Walk into shade and it should slide toward red; step out"
-                              "\nand it should go green. If it moves the wrong way, that is what \"the number"
-                              "\nruns the other way\" below is for."
-                              "\n\nPurely a readout. It changes nothing."));
-            }
-
-            // The absolute white point cannot come out of a buffer whose units are unknown. Every
-            // value AFTER the first can: only the ratio against the anchor is used, so whatever the
-            // number means, it cancels. That is why this is a button and not a measurement -- the
-            // one thing a person can supply that no cleverness can is "this looks right to me".
-            const float live = DlssNr::ExposureScan::BestValue();
-
-            ImGui::BeginDisabled(live <= 0.0f || !isSource);
-
-            if (ImGui::Button(Tr("Anchor here")))
-            {
-                // Before the first point, the paper white above -- an absolute value with the wide
-                // range a fresh game needs. After that, the EFFECTIVE white point the picture is
-                // showing right now (the interpolated value times the trim just dialled in), so a
-                // second point in different light captures the trimmed look rather than a frozen
-                // paper white, which would make two equal whites and a flat, non-tracking curve.
-                // The trim resets afterwards: the new point, which the picture now passes through
-                // exactly, must not be multiplied by it a second time.
-                const float captureWhite =
-                    anchors.empty() ? std::max(0.01f, config->DlssNrWhitePointScale.value_or_default())
-                                    : std::max(0.01f, DlssNr::ExposureScan::AnchoredWhitePoint(
-                                                          live, config->DlssNrScanInverted.value_or_default(),
-                                                          config->DlssNrScanTrim.value_or_default()));
-
-                if (DlssNr::ExposureScan::AnchorAdd(live, captureWhite))
-                {
-                    config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
-                    config->DlssNrScanTrim = 1.0f;
-                    selectedAnchor = -1;
-                    anyChanged = true;
-                }
-            }
-
-            ImGui::EndDisabled();
-            HelpMarker(Tr("Make the picture look right, then press this -- it captures the current look as a"
-                          "\npoint. For the first point use the Paper white slider above; for every point"
-                          "\nafter, move to different light and use the Trim, which this then bakes in."
-                          "\n\nOne point calibrates a ratio and the white point follows the scan from there."
-                          "\nWalk into very different light and press it again: the second point pins down"
-                          "\nthe buffer's real curve, so everything between the two is right rather than"
-                          "\nonly the neighbourhood of one anchor. Up to eight."
-                          "\n\nThe table is per game and shareable -- one person calibrates a game and the"
-                          "\nnumbers are the same for everyone who takes the profile."));
-
-            if (!isSource)
-                ImGui::TextColored(kTextDim, "%s",
-                                   Tr("(the scan is only watching -- the white point above comes from "
-                                      "somewhere else)"));
-
-            if (!anchors.empty())
-            {
-                // The row nearest the live value in log space is the one driving the picture; mark
-                // it, so which calibration is in effect is visible rather than inferred.
-                int active = 0;
-                float bestDist = 1e30f;
-                const float liveLog = std::log(std::max(live, 1e-6f));
-
-                for (size_t i = 0; i < anchors.size(); ++i)
-                {
-                    const float d = std::fabs(std::log(std::max(anchors[i].scan, 1e-6f)) - liveLog);
-
-                    if (d < bestDist)
+                    if (bool meter = config->DlssNrScanMeter.value_or_default();
+                        NrCheckbox(Tr("Show the light meter on screen"), &meter))
                     {
-                        bestDist = d;
-                        active = (int) i;
-                    }
-                }
-
-                for (size_t i = 0; i < anchors.size(); ++i)
-                {
-                    ImGui::PushID((int) i);
-
-                    // Delete first, so its click is never swallowed by the row-wide Selectable.
-                    if (ImGui::SmallButton("x"))
-                    {
-                        DlssNr::ExposureScan::AnchorRemove((int) i);
-                        config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
+                        config->DlssNrScanMeter = meter;
                         anyChanged = true;
+                    }
+                    HelpMarker(Tr("A lamp in the corner: red for dark, green for full light, and the shades"
+                                  "\nbetween, with the reading beside it."
+                                  "\n\nIt is how you see at a glance that the scan is TRACKING rather than"
+                                  "\nmerely running. Walk into shade and it should slide toward red; step out"
+                                  "\nand it should go green. If it moves the wrong way, that is what \"the number"
+                                  "\nruns the other way\" below is for."
+                                  "\n\nPurely a readout. It changes nothing."));
+                }
 
-                        if (selectedAnchor == (int) i)
-                            selectedAnchor = -1;
-                        else if (selectedAnchor > (int) i)
-                            --selectedAnchor;
+                // The absolute white point cannot come out of a buffer whose units are unknown. Every
+                // value AFTER the first can: only the ratio against the anchor is used, so whatever the
+                // number means, it cancels. That is why this is a button and not a measurement -- the
+                // one thing a person can supply that no cleverness can is "this looks right to me".
+                const float live = DlssNr::ExposureScan::BestValue();
 
-                        ImGui::PopID();
-                        continue;
+                ImGui::BeginDisabled(live <= 0.0f || !isSource);
+
+                if (ImGui::Button(Tr("Anchor here")))
+                {
+                    // Before the first point, the paper white above -- an absolute value with the wide
+                    // range a fresh game needs. After that, the EFFECTIVE white point the picture is
+                    // showing right now (the interpolated value times the trim just dialled in), so a
+                    // second point in different light captures the trimmed look rather than a frozen
+                    // paper white, which would make two equal whites and a flat, non-tracking curve.
+                    // The trim resets afterwards: the new point, which the picture now passes through
+                    // exactly, must not be multiplied by it a second time.
+                    const float captureWhite =
+                        anchors.empty() ? std::max(0.01f, config->DlssNrWhitePointScale.value_or_default())
+                                        : std::max(0.01f, DlssNr::ExposureScan::AnchoredWhitePoint(
+                                                              live, config->DlssNrScanInverted.value_or_default(),
+                                                              config->DlssNrScanTrim.value_or_default()));
+
+                    if (DlssNr::ExposureScan::AnchorAdd(live, captureWhite))
+                    {
+                        config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
+                        config->DlssNrScanTrim = 1.0f;
+                        selectedAnchor = -1;
+                        anyChanged = true;
+                    }
+                }
+
+                ImGui::EndDisabled();
+                HelpMarker(Tr("Make the picture look right, then press this -- it captures the current look as a"
+                              "\npoint. For the first point use the Paper white slider above; for every point"
+                              "\nafter, move to different light and use the Trim, which this then bakes in."
+                              "\n\nOne point calibrates a ratio and the white point follows the scan from there."
+                              "\nWalk into very different light and press it again: the second point pins down"
+                              "\nthe buffer's real curve, so everything between the two is right rather than"
+                              "\nonly the neighbourhood of one anchor. Up to eight."
+                              "\n\nThe table is per game and shareable -- one person calibrates a game and the"
+                              "\nnumbers are the same for everyone who takes the profile."));
+
+                if (!isSource)
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("(the scan is only watching -- the white point above comes from "
+                                          "somewhere else)"));
+
+                if (!anchors.empty())
+                {
+                    // The row nearest the live value in log space is the one driving the picture; mark
+                    // it, so which calibration is in effect is visible rather than inferred.
+                    int active = 0;
+                    float bestDist = 1e30f;
+                    const float liveLog = std::log(std::max(live, 1e-6f));
+
+                    for (size_t i = 0; i < anchors.size(); ++i)
+                    {
+                        const float d = std::fabs(std::log(std::max(anchors[i].scan, 1e-6f)) - liveLog);
+
+                        if (d < bestDist)
+                        {
+                            bestDist = d;
+                            active = (int) i;
+                        }
                     }
 
-                    ImGui::SameLine();
-
-                    const bool sel = (int) i == selectedAnchor;
-                    char row[96];
-                    snprintf(row, sizeof(row), Tr("%s scan %.4f  ->  white %.2f%s"),
-                             ((int) i == active && isSource) ? ">" : "  ", anchors[i].scan, anchors[i].white,
-                             sel ? Tr("   [editing]") : "");
-
-                    // Click selects the row, so the slider above edits it; click again to let go.
-                    if (ImGui::Selectable(row, sel))
-                        selectedAnchor = sel ? -1 : (int) i;
-
-                    ImGui::PopID();
-                }
-
-                ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-                ImGui::TextColored(kTextDim, "%s",
-                                   Tr("Click a row to edit it with the slider above; click it again to "
-                                      "control the live point. > is the point in use now."));
-                ImGui::PopTextWrapPos();
-            }
-
-            // Only means anything with a single point: with two or more, the direction the white
-            // point moves is already fixed by the data.
-            if (anchors.size() == 1)
-            {
-                if (bool inverted = config->DlssNrScanInverted.value_or_default();
-                    NrCheckbox(Tr("The number runs the other way"), &inverted))
-                {
-                    config->DlssNrScanInverted = inverted;
-                    anyChanged = true;
-                }
-                HelpMarker(Tr("Flip this if the picture gets worse in the direction it should be getting"
-                              "\nbetter. Most engines store an exposure that falls as the scene brightens;"
-                              "\nsome store its reciprocal, and a buffer found by shape does not say which."
-                              "\nAdd a second anchor point in different light and this is decided for you,"
-                              "\nso it disappears."));
-            }
-
-            // Read-out rather than control: what the scan is looking at, and how to tell whether it
-            // found the right thing. Folded away, because the two decisions that matter are above.
-            if (ImGui::TreeNode(Tr("Candidates")))
-            {
-                const auto found = DlssNr::ExposureScan::Report();
-                const char* why = DlssNr::ExposureScan::Status();
-
-                if (found.empty())
-                {
-                    ImGui::TextColored(kTextDim, "%s",
-                                       // The scan's status is English at the source (it is logged too).
-                                       why != nullptr && why[0] != 0 ? Tr(why) : Tr("nothing matched yet."));
-                }
-                else
-                {
-                    for (size_t i = 0; i < found.size(); ++i)
+                    for (size_t i = 0; i < anchors.size(); ++i)
                     {
-                        const auto& c = found[i];
+                        ImGui::PushID((int) i);
 
-                        if (c.reads == 0)
+                        // Delete first, so its click is never swallowed by the row-wide Selectable.
+                        if (ImGui::SmallButton("x"))
                         {
-                            ImGui::TextColored(kTextDim, Tr("%zu. %s -- not read yet"), i + 1, c.shape.c_str());
+                            DlssNr::ExposureScan::AnchorRemove((int) i);
+                            config->DlssNrScanAnchors = DlssNr::ExposureScan::SerializeAnchors();
+                            anyChanged = true;
+
+                            if (selectedAnchor == (int) i)
+                                selectedAnchor = -1;
+                            else if (selectedAnchor > (int) i)
+                                --selectedAnchor;
+
+                            ImGui::PopID();
                             continue;
                         }
 
-                        // Moving is the whole signal, so it is the thing that is coloured.
-                        ImGui::TextColored(c.moves ? ImVec4(0.45f, 0.8f, 0.45f, 1.0f) : kTextDim,
-                                           Tr("%zu. %s = %.5f  (seen %.5f..%.5f) %s"), i + 1, c.shape.c_str(), c.latest,
-                                           c.lowest, c.highest, c.moves ? Tr("MOVES") : Tr("flat so far"));
+                        ImGui::SameLine();
+
+                        const bool sel = (int) i == selectedAnchor;
+                        char row[96];
+                        snprintf(row, sizeof(row), Tr("%s scan %.4f  ->  white %.2f%s"),
+                                 ((int) i == active && isSource) ? ">" : "  ", anchors[i].scan, anchors[i].white,
+                                 sel ? Tr("   [editing]") : "");
+
+                        // Click selects the row, so the slider above edits it; click again to let go.
+                        if (ImGui::Selectable(row, sel))
+                            selectedAnchor = sel ? -1 : (int) i;
+
+                        ImGui::PopID();
                     }
 
                     ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
                     ImGui::TextColored(kTextDim, "%s",
-                                       Tr("Walk from shade into daylight. A real exposure moves. One that "
-                                          "only ever climbs is a counter, not an exposure."));
+                                       Tr("Click a row to edit it with the slider above; click it again to "
+                                          "control the live point. > is the point in use now."));
                     ImGui::PopTextWrapPos();
                 }
 
-                ImGui::TreePop();
+                // Only means anything with a single point: with two or more, the direction the white
+                // point moves is already fixed by the data.
+                if (anchors.size() == 1)
+                {
+                    if (bool inverted = config->DlssNrScanInverted.value_or_default();
+                        NrCheckbox(Tr("The number runs the other way"), &inverted))
+                    {
+                        config->DlssNrScanInverted = inverted;
+                        anyChanged = true;
+                    }
+                    HelpMarker(Tr("Flip this if the picture gets worse in the direction it should be getting"
+                                  "\nbetter. Most engines store an exposure that falls as the scene brightens;"
+                                  "\nsome store its reciprocal, and a buffer found by shape does not say which."
+                                  "\nAdd a second anchor point in different light and this is decided for you,"
+                                  "\nso it disappears."));
+                }
+
+                // Read-out rather than control: what the scan is looking at, and how to tell whether it
+                // found the right thing. Folded away, because the two decisions that matter are above.
+                if (ImGui::TreeNode(Tr("Candidates")))
+                {
+                    const auto found = DlssNr::ExposureScan::Report();
+                    const char* why = DlssNr::ExposureScan::Status();
+
+                    if (found.empty())
+                    {
+                        ImGui::TextColored(kTextDim, "%s",
+                                           // The scan's status is English at the source (it is logged too).
+                                           why != nullptr && why[0] != 0 ? Tr(why) : Tr("nothing matched yet."));
+                    }
+                    else
+                    {
+                        for (size_t i = 0; i < found.size(); ++i)
+                        {
+                            const auto& c = found[i];
+
+                            if (c.reads == 0)
+                            {
+                                ImGui::TextColored(kTextDim, Tr("%zu. %s -- not read yet"), i + 1, c.shape.c_str());
+                                continue;
+                            }
+
+                            // Moving is the whole signal, so it is the thing that is coloured.
+                            ImGui::TextColored(c.moves ? ImVec4(0.45f, 0.8f, 0.45f, 1.0f) : kTextDim,
+                                               Tr("%zu. %s = %.5f  (seen %.5f..%.5f) %s"), i + 1, c.shape.c_str(),
+                                               c.latest, c.lowest, c.highest,
+                                               c.moves ? Tr("MOVES") : Tr("flat so far"));
+                        }
+
+                        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+                        ImGui::TextColored(kTextDim, "%s",
+                                           Tr("Walk from shade into daylight. A real exposure moves. One that "
+                                              "only ever climbs is a counter, not an exposure."));
+                        ImGui::PopTextWrapPos();
+                    }
+
+                    ImGui::TreePop();
+                }
             }
+
+            // Both of these describe the frame to the model rather than shaping its output, which is
+            // why they sit together and away from the strength controls.
         }
 
-        // Both of these describe the frame to the model rather than shaping its output, which is
-        // why they sit together and away from the strength controls.
-        SectionCaption(Tr("Guide"), rowWidth);
-
-        const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
-        int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
-        if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
+        if (OnPage(kPageInspect))
         {
-            config->DlssNrDepthConvention = (uint32_t) depthMode;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Which way round the model is told depth runs. The game states this in the flags it"
-                      "\ncreated its own DLSS feature with, and following it is right almost always -- but"
-                      "\na game that states it wrongly needs correcting by hand."
-                      "\n\nIf the pass looks worst where geometry meets sky, try forcing the other one."));
+            SectionCaption(Tr("Guide"), rowWidth);
 
-        if (bool uiCorrection = config->DlssNrUICorrection.value_or_default();
-            NrCheckbox(Tr("UI correction"), &uiCorrection))
-        {
-            config->DlssNrUICorrection = uiCorrection;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"
-                      "\nand right whenever a UI resource reaches it; turn it off if the correction is"
-                      "\nitself what looks wrong."
-                      "\n\nRead when the model is built."));
-
-        // The fix for the rippling on the Present route. It belongs here because it is about what the
-        // model is TOLD -- specifically what it is told when there is nothing honest to tell it.
-        if (bool resetWhenBlind = config->DlssNrResetWhenBlind.value_or_default();
-            NrCheckbox(Tr("Forget history when motion is unknown"), &resetWhenBlind))
-        {
-            config->DlssNrResetWhenBlind = resetWhenBlind;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Textures that ripple, pulse or swim while you move the view -- and nowhere else --"
-                      "\nare this."
-                      "\n\nWhere a game makes no upscale call of its own, motion has to be worked out from"
-                      "\nthe finished frames, and sometimes it cannot be. What the model had then was not"
-                      "\n'no motion' but 'motion that says nothing moved', and it believed it: it has a"
-                      "\nmemory, and it lines that memory up using exactly those numbers. Standing still"
-                      "\nthat is correct. Moving, it blends what is on screen now against what used to be"
-                      "\nsomewhere else entirely, over and over."
-                      "\n\nOn (default), it keeps no memory at all in that situation, so there is nothing"
-                      "\nmisaligned left to blend."
-                      "\n\nThat memory is also what steadies a picture, so a game can come out slightly"
-                      "\ncrawlier on fine edges instead. If one does, turn this off for it. Costs no"
-                      "\nperformance either way, and does nothing in a game that hands over real motion."));
-
-        SectionCaption(Tr("Inspect"), rowWidth);
-
-        if (DlssNr::CaptureInProgress())
-        {
-            ImGui::TextColored(kTextDim, "%s", Tr("Capturing..."));
-        }
-        else if (ImGui::Button(Tr("Capture 8 frames")))
-        {
-            DlssNr::RequestCapture(8);
-        }
-        HelpMarker(Tr("Writes eight consecutive frames twice: as the upscaler produced them, and again"
-                      "\nonce the model's edit was applied. Into a dlssnr-capture folder beside"
-                      "\nOptiScaler; each run overwrites the last."));
-
-        if (bool autoCapture = config->DlssNrAutoCapture.value_or_default();
-            NrCheckbox(Tr("Auto-capture once per session"), &autoCapture))
-        {
-            config->DlssNrAutoCapture = autoCapture;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Writes one matched before/after set automatically, without anyone asking. The"
-                      "\nfolder is cleared each run, so it holds a single session and never grows."));
-
-        // Freeze the frame the model works on, so a setting change re-renders it in place -- the
-        // only clean way to A/B our own settings, since a moving scene confounds every other
-        // comparison. See design/frame-hold.md.
-        if (bool held = config->DlssNrHoldFrame.value_or_default(); NrCheckbox(Tr("Hold frame"), &held))
-        {
-            config->DlssNrHoldFrame = held;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Freezes the frame the model works on. While held, change paper white, the strengths,"
-                      "\nthe reversible mode, the model preset -- anything below the upscaler -- and only"
-                      "\nthat setting moves; the scene does not. Pairs with \"Apply the model\" at the top:"
-                      "\nfreeze a frame, then toggle that to see it with and without."
-                      "\n\nWhat it cannot show: upscaler presets or anything upstream of this pass (the"
-                      "\nupscaler is not re-run on a held frame), and the game's own HUD and"
-                      "\npost-processing, which run after this and keep updating. The white point stops"
-                      "\nbeing measured and holds its value, so it cannot drift and confound the"
-                      "\ncomparison."
-                      "\n\nClose the panel and it stays held. Untick to resume."));
-
-        const char* compareNames[] = { Tr("Off"), Tr("Side by side"), Tr("Wipe") };
-        int compare = (int) config->DlssNrCompare.value_or_default();
-        if (NrCombo(Tr("Compare"), &compare, compareNames, IM_ARRAYSIZE(compareNames), rowWidth))
-        {
-            config->DlssNrCompare = (uint32_t) compare;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Shows the pass against itself. Side by side puts the whole frame in each half;"
-                      "\nwipe cuts a single frame at the split and plays normally. Neither needs the"
-                      "\nmenu open to keep working."));
-
-        if (compare != 0)
-        {
-            bool swap = config->DlssNrCompareSwap.value_or_default();
-            if (NrCheckbox(Tr("Swap sides"), &swap))
+            const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
+            int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
+            if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
             {
-                config->DlssNrCompareSwap = swap;
+                config->DlssNrDepthConvention = (uint32_t) depthMode;
                 anyChanged = true;
             }
+            HelpMarker(Tr("Which way round the model is told depth runs. The game states this in the flags it"
+                          "\ncreated its own DLSS feature with, and following it is right almost always -- but"
+                          "\na game that states it wrongly needs correcting by hand."
+                          "\n\nIf the pass looks worst where geometry meets sky, try forcing the other one."));
 
-            bool tags = config->DlssNrCompareTags.value_or_default();
-            if (NrCheckbox(Tr("Labels"), &tags))
+            if (bool uiCorrection = config->DlssNrUICorrection.value_or_default();
+                NrCheckbox(Tr("UI correction"), &uiCorrection))
             {
-                config->DlssNrCompareTags = tags;
+                config->DlssNrUICorrection = uiCorrection;
                 anyChanged = true;
             }
-            HelpMarker(Tr("Draws which side is which into the frame's own plane, so a screenshot still"
-                          "\nsays it. Clipped per side, so the wipe reveals and hides them exactly as it"
-                          "\ndoes the images."));
+            HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"
+                          "\nand right whenever a UI resource reaches it; turn it off if the correction is"
+                          "\nitself what looks wrong."
+                          "\n\nRead when the model is built."));
 
-            if (tags)
+            // The fix for the rippling on the Present route. It belongs here because it is about what the
+            // model is TOLD -- specifically what it is told when there is nothing honest to tell it.
+            if (bool resetWhenBlind = config->DlssNrResetWhenBlind.value_or_default();
+                NrCheckbox(Tr("Forget history when motion is unknown"), &resetWhenBlind))
             {
-                float tagScale = config->DlssNrTagScale.value_or_default();
-                auto rTag = NrSlider(Tr("Label size"), &tagScale, 0.5f, 5.0f, "%.1fx", rowWidth);
-                if (rTag.changed)
-                    config->DlssNrTagScale = std::clamp(tagScale, 0.5f, 5.0f);
-                if (rTag.released)
+                config->DlssNrResetWhenBlind = resetWhenBlind;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Textures that ripple, pulse or swim while you move the view -- and nowhere else --"
+                          "\nare this."
+                          "\n\nWhere a game makes no upscale call of its own, motion has to be worked out from"
+                          "\nthe finished frames, and sometimes it cannot be. What the model had then was not"
+                          "\n'no motion' but 'motion that says nothing moved', and it believed it: it has a"
+                          "\nmemory, and it lines that memory up using exactly those numbers. Standing still"
+                          "\nthat is correct. Moving, it blends what is on screen now against what used to be"
+                          "\nsomewhere else entirely, over and over."
+                          "\n\nOn (default), it keeps no memory at all in that situation, so there is nothing"
+                          "\nmisaligned left to blend."
+                          "\n\nThat memory is also what steadies a picture, so a game can come out slightly"
+                          "\ncrawlier on fine edges instead. If one does, turn this off for it. Costs no"
+                          "\nperformance either way, and does nothing in a game that hands over real motion."));
+
+            SectionCaption(Tr("Inspect"), rowWidth);
+
+            bool applyModel = config->DlssNrApplyModel.value_or_default();
+            if (NrCheckbox(Tr("Apply the model"), &applyModel))
+            {
+                config->DlssNrApplyModel = applyModel;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
+                          "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
+                          "\nand toggle this to see the same frozen frame with and without Neural Rendering."
+                          "\nLeave it on for normal use."));
+
+            if (DlssNr::CaptureInProgress())
+            {
+                ImGui::TextColored(kTextDim, "%s", Tr("Capturing..."));
+            }
+            else if (ImGui::Button(Tr("Capture 8 frames")))
+            {
+                DlssNr::RequestCapture(8);
+            }
+            HelpMarker(Tr("Writes eight consecutive frames twice: as the upscaler produced them, and again"
+                          "\nonce the model's edit was applied. Into a dlssnr-capture folder beside"
+                          "\nOptiScaler; each run overwrites the last."));
+
+            if (bool autoCapture = config->DlssNrAutoCapture.value_or_default();
+                NrCheckbox(Tr("Auto-capture once per session"), &autoCapture))
+            {
+                config->DlssNrAutoCapture = autoCapture;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Writes one matched before/after set automatically, without anyone asking. The"
+                          "\nfolder is cleared each run, so it holds a single session and never grows."));
+
+            // Freeze the frame the model works on, so a setting change re-renders it in place -- the
+            // only clean way to A/B our own settings, since a moving scene confounds every other
+            // comparison. See design/frame-hold.md.
+            if (bool held = config->DlssNrHoldFrame.value_or_default(); NrCheckbox(Tr("Hold frame"), &held))
+            {
+                config->DlssNrHoldFrame = held;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Freezes the frame the model works on. While held, change paper white, the strengths,"
+                          "\nthe reversible mode, the model preset -- anything below the upscaler -- and only"
+                          "\nthat setting moves; the scene does not. Pairs with \"Apply the model\" at the top:"
+                          "\nfreeze a frame, then toggle that to see it with and without."
+                          "\n\nWhat it cannot show: upscaler presets or anything upstream of this pass (the"
+                          "\nupscaler is not re-run on a held frame), and the game's own HUD and"
+                          "\npost-processing, which run after this and keep updating. The white point stops"
+                          "\nbeing measured and holds its value, so it cannot drift and confound the"
+                          "\ncomparison."
+                          "\n\nClose the panel and it stays held. Untick to resume."));
+
+            const char* compareNames[] = { Tr("Off"), Tr("Side by side"), Tr("Wipe") };
+            int compare = (int) config->DlssNrCompare.value_or_default();
+            if (NrCombo(Tr("Compare"), &compare, compareNames, IM_ARRAYSIZE(compareNames), rowWidth))
+            {
+                config->DlssNrCompare = (uint32_t) compare;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Shows the pass against itself. Side by side puts the whole frame in each half;"
+                          "\nwipe cuts a single frame at the split and plays normally. Neither needs the"
+                          "\nmenu open to keep working."));
+
+            if (compare != 0)
+            {
+                bool swap = config->DlssNrCompareSwap.value_or_default();
+                if (NrCheckbox(Tr("Swap sides"), &swap))
+                {
+                    config->DlssNrCompareSwap = swap;
+                    anyChanged = true;
+                }
+
+                bool tags = config->DlssNrCompareTags.value_or_default();
+                if (NrCheckbox(Tr("Labels"), &tags))
+                {
+                    config->DlssNrCompareTags = tags;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("Draws which side is which into the frame's own plane, so a screenshot still"
+                              "\nsays it. Clipped per side, so the wipe reveals and hides them exactly as it"
+                              "\ndoes the images."));
+
+                if (tags)
+                {
+                    float tagScale = config->DlssNrTagScale.value_or_default();
+                    auto rTag = NrSlider(Tr("Label size"), &tagScale, 0.5f, 5.0f, "%.1fx", rowWidth);
+                    if (rTag.changed)
+                        config->DlssNrTagScale = std::clamp(tagScale, 0.5f, 5.0f);
+                    if (rTag.released)
+                        anyChanged = true;
+                }
+            }
+
+            if (compare == 1)
+            {
+                float zoom = config->DlssNrCompareZoom.value_or_default();
+                auto rZoom = NrSlider(Tr("Zoom"), &zoom, 1.0f, 2.0f, "%.2f", rowWidth);
+                if (rZoom.changed)
+                    config->DlssNrCompareZoom = std::clamp(zoom, 1.0f, 2.0f);
+                if (rZoom.released)
                     anyChanged = true;
             }
-        }
 
-        if (compare == 1)
-        {
-            float zoom = config->DlssNrCompareZoom.value_or_default();
-            auto rZoom = NrSlider(Tr("Zoom"), &zoom, 1.0f, 2.0f, "%.2f", rowWidth);
-            if (rZoom.changed)
-                config->DlssNrCompareZoom = std::clamp(zoom, 1.0f, 2.0f);
-            if (rZoom.released)
+            if (compare == 2)
+            {
+                float split = config->DlssNrCompareSplit.value_or_default();
+                auto rSplit = NrSlider(Tr("Split"), &split, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rSplit.changed)
+                    config->DlssNrCompareSplit = std::clamp(split, 0.0f, 1.0f);
+                if (rSplit.released)
+                    anyChanged = true;
+            }
+
+            const char* debugNames[] = { Tr("Off"), Tr("Proxy (what the model sees)"), Tr("Model output (raw)"),
+                                         Tr("Difference (amplified)") };
+            int debugView = (int) config->DlssNrDebugView.value_or_default();
+            if (NrCombo(Tr("Debug view"), &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
+            {
+                config->DlssNrDebugView = (uint32_t) debugView;
                 anyChanged = true;
+            }
+            HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
+                          "\nactually changed, amplified twenty times and centred on grey."));
+
+            // Both of these are experiments toward dropping the forwarder entirely, which is why they
+            // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
+            // "off until it is shown to produce the same picture" -- so they are labelled as such
+            // rather than presented as ordinary settings.
         }
 
-        if (compare == 2)
+        if (OnPage(kPageSetup))
         {
-            float split = config->DlssNrCompareSplit.value_or_default();
-            auto rSplit = NrSlider(Tr("Split"), &split, 0.0f, 1.0f, "%.2f", rowWidth);
-            if (rSplit.changed)
-                config->DlssNrCompareSplit = std::clamp(split, 0.0f, 1.0f);
-            if (rSplit.released)
+            SectionCaption(Tr("Keys"), rowWidth);
+
+            // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
+            // panel is usable on its own, without going looking for the other window.
+            MenuCommon::RenderKeybindRow(Tr("Toggle key"), 14, config->DlssNrToggleKey);
+            HelpMarker(Tr("Toggles Neural Rendering without opening this panel. Press the button, then the"
+                          "\nkey you want. Escape cancels, Backspace unbinds, R resets it."));
+
+            MenuCommon::RenderKeybindRow(Tr("Panel key"), 15, config->DlssNrPanelKey);
+            HelpMarker(Tr("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
+                          "\ntwo can be up together or on their own."));
+
+            SectionCaption(Tr("Appearance"), rowWidth);
+
+            // Both were in the title row until 2026-09-22. They are settings, and settings are here.
+            {
+                const bool light = config->DlssNrLightTheme.value_or_default();
+                if (ImGui::SmallButton(
+                        (std::string(light ? Tr("Dark panel") : Tr("Light panel")) + "##paneltheme").c_str()))
+                {
+                    config->DlssNrLightTheme = !light;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("The same panel on a light ground, for a bright scene."));
+            }
+
+            if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
+            {
+                config->DlssNrLightTheme = light;
                 anyChanged = true;
+            }
+            HelpMarker(Tr("Light is the default. The dark palette this panel was originally styled after put"
+                          "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
+                          "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
+                          "\n\nUnticking restores NVIDIA's own colouring."));
+
+            if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox(Tr("Vendor colours"), &vendor))
+            {
+                config->DlssNrVendorColours = vendor;
+                anyChanged = true;
+            }
+            {
+                std::string tip =
+                    Tr("The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,"
+                       "\nAMD red on an AMD one. Untick to keep the green everywhere.");
+                tip += OnAmdGpu() ? Tr("\n\nThis game is running on an AMD card.")
+                                  : Tr("\n\nThis game is not running on an AMD card, so this changes nothing here.");
+                HelpMarker(tip.c_str());
+            }
+
+            // No Language control here. The panel speaks [DlssNr] Language, which OptiDLSS5-UI writes from its
+            // own Language setting (auto follows Windows), so the manager is the one place to choose it. A combo
+            // here disagreed with the manager and, sitting in the navigation order, kept pulling the scroll back
+            // to itself (Cyberpunk 2077, 2026-09-16). I18n::Refresh still reads the key every frame.
+
+            // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
+            // is applied to the window.
+            float fontScaleEdit = config->DlssNrFontScale.value_or_default();
+            auto rFont = NrSlider(Tr("Font size"), &fontScaleEdit, 0.75f, 2.0f, "%.2fx", rowWidth);
+
+            if (rFont.changed)
+                config->DlssNrFontScale = std::clamp(fontScaleEdit, 0.75f, 2.0f);
+
+            if (rFont.released)
+                anyChanged = true;
+
+            HelpMarker(Tr("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
+                          "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
+                          "\nrunning into their values."));
         }
-
-        const char* debugNames[] = { Tr("Off"), Tr("Proxy (what the model sees)"), Tr("Model output (raw)"),
-                                     Tr("Difference (amplified)") };
-        int debugView = (int) config->DlssNrDebugView.value_or_default();
-        if (NrCombo(Tr("Debug view"), &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
-        {
-            config->DlssNrDebugView = (uint32_t) debugView;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
-                      "\nactually changed, amplified twenty times and centred on grey."));
-
-        // Both of these are experiments toward dropping the forwarder entirely, which is why they
-        // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
-        // "off until it is shown to produce the same picture" -- so they are labelled as such
-        // rather than presented as ordinary settings.
-        SectionCaption(Tr("Experimental"), rowWidth);
-
-        // Only meaningful with something stacked on top of pass one: at one pass there is nothing to
-        // run less often, and a live slider that cannot do anything is worse than a greyed one.
-        const bool stacked = std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount) > 1;
-        ImGui::BeginDisabled(!stacked);
-        float rate = std::clamp(config->DlssNrPassRate.value_or_default(), 0.05f, 1.0f) * 100.0f;
-        auto rRate = NrSlider(Tr("Extra passes run on"), &rate, 5.0f, 100.0f, "%.0f%%", rowWidth);
-        if (rRate.changed)
-            config->DlssNrPassRate = std::clamp(rate, 5.0f, 100.0f) / 100.0f;
-        if (rRate.released)
-            anyChanged = true;
-        ImGui::EndDisabled();
-        HelpMarker(Tr("How often the passes above the first actually run, as a share of frames. 100% is"
-                      "\nevery frame, which is what this has always done; 50% is every other frame."
-                      "\n\nWhat it buys is the ground between one pass and two. Two passes cost twice the"
-                      "\nmodel time and there is no step between them -- this makes one and a half"
-                      "\nreachable. Watch the frame rate: that is the whole point of it."
-                      "\n\nWhat it costs is that a frame where the extra pass was skipped is genuinely"
-                      "\nless processed than one where it ran, so the picture alternates between two"
-                      "\nlooks. Whether that reads as a pulse or as nothing depends on the game and on"
-                      "\nhow much the extra layer was changing. Chained temporal history decides what"
-                      "\nthe skipped frames do to that pass's history: on, it now has gaps in it."
-                      "\n\nNeeds more than one pass to do anything."));
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("The two below are unproven. They exist to test whether the driver's own "
-                              "nvngx.dll can dispatch the model, which would remove the need for "
-                              "the 165 MB copy beside OptiScaler."));
-        ImGui::PopTextWrapPos();
-
-        if (bool probe = config->DlssNrProxyProbe.value_or_default(); NrCheckbox(Tr("Probe the driver"), &probe))
-        {
-            config->DlssNrProxyProbe = probe;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Asks the driver's nvngx.dll once per session whether it already knows the model."
-                      "\nWrites the answer to the log and changes nothing else."
-                      "\n\nRead when the model is built, so it applies from the next session."));
-
-        if (bool useProxy = config->DlssNrUseProxy.value_or_default();
-            NrCheckbox(Tr("Run through the driver"), &useProxy))
-        {
-            config->DlssNrUseProxy = useProxy;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Drives the model through the driver's own nvngx.dll instead of the forwarder --"
-                      "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
-                      "\nunnecessary."
-                      "\n\nCompare before trusting it: turn on Compare above and look for a difference."));
-
-        // Appearance last, because it is the section you touch once and then leave alone. Both of
-        // these could already be set in the ini; the point of putting them here is that legibility
-        // is the one thing you cannot judge from a config file -- you have to be looking at the
-        // panel, over the game, on your own monitor, to know whether it works.
-        SectionCaption(Tr("Appearance"), rowWidth);
-
-        if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
-        {
-            config->DlssNrLightTheme = light;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Light is the default. The dark palette this panel was originally styled after put"
-                      "\nits dimmed text at 2.65:1 against the background, against the 4.5:1 that reads"
-                      "\ncomfortably -- and an overlay is read at a glance, over a moving picture."
-                      "\n\nUnticking restores NVIDIA's own colouring."));
-
-        if (bool vendor = config->DlssNrVendorColours.value_or_default(); NrCheckbox(Tr("Vendor colours"), &vendor))
-        {
-            config->DlssNrVendorColours = vendor;
-            anyChanged = true;
-        }
-        {
-            std::string tip = Tr("The panel's accent follows the card it is drawn on: NVIDIA green on an NVIDIA GPU,"
-                                 "\nAMD red on an AMD one. Untick to keep the green everywhere.");
-            tip += OnAmdGpu() ? Tr("\n\nThis game is running on an AMD card.")
-                              : Tr("\n\nThis game is not running on an AMD card, so this changes nothing here.");
-            HelpMarker(tip.c_str());
-        }
-
-        // No Language control here. The panel speaks [DlssNr] Language, which OptiDLSS5-UI writes from its
-        // own Language setting (auto follows Windows), so the manager is the one place to choose it. A combo
-        // here disagreed with the manager and, sitting in the navigation order, kept pulling the scroll back
-        // to itself (Cyberpunk 2077, 2026-09-16). I18n::Refresh still reads the key every frame.
-
-        // Not 'fontScale' -- that name is already taken at the top of this function, where the scale
-        // is applied to the window.
-        float fontScaleEdit = config->DlssNrFontScale.value_or_default();
-        auto rFont = NrSlider(Tr("Font size"), &fontScaleEdit, 0.75f, 2.0f, "%.2fx", rowWidth);
-
-        if (rFont.changed)
-            config->DlssNrFontScale = std::clamp(fontScaleEdit, 0.75f, 2.0f);
-
-        if (rFont.released)
-            anyChanged = true;
-
-        HelpMarker(Tr("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
-                      "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
-                      "\nrunning into their values."));
 
         // Must be popped before End(), and on every path out of this block -- it is a stack, not a
         // per-window property like the SetWindowFontScale it replaced.
@@ -2630,6 +2849,12 @@ void RenderMenu(Config* config, float menuResScale)
 
     ImGui::PopStyleVar(5);
     ImGui::PopStyleColor(kPanelColourCount);
+
+    // The wipe's divide, drawn over the frame and draggable by it: the split is a thing you point at,
+    // so pointing at it is how it should move. The Split slider stays -- it is the only way in when
+    // the mouse belongs to the game -- and the two are the same value.
+    if (DragCompareSplit(config))
+        anyChanged = true;
 
     // This overlay saves as you go rather than needing a Save button -- there is nothing else
     // in this build's menu to put one on.
