@@ -472,6 +472,13 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     return { changed, released };
 }
 
+// One entry in a row of boxed choices, defined below with the Models row it was written for.
+static bool ModelButton(const char* label, bool active, float width);
+
+// A choice of a few: every option in its own box, the chosen one ringed in the accent -- the same
+// shape as the Models row and the page buttons, and as Deep Fried Chicken's menu, so a choice looks
+// like a choice everywhere in this panel. A list too long or too wide to lay out that way stays a
+// dropdown: six filter names across a 460 px row would be three letters each.
 static bool NrCombo(const char* label, int* v, const char* const* items, int count, float rowWidth)
 {
     float labelWidth = rowWidth * 0.44f;
@@ -481,9 +488,48 @@ static bool NrCombo(const char* label, int* v, const char* const* items, int cou
     ImGui::PopStyleColor();
     ImGui::SameLine(labelWidth);
 
-    ImGui::SetNextItemWidth(rowWidth - labelWidth);
-    std::string id = std::string("##") + label;
-    return ImGui::Combo(id.c_str(), v, items, count);
+    const float controlWidth = rowWidth - labelWidth;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+
+    // Boxes only where every one of them can still be read: the widest label has to fit its share.
+    bool boxes = count >= 2 && count <= 4;
+    if (boxes)
+    {
+        float widest = 0.0f;
+        for (int i = 0; i < count; ++i)
+            widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+
+        const float each = (controlWidth - spacing * (count - 1)) / count;
+        boxes = each >= widest + ImGui::GetStyle().FramePadding.x * 2.0f;
+    }
+
+    if (!boxes)
+    {
+        ImGui::SetNextItemWidth(controlWidth);
+        std::string id = std::string("##") + label;
+        return ImGui::Combo(id.c_str(), v, items, count);
+    }
+
+    const float each = (controlWidth - spacing * (count - 1)) / count;
+    bool changed = false;
+
+    ImGui::PushID(label);
+    for (int i = 0; i < count; ++i)
+    {
+        if (i > 0)
+            ImGui::SameLine();
+
+        ImGui::PushID(i);
+        if (ModelButton(items[i], *v == i, each))
+        {
+            *v = i;
+            changed = true;
+        }
+        ImGui::PopID();
+    }
+    ImGui::PopID();
+
+    return changed;
 }
 
 // One entry in the "Models" row -- the segmented Model A / B / C selector.
@@ -1038,69 +1084,12 @@ void RenderMenu(Config* config, float menuResScale)
 
         ImGui::Dummy(ImVec2(rowWidth, 0.0f));
 
-        ImGui::PushStyleColor(ImGuiCol_Text, kTitle);
-        TrackedText(Caps(Tr("DLSS 5 Developer Controls")).c_str());
-        ImGui::PopStyleColor();
-        HelpMarker(Tr("Drag anywhere on the panel's background to move it, or drag an edge or the bottom-right"
-                      "\ncorner to resize it. It can hang partly off screen, but a strip always stays visible to"
-                      "\ngrab. Position and size are remembered for this game as a fraction of the screen, so"
-                      "\nthey come back at any resolution."));
-
-        // Light or dark, in the title row: it is the setting a player reaches for when the panel is
-        // washed out over a bright scene or glaring over a dark one, which is not a moment to go
-        // hunting under Setup. The same switch is still there, and the two agree.
-        ImGui::SameLine();
-        {
-            const bool light = config->DlssNrLightTheme.value_or_default();
-            if (ImGui::SmallButton((std::string(light ? Tr("Dark") : Tr("Light")) + "##paneltheme").c_str()))
-            {
-                config->DlssNrLightTheme = !light;
-                anyChanged = true;
-            }
-        }
-
-        if (layout.CustomPos() || layout.CustomSize())
-        {
-            ImGui::SameLine();
-            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
-            {
-                config->DlssNrPanelX = -1.0f;
-                config->DlssNrPanelY = -1.0f;
-                config->DlssNrPanelW = -1.0f;
-                config->DlssNrPanelH = -1.0f;
-                s_layout.placeFrames = 2;
-                anyChanged = true;
-            }
-        }
-
-        // Close: a bright red square X flush with the panel's right edge. A plain X: every font
-        // this panel can be drawn in has one, which is not true of the multiplication sign or the
-        // box-drawing crosses. Placed against the window's actual inner width, not rowWidth -- at a
-        // large font scale the title, the (?) and Reset layout run wider than rowWidth and the window
-        // grows to fit them, and an X placed at rowWidth then lands on top of Reset. Inner width, not
-        // window width: a size-capped panel has a scrollbar, and the X must not sit under it.
-        {
-            const float side = ImGui::GetFrameHeight();
-            // Flush right where there is room, and straight after the last button where there is not:
-            // SameLine to a position LEFT of the cursor draws on top of what is already there, which
-            // is how the X came to sit over "Reset layout" on a narrowed panel (2026-09-22).
-            const float flushRight = std::max(rowWidth, innerWidth) - side;
-            ImGui::SameLine();
-            if (flushRight > ImGui::GetCursorPosX())
-                ImGui::SameLine(flushRight);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.22f, 0.22f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.15f, 0.15f, 0.16f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.15f, 0.15f, 0.40f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f, 0.10f, 0.10f, 0.65f));
-            if (ImGui::Button("X##closepanel", ImVec2(side, side)))
-                MenuCommon::CloseDlssNrPanel();
-            ImGui::PopStyleColor(4);
-            if (ImGui::BeginItemTooltip())
-            {
-                ImGui::TextUnformatted(Tr("Close the panel. Its key opens it again."));
-                ImGui::EndTooltip();
-            }
-        }
+        // The top of the panel: a bare strip to take hold of, then the pages. No title row -- the
+        // panel says what it is on every row in it, and the strip is what a hand reaches for. Light
+        // and Reset layout are settings and live under Setup; the panel closes on its own key.
+        ImGui::Dummy(ImVec2(rowWidth, ImGui::GetTextLineHeight() * 0.45f));
+        PagePicker(rowWidth);
+        DragByHeader(ImGui::GetCursorScreenPos().y);
 
         ImGui::Spacing();
 
@@ -1425,9 +1414,6 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
-        PagePicker(rowWidth);
-        DragByHeader(ImGui::GetCursorScreenPos().y);
-
         if (OnPage(kPageModel))
         {
         SectionCaption(Tr("Global Controls"), rowWidth);
@@ -1958,8 +1944,20 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ncomposition cannot tell them apart."
                       "\n\nGreyed out at 100%, where there is nothing to enlarge."));
 
-        // The filter that does the enlarging, and the four controls that shape the one of them that
-        // reads them. Greyed by the same condition as Enlargement above: nothing to enlarge at 100%.
+        // The filter that enlarges the proxy for a model working ABOVE the frame's size, and the four
+        // controls that shape the one of them that reads them.
+        //
+        // Greyed below 100%, which is the opposite of what this said until 2026-09-22. Only the
+        // supersample leg uses this filter (DlssNr_Dx12.cpp: `if (workScale > 1.0f)` builds superUp
+        // with it); a model working BELOW the frame is enlarged inside the resolve shader, which has
+        // its own control -- Enlargement, above. So the rows were live exactly when they did nothing
+        // and dead when they mattered, which is how a player came to change every filter at 50% and
+        // measure no difference at all.
+        // Live whenever the model is not working at exactly the frame's size, in either direction: it
+        // enlarges the proxy for a model working ABOVE it, and the model's answer for one working below.
+        const float workScaleNow = config->DlssNrWorkingScale.value_or_default();
+        const bool scaledEither = workScaleNow < 0.999f || workScaleNow > 1.001f;
+
         const char* upscalerNames[] = { Tr("Bicubic"),        Tr("EWA Lanczos"),   Tr("xBR-lv2"),
                                         Tr("Sharp bilinear"), Tr("Integer scale"), Tr("Nearest") };
 
@@ -1968,15 +1966,17 @@ void RenderMenu(Config* config, float menuResScale)
         if (upscaler < 0 || upscaler >= IM_ARRAYSIZE(upscalerNames))
             upscaler = (int) Upsampler::Bicubic;
 
-        ImGui::BeginDisabled(!reduced);
+        ImGui::BeginDisabled(!scaledEither);
         if (NrCombo(Tr("Upscaler"), &upscaler, upscalerNames, IM_ARRAYSIZE(upscalerNames), rowWidth))
         {
             config->DlssNrScalingUpscaler = (Upsampler) upscaler;
             anyChanged = true;
         }
         ImGui::EndDisabled();
-        HelpMarker(Tr("The filter that enlarges the model's answer back to display size when the model"
-                      "\nran SMALLER than the frame."
+        HelpMarker(Tr("The filter used whenever the model is not working at the frame's own size: it"
+                      "\nenlarges the model's answer back up when Model resolution is below 100%, and"
+                      "\nenlarges the frame for the model when it is above. Greyed out at exactly 100%,"
+                      "\nwhere nothing is being resized."
                       "\n\nBicubic is the default because it is the cheapest and cannot go wrong, not"
                       "\nbecause it is good -- it is soft. On a rendered 3D game the one to try is EWA"
                       "\nLanczos, which weighs pixels by how far away they really are rather than by row"
@@ -1985,7 +1985,7 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nOn a rendered 3D frame they will look wrong."));
 
         // EWA Lanczos's own four. All 0 to 1 with 0 the gentlest, so they read as one set.
-        const bool ewa = reduced && config->DlssNrScalingUpscaler.value_or_default() == Upsampler::EwaLanczos;
+        const bool ewa = scaledEither && config->DlssNrScalingUpscaler.value_or_default() == Upsampler::EwaLanczos;
 
         ImGui::BeginDisabled(!ewa);
 
@@ -2749,6 +2749,32 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ntwo can be up together or on their own."));
 
         SectionCaption(Tr("Appearance"), rowWidth);
+
+        // Both were in the title row until 2026-09-22. They are settings, and settings are here.
+        {
+            const bool light = config->DlssNrLightTheme.value_or_default();
+            if (ImGui::SmallButton((std::string(light ? Tr("Dark panel") : Tr("Light panel")) + "##paneltheme").c_str()))
+            {
+                config->DlssNrLightTheme = !light;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("The same panel on a light ground, for a bright scene."));
+        }
+
+        if (layout.CustomPos() || layout.CustomSize())
+        {
+            if (ImGui::SmallButton((std::string(Tr("Reset layout")) + "##panelpos").c_str()))
+            {
+                config->DlssNrPanelX = -1.0f;
+                config->DlssNrPanelY = -1.0f;
+                config->DlssNrPanelW = -1.0f;
+                config->DlssNrPanelH = -1.0f;
+                s_layout.placeFrames = 2;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Put the panel back where it opens: the left edge, halfway down, at its own size."));
+        }
+
 
         if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
         {

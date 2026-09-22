@@ -23,7 +23,13 @@ cbuffer Params : register(b0)
     float gCompareSplit; // where the wipe cuts, 0..1
     float gCompareZoom;  // side by side: 1 fits the frame, 2 fills the half
     uint  gCompareSwap;  // put the edited frame on the other side
-    uint  gTransfer;     // 0 classic, 1 matched residual -- how a below-size model comes back
+    // 0 classic, 1 matched residual -- how a below-size model comes back. 2 is matched residual with
+    // the pair already enlarged: D3D12 brings the answer and its proxy up to frame size with the
+    // filter chosen in the panel before this pass, so their dimensions no longer say the edit came
+    // from a reduced raster, and matched residual has to be told. Carried here rather than in a new
+    // constant so the buffer's layout is untouched and the Vulkan shader, which still hands over the
+    // small pair and never sends 2, keeps working without being recompiled.
+    uint  gTransfer;
     float gDebugScale;   // what the debug views are scaled by, held still while the meter moves
     uint  gReversibleMode; // 0 knee, 1 Neutwo+composed, 2 Neutwo+replace, 3 hybrid+composed, 4 hybrid+replace
     uint  gApplyModel;     // 0 output the clean frame (pass still runs), 1 apply the model's edit
@@ -829,9 +835,12 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // is what lets this default to on: the shipped configuration cannot be changed by it at all.
     uint proxyW, proxyH;
     gSource.GetDimensions(proxyW, proxyH);
-    const bool modelRanSmall = proxyW != gWidth || proxyH != gHeight;
+    // Transfer 2 says it outright; otherwise the sizes still tell. A pre-enlarged pair arrives at
+    // frame size, so the comparison alone would read it as a model that ran at full resolution and
+    // skip the re-basing that is the whole point of matched residual.
+    const bool modelRanSmall = gTransfer == 2 || proxyW != gWidth || proxyH != gHeight;
 
-    if (gTransfer == 1 && modelRanSmall)
+    if (gTransfer >= 1 && modelRanSmall)
     {
         // Saturated, because that is what the encode does and this has to reproduce it exactly.
         //
