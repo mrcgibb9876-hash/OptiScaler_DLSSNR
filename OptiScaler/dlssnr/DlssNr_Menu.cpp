@@ -397,14 +397,23 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     ImGuiStyle& style = ImGui::GetStyle();
     float labelWidth = rowWidth * 0.44f;
     float valueWidth = 52.0f;
-    float trackWidth = rowWidth - labelWidth - valueWidth - style.ItemSpacing.x * 2.0f;
+
+    // A label that does not fit its column goes ABOVE its slider instead of being run into by it.
+    // The long ones are real ("Trim (x the game's exposure)"), and they get longer in German, in
+    // French, and at any font scale above 1x -- so this is the rule, not a special case.
+    const bool stacked = ImGui::CalcTextSize(label).x > labelWidth - style.ItemSpacing.x;
+
+    float trackWidth = (stacked ? rowWidth : rowWidth - labelWidth) - valueWidth - style.ItemSpacing.x * 2.0f;
     if (trackWidth < 40.0f)
         trackWidth = 40.0f;
 
     ImGui::PushStyleColor(ImGuiCol_Text, kText);
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
-    ImGui::SameLine(labelWidth);
+    if (stacked)
+        labelWidth = 0.0f; // the slider starts at the left edge, on its own line
+    else
+        ImGui::SameLine(labelWidth);
 
     ImVec2 pos = ImGui::GetCursorScreenPos();
     float rowH = ImGui::GetFrameHeight();
@@ -807,6 +816,100 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
 
     ImGui::PopTextWrapPos();
 }
+// ── the panel's pages ─────────────────────────────────────────────────────────────────────────
+//
+// One long scroll is hard to read over a moving picture and hard to point anyone at ("under Cost,
+// keep scrolling"). These are the same rows, grouped onto six pages picked at the top, so the panel
+// is a readable height whatever is open and every control has an address. Deep Fried Chicken's own
+// menu is built this way, and ours is what its restyle will follow, so the two match.
+//
+// The page is UI state, not a setting: it lasts the session and opens on Main next time. Nothing
+// here is written to the ini.
+enum PanelPage
+{
+    kPageMain = 0, // whether the pass runs at all, and what it is doing right now
+    kPageModel,    // which model, how strong, and what it must leave alone
+    kPageCost,     // passes, model resolution, and the budget controller
+    kPageImage,    // the filters that scale it, the guards, and how much of it lands
+    kPageInspect,  // what the model is told, and the tools for looking at its work
+    kPageSetup,    // keys and appearance
+    kPageCount,
+};
+
+static int g_page = kPageMain;
+static bool OnPage(int page) { return g_page == page; }
+
+// The state of the pass in one word, filled in the accent when it is actually running and drawn flat
+// when it is not, so "is this doing anything" is answered before any sentence is read.
+static void StatusBadge(const char* text, bool live)
+{
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 pad(ImGui::GetStyle().FramePadding.x, ImGui::GetStyle().FramePadding.y * 0.6f);
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    const ImVec2 min = ImGui::GetCursorScreenPos();
+    const ImVec2 max(min.x + size.x + pad.x * 2.0f, min.y + size.y + pad.y * 2.0f);
+
+    dl->AddRectFilled(min, max, ImGui::GetColorU32(live ? kAccentFill : g_pal->overlay(0.14f)), 3.0f);
+    dl->AddText(ImVec2(min.x + pad.x, min.y + pad.y), ImGui::GetColorU32(live ? g_pal->onAccent : kTextDim), text);
+
+    ImGui::Dummy(ImVec2(max.x - min.x, max.y - min.y));
+}
+
+// The panel moves by its top strip only -- the title row down to the page buttons. Everything below
+// is controls, and a drag that starts there is someone who missed a slider, not someone moving the
+// panel. The window carries NoMove; this is the move. Called with the strip's bottom edge in screen
+// space, right after the page buttons are drawn.
+static void DragByHeader(float stripBottomY)
+{
+    static bool dragging = false;
+    static ImVec2 grab(0.0f, 0.0f);
+
+    ImGuiIO& io = ImGui::GetIO();
+    const ImVec2 pos = ImGui::GetWindowPos();
+    const ImVec2 size = ImGui::GetWindowSize();
+    const bool inStrip = io.MousePos.x >= pos.x && io.MousePos.x <= pos.x + size.x && io.MousePos.y >= pos.y &&
+                         io.MousePos.y <= stripBottomY;
+
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        dragging = false;
+    // Not over a control: the strip carries the theme button, Reset layout, the X, DLSS ON and the
+    // page buttons, and every one of them is a press, not a handle.
+    else if (!dragging && inStrip && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered() &&
+             !ImGui::IsAnyItemActive())
+    {
+        dragging = true;
+        grab = ImVec2(io.MousePos.x - pos.x, io.MousePos.y - pos.y);
+    }
+
+    if (dragging)
+    {
+        ImGui::SetWindowPos(ImVec2(io.MousePos.x - grab.x, io.MousePos.y - grab.y), ImGuiCond_Always);
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+    }
+}
+
+// Drawn once, under the status lines: the same buttons the Models row uses, so the panel has one
+// way of offering a choice of several.
+static void PagePicker(float rowWidth)
+{
+    const char* names[kPageCount] = { Tr("Main"),  Tr("Model"),   Tr("Cost"),
+                                      Tr("Image"), Tr("Inspect"), Tr("Setup") };
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float width = (rowWidth - spacing * (kPageCount - 1)) / kPageCount;
+
+    for (int i = 0; i < kPageCount; ++i)
+    {
+        if (i > 0)
+            ImGui::SameLine();
+
+        ImGui::PushID(i);
+        if (ModelButton(names[i], g_page == i, width))
+            g_page = i;
+        ImGui::PopID();
+    }
+}
+
+
 
 void RenderMenu(Config* config, float menuResScale)
 {
@@ -883,8 +986,12 @@ void RenderMenu(Config* config, float menuResScale)
     // widget it lands on -- so input the game keeps producing (a controller's resting stick, arrow keys)
     // pinned this panel to one row and the mouse wheel could not scroll past it (Cyberpunk 2077,
     // 2026-09-16: stuck on the Language combo).
+    // NoMove: the panel is moved by its top strip only (DragByHeader below), not by its background.
+    // Dragging the background meant a missed slider or an empty gap beside a row moved the whole
+    // panel, which is not what anyone was reaching for.
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs;
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs |
+                             ImGuiWindowFlags_NoMove;
 
     bool anyChanged = false;
 
@@ -939,6 +1046,19 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ngrab. Position and size are remembered for this game as a fraction of the screen, so"
                       "\nthey come back at any resolution."));
 
+        // Light or dark, in the title row: it is the setting a player reaches for when the panel is
+        // washed out over a bright scene or glaring over a dark one, which is not a moment to go
+        // hunting under Setup. The same switch is still there, and the two agree.
+        ImGui::SameLine();
+        {
+            const bool light = config->DlssNrLightTheme.value_or_default();
+            if (ImGui::SmallButton((std::string(light ? Tr("Dark") : Tr("Light")) + "##paneltheme").c_str()))
+            {
+                config->DlssNrLightTheme = !light;
+                anyChanged = true;
+            }
+        }
+
         if (layout.CustomPos() || layout.CustomSize())
         {
             ImGui::SameLine();
@@ -961,7 +1081,13 @@ void RenderMenu(Config* config, float menuResScale)
         // window width: a size-capped panel has a scrollbar, and the X must not sit under it.
         {
             const float side = ImGui::GetFrameHeight();
-            ImGui::SameLine(std::max(rowWidth, innerWidth) - side);
+            // Flush right where there is room, and straight after the last button where there is not:
+            // SameLine to a position LEFT of the cursor draws on top of what is already there, which
+            // is how the X came to sit over "Reset layout" on a narrowed panel (2026-09-22).
+            const float flushRight = std::max(rowWidth, innerWidth) - side;
+            ImGui::SameLine();
+            if (flushRight > ImGui::GetCursorPosX())
+                ImGui::SameLine(flushRight);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.22f, 0.22f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f, 0.15f, 0.15f, 0.16f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 0.15f, 0.15f, 0.40f));
@@ -1142,27 +1268,6 @@ void RenderMenu(Config* config, float menuResScale)
             }
         }
 
-        // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
-        // panel is usable on its own, without going looking for the other window.
-        MenuCommon::RenderKeybindRow(Tr("Toggle key"), 14, config->DlssNrToggleKey);
-        HelpMarker(Tr("Toggles Neural Rendering without opening this panel. Press the button, then the"
-                      "\nkey you want. Escape cancels, Backspace unbinds, R resets it."));
-
-        MenuCommon::RenderKeybindRow(Tr("Panel key"), 15, config->DlssNrPanelKey);
-        HelpMarker(Tr("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
-                      "\ntwo can be up together or on their own."));
-
-        bool applyModel = config->DlssNrApplyModel.value_or_default();
-        if (NrCheckbox(Tr("Apply the model"), &applyModel))
-        {
-            config->DlssNrApplyModel = applyModel;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
-                      "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
-                      "\nand toggle this to see the same frozen frame with and without Neural Rendering."
-                      "\nLeave it on for normal use."));
-
         bool beforeSr = config->DlssNrRunBeforeSr.value_or_default();
         if (NrCheckbox(Tr("Before Super Resolution"), &beforeSr))
         {
@@ -1197,6 +1302,16 @@ void RenderMenu(Config* config, float menuResScale)
         // never touched -- asking only that one reports "waiting" over a pass that is demonstrably
         // running.
         const bool vulkan = DlssNr::IsRunningVk();
+
+        // One badge, above the sentence that explains it: the answer to "is this actually doing
+        // anything in this game" should be readable at a glance, on every page, without reading a
+        // line of prose. Deep Fried Chicken's menu carries the same badge in the same place, so a
+        // player moving between a DLSS 5 game and a Chicken game reads one panel, not two.
+        StatusBadge(!enabled                                  ? Tr("Paused")
+                    : (DlssNr::IsRunning() || vulkan)         ? Tr("Ready")
+                    : DlssNr::FailureReason()[0] != 0         ? Tr("Blocked")
+                                                              : Tr("Waiting"),
+                    enabled && (DlssNr::IsRunning() || vulkan));
 
         if (!DlssNr::IsRunning() && !vulkan)
         {
@@ -1255,7 +1370,10 @@ void RenderMenu(Config* config, float menuResScale)
             // With "Apply the model" off the pass STILL RUNS -- it only outputs the clean frame. The
             // cost is real, and saying so stops the reading looking like a bug. Turning DLSS ON off
             // is what zeroes it.
-            const char* runSuffix = !applyModel ? Tr("  (model running, edit hidden)") : "";
+            // Read from the config, not from the checkbox: that row lives under Inspect now, and this
+            // line is drawn on every page.
+            const char* runSuffix =
+                !config->DlssNrApplyModel.value_or_default() ? Tr("  (model running, edit hidden)") : "";
 
             if (ms.has_value())
                 ImGui::TextColored(ImVec4(0.55f, 0.85f, 0.45f, 1.0f), Tr("Running%s - %.2f ms per frame%s"),
@@ -1307,6 +1425,11 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Global Controls -- DlssNrLocalStructure / DlssNrLocalTone: NVIDIA's own name for
         // these two in its DLSS 5 developer overlay.
+        PagePicker(rowWidth);
+        DragByHeader(ImGui::GetCursorScreenPos().y);
+
+        if (OnPage(kPageModel))
+        {
         SectionCaption(Tr("Global Controls"), rowWidth);
 
         float localStructure = config->DlssNrLocalStructure.value_or_default();
@@ -1470,6 +1593,10 @@ void RenderMenu(Config* config, float menuResScale)
         //
         // Nothing here touches OptiFG (the FSR3-based fallback used when the game has no frame
         // generation at all) -- that path is FGOutput::FSRFG/XeFG and is deliberately left out.
+        }
+
+        if (OnPage(kPageMain))
+        {
         SectionCaption(Tr("Frame Generation"), rowWidth);
 
         const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && state.currentFG != nullptr;
@@ -1656,6 +1783,10 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's
         // developer overlay -- kept under its original names.
+        }
+
+        if (OnPage(kPageCost))
+        {
         SectionCaption(Tr("Cost"), rowWidth);
 
         // Sequential model layers between one encode and one final composition. Deferred on release
@@ -1803,6 +1934,10 @@ void RenderMenu(Config* config, float menuResScale)
                           "\ndownscaler, so the two can differ and run at the same time."));
         }
 
+        }
+
+        if (OnPage(kPageImage))
+        {
         // How the model's work is brought back up when it ran below the frame's size. Classic
         // composes the small picture straight against the full-size frame, which cannot tell the
         // shrink's blur apart from the model's edit.
@@ -2094,7 +2229,7 @@ void RenderMenu(Config* config, float menuResScale)
             if (!anchors.empty())
             {
                 float trim = config->DlssNrScanTrim.value_or_default();
-                auto rTrim = NrSlider(Tr("Trim (x the scan)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+                auto rTrim = NrSlider(Tr("Exposure (scan)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
 
                 if (rTrim.changed)
                     config->DlssNrScanTrim = std::clamp(trim, 0.25f, 4.0f);
@@ -2144,7 +2279,7 @@ void RenderMenu(Config* config, float menuResScale)
 
             float trim = config->DlssNrWhitePointTrim.value_or_default();
             auto rTrim =
-                NrSlider(Tr("Trim (x the game's exposure)"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
+                NrSlider(Tr("Exposure"), &trim, 0.25f, 4.0f, "%.2fx", rowWidth, true, true);
 
             if (rTrim.changed)
                 config->DlssNrWhitePointTrim = std::clamp(trim, 0.25f, 4.0f);
@@ -2417,6 +2552,10 @@ void RenderMenu(Config* config, float menuResScale)
 
         // Both of these describe the frame to the model rather than shaping its output, which is
         // why they sit together and away from the strength controls.
+        }
+
+        if (OnPage(kPageInspect))
+        {
         SectionCaption(Tr("Guide"), rowWidth);
 
         const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
@@ -2465,6 +2604,17 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nperformance either way, and does nothing in a game that hands over real motion."));
 
         SectionCaption(Tr("Inspect"), rowWidth);
+
+        bool applyModel = config->DlssNrApplyModel.value_or_default();
+        if (NrCheckbox(Tr("Apply the model"), &applyModel))
+        {
+            config->DlssNrApplyModel = applyModel;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Whether the model's edit is applied. Off shows the clean upscaler frame while the"
+                      "\npass keeps running -- so with Hold frame, under Inspect, you can freeze a frame"
+                      "\nand toggle this to see the same frozen frame with and without Neural Rendering."
+                      "\nLeave it on for normal use."));
 
         if (DlssNr::CaptureInProgress())
         {
@@ -2582,62 +2732,22 @@ void RenderMenu(Config* config, float menuResScale)
         // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
         // "off until it is shown to produce the same picture" -- so they are labelled as such
         // rather than presented as ordinary settings.
-        SectionCaption(Tr("Experimental"), rowWidth);
-
-        // Only meaningful with something stacked on top of pass one: at one pass there is nothing to
-        // run less often, and a live slider that cannot do anything is worse than a greyed one.
-        const bool stacked = std::clamp(config->DlssNrPasses.value_or_default(), 1u, DlssNr::MaxPassCount) > 1;
-        ImGui::BeginDisabled(!stacked);
-        float rate = std::clamp(config->DlssNrPassRate.value_or_default(), 0.05f, 1.0f) * 100.0f;
-        auto rRate = NrSlider(Tr("Extra passes run on"), &rate, 5.0f, 100.0f, "%.0f%%", rowWidth);
-        if (rRate.changed)
-            config->DlssNrPassRate = std::clamp(rate, 5.0f, 100.0f) / 100.0f;
-        if (rRate.released)
-            anyChanged = true;
-        ImGui::EndDisabled();
-        HelpMarker(Tr("How often the passes above the first actually run, as a share of frames. 100% is"
-                      "\nevery frame, which is what this has always done; 50% is every other frame."
-                      "\n\nWhat it buys is the ground between one pass and two. Two passes cost twice the"
-                      "\nmodel time and there is no step between them -- this makes one and a half"
-                      "\nreachable. Watch the frame rate: that is the whole point of it."
-                      "\n\nWhat it costs is that a frame where the extra pass was skipped is genuinely"
-                      "\nless processed than one where it ran, so the picture alternates between two"
-                      "\nlooks. Whether that reads as a pulse or as nothing depends on the game and on"
-                      "\nhow much the extra layer was changing. Chained temporal history decides what"
-                      "\nthe skipped frames do to that pass's history: on, it now has gaps in it."
-                      "\n\nNeeds more than one pass to do anything."));
-
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("The two below are unproven. They exist to test whether the driver's own "
-                              "nvngx.dll can dispatch the model, which would remove the need for "
-                              "the 165 MB copy beside OptiScaler."));
-        ImGui::PopTextWrapPos();
-
-        if (bool probe = config->DlssNrProxyProbe.value_or_default(); NrCheckbox(Tr("Probe the driver"), &probe))
-        {
-            config->DlssNrProxyProbe = probe;
-            anyChanged = true;
         }
-        HelpMarker(Tr("Asks the driver's nvngx.dll once per session whether it already knows the model."
-                      "\nWrites the answer to the log and changes nothing else."
-                      "\n\nRead when the model is built, so it applies from the next session."));
 
-        if (bool useProxy = config->DlssNrUseProxy.value_or_default();
-            NrCheckbox(Tr("Run through the driver"), &useProxy))
+        if (OnPage(kPageSetup))
         {
-            config->DlssNrUseProxy = useProxy;
-            anyChanged = true;
-        }
-        HelpMarker(Tr("Drives the model through the driver's own nvngx.dll instead of the forwarder --"
-                      "\nthe way DLSS itself is called. If the picture matches, the forwarder is"
-                      "\nunnecessary."
-                      "\n\nCompare before trusting it: turn on Compare above and look for a difference."));
+        SectionCaption(Tr("Keys"), rowWidth);
 
-        // Appearance last, because it is the section you touch once and then leave alone. Both of
-        // these could already be set in the ini; the point of putting them here is that legibility
-        // is the one thing you cannot judge from a config file -- you have to be looking at the
-        // panel, over the game, on your own monitor, to know whether it works.
+        // Both rows are also under Keybinds in OptiScaler's own menu; they are repeated here so the
+        // panel is usable on its own, without going looking for the other window.
+        MenuCommon::RenderKeybindRow(Tr("Toggle key"), 14, config->DlssNrToggleKey);
+        HelpMarker(Tr("Toggles Neural Rendering without opening this panel. Press the button, then the"
+                      "\nkey you want. Escape cancels, Backspace unbinds, R resets it."));
+
+        MenuCommon::RenderKeybindRow(Tr("Panel key"), 15, config->DlssNrPanelKey);
+        HelpMarker(Tr("Opens and closes this panel. Independent of OptiScaler's own menu key, so the"
+                      "\ntwo can be up together or on their own."));
+
         SectionCaption(Tr("Appearance"), rowWidth);
 
         if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
@@ -2682,6 +2792,8 @@ void RenderMenu(Config* config, float menuResScale)
         HelpMarker(Tr("This panel's text only -- OptiScaler's own menu keeps its [Menu] FontSize."
                       "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
                       "\nrunning into their values."));
+
+        }
 
         // Must be popped before End(), and on every path out of this block -- it is a stack, not a
         // per-window property like the SetWindowFontScale it replaced.
