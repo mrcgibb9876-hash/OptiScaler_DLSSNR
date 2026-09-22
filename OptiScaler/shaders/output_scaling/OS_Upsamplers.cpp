@@ -591,10 +591,7 @@ namespace
 
 // Every tuning control is a plain 0..1, so they all come through here rather than each carrying its
 // own clamp. The ini reader clamps too; this is for a value set live from the menu.
-float Unit(float v)
-{
-    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
-}
+float Unit(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
 } // namespace
 
@@ -605,13 +602,10 @@ UpsamplerTuning UpsamplerTuningFor(bool neuralRendering)
     if (neuralRendering)
         return { Unit(cfg.DlssNrScalingSharpness.value_or_default()),
                  Unit(cfg.DlssNrScalingAntiRinging.value_or_default()),
-                 Unit(cfg.DlssNrScalingSigmoid.value_or_default()),
-                 Unit(cfg.DlssNrScalingDither.value_or_default()) };
+                 Unit(cfg.DlssNrScalingSigmoid.value_or_default()), Unit(cfg.DlssNrScalingDither.value_or_default()) };
 
-    return { Unit(cfg.OutputScalingSharpness.value_or_default()),
-             Unit(cfg.OutputScalingAntiRinging.value_or_default()),
-             Unit(cfg.OutputScalingSigmoid.value_or_default()),
-             Unit(cfg.OutputScalingDither.value_or_default()) };
+    return { Unit(cfg.OutputScalingSharpness.value_or_default()), Unit(cfg.OutputScalingAntiRinging.value_or_default()),
+             Unit(cfg.OutputScalingSigmoid.value_or_default()), Unit(cfg.OutputScalingDither.value_or_default()) };
 }
 
 const char* UpsamplerShaderSource(Upsampler which)

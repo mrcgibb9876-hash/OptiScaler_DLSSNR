@@ -30,10 +30,7 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
 
 // Which constant buffer layout this instance uploads; see OS_Dx12.cpp for why it is not simply the
 // downscaler any more. FSR1 is a downscaler-only choice, so going up the answer is always no.
-bool OS_Vk::UsesFsr1() const
-{
-    return !_upsample && ActiveScaler() == Scaler::FSR1;
-}
+bool OS_Vk::UsesFsr1() const { return !_upsample && ActiveScaler() == Scaler::FSR1; }
 
 Scaler OS_Vk::ActiveScaler() const
 {

@@ -102,8 +102,8 @@ bool Shader_Dx12::CreateComputePipeline(ID3D12Device* device, ID3D12PipelineStat
     // Windows and no build rule regenerates them, so a shader added from any other checkout has none
     // -- and without this it would be silently skipped for everyone who left UsePrecompiledShaders
     // on, which is the default. Nothing existing changes: a shader that has a blob still prefers it.
-    if (source && (bytecode == nullptr || bytecodeSize == 0 ||
-                   !Config::Instance()->UsePrecompiledShaders.value_or_default()))
+    if (source &&
+        (bytecode == nullptr || bytecodeSize == 0 || !Config::Instance()->UsePrecompiledShaders.value_or_default()))
         shaderBlob = CompileShader(source, "CSMain", "cs_5_0");
 
     return CreateComputeShader(device, _rootSignature, pipelineState, shaderBlob.Get(),

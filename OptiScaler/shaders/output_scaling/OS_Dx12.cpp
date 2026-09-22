@@ -162,10 +162,7 @@ Upsampler OS_Dx12::ActiveUpsampler() const
 
 // Which of the two constant buffer layouts this instance uploads. FSR1 takes its own, and FSR1 is a
 // DOWNscaler-only choice now, so going up the answer is always no.
-bool OS_Dx12::UsesFsr1() const
-{
-    return !_upsample && ActiveScaler() == Scaler::FSR1;
-}
+bool OS_Dx12::UsesFsr1() const { return !_upsample && ActiveScaler() == Scaler::FSR1; }
 
 OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride,
                  Upsampler InUpsamplerOverride)
