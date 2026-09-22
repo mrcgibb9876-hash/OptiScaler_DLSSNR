@@ -394,6 +394,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrEnabled.set_from_config(readBool("DlssNr", "Enabled"));
             DlssNrPlacement.set_from_config(readWString("DlssNr", "Placement", true));
             DlssNrOpticalFlow.set_from_config(readBool("DlssNr", "OpticalFlow"));
+            DlssNrResetWhenBlind.set_from_config(readBool("DlssNr", "ResetWhenBlind"));
             DlssNrRunBeforeSr.set_from_config(readBool("DlssNr", "RunBeforeSR"));
             DlssNrRunBeforeRr.set_from_config(readBool("DlssNr", "RunBeforeRR"));
             DlssNrChainedHistory.set_from_config(readBool("DlssNr", "ChainedHistory"));
@@ -1357,6 +1358,8 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "Placement",
                      wstring_to_string(Instance()->DlssNrPlacement.value_for_config_or(L"auto")).c_str());
         ini.SetValue("DlssNr", "OpticalFlow", GetBoolValue(Instance()->DlssNrOpticalFlow.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "ResetWhenBlind",
+                     GetBoolValue(Instance()->DlssNrResetWhenBlind.value_for_config()).c_str());
         ini.SetValue("DlssNr", "RunBeforeSR", GetBoolValue(Instance()->DlssNrRunBeforeSr.value_for_config()).c_str());
         ini.SetValue("DlssNr", "RunBeforeRR", GetBoolValue(Instance()->DlssNrRunBeforeRr.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ChainedHistory",
