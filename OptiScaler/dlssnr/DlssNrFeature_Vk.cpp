@@ -88,6 +88,18 @@ struct VkState
     OwnedImage outputNative;
     std::unique_ptr<OS_Vk> superUp;
     std::unique_ptr<OS_Vk> superDown;
+
+    // Below full resolution: the model's answer and the small proxy it is measured against, both
+    // enlarged to frame size with the chosen Upscaler before the resolve reads them. Without this the
+    // resolve samples two small pictures bilinearly at full-size UVs and the filter choice does
+    // nothing at all, which is what D3D12 did until 2026-09-22. Both legs take the SAME filter: the
+    // composition is handed model minus proxy, and two filters would put the difference between them
+    // inside that edit.
+    OwnedImage editNative;
+    OwnedImage proxyNative;
+    std::unique_ptr<OS_Vk> editUp;
+    std::unique_ptr<OS_Vk> proxyUp;
+    Upsampler nrUpsampler = Upsampler::Count;
     Scaler nrScaler = Scaler::Count;
 
     std::unique_ptr<DlssNr_Vk> pass;
@@ -752,6 +764,8 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
         DestroyImage(g_vk.proxySmall);
         DestroyImage(g_vk.outputNative);
+        DestroyImage(g_vk.editNative);
+        DestroyImage(g_vk.proxyNative);
 
         // output is the model's target, so it is the working size. proxy and keep are full: proxy is
         // the source the downsample reads, keep is the untouched frame the resolve composites onto.
@@ -760,7 +774,9 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
                         CreateImage(g_vk.proxy, width, height, working, true) &&
                         CreateImage(g_vk.keep, width, height, working, true) &&
                         (!reduced || CreateImage(g_vk.proxySmall, workWidth, workHeight, working, true)) &&
-                        (workScale <= 1.0f || CreateImage(g_vk.outputNative, width, height, working, true));
+                        (workScale <= 1.0f || CreateImage(g_vk.outputNative, width, height, working, true)) &&
+                        (!reduced || (CreateImage(g_vk.editNative, width, height, working, true) &&
+                                      CreateImage(g_vk.proxyNative, width, height, working, true)));
 
         if (!ok)
         {
@@ -1088,6 +1104,61 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         }
     }
 
+    // Below full resolution: enlarge the answer and its proxy here, with the filter chosen in the panel,
+    // rather than leaving the resolve to sample two small pictures bilinearly at full-size UVs -- which is
+    // what made the filter choice do nothing at all below 100%. Both legs take the same filter: the
+    // composition is handed model minus proxy, and two filters would put the difference between them
+    // inside that edit. Matched residual has to be told the edit still came from a reduced raster, since
+    // the sizes no longer say so; Transfer 2 carries that, as on D3D12.
+    if (reduced && resolveAnswer == &g_vk.output && g_vk.editNative.Valid() && g_vk.proxyNative.Valid())
+    {
+        const Scaler wantScaler = cfg.DlssNrScalingDownscaler.value_or_default();
+        const Upsampler wantUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
+
+        if (g_vk.editUp && (g_vk.nrUpsampler != wantUpsampler || g_vk.nrScaler != wantScaler))
+        {
+            // The shader IS the filter, so a change means new pipelines and freeing the old ones. Frames
+            // already submitted still bind them, and freeing those under in-flight work is device removal
+            // -- the hazard the supersample rebuild above drains for, and the one that hung D3D12 twice
+            // before its scalers were parked. A filter change is rare; the stall is a hitch, not a cost.
+            if (g_vk.device != VK_NULL_HANDLE)
+                vkDeviceWaitIdle(g_vk.device);
+            g_vk.editUp.reset();
+            g_vk.proxyUp.reset();
+        }
+        g_vk.nrUpsampler = wantUpsampler;
+
+        if (!g_vk.editUp)
+            g_vk.editUp = std::make_unique<OS_Vk>("DLSS-NR VK enlarge answer", device, physicalDevice, true, wantScaler,
+                                                  wantUpsampler);
+        if (!g_vk.proxyUp)
+            g_vk.proxyUp = std::make_unique<OS_Vk>("DLSS-NR VK enlarge proxy", device, physicalDevice, true, wantScaler,
+                                                   wantUpsampler);
+
+        if (g_vk.editUp && g_vk.editUp->IsInit() && g_vk.proxyUp && g_vk.proxyUp->IsInit())
+        {
+            Transition(cmdBuffer, g_vk.output, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            Transition(cmdBuffer, g_vk.editNative, VK_IMAGE_LAYOUT_GENERAL);
+            Transition(cmdBuffer, *modelInput, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            Transition(cmdBuffer, g_vk.proxyNative, VK_IMAGE_LAYOUT_GENERAL);
+
+            VkImageInfo editIn = ImageInfoOf(g_vk.output);
+            VkImageInfo editOut = ImageInfoOf(g_vk.editNative);
+            VkImageInfo proxyIn = ImageInfoOf(*modelInput);
+            VkImageInfo proxyOut = ImageInfoOf(g_vk.proxyNative);
+
+            if (g_vk.editUp->Dispatch(cmdBuffer, editIn, editOut) &&
+                g_vk.proxyUp->Dispatch(cmdBuffer, proxyIn, proxyOut))
+            {
+                resolveProxy = &g_vk.proxyNative;
+                resolveAnswer = &g_vk.editNative;
+
+                if (resolve.Transfer == 1)
+                    resolve.Transfer = 2;
+            }
+        }
+    }
+
     Transition(cmdBuffer, *resolveProxy, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     Transition(cmdBuffer, *resolveAnswer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     Transition(cmdBuffer, g_vk.keep, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -1202,6 +1273,8 @@ void ShutdownVk(bool deviceAlive)
     DestroyImage(g_vk.proxy);
     DestroyImage(g_vk.proxySmall);
     DestroyImage(g_vk.outputNative);
+    DestroyImage(g_vk.editNative);
+    DestroyImage(g_vk.proxyNative);
     DestroyImage(g_vk.keep);
     DestroyImage(g_vk.meter);
     DestroyMeterReadback();
@@ -1209,7 +1282,10 @@ void ShutdownVk(bool deviceAlive)
     g_vk.pass.reset();
     g_vk.superUp.reset();
     g_vk.superDown.reset();
+    g_vk.editUp.reset();
+    g_vk.proxyUp.reset();
     g_vk.nrScaler = Scaler::Count;
+    g_vk.nrUpsampler = Upsampler::Count;
 
     if (g_vk.capabilityParams != nullptr)
     {

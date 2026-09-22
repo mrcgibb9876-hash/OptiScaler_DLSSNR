@@ -2780,18 +2780,8 @@ void RenderMenu(Config* config, float menuResScale)
 
             SectionCaption(Tr("Appearance"), rowWidth);
 
-            // Both were in the title row until 2026-09-22. They are settings, and settings are here.
-            {
-                const bool light = config->DlssNrLightTheme.value_or_default();
-                if (ImGui::SmallButton(
-                        (std::string(light ? Tr("Dark panel") : Tr("Light panel")) + "##paneltheme").c_str()))
-                {
-                    config->DlssNrLightTheme = !light;
-                    anyChanged = true;
-                }
-                HelpMarker(Tr("The same panel on a light ground, for a bright scene."));
-            }
-
+            // The theme was a button in the title row until 2026-09-22. It is a setting, and settings
+            // are here -- as the row that was already here, not as a second control for the same key.
             if (bool light = config->DlssNrLightTheme.value_or_default(); NrCheckbox(Tr("Light panel"), &light))
             {
                 config->DlssNrLightTheme = light;
