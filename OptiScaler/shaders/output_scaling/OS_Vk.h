@@ -16,6 +16,10 @@ class OS_Vk : public Shader_Vk
     // current feature", i.e. exactly the Output Scaling / Magnifier behaviour. Neural Rendering passes
     // its own DlssNrScalingDownscaler, which also switches Dispatch to sizing from the passed images.
     Scaler _scalerOverride;
+
+    // The filter this instance enlarges with, when the caller chose one (the neural pass does).
+    // Count means "read the Output Scaling setting", which is what the older constructors leave it at.
+    Upsampler _upsamplerOverride = Upsampler::Count;
     Scaler ActiveScaler() const;
     bool UsesFsr1() const;
 
@@ -23,6 +27,8 @@ class OS_Vk : public Shader_Vk
     OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample);
     OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample,
           Scaler InScalerOverride);
+    OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample,
+          Scaler InScalerOverride, Upsampler InUpsamplerOverride);
     ~OS_Vk() = default;
 
     // Wrappers to maintain the original public API while using the generalized base methods

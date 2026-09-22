@@ -13,6 +13,11 @@
 #include "precompile/bcds_kaiser3_Shader_Vk.h"
 #include "precompile/BCDS_magc_Shader_Vk.h"
 #include "precompile/BCUS_Shader_Vk.h"
+#include "precompile/BCUS_ewa_Shader_Vk.h"
+#include "precompile/BCUS_xbr_Shader_Vk.h"
+#include "precompile/BCUS_sharpbilinear_Shader_Vk.h"
+#include "precompile/BCUS_integer_Shader_Vk.h"
+#include "precompile/BCUS_nearest_Shader_Vk.h"
 #include "fsr1/ffx_fsr1.h"
 #include "fsr1/FSR_EASU_Shader_Vk.h"
 
@@ -38,9 +43,19 @@ Scaler OS_Vk::ActiveScaler() const
                                             : Config::Instance()->OutputScalingDownscaler.value_or_default();
 }
 
+// The filter is a constructor argument because the pipeline is built here, once, from it: the shader
+// IS the filter. A caller that wants a different one builds another instance (and parks the old one --
+// freeing a pipeline under in-flight work is device removal, as the drain below says).
 OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample,
              Scaler InScalerOverride)
-    : Shader_Vk(InName, InDevice, InPhysicalDevice), _upsample(InUpsample), _scalerOverride(InScalerOverride)
+    : OS_Vk(InName, InDevice, InPhysicalDevice, InUpsample, InScalerOverride, Upsampler::Count)
+{
+}
+
+OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample,
+             Scaler InScalerOverride, Upsampler InUpsamplerOverride)
+    : Shader_Vk(InName, InDevice, InPhysicalDevice), _upsample(InUpsample), _scalerOverride(InScalerOverride),
+      _upsamplerOverride(InUpsamplerOverride)
 {
     if (InDevice == VK_NULL_HANDLE)
     {
@@ -81,16 +96,35 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
     {
         if (_upsample)
         {
-            // Bicubic is all this backend can offer going up. The upsamplers added alongside it are
-            // HLSL compiled at runtime, and there is no runtime compiler here -- Shader_Vk consumes
-            // SPIR-V and nothing else, so honouring the setting would mean checking in a .spv built
-            // with dxc, which a non-Windows checkout cannot produce. Say so once rather than letting
-            // the picture quietly disagree with the menu.
-            const auto upsampler = Config::Instance()->OutputScalingUpscaler.value_or_default();
-            if (upsampler != Upsampler::Bicubic)
-                LOG_WARN("Vulkan has no SPIR-V for the {0} upsampler; using bicubic", UpsamplerName(upsampler));
+            // Every upsampler the menu offers, as SPIR-V built ahead of time from the same sources the
+            // D3D backends compile at runtime (tools/compile-upsamplers-vk.js). Until 2026-09-22 this
+            // backend had bicubic and nothing else, and said so in the log while the menu showed six.
+            const auto upsampler = _upsamplerOverride != Upsampler::Count
+                                       ? _upsamplerOverride
+                                       : Config::Instance()->OutputScalingUpscaler.value_or_default();
 
-            shaderCode = std::vector<char>(bcus_spv, bcus_spv + sizeof(bcus_spv));
+            switch (upsampler)
+            {
+            case Upsampler::EwaLanczos:
+                shaderCode = std::vector<char>(bcus_ewa_spv, bcus_ewa_spv + sizeof(bcus_ewa_spv));
+                break;
+            case Upsampler::XBR:
+                shaderCode = std::vector<char>(bcus_xbr_spv, bcus_xbr_spv + sizeof(bcus_xbr_spv));
+                break;
+            case Upsampler::SharpBilinear:
+                shaderCode =
+                    std::vector<char>(bcus_sharpbilinear_spv, bcus_sharpbilinear_spv + sizeof(bcus_sharpbilinear_spv));
+                break;
+            case Upsampler::IntegerScale:
+                shaderCode = std::vector<char>(bcus_integer_spv, bcus_integer_spv + sizeof(bcus_integer_spv));
+                break;
+            case Upsampler::Nearest:
+                shaderCode = std::vector<char>(bcus_nearest_spv, bcus_nearest_spv + sizeof(bcus_nearest_spv));
+                break;
+            default:
+                shaderCode = std::vector<char>(bcus_spv, bcus_spv + sizeof(bcus_spv));
+                break;
+            }
         }
         else
         {
