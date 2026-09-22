@@ -154,6 +154,71 @@ static const Palette* g_pal = &Light();
 
 static float PanelWidth(float scale) { return 460.0f * scale; }
 
+// The wipe's divide, over the frame, with a grab handle at its middle. Only while the panel is up:
+// that is when the mouse is ours (the panel blocks it from the game), and it is where Compare was
+// turned on in the first place. Returns true when a drag finished, so the caller saves the ini.
+//
+// Drawn on the foreground list rather than as a window: it must sit over the whole frame, take no
+// focus, and never join the panel's navigation order. Hit-testing is done by hand against the mouse
+// for the same reason -- an InvisibleButton here would be an item in whatever window is current.
+static bool DragCompareSplit(Config* config)
+{
+    if (config->DlssNrCompare.value_or_default() != 2) // Wipe only: side by side has no divide to move
+        return false;
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.DisplaySize.x <= 0.0f || io.DisplaySize.y <= 0.0f)
+        return false;
+
+    static bool dragging = false;
+
+    const float scale = std::max(1.0f, io.DisplaySize.y / 1080.0f);
+    const float split = std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f);
+    const float x = split * io.DisplaySize.x;
+    const ImVec2 centre(x, io.DisplaySize.y * 0.5f);
+    const float radius = 13.0f * scale;
+
+    // The grip, or anywhere down the line within a finger's width of it.
+    const float dx = io.MousePos.x - centre.x;
+    const float dy = io.MousePos.y - centre.y;
+    const bool overGrip = (dx * dx + dy * dy) <= (radius * radius);
+    const bool overLine = std::fabs(dx) <= 12.0f * scale;
+    const bool hot = !ImGui::GetIO().WantCaptureMouse && (overGrip || overLine);
+
+    if (hot && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        dragging = true;
+    if (dragging && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    {
+        dragging = false;
+        return true; // let go: this is the split from now on
+    }
+    if (dragging)
+        config->DlssNrCompareSplit = std::clamp(io.MousePos.x / io.DisplaySize.x, 0.0f, 1.0f);
+
+    if (hot || dragging)
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+
+    // White on a black hairline, so it reads on a bright frame and a dark one alike.
+    const float px = std::clamp(config->DlssNrCompareSplit.value_or_default(), 0.0f, 1.0f) * io.DisplaySize.x;
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    dl->AddLine(ImVec2(px, 0.0f), ImVec2(px, io.DisplaySize.y), IM_COL32(0, 0, 0, 90), 4.0f * scale);
+    dl->AddLine(ImVec2(px, 0.0f), ImVec2(px, io.DisplaySize.y), IM_COL32(255, 255, 255, 215), 2.0f * scale);
+
+    const ImVec2 grip(px, io.DisplaySize.y * 0.5f);
+    const ImU32 fill = dragging ? ImGui::GetColorU32(kAccent) : IM_COL32(20, 22, 20, 190);
+    dl->AddCircleFilled(grip, radius, fill);
+    dl->AddCircle(grip, radius, IM_COL32(255, 255, 255, 215), 0, 1.5f * scale);
+
+    // Two arrowheads, left and right: the one thing this control does.
+    const float a = radius * 0.46f;
+    const ImU32 ink = dragging ? ImGui::GetColorU32(g_pal->onAccent) : IM_COL32(255, 255, 255, 235);
+    dl->AddTriangleFilled(ImVec2(grip.x - a * 1.5f, grip.y), ImVec2(grip.x - a * 0.4f, grip.y - a * 0.8f),
+                          ImVec2(grip.x - a * 0.4f, grip.y + a * 0.8f), ink);
+    dl->AddTriangleFilled(ImVec2(grip.x + a * 1.5f, grip.y), ImVec2(grip.x + a * 0.4f, grip.y - a * 0.8f),
+                          ImVec2(grip.x + a * 0.4f, grip.y + a * 0.8f), ink);
+    return false;
+}
+
 // The engine's failure reasons stay English where they are made -- they also go to OptiScaler.log and
 // through the API, where support needs one wording -- and are translated here, at display. A fixed
 // reason is a translation key itself. The add-on conflict is built around a file name, so it is
@@ -2630,6 +2695,12 @@ void RenderMenu(Config* config, float menuResScale)
 
     ImGui::PopStyleVar(5);
     ImGui::PopStyleColor(kPanelColourCount);
+
+    // The wipe's divide, drawn over the frame and draggable by it: the split is a thing you point at,
+    // so pointing at it is how it should move. The Split slider stays -- it is the only way in when
+    // the mouse belongs to the game -- and the two are the same value.
+    if (DragCompareSplit(config))
+        anyChanged = true;
 
     // This overlay saves as you go rather than needing a Save button -- there is nothing else
     // in this build's menu to put one on.
