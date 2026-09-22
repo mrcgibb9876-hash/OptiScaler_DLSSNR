@@ -141,8 +141,7 @@ bool OS_Dx11::Dispatch(ID3D11Device* InDevice, ID3D11DeviceContext* InContext, I
 
 bool OS_Dx11::UsesFsr1() const
 {
-    const auto downscaler = Config::Instance()->OutputScalingDownscaler.value_or_default();
-    return _upsample ? (ConfiguredUpsampler(downscaler) == Upsampler::FSR1) : (downscaler == Scaler::FSR1);
+    return !_upsample && Config::Instance()->OutputScalingDownscaler.value_or_default() == Scaler::FSR1;
 }
 
 OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
@@ -170,16 +169,10 @@ OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
     {
         // No per-instance override here, unlike OS_Dx12: nothing on this backend builds an Output
         // Scaling pass with a filter of its own, so the global config is the only source.
-        const auto upsampler = ConfiguredUpsampler(downscaler);
+        const auto upsampler = Config::Instance()->OutputScalingUpscaler.value_or_default();
         const char* upsamplerSource = UpsamplerShaderSource(upsampler);
 
-        if (upsampler == Upsampler::FSR1)
-        {
-            csoData = fsr_easu_cso;
-            csoSize = sizeof(fsr_easu_cso);
-            // FSR1 bypasses runtime compilation
-        }
-        else if (upsamplerSource != nullptr)
+        if (upsamplerSource != nullptr)
         {
             InNumThreadsY = 8;
             InNumThreadsX = 8;
@@ -287,7 +280,7 @@ OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
         return;
     }
 
-    if (_upsample ? (ConfiguredUpsampler(downscaler) == Upsampler::FSR1) : (downscaler == Scaler::FSR1))
+    if (!_upsample && downscaler == Scaler::FSR1)
     {
         InNumThreadsX = 16;
         InNumThreadsY = 16;

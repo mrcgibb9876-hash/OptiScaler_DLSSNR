@@ -1,7 +1,6 @@
 ﻿#include "pch.h"
 #include "menu_common.h"
 #include <dlssnr/DlssNr_ExposureScan.h>
-#include <output_scaling/OS_Upsamplers.h>
 
 #include <algorithm>
 #include <cfloat>
@@ -5927,7 +5926,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     _ssRatio = config->OutputScalingMultiplier.value_or(defaultRatio);
                     _ssEnabled = config->OutputScalingEnabled.value_or_default();
                     _ssDownsampler = config->OutputScalingDownscaler.value_or_default();
-                    _ssUpsampler = ConfiguredUpsampler(_ssDownsampler);
+                    _ssUpsampler = config->OutputScalingUpscaler.value_or_default();
                     _ssSharpness = config->OutputScalingSharpness.value_or_default();
                     _ssAntiRinging = config->OutputScalingAntiRinging.value_or_default();
                     _ssSigmoid = config->OutputScalingSigmoid.value_or_default();
@@ -6004,10 +6003,8 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
 
                     // clang-format off
                     std::vector<MenuOption<Upsampler>> us_options = {
-                        { Upsampler::FSR1, "FSR1",
-                            "Default option, and what a default install has always used going up.\nEdge-directed, cheap, and a good all-rounder on rendered frames." },
                         { Upsampler::Bicubic, "Bicubic",
-                            "The other filter this pass could reach before there was a choice.\nSoft, cheap, no ringing." },
+                            "Default, and the cheapest thing here. Soft, and no ringing to suppress.\nIt is the safe answer, not the good one -- try EWA Lanczos." },
                         { Upsampler::EwaLanczos, "EWA Lanczos",
                             "Weights by true distance rather than by row and column, so a diagonal edge is\ntreated exactly like a horizontal one and the staircase separable filters leave is gone.\n\nThe sharpest option here, and by far the most expensive: 64 taps per pixel." },
                         { Upsampler::XBR, "xBR-lv2",
@@ -6063,7 +6060,7 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 bool applyEnabled = _ssEnabled != config->OutputScalingEnabled.value_or_default() ||
                                     _ssRatio != config->OutputScalingMultiplier.value_or(defaultRatio) ||
                                     _ssDownsampler != config->OutputScalingDownscaler.value_or_default() ||
-                                    _ssUpsampler != ConfiguredUpsampler(_ssDownsampler) ||
+                                    _ssUpsampler != config->OutputScalingUpscaler.value_or_default() ||
                                     _ssSharpness != config->OutputScalingSharpness.value_or_default() ||
                                     _ssAntiRinging != config->OutputScalingAntiRinging.value_or_default() ||
                                     _ssSigmoid != config->OutputScalingSigmoid.value_or_default() ||

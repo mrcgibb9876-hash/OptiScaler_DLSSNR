@@ -28,12 +28,11 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
 {
 }
 
-// Which constant buffer layout this instance uploads; see OS_Dx12.cpp for why it is not simply
-// the downscaler any more. On this backend the answer going up is always FSR1 or bicubic, because
-// the rest have no SPIR-V.
+// Which constant buffer layout this instance uploads; see OS_Dx12.cpp for why it is not simply the
+// downscaler any more. FSR1 is a downscaler-only choice, so going up the answer is always no.
 bool OS_Vk::UsesFsr1() const
 {
-    return _upsample ? (ConfiguredUpsampler(ActiveScaler()) == Upsampler::FSR1) : (ActiveScaler() == Scaler::FSR1);
+    return !_upsample && ActiveScaler() == Scaler::FSR1;
 }
 
 Scaler OS_Vk::ActiveScaler() const
@@ -90,7 +89,7 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
             // SPIR-V and nothing else, so honouring the setting would mean checking in a .spv built
             // with dxc, which a non-Windows checkout cannot produce. Say so once rather than letting
             // the picture quietly disagree with the menu.
-            const auto upsampler = ConfiguredUpsampler(ActiveScaler());
+            const auto upsampler = Config::Instance()->OutputScalingUpscaler.value_or_default();
             if (upsampler != Upsampler::Bicubic)
                 LOG_WARN("Vulkan has no SPIR-V for the {0} upsampler; using bicubic", UpsamplerName(upsampler));
 

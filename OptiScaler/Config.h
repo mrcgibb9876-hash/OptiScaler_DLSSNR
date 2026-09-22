@@ -216,13 +216,12 @@ enum class Scaler : uint32_t
 // Bicubic is 0 and the default, and an ini written before this key existed behaves exactly as it did.
 enum class Upsampler : uint32_t
 {
-    FSR1 = 0,
-    Bicubic = 1,
-    EwaLanczos = 2,
-    XBR = 3,
-    SharpBilinear = 4,
-    IntegerScale = 5,
-    Nearest = 6,
+    Bicubic = 0,
+    EwaLanczos = 1,
+    XBR = 2,
+    SharpBilinear = 3,
+    IntegerScale = 4,
+    Nearest = 5,
     Count
 };
 
@@ -901,11 +900,12 @@ class Config
     CustomOptional<float> OutputScalingMultiplier { 1.5f };
     CustomOptional<Scaler> OutputScalingDownscaler { Scaler::FSR1 };
 
-    // Enlarging only. LEFT UNSET this deliberately does not fall through to the value below: see
-    // ConfiguredUpsampler() in OS_Upsamplers.cpp, which reproduces what the pass did before the key
-    // existed, so an ini that never mentions it keeps exactly the picture it had. The value here is
-    // only what that rule resolves to in the common case.
-    CustomOptional<Upsampler> OutputScalingUpscaler { Upsampler::FSR1 };
+    // Enlarging only. Bicubic is the default because it is the OTHER thing this pass could already
+    // do going up -- FSR1 was the first, and it is not offered here at all. Anyone whose downscaler
+    // was not FSR1 therefore sees no change whatever; anyone whose was moves off it, which is the
+    // point. Bicubic is soft, and EWA Lanczos below is the one worth picking once its cost has been
+    // measured on real hardware.
+    CustomOptional<Upsampler> OutputScalingUpscaler { Upsampler::Bicubic };
 
     // EWA Lanczos's four controls, all of them a plain 0..1 where 0 is the gentlest setting. Only
     // that filter reads them: the nearest-neighbour family cannot ring, and the existing

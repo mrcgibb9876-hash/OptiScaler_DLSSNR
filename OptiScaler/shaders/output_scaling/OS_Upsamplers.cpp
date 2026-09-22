@@ -589,13 +589,6 @@ std::string Assemble(const char* body, bool withSigmoid)
 namespace
 {
 
-// What an unset key means, in one place: the filter the pass would have used when the enlarging
-// direction had no control of its own, which was decided by the matching DOWNscaler.
-Upsampler ImpliedBy(Scaler downscaler)
-{
-    return downscaler == Scaler::FSR1 ? Upsampler::FSR1 : Upsampler::Bicubic;
-}
-
 // Every tuning control is a plain 0..1, so they all come through here rather than each carrying its
 // own clamp. The ini reader clamps too; this is for a value set live from the menu.
 float Unit(float v)
@@ -604,18 +597,6 @@ float Unit(float v)
 }
 
 } // namespace
-
-Upsampler ConfiguredUpsampler(Scaler downscaler)
-{
-    const auto& configured = Config::Instance()->OutputScalingUpscaler;
-    return configured.has_value() ? configured.value() : ImpliedBy(downscaler);
-}
-
-Upsampler ConfiguredNrUpsampler(Scaler downscaler)
-{
-    const auto& configured = Config::Instance()->DlssNrScalingUpscaler;
-    return configured.has_value() ? configured.value() : ImpliedBy(downscaler);
-}
 
 UpsamplerTuning UpsamplerTuningFor(bool neuralRendering)
 {
@@ -658,8 +639,7 @@ const char* UpsamplerShaderSource(Upsampler which)
     case Upsampler::Nearest:
         return nearest.c_str();
     default:
-        // Upsampler::Bicubic and Upsampler::FSR1 are not here: one is the existing upsampleCode in
-        // OS_Common.h and the other the precompiled FSR1 EASU blob. Both are unchanged.
+        // Upsampler::Bicubic is not here: it is the existing upsampleCode in OS_Common.h, unchanged.
         return nullptr;
     }
 }
@@ -678,8 +658,6 @@ const char* UpsamplerName(Upsampler which)
         return "IntegerScale";
     case Upsampler::Nearest:
         return "Nearest";
-    case Upsampler::FSR1:
-        return "FSR1";
     default:
         return "BicubicUp";
     }

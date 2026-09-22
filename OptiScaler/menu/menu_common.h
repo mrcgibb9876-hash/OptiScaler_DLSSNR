@@ -116,7 +116,7 @@ class MenuCommon
     inline static float _ssRatio = 0.0f;
     inline static bool _ssEnabled = false;
     inline static Scaler _ssDownsampler = Scaler::FSR1;
-    inline static Upsampler _ssUpsampler = Upsampler::FSR1;
+    inline static Upsampler _ssUpsampler = Upsampler::Bicubic;
     inline static float _ssSharpness = 0.0f;
     inline static float _ssAntiRinging = 0.8f;
     inline static float _ssSigmoid = 0.0f;

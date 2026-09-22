@@ -21,23 +21,10 @@
 
 // Forward declaration, as in OS_Dx12.h: a scoped enum with a fixed underlying type is a complete
 // type when declared this way, so this header need not pull in Config.h.
-enum class Scaler : uint32_t;
 enum class Upsampler : uint32_t;
 
-// What the enlarging direction uses when OutputScaling/Upscaler is left on auto: exactly what this
-// pass did before that key existed, where the DOWNscaler decided the enlarging filter too and only
-// its first two entries were reachable going up. It lives here rather than in each backend so that
-// an ini which never mentions the key gets the same answer from all three of them.
-Upsampler ConfiguredUpsampler(Scaler downscaler);
-
-// The same question for the Neural Rendering pass's own up-leg, which has its own key. Separate
-// function rather than a parameter because the two read different settings and the answer for an
-// unset key has to be derived from the matching downscaler, not from Output Scaling's.
-Upsampler ConfiguredNrUpsampler(Scaler downscaler);
-
-// The HLSL for one upsampler, or nullptr for the two that are not here: Upsampler::Bicubic is the
-// existing upsampleCode in OS_Common.h and Upsampler::FSR1 is the precompiled FSR1 EASU blob, and
-// both stay byte-for-byte what they were.
+// The HLSL for one upsampler, or nullptr for Upsampler::Bicubic -- that one is not here at all, it
+// is the existing upsampleCode in OS_Common.h and stays byte-for-byte what it was.
 const char* UpsamplerShaderSource(Upsampler which);
 
 // The four controls that shape a resampling upsampler's result, for whichever pass is asking. All

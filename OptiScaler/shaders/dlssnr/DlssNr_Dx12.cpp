@@ -35,7 +35,6 @@
 #include <cstring>
 #include "precompile/DlssNr_Shader.h"
 #include "../output_scaling/OS_Dx12.h"
-#include "../output_scaling/OS_Upsamplers.h"
 
 namespace
 {
@@ -2892,7 +2891,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             // of Output Scaling, so the two can run different filters at once. superDown is built here
             // and used after the model (the down-leg below).
             const Scaler nrScaler = cfg.DlssNrScalingDownscaler.value_or_default();
-            const Upsampler nrUpsampler = ConfiguredNrUpsampler(nrScaler);
+            const Upsampler nrUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
             if (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler)
             {
                 if (g_nr.superUp != nullptr)

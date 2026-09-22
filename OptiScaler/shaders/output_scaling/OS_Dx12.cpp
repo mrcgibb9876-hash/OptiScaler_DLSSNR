@@ -156,14 +156,15 @@ Scaler OS_Dx12::ActiveScaler() const
 
 Upsampler OS_Dx12::ActiveUpsampler() const
 {
-    return _upsamplerOverride != Upsampler::Count ? _upsamplerOverride : ConfiguredUpsampler(ActiveScaler());
+    return _upsamplerOverride != Upsampler::Count ? _upsamplerOverride
+                                                  : Config::Instance()->OutputScalingUpscaler.value_or_default();
 }
 
-// Which of the two constant buffer layouts this instance uploads. FSR1 takes its own; everything
-// else takes Constants. Going up that is now the upsampler's business, going down the scaler's.
+// Which of the two constant buffer layouts this instance uploads. FSR1 takes its own, and FSR1 is a
+// DOWNscaler-only choice now, so going up the answer is always no.
 bool OS_Dx12::UsesFsr1() const
 {
-    return _upsample ? (ActiveUpsampler() == Upsampler::FSR1) : (ActiveScaler() == Scaler::FSR1);
+    return !_upsample && ActiveScaler() == Scaler::FSR1;
 }
 
 OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride,
@@ -205,18 +206,13 @@ OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Sc
     // The enlarging direction is settled first. It used to come SECOND, behind a test for
     // Scaler::FSR1 -- which is the default downscaler, so on a default install the enlarging filter
     // was decided by a control labelled "Downscaler" and nothing else could be reached going up.
+    // FSR1 is not one of the choices here: it stays a downscaler, which is what the Scaler enum is.
     if (_upsample)
     {
         auto upsamplerConfig = ActiveUpsampler();
         const char* upsamplerSource = UpsamplerShaderSource(upsamplerConfig);
 
-        if (upsamplerConfig == Upsampler::FSR1)
-        {
-            csoData = fsr_easu_cso;
-            csoSize = sizeof(fsr_easu_cso);
-            sourceCode = nullptr; // FSR1 is precompiled only
-        }
-        else if (upsamplerSource != nullptr)
+        if (upsamplerSource != nullptr)
         {
             // These match the downsamplers' thread group, not the LDS-tiled bicubic's.
             InNumThreadsY = 8;
