@@ -2,6 +2,9 @@
 #include "OS_Dx12.h"
 
 #include "OS_Common.h"
+#include "OS_Upsamplers.h"
+
+#include <algorithm>
 
 using Microsoft::WRL::ComPtr;
 
@@ -85,9 +88,21 @@ bool OS_Dx12::Dispatch(ID3D12GraphicsCommandList* InCmdList, ID3D12Resource* InR
     constants.destWidth = dstW;
     constants.destHeight = dstH;
 
+    // Only the resampling upsamplers read these. Everything else declares just the four sizes above,
+    // so what goes here cannot reach a shader that was not written for it. The sigmoid curve's
+    // centre and slope are libplacebo's defaults and are not exposed: they are the shape of the
+    // curve, not a picture control, and a wrong pair looks like a broken filter rather than a
+    // different one.
+    auto& osCfg = *Config::Instance();
+    constants.antiRinging =
+        _upsample ? std::clamp(osCfg.OutputScalingAntiRinging.value_or_default(), 0.0f, 1.0f) : 0.0f;
+    constants.sigmoid = (_upsample && osCfg.OutputScalingSigmoid.value_or_default()) ? 1 : 0;
+    constants.sigmoidCentre = 0.75f;
+    constants.sigmoidSlope = 6.5f;
+
     // fsr upscaling
     bool createdConstantsBuffer = false;
-    if (ActiveScaler() == Scaler::FSR1)
+    if (UsesFsr1())
     {
         createdConstantsBuffer =
             CreateConstantsBuffer(_device, _constantBuffer, fsr1Constants, currentHeap.GetCbvCPU(0));
@@ -124,7 +139,12 @@ bool OS_Dx12::Dispatch(ID3D12GraphicsCommandList* InCmdList, ID3D12Resource* InR
 
 // The Output Scaling constructor: no override, so ActiveScaler() reads the global config -- unchanged.
 OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample)
-    : OS_Dx12(InName, InDevice, InUpsample, Scaler::Count)
+    : OS_Dx12(InName, InDevice, InUpsample, Scaler::Count, Upsampler::Count)
+{
+}
+
+OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride)
+    : OS_Dx12(InName, InDevice, InUpsample, InScalerOverride, Upsampler::Count)
 {
 }
 
@@ -136,8 +156,22 @@ Scaler OS_Dx12::ActiveScaler() const
                                             : Config::Instance()->OutputScalingDownscaler.value_or_default();
 }
 
-OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride)
-    : Shader_Dx12(InName, InDevice), _upsample(InUpsample), _scalerOverride(InScalerOverride)
+Upsampler OS_Dx12::ActiveUpsampler() const
+{
+    return _upsamplerOverride != Upsampler::Count ? _upsamplerOverride : ConfiguredUpsampler(ActiveScaler());
+}
+
+// Which of the two constant buffer layouts this instance uploads. FSR1 takes its own; everything
+// else takes Constants. Going up that is now the upsampler's business, going down the scaler's.
+bool OS_Dx12::UsesFsr1() const
+{
+    return _upsample ? (ActiveUpsampler() == Upsampler::FSR1) : (ActiveScaler() == Scaler::FSR1);
+}
+
+OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride,
+                 Upsampler InUpsamplerOverride)
+    : Shader_Dx12(InName, InDevice), _upsample(InUpsample), _scalerOverride(InScalerOverride),
+      _upsamplerOverride(InUpsamplerOverride)
 {
     if (InDevice == nullptr)
     {
@@ -170,19 +204,48 @@ OS_Dx12::OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Sc
 
     std::string name = "OS: ";
 
-    if (downscalerConfig == Scaler::FSR1)
+    // The enlarging direction is settled first. It used to come SECOND, behind a test for
+    // Scaler::FSR1 -- which is the default downscaler, so on a default install the enlarging filter
+    // was decided by a control labelled "Downscaler" and nothing else could be reached going up.
+    if (_upsample)
+    {
+        auto upsamplerConfig = ActiveUpsampler();
+        const char* upsamplerSource = UpsamplerShaderSource(upsamplerConfig);
+
+        if (upsamplerConfig == Upsampler::FSR1)
+        {
+            csoData = fsr_easu_cso;
+            csoSize = sizeof(fsr_easu_cso);
+            sourceCode = nullptr; // FSR1 is precompiled only
+        }
+        else if (upsamplerSource != nullptr)
+        {
+            // These match the downsamplers' thread group, not the LDS-tiled bicubic's.
+            InNumThreadsY = 8;
+            InNumThreadsX = 8;
+
+            // Deliberately no precompiled blob: there is none to have (see OS_Upsamplers.h), and
+            // passing none is what makes CreateComputePipeline compile from source whatever
+            // UsePrecompiledShaders says.
+            csoData = nullptr;
+            csoSize = 0;
+            sourceCode = upsamplerSource;
+        }
+        else
+        {
+            csoData = bcus_cso;
+            csoSize = sizeof(bcus_cso);
+            sourceCode = upsampleCode.c_str();
+        }
+
+        name += UpsamplerName(upsamplerConfig);
+    }
+    else if (downscalerConfig == Scaler::FSR1)
     {
         csoData = fsr_easu_cso;
         csoSize = sizeof(fsr_easu_cso);
         sourceCode = nullptr; // FSR1 is precompiled only
         name += "FSR1";
-    }
-    else if (_upsample)
-    {
-        csoData = bcus_cso;
-        csoSize = sizeof(bcus_cso);
-        sourceCode = upsampleCode.c_str();
-        name += "BicubicUp";
     }
     else
     {

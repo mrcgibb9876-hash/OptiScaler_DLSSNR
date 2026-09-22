@@ -21,5 +21,9 @@ class OS_Dx11 : public Shader_Dx11
 
     bool IsUpsampling() const { return _upsample; }
 
+    // Which of the two constant buffer layouts this instance uploads. Going up that is the
+    // upsampler's business now, going down the scaler's -- see the definition.
+    bool UsesFsr1() const;
+
     OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample);
 };

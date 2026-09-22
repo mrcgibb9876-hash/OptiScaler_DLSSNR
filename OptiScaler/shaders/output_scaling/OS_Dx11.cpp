@@ -2,6 +2,9 @@
 #include "OS_Dx11.h"
 
 #include "OS_Common.h"
+#include "OS_Upsamplers.h"
+
+#include <algorithm>
 #include "../Shader_Common.h"
 
 #define A_CPU
@@ -72,8 +75,16 @@ bool OS_Dx11::Dispatch(ID3D11Device* InDevice, ID3D11DeviceContext* InContext, I
     constants.destWidth = State::Instance().currentFeature->DisplayWidth();
     constants.destHeight = State::Instance().currentFeature->DisplayHeight();
 
+    // See the matching comment in OS_Dx12.cpp: only the resampling upsamplers declare these members.
+    auto& osCfg = *Config::Instance();
+    constants.antiRinging =
+        _upsample ? std::clamp(osCfg.OutputScalingAntiRinging.value_or_default(), 0.0f, 1.0f) : 0.0f;
+    constants.sigmoid = (_upsample && osCfg.OutputScalingSigmoid.value_or_default()) ? 1 : 0;
+    constants.sigmoidCentre = 0.75f;
+    constants.sigmoidSlope = 6.5f;
+
     // fsr upscaling
-    if (Config::Instance()->OutputScalingDownscaler.value_or_default() == Scaler::FSR1)
+    if (UsesFsr1())
     {
         // Copy the updated constant buffer data to the constant buffer resource
         D3D11_MAPPED_SUBRESOURCE mappedResource;
@@ -129,6 +140,12 @@ bool OS_Dx11::Dispatch(ID3D11Device* InDevice, ID3D11DeviceContext* InContext, I
     return true;
 }
 
+bool OS_Dx11::UsesFsr1() const
+{
+    const auto downscaler = Config::Instance()->OutputScalingDownscaler.value_or_default();
+    return _upsample ? (ConfiguredUpsampler(downscaler) == Upsampler::FSR1) : (downscaler == Scaler::FSR1);
+}
+
 OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
     : Shader_Dx11(InName, InDevice), _upsample(InUpsample)
 {
@@ -148,19 +165,46 @@ OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
 
     std::string name = "OS: ";
 
-    if (downscaler == Scaler::FSR1)
+    // Enlarging is settled first, for the reason spelled out in OS_Dx12.cpp: the Scaler::FSR1 test
+    // used to come ahead of it, and FSR1 is the default downscaler.
+    if (_upsample)
+    {
+        // No per-instance override here, unlike OS_Dx12: nothing on this backend builds an Output
+        // Scaling pass with a filter of its own, so the global config is the only source.
+        const auto upsampler = ConfiguredUpsampler(downscaler);
+        const char* upsamplerSource = UpsamplerShaderSource(upsampler);
+
+        if (upsampler == Upsampler::FSR1)
+        {
+            csoData = fsr_easu_cso;
+            csoSize = sizeof(fsr_easu_cso);
+            // FSR1 bypasses runtime compilation
+        }
+        else if (upsamplerSource != nullptr)
+        {
+            InNumThreadsY = 8;
+            InNumThreadsX = 8;
+
+            // No precompiled blob on purpose -- see OS_Upsamplers.h and CreateComputeShader.
+            csoData = nullptr;
+            csoSize = 0;
+            shaderCode = upsamplerSource;
+        }
+        else
+        {
+            csoData = bcus_cso;
+            csoSize = sizeof(bcus_cso);
+            shaderCode = upsampleCode.c_str();
+        }
+
+        name += UpsamplerName(upsampler);
+    }
+    else if (downscaler == Scaler::FSR1)
     {
         csoData = fsr_easu_cso;
         csoSize = sizeof(fsr_easu_cso);
         name += "FSR1";
         // FSR1 bypasses runtime compilation
-    }
-    else if (_upsample)
-    {
-        csoData = bcus_cso;
-        csoSize = sizeof(bcus_cso);
-        shaderCode = upsampleCode.c_str();
-        name += "BicubicUp";
     }
     else
     {
@@ -244,7 +288,7 @@ OS_Dx11::OS_Dx11(std::string InName, ID3D11Device* InDevice, bool InUpsample)
         return;
     }
 
-    if (downscaler == Scaler::FSR1)
+    if (_upsample ? (ConfiguredUpsampler(downscaler) == Upsampler::FSR1) : (downscaler == Scaler::FSR1))
     {
         InNumThreadsX = 16;
         InNumThreadsY = 16;

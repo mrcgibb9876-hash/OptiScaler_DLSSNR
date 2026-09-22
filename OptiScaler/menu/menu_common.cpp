@@ -1,6 +1,7 @@
 ﻿#include "pch.h"
 #include "menu_common.h"
 #include <dlssnr/DlssNr_ExposureScan.h>
+#include <output_scaling/OS_Upsamplers.h>
 
 #include <algorithm>
 #include <cfloat>
@@ -5926,6 +5927,9 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                     _ssRatio = config->OutputScalingMultiplier.value_or(defaultRatio);
                     _ssEnabled = config->OutputScalingEnabled.value_or_default();
                     _ssDownsampler = config->OutputScalingDownscaler.value_or_default();
+                    _ssUpsampler = ConfiguredUpsampler(_ssDownsampler);
+                    _ssAntiRinging = config->OutputScalingAntiRinging.value_or_default();
+                    _ssSigmoid = config->OutputScalingSigmoid.value_or_default();
                 }
 
                 ImGui::BeginDisabled((currentBackend == Upscaler::XeSS || currentBackend == Upscaler::DLSS) &&
@@ -5985,9 +5989,63 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                 }
                 ImGui::EndDisabled();
 
+                // The enlarging direction. Until this existed it had no control at all, which is
+                // what the "only FSR1 and Bicubic below 1.0" note above is really about: those were
+                // the only two shaders the upsampling path could reach. The Downscaler combo is
+                // greyed out for a ratio below 1.0 and this one is greyed out above it, because
+                // exactly one of them runs.
+                const bool ssUpsampling = _ssRatio < 1.0f;
+
+                ImGui::BeginDisabled(!_ssEnabled || !ssUpsampling);
+                {
+                    ImGui::PushItemWidth(95.0f * menuResScale);
+
+                    // clang-format off
+                    std::vector<MenuOption<Upsampler>> us_options = {
+                        { Upsampler::FSR1, "FSR1",
+                            "Default option, and what a default install has always used going up.\nEdge-directed, cheap, and a good all-rounder on rendered frames." },
+                        { Upsampler::Bicubic, "Bicubic",
+                            "The other filter this pass could reach before there was a choice.\nSoft, cheap, no ringing." },
+                        { Upsampler::EwaLanczos, "EWA Lanczos",
+                            "Weights by true distance rather than by row and column, so a diagonal edge is\ntreated exactly like a horizontal one and the staircase separable filters leave is gone.\n\nThe sharpest option here, and by far the most expensive: 64 taps per pixel." },
+                        { Upsampler::XBR, "xBR-lv2",
+                            "For pixel art and 2D, not for rendered 3D.\nFinds the edge the artist drew and follows it, instead of blurring it.\n\nOn a rendered frame it will look wrong. On a sprite it is the only right answer here." },
+                        { Upsampler::SharpBilinear, "Sharp bilinear",
+                            "Whole blocks stay flat and only the seam between them is softened.\nStops the wobble nearest neighbour gives at a non-integer factor, without the blur bilinear gives." },
+                        { Upsampler::IntegerScale, "Integer scale",
+                            "Nearest neighbour at the largest whole multiple that fits, with a border for the remainder.\nEvery source pixel becomes a block of exactly the same size." },
+                        { Upsampler::Nearest, "Nearest",
+                            "No filtering at all. Fills the frame and accepts uneven blocks." }
+                    };
+                    // clang-format on
+
+                    PopulateCombo("Upscaler", _ssUpsampler, us_options);
+
+                    ImGui::PopItemWidth();
+                }
+                ImGui::EndDisabled();
+
+                ImGui::BeginDisabled(!_ssEnabled || !ssUpsampling || _ssUpsampler != Upsampler::EwaLanczos);
+                {
+                    ImGui::SliderFloat("Anti-ringing", &_ssAntiRinging, 0.0f, 1.0f, "%.2f");
+                    ShowHelpMarker("How hard to pull EWA Lanczos back inside the range of the pixels it is\n"
+                                   "interpolating between -- the bright or dark rim it can leave on a hard edge.\n\n"
+                                   "0 leaves the filter's own answer. 1 allows no overshoot at all.");
+
+                    ImGui::Checkbox("Sigmoidal light", &_ssSigmoid);
+                    ShowHelpMarker("Resample on an S-shaped curve, so an overshoot near black or near white is\n"
+                                   "compressed instead of clipping into a visible band.\n\n"
+                                   "SDR only: the transform is defined on 0..1, so anything brighter passes\n"
+                                   "through untouched and an HDR frame is largely unaffected.");
+                }
+                ImGui::EndDisabled();
+
                 bool applyEnabled = _ssEnabled != config->OutputScalingEnabled.value_or_default() ||
                                     _ssRatio != config->OutputScalingMultiplier.value_or(defaultRatio) ||
-                                    _ssDownsampler != config->OutputScalingDownscaler.value_or_default();
+                                    _ssDownsampler != config->OutputScalingDownscaler.value_or_default() ||
+                                    _ssUpsampler != ConfiguredUpsampler(_ssDownsampler) ||
+                                    _ssAntiRinging != config->OutputScalingAntiRinging.value_or_default() ||
+                                    _ssSigmoid != config->OutputScalingSigmoid.value_or_default();
 
                 ImGui::BeginDisabled(!applyEnabled);
                 if (ImGui::Button("Apply Change"))
@@ -5999,6 +6057,9 @@ void MenuCommon::RenderActiveImageSettings(RenderMenuContext& ctx)
                         _ssDownsampler = Scaler::FSR1;
 
                     config->OutputScalingDownscaler = _ssDownsampler;
+                    config->OutputScalingUpscaler = _ssUpsampler;
+                    config->OutputScalingAntiRinging = _ssAntiRinging;
+                    config->OutputScalingSigmoid = _ssSigmoid;
 
                     const bool usesDlssd = currentFeature->GetUpscalerType() == Upscaler::DLSSD;
                     if (usesDlssd)

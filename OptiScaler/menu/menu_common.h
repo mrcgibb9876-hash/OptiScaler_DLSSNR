@@ -116,6 +116,9 @@ class MenuCommon
     inline static float _ssRatio = 0.0f;
     inline static bool _ssEnabled = false;
     inline static Scaler _ssDownsampler = Scaler::FSR1;
+    inline static Upsampler _ssUpsampler = Upsampler::FSR1;
+    inline static float _ssAntiRinging = 0.8f;
+    inline static bool _ssSigmoid = false;
 
     // ui scale
     inline static int _selectedScale = 0;

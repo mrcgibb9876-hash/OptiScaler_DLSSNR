@@ -425,6 +425,11 @@ bool Config::Reload(std::filesystem::path iniPath)
                 DlssNrScalingDownscaler.set_from_config(*v);
             else
                 DlssNrScalingDownscaler.reset();
+
+            if (auto v = readEnum<Upsampler>("DlssNr", "ScalingUpscaler"))
+                DlssNrScalingUpscaler.set_from_config(*v);
+            else
+                DlssNrScalingUpscaler.reset();
             DlssNrProxyProbe.set_from_config(readBool("DlssNr", "ProxyProbe"));
             DlssNrUseProxy.set_from_config(readBool("DlssNr", "UseProxy"));
             DlssNrScanExposure.set_from_config(readBool("DlssNr", "ScanExposure"));
@@ -731,6 +736,16 @@ bool Config::Reload(std::filesystem::path iniPath)
                 OutputScalingDownscaler.set_from_config(*v);
             else
                 OutputScalingDownscaler.reset();
+
+            if (auto v = readEnum<Upsampler>("OutputScaling", "Upscaler"))
+                OutputScalingUpscaler.set_from_config(*v);
+            else
+                OutputScalingUpscaler.reset();
+
+            if (auto setting = readFloat("OutputScaling", "AntiRinging"); setting.has_value())
+                OutputScalingAntiRinging.set_from_config(std::clamp(setting.value(), 0.0f, 1.0f));
+
+            OutputScalingSigmoid.set_from_config(readBool("OutputScaling", "Sigmoid"));
 
             if (auto setting = readFloat("OutputScaling", "Multiplier"); setting.has_value())
                 OutputScalingMultiplier.set_from_config(std::clamp(setting.value(), 0.5f, 3.0f));
@@ -1258,6 +1273,11 @@ bool Config::SaveIni()
         ini.SetValue("OutputScaling", "Multiplier",
                      GetFloatValue(Instance()->OutputScalingMultiplier.value_for_config()).c_str());
         ini.SetValue("OutputScaling", "Downscaler", GetIntValue(Instance()->OutputScalingDownscaler).c_str());
+        ini.SetValue("OutputScaling", "Upscaler", GetIntValue(Instance()->OutputScalingUpscaler).c_str());
+        ini.SetValue("OutputScaling", "AntiRinging",
+                     GetFloatValue(Instance()->OutputScalingAntiRinging.value_for_config()).c_str());
+        ini.SetValue("OutputScaling", "Sigmoid",
+                     GetBoolValue(Instance()->OutputScalingSigmoid.value_for_config()).c_str());
     }
 
     // FSR common
@@ -1355,6 +1375,7 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "AutoScaleFloor",
                      GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
+        ini.SetValue("DlssNr", "ScalingUpscaler", GetIntValue(Instance()->DlssNrScalingUpscaler).c_str());
         ini.SetValue("DlssNr", "AutoCapture", GetBoolValue(Instance()->DlssNrAutoCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LiveReload", GetBoolValue(Instance()->DlssNrLiveReload.value_for_config()).c_str());
 

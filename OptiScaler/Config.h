@@ -209,6 +209,23 @@ enum class Scaler : uint32_t
     Count
 };
 
+// The upsampler Output Scaling uses when it is ENLARGING. Kept apart from Scaler because that one is
+// the DOWNscaler: every filter in it answers "how do I average many source pixels into one", and
+// every filter here answers the opposite question. Before this existed the enlarging direction had
+// no control at all -- FSR1 if the downscaler happened to be set to FSR1, bicubic otherwise -- so
+// Bicubic is 0 and the default, and an ini written before this key existed behaves exactly as it did.
+enum class Upsampler : uint32_t
+{
+    FSR1 = 0,
+    Bicubic = 1,
+    EwaLanczos = 2,
+    XBR = 3,
+    SharpBilinear = 4,
+    IntegerScale = 5,
+    Nearest = 6,
+    Count
+};
+
 enum class ForceReflex : uint32_t
 {
     InGame,
@@ -472,6 +489,11 @@ class Config
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler
     // so NR and Output Scaling can run different filters at once. Lanczos3 is the sharp default.
     CustomOptional<Scaler> DlssNrScalingDownscaler { Scaler::Lanczos3 };
+
+    // and the upscaler that enlarges it back when the model ran SMALLER than native. Independent of
+    // OutputScalingUpscaler for the same reason the downscaler is: the two passes are scaling
+    // different things and a good answer for one is not automatically a good answer for the other.
+    CustomOptional<Upsampler> DlssNrScalingUpscaler { Upsampler::Bicubic };
 
     // Ask the driver's own nvngx.dll whether it will dispatch Neural Rendering, once per session.
     //
@@ -870,6 +892,20 @@ class Config
     CustomOptional<bool> OutputScalingEnabled { false };
     CustomOptional<float> OutputScalingMultiplier { 1.5f };
     CustomOptional<Scaler> OutputScalingDownscaler { Scaler::FSR1 };
+
+    // Enlarging only. LEFT UNSET this deliberately does not fall through to the value below: see
+    // ConfiguredUpsampler() in OS_Upsamplers.cpp, which reproduces what the pass did before the key
+    // existed, so an ini that never mentions it keeps exactly the picture it had. The value here is
+    // only what that rule resolves to in the common case.
+    CustomOptional<Upsampler> OutputScalingUpscaler { Upsampler::FSR1 };
+
+    // How hard to pull a resampling upscaler's answer back inside the range its nearest neighbours
+    // already covered. Only EWA Lanczos reads it -- the nearest-neighbour family cannot ring, and
+    // the existing downsamplers carry their own fixed clamp that this must not disturb.
+    CustomOptional<float> OutputScalingAntiRinging { 0.8f };
+
+    // Resample in sigmoidal light. SDR only by construction (see the shader), so it defaults off.
+    CustomOptional<bool> OutputScalingSigmoid { false };
 
     // FSR
     CustomOptional<bool> FsrDebugView { false };
