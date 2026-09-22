@@ -1758,6 +1758,85 @@ void RenderMenu(Config* config, float menuResScale)
                       "\ncomposition cannot tell them apart."
                       "\n\nGreyed out at 100%, where there is nothing to enlarge."));
 
+        // The filter that does the enlarging, and the four controls that shape the one of them that
+        // reads them. Greyed by the same condition as Enlargement above: nothing to enlarge at 100%.
+        const char* upscalerNames[] = { Tr("Bicubic"),        Tr("EWA Lanczos"),   Tr("xBR-lv2"),
+                                        Tr("Sharp bilinear"), Tr("Integer scale"), Tr("Nearest") };
+
+        int upscaler = (int) config->DlssNrScalingUpscaler.value_or_default();
+
+        if (upscaler < 0 || upscaler >= IM_ARRAYSIZE(upscalerNames))
+            upscaler = (int) Upsampler::Bicubic;
+
+        ImGui::BeginDisabled(!reduced);
+        if (NrCombo(Tr("Upscaler"), &upscaler, upscalerNames, IM_ARRAYSIZE(upscalerNames), rowWidth))
+        {
+            config->DlssNrScalingUpscaler = (Upsampler) upscaler;
+            anyChanged = true;
+        }
+        ImGui::EndDisabled();
+        HelpMarker(Tr("The filter that enlarges the model's answer back to display size when the model"
+                      "\nran SMALLER than the frame."
+                      "\n\nBicubic is the default because it is the cheapest and cannot go wrong, not"
+                      "\nbecause it is good -- it is soft. On a rendered 3D game the one to try is EWA"
+                      "\nLanczos, which weighs pixels by how far away they really are rather than by row"
+                      "\nand column, so a diagonal edge comes out as clean as a horizontal one."
+                      "\n\nxBR-lv2, Sharp bilinear, Integer scale and Nearest are for PIXEL ART and 2D."
+                      "\nOn a rendered 3D frame they will look wrong."));
+
+        // EWA Lanczos's own four. All 0 to 1 with 0 the gentlest, so they read as one set.
+        const bool ewa = reduced && config->DlssNrScalingUpscaler.value_or_default() == Upsampler::EwaLanczos;
+
+        ImGui::BeginDisabled(!ewa);
+
+        float nrSharpness = config->DlssNrScalingSharpness.value_or_default();
+        auto rNrSharp = NrSlider(Tr("Sharpness"), &nrSharpness, 0.0f, 1.0f, "%.2f", rowWidth);
+        if (rNrSharp.changed)
+            config->DlssNrScalingSharpness = nrSharpness;
+        if (rNrSharp.released)
+            anyChanged = true;
+        HelpMarker(Tr("How hard the filter is pulled in. One slider across the three EWA filters there"
+                      "\nare: 0.00 the gentlest, about 0.16 the middle one, 1.00 the sharpest."
+                      "\n\nThe top of it reads 100 pixels for every one it draws, against 64 at the"
+                      "\nbottom, so watch the cost line as you climb. Raise Ring suppression with it."));
+
+        float nrRing = config->DlssNrScalingAntiRinging.value_or_default();
+        auto rNrRing = NrSlider(Tr("Ring suppression"), &nrRing, 0.0f, 1.0f, "%.2f", rowWidth);
+        if (rNrRing.changed)
+            config->DlssNrScalingAntiRinging = nrRing;
+        if (rNrRing.released)
+            anyChanged = true;
+        HelpMarker(Tr("The bright or dark rim sharpening buys, held back: it keeps the filter's answer"
+                      "\ninside the range of the pixels it is interpolating between. 0 leaves the"
+                      "\nfilter's own answer, 1 allows no overshoot at all."
+                      "\n\nNot the same control as Highlight guard: that one bounds what the MODEL did,"
+                      "\nthis one bounds what the scaling filter did."));
+
+        float nrSigmoid = config->DlssNrScalingSigmoid.value_or_default();
+        auto rNrSigmoid = NrSlider(Tr("Sigmoidal light"), &nrSigmoid, 0.0f, 1.0f, "%.2f", rowWidth);
+        if (rNrSigmoid.changed)
+            config->DlssNrScalingSigmoid = nrSigmoid;
+        if (rNrSigmoid.released)
+            anyChanged = true;
+        HelpMarker(Tr("Resample on an S-shaped curve, so an overshoot near black or near white is"
+                      "\ncompressed instead of clipping into a flat band. The slider is how hard the"
+                      "\ncurve bends, with the reference setting at 1.00."
+                      "\n\nSDR only by construction: anything brighter than white passes through"
+                      "\nuntouched, so an HDR frame is barely affected."));
+
+        float nrDither = config->DlssNrScalingDither.value_or_default();
+        auto rNrDither = NrSlider(Tr("Dither"), &nrDither, 0.0f, 1.0f, "%.2f", rowWidth);
+        if (rNrDither.changed)
+            config->DlssNrScalingDither = nrDither;
+        if (rNrDither.released)
+            anyChanged = true;
+        ImGui::EndDisabled();
+        HelpMarker(Tr("Breaks a band by adding a pattern finer than one step of colour, moved on each"
+                      "\nframe so it does not settle into something you can pick out. 1.00 is half a"
+                      "\nstep of an 8-bit picture."
+                      "\n\nFor banding in a sky or a gradient, where Ring suppression is for a rim"
+                      "\nalong an edge."));
+
         SectionCaption(Tr("How much of it lands"), rowWidth);
 
         float transfer = config->DlssNrTransferStrength.value_or_default();
@@ -2297,6 +2376,28 @@ void RenderMenu(Config* config, float menuResScale)
                       "\nand right whenever a UI resource reaches it; turn it off if the correction is"
                       "\nitself what looks wrong."
                       "\n\nRead when the model is built."));
+
+        // The fix for the rippling on the Present route. It belongs here because it is about what the
+        // model is TOLD -- specifically what it is told when there is nothing honest to tell it.
+        if (bool resetWhenBlind = config->DlssNrResetWhenBlind.value_or_default();
+            NrCheckbox(Tr("Forget history when motion is unknown"), &resetWhenBlind))
+        {
+            config->DlssNrResetWhenBlind = resetWhenBlind;
+            anyChanged = true;
+        }
+        HelpMarker(Tr("Textures that ripple, pulse or swim while you move the view -- and nowhere else --"
+                      "\nare this."
+                      "\n\nWhere a game makes no upscale call of its own, motion has to be worked out from"
+                      "\nthe finished frames, and sometimes it cannot be. What the model had then was not"
+                      "\n'no motion' but 'motion that says nothing moved', and it believed it: it has a"
+                      "\nmemory, and it lines that memory up using exactly those numbers. Standing still"
+                      "\nthat is correct. Moving, it blends what is on screen now against what used to be"
+                      "\nsomewhere else entirely, over and over."
+                      "\n\nOn (default), it keeps no memory at all in that situation, so there is nothing"
+                      "\nmisaligned left to blend."
+                      "\n\nThat memory is also what steadies a picture, so a game can come out slightly"
+                      "\ncrawlier on fine edges instead. If one does, turn this off for it. Costs no"
+                      "\nperformance either way, and does nothing in a game that hands over real motion."));
 
         SectionCaption(Tr("Inspect"), rowWidth);
 
