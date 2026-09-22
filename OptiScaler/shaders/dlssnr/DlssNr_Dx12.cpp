@@ -3392,6 +3392,18 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             Barrier(cmdList, g_nr.outputNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
+        // The enlarged pair goes back to writable for the next frame, exactly as the supersample
+        // target above does. Left in NON_PIXEL_SHADER_RESOURCE, the next frame's upscaler writes a UAV
+        // to a resource that is not in that state -- which is a hung device a second after the filter
+        // is chosen (DXGI_ERROR_DEVICE_HUNG, Shadow of the Tomb Raider, 2026-09-22).
+        if (enlargedOk)
+        {
+            Barrier(cmdList, g_nr.editNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            Barrier(cmdList, g_nr.proxyNative, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        }
+
         // On-demand capture works in this path too: the staging copy still holds the frame as the
         // upscaler produced it, and the edited frame is the output itself. The write happens a few
         // frames later, once the GPU is certainly past these copies -- this path has no fence of its
