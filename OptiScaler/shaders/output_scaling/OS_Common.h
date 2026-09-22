@@ -8,6 +8,15 @@ struct alignas(256) Constants
     int32_t srcHeight;
     int32_t destWidth;
     int32_t destHeight;
+
+    // Appended for the upsamplers in OS_Upsamplers.cpp. Safe to append: a constant buffer may be
+    // LARGER than the members a shader names, never smaller, so every shader below -- all of which
+    // declare only the four sizes -- is untouched by this. Never insert above this line.
+    float antiRinging;
+    float sharpness;
+    float sigmoid;
+    float dither;
+    int32_t frame;
 };
 
 // Lanczos with luminance correction

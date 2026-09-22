@@ -10,6 +10,7 @@
 // Forward declaration so this header need not pull in Config.h. Scaler is a scoped enum with a fixed
 // underlying type, so an opaque declaration is a complete type -- enough for a member and a parameter.
 enum class Scaler : uint32_t;
+enum class Upsampler : uint32_t;
 
 class OS_Dx12 : public Shader_Dx12
 {
@@ -21,6 +22,12 @@ class OS_Dx12 : public Shader_Dx12
     // Neural Rendering passes its own DlssNrScalingDownscaler here so the two pick filters independently.
     Scaler _scalerOverride;
     Scaler ActiveScaler() const;
+
+    // The same arrangement for the enlarging direction. Upsampler::Count means "no override -- read
+    // the global OutputScalingUpscaler". Only consulted when _upsample is true.
+    Upsampler _upsamplerOverride;
+    Upsampler ActiveUpsampler() const;
+    bool UsesFsr1() const;
 
     FrameDescriptorHeap _frameHeaps[OS_NUM_OF_HEAPS];
 
@@ -42,6 +49,8 @@ class OS_Dx12 : public Shader_Dx12
 
     OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample);
     OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride);
+    OS_Dx12(std::string InName, ID3D12Device* InDevice, bool InUpsample, Scaler InScalerOverride,
+            Upsampler InUpsamplerOverride);
 
     ~OS_Dx12();
 };

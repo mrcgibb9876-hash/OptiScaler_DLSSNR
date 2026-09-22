@@ -209,6 +209,22 @@ enum class Scaler : uint32_t
     Count
 };
 
+// The upsampler Output Scaling uses when it is ENLARGING. Kept apart from Scaler because that one is
+// the DOWNscaler: every filter in it answers "how do I average many source pixels into one", and
+// every filter here answers the opposite question. Before this existed the enlarging direction had
+// no control at all -- FSR1 if the downscaler happened to be set to FSR1, bicubic otherwise -- so
+// Bicubic is 0 and the default, and an ini written before this key existed behaves exactly as it did.
+enum class Upsampler : uint32_t
+{
+    Bicubic = 0,
+    EwaLanczos = 1,
+    XBR = 2,
+    SharpBilinear = 3,
+    IntegerScale = 4,
+    Nearest = 5,
+    Count
+};
+
 enum class ForceReflex : uint32_t
 {
     InGame,
@@ -472,6 +488,19 @@ class Config
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler
     // so NR and Output Scaling can run different filters at once. Lanczos3 is the sharp default.
     CustomOptional<Scaler> DlssNrScalingDownscaler { Scaler::Lanczos3 };
+
+    // and the upscaler that enlarges it back when the model ran SMALLER than native. Independent of
+    // OutputScalingUpscaler for the same reason the downscaler is: the two passes are scaling
+    // different things and a good answer for one is not automatically a good answer for the other.
+    CustomOptional<Upsampler> DlssNrScalingUpscaler { Upsampler::Bicubic };
+
+    // and its own copy of the four controls above, for the same reason again: an Output Scaling
+    // pass and this one are enlarging different pictures at different sizes, and a value that suits
+    // one is not automatically right for the other.
+    CustomOptional<float> DlssNrScalingSharpness { 0.0f };
+    CustomOptional<float> DlssNrScalingAntiRinging { 0.8f };
+    CustomOptional<float> DlssNrScalingSigmoid { 0.0f };
+    CustomOptional<float> DlssNrScalingDither { 0.0f };
 
     // Ask the driver's own nvngx.dll whether it will dispatch Neural Rendering, once per session.
     //
@@ -870,6 +899,25 @@ class Config
     CustomOptional<bool> OutputScalingEnabled { false };
     CustomOptional<float> OutputScalingMultiplier { 1.5f };
     CustomOptional<Scaler> OutputScalingDownscaler { Scaler::FSR1 };
+
+    // Enlarging only. Bicubic is the default because it is the OTHER thing this pass could already
+    // do going up -- FSR1 was the first, and it is not offered here at all. Anyone whose downscaler
+    // was not FSR1 therefore sees no change whatever; anyone whose was moves off it, which is the
+    // point. Bicubic is soft, and EWA Lanczos below is the one worth picking once its cost has been
+    // measured on real hardware.
+    CustomOptional<Upsampler> OutputScalingUpscaler { Upsampler::Bicubic };
+
+    // EWA Lanczos's four controls, all of them a plain 0..1 where 0 is the gentlest setting. Only
+    // that filter reads them: the nearest-neighbour family cannot ring, and the existing
+    // downsamplers carry their own fixed clamp that none of this may disturb.
+    //
+    // Sharpness runs libplacebo's ewa_lanczos at 0 through to ewa_lanczos4sharpest at 1, radius and
+    // all, so it costs more the further up it goes. AntiRinging bounds the rim that buys.
+    // Sigmoid is the curve's slope, and Dither breaks a band at half an 8-bit step.
+    CustomOptional<float> OutputScalingSharpness { 0.0f };
+    CustomOptional<float> OutputScalingAntiRinging { 0.8f };
+    CustomOptional<float> OutputScalingSigmoid { 0.0f };
+    CustomOptional<float> OutputScalingDither { 0.0f };
 
     // FSR
     CustomOptional<bool> FsrDebugView { false };

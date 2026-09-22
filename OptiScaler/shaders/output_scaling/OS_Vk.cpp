@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "OS_Vk.h"
 #include "OS_Common.h"
+#include "OS_Upsamplers.h"
 #include <Config.h>
 
 #define A_CPU
@@ -27,6 +28,10 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
 {
 }
 
+// Which constant buffer layout this instance uploads; see OS_Dx12.cpp for why it is not simply the
+// downscaler any more. FSR1 is a downscaler-only choice, so going up the answer is always no.
+bool OS_Vk::UsesFsr1() const { return !_upsample && ActiveScaler() == Scaler::FSR1; }
+
 Scaler OS_Vk::ActiveScaler() const
 {
     return _scalerOverride != Scaler::Count ? _scalerOverride
@@ -48,7 +53,7 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
     // 1. Create Base Resources
     CreateSampler(VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 
-    uint32_t constantSize = (ActiveScaler() == Scaler::FSR1) ? sizeof(UpscaleShaderConstants) : sizeof(Constants);
+    uint32_t constantSize = UsesFsr1() ? sizeof(UpscaleShaderConstants) : sizeof(Constants);
     CreateConstantBuffer(constantSize);
 
     // 2. Setup Layouts & Pools
@@ -68,7 +73,7 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
 
     // 3. Load Pipeline
     std::vector<char> shaderCode;
-    if (ActiveScaler() == Scaler::FSR1)
+    if (UsesFsr1())
     {
         shaderCode = std::vector<char>(FSR_EASU_spv, FSR_EASU_spv + sizeof(FSR_EASU_spv));
     }
@@ -76,6 +81,15 @@ OS_Vk::OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalD
     {
         if (_upsample)
         {
+            // Bicubic is all this backend can offer going up. The upsamplers added alongside it are
+            // HLSL compiled at runtime, and there is no runtime compiler here -- Shader_Vk consumes
+            // SPIR-V and nothing else, so honouring the setting would mean checking in a .spv built
+            // with dxc, which a non-Windows checkout cannot produce. Say so once rather than letting
+            // the picture quietly disagree with the menu.
+            const auto upsampler = Config::Instance()->OutputScalingUpscaler.value_or_default();
+            if (upsampler != Upsampler::Bicubic)
+                LOG_WARN("Vulkan has no SPIR-V for the {0} upsampler; using bicubic", UpsamplerName(upsampler));
+
             shaderCode = std::vector<char>(bcus_spv, bcus_spv + sizeof(bcus_spv));
         }
         else
@@ -144,9 +158,18 @@ bool OS_Vk::Dispatch(VkCommandBuffer InCmdList, const VkImageInfo& InResourceVie
     constants.destWidth = dstW;
     constants.destHeight = dstH;
 
+    // Nothing on this backend reads these yet -- bicubic is the only upsampler it has -- but the
+    // struct is shared with the other two, so leaving them uninitialised would mean uploading
+    // whatever was on the stack.
+    constants.sharpness = 0.0f;
+    constants.antiRinging = 0.0f;
+    constants.sigmoid = 0.0f;
+    constants.dither = 0.0f;
+    constants.frame = 0;
+
     if (_mappedConstantBuffer)
     {
-        if (ActiveScaler() == Scaler::FSR1)
+        if (UsesFsr1())
             memcpy(_mappedConstantBuffer, &fsr1Constants, sizeof(UpscaleShaderConstants));
         else
             memcpy(_mappedConstantBuffer, &constants, sizeof(Constants));
@@ -178,7 +201,7 @@ bool OS_Vk::Dispatch(VkCommandBuffer InCmdList, const VkImageInfo& InResourceVie
     vkCmdBindDescriptorSets(InCmdList, VK_PIPELINE_BIND_POINT_COMPUTE, _pipelineLayout, 0, 1, &currentSet, 0, nullptr);
 
     // Dispatch
-    if (ActiveScaler() == Scaler::FSR1 || _upsample)
+    if (UsesFsr1() || _upsample)
     {
         uint32_t groupX = (OutResourceView.Width + 15) / 16;
         uint32_t groupY = (OutResourceView.Height + 15) / 16;

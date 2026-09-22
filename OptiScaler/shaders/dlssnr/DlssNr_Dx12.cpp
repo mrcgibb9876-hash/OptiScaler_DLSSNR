@@ -268,6 +268,10 @@ struct NrState
     OS_Dx12* superDown = nullptr;
     Scaler nrScaler = Scaler::Count;
 
+    // The same for the up-leg's filter. Only superUp reads it -- superDown is shrinking and takes
+    // nrScaler -- but both are torn down together, so it sits beside nrScaler and is compared with it.
+    Upsampler nrUpsampler = Upsampler::Count;
+
     // Frame hold (design/frame-hold.md): a persistent copy of the output taken on hold-on and restored
     // over the live output before the encode reads it while held, so a setting change re-renders the
     // same frame. heldWhitePoint is the snapshot used while held -- measurement is suspended.
@@ -2887,7 +2891,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             // of Output Scaling, so the two can run different filters at once. superDown is built here
             // and used after the model (the down-leg below).
             const Scaler nrScaler = cfg.DlssNrScalingDownscaler.value_or_default();
-            if (g_nr.nrScaler != nrScaler)
+            const Upsampler nrUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
+            if (g_nr.nrScaler != nrScaler || g_nr.nrUpsampler != nrUpsampler)
             {
                 if (g_nr.superUp != nullptr)
                 {
@@ -2900,9 +2905,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     g_nr.superDown = nullptr;
                 }
                 g_nr.nrScaler = nrScaler;
+                g_nr.nrUpsampler = nrUpsampler;
             }
             if (g_nr.superUp == nullptr)
-                g_nr.superUp = new OS_Dx12("DLSS-NR supersample up", device, true, nrScaler);
+                g_nr.superUp = new OS_Dx12("DLSS-NR supersample up", device, true, nrScaler, nrUpsampler);
             if (g_nr.superDown == nullptr)
                 g_nr.superDown = new OS_Dx12("DLSS-NR supersample down", device, false, nrScaler);
 

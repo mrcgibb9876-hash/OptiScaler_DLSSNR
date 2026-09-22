@@ -113,8 +113,13 @@ HRESULT Shader_Dx11::CreateComputeShader(ID3D11Device* device, ID3D11ComputeShad
 {
     ComPtr<ID3DBlob> shaderBlob;
 
-    // Compile if not using precompiled
-    if (!Config::Instance()->UsePrecompiledShaders.value_or_default() && shaderCode)
+    // Compile when precompiled shaders are turned off, and ALSO when this shader has no precompiled
+    // blob at all. The second half matters because every blob in this tree was produced with fxc on
+    // Windows and no build rule regenerates them, so a shader added from any other checkout has none
+    // -- and without this it would be silently skipped for everyone who left UsePrecompiledShaders
+    // on, which is the default. Nothing existing changes: a shader that has a blob still prefers it.
+    if (shaderCode &&
+        (bytecode == nullptr || bytecodeSize == 0 || !Config::Instance()->UsePrecompiledShaders.value_or_default()))
         shaderBlob = CompileShader(shaderCode, "CSMain", "cs_5_0");
 
     auto shaderBlob_p = shaderBlob.Get();

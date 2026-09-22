@@ -17,6 +17,7 @@ class OS_Vk : public Shader_Vk
     // its own DlssNrScalingDownscaler, which also switches Dispatch to sizing from the passed images.
     Scaler _scalerOverride;
     Scaler ActiveScaler() const;
+    bool UsesFsr1() const;
 
   public:
     OS_Vk(std::string InName, VkDevice InDevice, VkPhysicalDevice InPhysicalDevice, bool InUpsample);
