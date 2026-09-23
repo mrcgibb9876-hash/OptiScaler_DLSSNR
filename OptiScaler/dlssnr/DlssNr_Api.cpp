@@ -59,6 +59,8 @@ constexpr Entry<float> kFloats[] = {
 // ---- bool --------------------------------------------------------------------------------------
 constexpr Entry<bool> kBools[] = {
     { "ApplyModel", &Config::DlssNrApplyModel },
+    { "AutoBrightness", &Config::DlssNrAutoBrightness },
+    { "AutoContrast", &Config::DlssNrAutoContrast },
     { "AutoCapture", &Config::DlssNrAutoCapture },
     { "AutoMask", &Config::DlssNrAutoMask },
     { "ChainedHistory", &Config::DlssNrChainedHistory },

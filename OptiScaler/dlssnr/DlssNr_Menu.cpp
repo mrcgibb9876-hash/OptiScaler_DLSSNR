@@ -2174,7 +2174,14 @@ void RenderMenu(Config* config, float menuResScale)
 
             // The tone trim (2026-09-23: "some games come out so dark"). Same row shape as colour
             // strength above; both are read by the resolve every frame, so no rebuild and no hitch.
-            float brightness = config->DlssNrBrightness.value_or_default();
+            // Auto sits beside each slider (2026-09-23). While it is on the slider shows what Auto is using
+            // and cannot be dragged; the slider's own value is kept and comes back when Auto goes off.
+            const DlssNr::AutoToneReading autoTone = DlssNr::AutoTone();
+
+            const bool autoBrightness = config->DlssNrAutoBrightness.value_or_default();
+            float brightness = autoBrightness && autoTone.measuring ? autoTone.brightness
+                                                                    : config->DlssNrBrightness.value_or_default();
+            ImGui::BeginDisabled(autoBrightness);
             auto rBrightness = NrSlider(Tr("Brightness"), &brightness, 0.5f, 2.0f, "%.2f", rowWidth);
             if (rBrightness.changed)
                 config->DlssNrBrightness = brightness;
@@ -2188,11 +2195,27 @@ void RenderMenu(Config* config, float menuResScale)
                 config->DlssNrBrightness = 1.0f;
                 anyChanged = true;
             }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine();
+            bool autoB = autoBrightness;
+            if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autobrightness").c_str(), &autoB))
+            {
+                config->DlssNrAutoBrightness = autoB;
+                anyChanged = true;
+            }
             HelpMarker(Tr("Lifts the shadows and midtones for a game that comes out too dark. Black stays"
                           "\nblack and white stays white -- only what lies between is raised -- so the"
-                          "\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing."));
+                          "\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing."
+                          "\n\nAuto measures the picture and lifts it when it is darker than usual, easing"
+                          "\nover a moment rather than jumping. It only ever brightens, and only part of the"
+                          "\nway, so a scene meant to be dark stays darker than a lit one. DX12, DX11 and"
+                          "\nRE Engine games; on a Vulkan game the slider stays in charge."));
 
-            float contrast = config->DlssNrContrast.value_or_default();
+            const bool autoContrast = config->DlssNrAutoContrast.value_or_default();
+            float contrast = autoContrast && autoTone.measuring ? autoTone.contrast
+                                                                : config->DlssNrContrast.value_or_default();
+            ImGui::BeginDisabled(autoContrast);
             auto rContrast = NrSlider(Tr("Contrast"), &contrast, 0.5f, 2.0f, "%.2f", rowWidth);
             if (rContrast.changed)
                 config->DlssNrContrast = contrast;
@@ -2206,10 +2229,21 @@ void RenderMenu(Config* config, float menuResScale)
                 config->DlssNrContrast = 1.0f;
                 anyChanged = true;
             }
+            ImGui::EndDisabled();
+
+            ImGui::SameLine();
+            bool autoC = autoContrast;
+            if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autocontrast").c_str(), &autoC))
+            {
+                config->DlssNrAutoContrast = autoC;
+                anyChanged = true;
+            }
             HelpMarker(Tr("How far apart the darks and the lights sit. Above 1 is punchier: darks go"
                           "\ndeeper and lights brighter around the middle grey. Below 1 is flatter and"
                           "\nshows more in the shadows. Black and white themselves never move. 1 changes"
-                          "\nnothing."));
+                          "\nnothing."
+                          "\n\nAuto adds a little contrast to a flat, washed-out picture and takes a little off"
+                          "\none that is already harsh, within 0.85 to 1.25. DX12, DX11 and RE Engine games."));
 
             SectionCaption(Tr("Colour"), rowWidth);
 

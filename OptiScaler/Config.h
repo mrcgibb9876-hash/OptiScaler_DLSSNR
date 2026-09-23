@@ -393,6 +393,10 @@ class Config
     // both exactly the identity at 1.0 -- the shader skips the step entirely there.
     CustomOptional<float> DlssNrBrightness { 1.0f };
     CustomOptional<float> DlssNrContrast { 1.0f };
+    // Auto in place of the slider above it (D3D12): measured from the frame, eased over a moment. Off by
+    // default -- a scene meant to be dark is a choice the game made, and only the player can say otherwise.
+    CustomOptional<bool> DlssNrAutoBrightness { false };
+    CustomOptional<bool> DlssNrAutoContrast { false };
 
     // The RenoDX reversible proxy mode. 0 = today's soft-knee encode + our composition (default,
     // byte-identical); 1 = unclipped Neutwo proxy + our composition; 2 = Neutwo proxy + pure-inverse

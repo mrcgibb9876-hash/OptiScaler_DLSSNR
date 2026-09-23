@@ -331,6 +331,25 @@ struct NrState
     const char* calibWhy = "measuring...";
     bool calibPassthrough = false;
 
+    // Auto brightness / Auto contrast (2026-09-23). A 64x64 grid of tile MEANS of the frame arriving at
+    // the pass, from the meter's own tile-mean branch dispatched over the whole grid, read back four
+    // frames later on its own ring, and turned into the Brightness and Contrast the resolve uses.
+    //
+    // Measured on the way in, never on the way out: the trim is applied at the end of the resolve, so
+    // measuring the finished picture would chase its own correction. What remains is the game's own
+    // temporal history carrying some of last frame's lift into this one -- negative feedback (brighter
+    // in, less lift), which the slow smoothing below lets settle instead of swinging.
+    ID3D12Resource* tone = nullptr;
+    ID3D12Resource* toneReadback[4] = {};
+    unsigned long long toneFrames = 0;
+    float autoBrightness = 1.0f;
+    float autoContrast = 1.0f;
+    bool toneSettled = false; // the first real reading is taken whole rather than eased into
+    std::chrono::steady_clock::time_point toneLastUpdate {};
+    // What the last reading saw, for the panel: the frame's average and its dark-to-light spread.
+    float toneMean = 0.0f;
+    float toneSpreadStops = 0.0f;
+
     // Whether the frame that filled each readback slot actually had an exposure texture bound.
     //
     // The meter writes tile 0 from whatever sits in the exposure slot, and DispatchPass substitutes
@@ -1602,6 +1621,188 @@ void Barrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* res, D3D12_RESO
     b.Transition.StateBefore = from;
     b.Transition.StateAfter = to;
     cmdList->ResourceBarrier(1, &b);
+}
+
+// ---- Auto brightness / Auto contrast --------------------------------------------------------------
+//
+// Tunables, not measurements. The frame's average is a log-average of tile means in the normalised space
+// the resolve works in (1 = paper white). Below kAutoKey the picture reads as dark and Brightness is raised
+// toward it -- by kAutoStrength of the way, so a scene meant to be dark stays darker than a lit one -- and
+// never above kAutoMaxBrightness, and never below 1: Auto only ever lifts. Contrast follows the spread
+// between the darkest and brightest tenth of the frame, pushed toward kAutoSpreadStops and held inside a
+// narrow band, because a large automatic contrast change reads as the picture pumping.
+constexpr float kAutoKey = 0.12f;
+constexpr float kAutoStrength = 0.75f;
+constexpr float kAutoMaxBrightness = 1.6f;
+constexpr float kAutoSpreadStops = 6.0f;
+constexpr float kAutoContrastPerStop = 0.05f;
+constexpr float kAutoMinContrast = 0.85f;
+constexpr float kAutoMaxContrast = 1.25f;
+// Seconds for the applied value to cover about two thirds of a change. Slow on purpose: walking out of a
+// cave should brighten over a moment, not snap.
+constexpr float kAutoSeconds = 1.5f;
+// A frame this dark is a fade, a loading screen or a menu going black, not a scene to be lifted.
+constexpr float kAutoBlackFrame = 0.004f;
+
+void ResetAutoTone()
+{
+    g_nr.autoBrightness = 1.0f;
+    g_nr.autoContrast = 1.0f;
+    g_nr.toneSettled = false;
+    g_nr.toneFrames = 0;
+    g_nr.toneMean = 0.0f;
+    g_nr.toneSpreadStops = 0.0f;
+}
+
+bool EnsureToneGrid(ID3D12Device* device)
+{
+    if (g_nr.tone != nullptr)
+        return true;
+
+    g_nr.tone = CreateScratch(device, DXGI_FORMAT_R32_FLOAT, kDlssNrMeterGrid, kDlssNrMeterGrid);
+    if (g_nr.tone == nullptr)
+        return false;
+
+    D3D12_HEAP_PROPERTIES readback {};
+    readback.Type = D3D12_HEAP_TYPE_READBACK;
+
+    D3D12_RESOURCE_DESC bufferDesc {};
+    bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufferDesc.Width = kMeterBytes;
+    bufferDesc.Height = 1;
+    bufferDesc.DepthOrArraySize = 1;
+    bufferDesc.MipLevels = 1;
+    bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+    bufferDesc.SampleDesc.Count = 1;
+    bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    for (auto& rb : g_nr.toneReadback)
+    {
+        if (FAILED(device->CreateCommittedResource(&readback, D3D12_HEAP_FLAG_NONE, &bufferDesc,
+                                                   D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&rb))))
+            rb = nullptr;
+    }
+
+    ResetAutoTone();
+    LOG_INFO("DLSS-NR: auto brightness/contrast meter up, {}x{} tiles", kDlssNrMeterGrid, kDlssNrMeterGrid);
+    return true;
+}
+
+void CopyToneToReadback(ID3D12GraphicsCommandList* cmdList)
+{
+    const unsigned int slot = (unsigned int) (g_nr.toneFrames % 4);
+
+    if (g_nr.toneReadback[slot] == nullptr || g_nr.tone == nullptr)
+        return;
+
+    D3D12_TEXTURE_COPY_LOCATION srcLoc {};
+    srcLoc.pResource = g_nr.tone;
+    srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    srcLoc.SubresourceIndex = 0;
+
+    D3D12_TEXTURE_COPY_LOCATION dst {};
+    dst.pResource = g_nr.toneReadback[slot];
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Offset = 0;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32_FLOAT;
+    dst.PlacedFootprint.Footprint.Width = kDlssNrMeterGrid;
+    dst.PlacedFootprint.Footprint.Height = kDlssNrMeterGrid;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = kMeterRowBytes;
+
+    Barrier(cmdList, g_nr.tone, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    cmdList->CopyTextureRegion(&dst, 0, 0, 0, &srcLoc, nullptr);
+    Barrier(cmdList, g_nr.tone, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+    g_nr.toneFrames++;
+}
+
+// Reads the grid written four frames ago -- the same distance the meter trusts, for the same reason: no
+// fence, so only a long-retired frame is safe to map -- and eases the applied values toward what it says.
+// normScale is the resolve's: the white point for a linear HDR buffer, 1 for a frame already tone mapped.
+void ConsumeToneReadback(float normScale, bool wantBrightness, bool wantContrast)
+{
+    if (g_nr.toneFrames < 4)
+        return;
+
+    const unsigned int slot = (unsigned int) (g_nr.toneFrames % 4);
+    ID3D12Resource* buffer = g_nr.toneReadback[slot];
+    if (buffer == nullptr)
+        return;
+
+    void* mapped = nullptr;
+    D3D12_RANGE range { 0, kMeterBytes };
+    if (FAILED(buffer->Map(0, &range, &mapped)) || mapped == nullptr)
+        return;
+
+    const float* src = (const float*) mapped;
+    const float scale = normScale > 1e-6f ? 1.0f / normScale : 1.0f;
+
+    std::vector<float> logs;
+    logs.reserve(kDlssNrMeterGrid * kDlssNrMeterGrid);
+    double logSum = 0.0;
+
+    // Tile 0 is the meter's exposure courier, not a tile mean -- skipped.
+    for (unsigned int i = 1; i < kDlssNrMeterGrid * kDlssNrMeterGrid; ++i)
+    {
+        if (!std::isfinite(src[i]) || src[i] < 0.0f)
+            continue;
+        const float l = std::log(std::max(src[i] * scale, 1e-5f));
+        logs.push_back(l);
+        logSum += l;
+    }
+
+    D3D12_RANGE nothingWritten { 0, 0 };
+    buffer->Unmap(0, &nothingWritten);
+
+    if (logs.size() < 256)
+        return;
+
+    const float mean = std::exp((float) (logSum / (double) logs.size()));
+    const size_t lo = logs.size() / 10;
+    const size_t hi = logs.size() - 1 - logs.size() / 10;
+    std::nth_element(logs.begin(), logs.begin() + lo, logs.end());
+    const float p10 = logs[lo];
+    std::nth_element(logs.begin(), logs.begin() + hi, logs.end());
+    const float p90 = logs[hi];
+    const float spreadStops = (p90 - p10) / std::log(2.0f);
+
+    g_nr.toneMean = mean;
+    g_nr.toneSpreadStops = spreadStops;
+
+    // A black frame says nothing about the scene; hold what was there.
+    if (!(mean > kAutoBlackFrame))
+        return;
+
+    float wantB = 1.0f;
+    if (wantBrightness && mean < kAutoKey)
+    {
+        // The Brightness that would carry this average to the key, from the trim's own curve (a power of
+        // 1/b in the gamma-2.2 scale -- see ApplyToneTrim in dlssnr.hlsl), then only part of the way.
+        const float full = std::log(mean) / std::log(kAutoKey);
+        wantB = std::clamp(1.0f + (full - 1.0f) * kAutoStrength, 1.0f, kAutoMaxBrightness);
+    }
+
+    float wantC = 1.0f;
+    if (wantContrast && std::isfinite(spreadStops))
+        wantC = std::clamp(1.0f + (kAutoSpreadStops - spreadStops) * kAutoContrastPerStop, kAutoMinContrast,
+                           kAutoMaxContrast);
+
+    const auto now = std::chrono::steady_clock::now();
+    if (!g_nr.toneSettled)
+    {
+        g_nr.autoBrightness = wantB;
+        g_nr.autoContrast = wantC;
+        g_nr.toneSettled = true;
+    }
+    else
+    {
+        const float dt = std::clamp(std::chrono::duration<float>(now - g_nr.toneLastUpdate).count(), 0.0f, 0.25f);
+        const float k = 1.0f - std::exp(-dt / kAutoSeconds);
+        g_nr.autoBrightness += (wantB - g_nr.autoBrightness) * k;
+        g_nr.autoContrast += (wantC - g_nr.autoContrast) * k;
+    }
+    g_nr.toneLastUpdate = now;
 }
 
 // Whether the DLSS call this pass attached to came from the DLSS5 Feeder rather than the game's
@@ -3675,6 +3876,35 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         exposurePreMul = g_nr.gamePreExposure * trim;
     }
 
+    // Auto brightness / Auto contrast: the frame measured as it arrives, before anything below writes to
+    // it. The meter's tile-mean branch over the whole grid, onto its own surface; tile 0 is the exposure
+    // courier and ConsumeToneReadback skips it. Nothing is created or dispatched while both are off.
+    const bool autoBrightnessOn = cfg.DlssNrAutoBrightness.value_or_default();
+    const bool autoContrastOn = cfg.DlssNrAutoContrast.value_or_default();
+    if (autoBrightnessOn || autoContrastOn)
+    {
+        if (EnsureToneGrid(device))
+        {
+            DlssNrConstants toneParams {};
+            toneParams.Mode = DlssNrMode_Meter;
+            toneParams.Width = kDlssNrMeterGrid;
+            toneParams.Height = kDlssNrMeterGrid;
+
+            const D3D12_RESOURCE_STATES priorTargetState = targetState;
+            TransitionTarget(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            DispatchPass(cmdList, toneParams, target, nullptr, nullptr, nullptr, nullptr, g_nr.tone, nullptr);
+            TransitionTarget(priorTargetState);
+
+            CopyToneToReadback(cmdList);
+            ConsumeToneReadback(isHdrBuffer ? whitePoint : 1.0f, autoBrightnessOn, autoContrastOn);
+        }
+    }
+    else if (g_nr.toneSettled)
+    {
+        // Off again: back to the sliders, and nothing measured before now survives switching it on.
+        ResetAutoTone();
+    }
+
     // Frame hold. Freeze the encode's input so a live setting change re-renders the same frame. This
     // is self-contained on purpose: it copies the output aside on hold-on and copies it BACK over the
     // live output before the encode reads it while held, so the encode's own path and barriers below
@@ -4144,8 +4374,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.Height = height;
         resolveParams.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
         resolveParams.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
-        resolveParams.Brightness = cfg.DlssNrBrightness.value_or_default();
-        resolveParams.Contrast = cfg.DlssNrContrast.value_or_default();
+        // Auto, where it is on, in place of the slider; the slider's own value is kept for when it is off.
+        const bool autoB = cfg.DlssNrAutoBrightness.value_or_default();
+        const bool autoC = cfg.DlssNrAutoContrast.value_or_default();
+        resolveParams.Brightness = autoB ? g_nr.autoBrightness : cfg.DlssNrBrightness.value_or_default();
+        resolveParams.Contrast = autoC ? g_nr.autoContrast : cfg.DlssNrContrast.value_or_default();
         resolveParams.DebugView = cfg.DlssNrDebugView.value_or_default();
         resolveParams.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
         resolveParams.Transfer = cfg.DlssNrTransfer.value_or_default();
@@ -5843,6 +6076,17 @@ void ProbeD3D11(void* d3d11Device)
                  result, NgxResultName((unsigned int) result));
 }
 
+AutoToneReading AutoTone()
+{
+    AutoToneReading r {};
+    r.measuring = g_nr.toneSettled;
+    r.brightness = g_nr.autoBrightness;
+    r.contrast = g_nr.autoContrast;
+    r.mean = g_nr.toneMean;
+    r.spreadStops = g_nr.toneSpreadStops;
+    return r;
+}
+
 CalibrationReading Calibration()
 {
     CalibrationReading r {};
@@ -6150,6 +6394,23 @@ void Shutdown()
     g_nr.calibSteadiness = 0.0f;
     g_nr.calibUsable = false;
     g_nr.calibWhy = "measuring...";
+
+    if (g_nr.tone != nullptr)
+    {
+        g_nr.tone->Release();
+        g_nr.tone = nullptr;
+    }
+
+    for (auto& r : g_nr.toneReadback)
+    {
+        if (r != nullptr)
+        {
+            r->Release();
+            r = nullptr;
+        }
+    }
+
+    ResetAutoTone();
 
     for (auto& rb : g_nr.meterReadback)
     {

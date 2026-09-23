@@ -101,6 +101,19 @@ struct CalibrationReading
 
 CalibrationReading Calibration();
 
+// Auto brightness / Auto contrast (D3D12): the values the resolve is using right now, and what the last
+// reading saw. measuring is false until a first reading lands -- the panel then shows the slider's value.
+struct AutoToneReading
+{
+    bool measuring = false;
+    float brightness = 1.0f;
+    float contrast = 1.0f;
+    float mean = 0.0f;        // the frame's average, 1 = paper white
+    float spreadStops = 0.0f; // darkest tenth to brightest tenth, in stops
+};
+
+AutoToneReading AutoTone();
+
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 

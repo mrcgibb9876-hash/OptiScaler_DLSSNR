@@ -399,6 +399,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrColourStrength.set_from_config(readFloat("DlssNr", "ColourStrength"));
             DlssNrBrightness.set_from_config(readFloat("DlssNr", "Brightness"));
             DlssNrContrast.set_from_config(readFloat("DlssNr", "Contrast"));
+            DlssNrAutoBrightness.set_from_config(readBool("DlssNr", "AutoBrightness"));
+            DlssNrAutoContrast.set_from_config(readBool("DlssNr", "AutoContrast"));
             DlssNrMaxRatio.set_from_config(readFloat("DlssNr", "MaxRatio"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
 
@@ -1378,6 +1380,9 @@ bool Config::SaveIni()
                      GetFloatValue(Instance()->DlssNrColourStrength.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Brightness", GetFloatValue(Instance()->DlssNrBrightness.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Contrast", GetFloatValue(Instance()->DlssNrContrast.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoBrightness",
+                     GetBoolValue(Instance()->DlssNrAutoBrightness.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoContrast", GetBoolValue(Instance()->DlssNrAutoContrast.value_for_config()).c_str());
         ini.SetValue("DlssNr", "MaxRatio", GetFloatValue(Instance()->DlssNrMaxRatio.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Transfer", GetIntValue(Instance()->DlssNrTransfer.value_for_config()).c_str());
 

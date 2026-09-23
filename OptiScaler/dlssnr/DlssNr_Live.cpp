@@ -127,6 +127,17 @@ std::string BuildJson()
         s += "},";
     }
 
+    // tone -- what Auto brightness / Auto contrast are applying right now, so the pop-out's sliders can
+    // show it the way the in-game panel does. null until a first reading lands.
+    {
+        const DlssNr::AutoToneReading tone = DlssNr::AutoTone();
+        s += "\"tone\":{";
+        AppendOptNum(s, "brightness", tone.measuring, tone.brightness, 2);
+        s += ',';
+        AppendOptNum(s, "contrast", tone.measuring, tone.contrast, 2);
+        s += "},";
+    }
+
     // motion -- is anything actually feeding the model? The in-game panel shows this on Inspect >
     // Guide; sending it out here is what lets the pop-out show the same row rather than inferring
     // from the deployed files, which is all it can otherwise see.
