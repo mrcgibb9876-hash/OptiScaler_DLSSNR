@@ -31,8 +31,8 @@ static void Check(bool ok, const std::string& what)
 
 // Drive the controller for a stretch of wall clock at a fixed cost, 60 frames a second.
 // Returns the last scale it asked for, if any.
-static std::optional<float> Run(Controller& c, const Tuning& t, double passMs, double frameMs,
-                                double forMs, double& clock, int* changes = nullptr)
+static std::optional<float> Run(Controller& c, const Tuning& t, double passMs, double frameMs, double forMs,
+                                double& clock, int* changes = nullptr)
 {
     std::optional<float> last;
     const double step = 1000.0 / 60.0;
@@ -53,8 +53,8 @@ static std::optional<float> Run(Controller& c, const Tuning& t, double passMs, d
 // Drive the controller against a cost that RESPONDS to the scale, the way a real pass does: cost
 // falls with the square of it. A fixed cost is not a useful simulation of a closed loop -- it never
 // converges, because nothing the controller does changes what it measures.
-static void RunResponsive(Controller& c, const Tuning& t, double costAtFullScale, double frameMs,
-                          double forMs, double& clock, int* changes = nullptr)
+static void RunResponsive(Controller& c, const Tuning& t, double costAtFullScale, double frameMs, double forMs,
+                          double& clock, int* changes = nullptr)
 {
     const double step = 1000.0 / 60.0;
     for (double spent = 0.0; spent < forMs; spent += step)
@@ -99,8 +99,8 @@ int main()
     const double frame60 = 1000.0 / 60.0; // 16.67 ms
     // The shipped default is a frame-rate target; these tests name the mode they are about.
     Tuning t;
-    t.mode = Mode::Share;                 // 15% of the frame = 2.5 ms at 60 fps
-    Tuning deep = t;                      // for tests about the mechanism rather than the floor
+    t.mode = Mode::Share; // 15% of the frame = 2.5 ms at 60 fps
+    Tuning deep = t;      // for tests about the mechanism rather than the floor
     deep.floorScale = 0.55f;
 
     // Comfortably inside budget: never moves, never spends a rebuild.
@@ -142,8 +142,7 @@ int main()
         double clock = 0.0;
         int changes = 0;
         RunResponsive(c, t, 6.0, frame60, 60000.0, clock, &changes);
-        Check(changes == 2 && std::fabs(c.Scale() - 0.55f) < 1e-4f,
-              "a responsive cost converges and then holds");
+        Check(changes == 2 && std::fabs(c.Scale() - 0.55f) < 1e-4f, "a responsive cost converges and then holds");
     }
 
     // A cost that is only just over budget settles one rung down and does not oscillate: 2.9 ms at
@@ -178,8 +177,7 @@ int main()
         c.Reset(1.0f);
         double clock = 0.0;
         Run(c, t, 40.0, frame60, 60000.0, clock);
-        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f,
-              "an impossible budget stops at 0.55, short of the artefact range");
+        Check(std::fabs(c.Scale() - 0.55f) < 1e-4f, "an impossible budget stops at 0.55, short of the artefact range");
     }
 
     // A floor cannot be set below the bottom rung, so the guard cannot be configured away.
@@ -211,8 +209,7 @@ int main()
         double clock = 0.0;
         int changes = 0;
         Run(c, deep, 0.2, frame60, 25000.0, clock, &changes);
-        Check(changes == 1 && std::fabs(c.Scale() - 0.70f) < 1e-4f,
-              "recovery is one rung at a time, never analytic");
+        Check(changes == 1 && std::fabs(c.Scale() - 0.70f) < 1e-4f, "recovery is one rung at a time, never analytic");
     }
 
     // ...and all the way back to full if it stays cheap: 18 s, then a 25 s freeze per rung.
@@ -232,8 +229,7 @@ int main()
         double clock = 0.0;
         int changes = 0;
         Run(c, t, 2.0, frame60, 60000.0, clock, &changes);
-        Check(changes == 0 && std::fabs(c.Scale() - 0.70f) < 1e-4f,
-              "sitting in the dead band never spends a rebuild");
+        Check(changes == 0 && std::fabs(c.Scale() - 0.70f) < 1e-4f, "sitting in the dead band never spends a rebuild");
     }
 
     // Rebuilds are rate limited. A pathological scene may not thrash the feature: 30s of wildly
@@ -244,8 +240,7 @@ int main()
         double clock = 0.0;
         int changes = 0;
         Run(c, t, 60.0, frame60, 30000.0, clock, &changes);
-        Check(changes <= 30000.0 / t.freezeMs + 1,
-              "rebuilds stay rate limited under a pathological scene");
+        Check(changes <= 30000.0 / t.freezeMs + 1, "rebuilds stay rate limited under a pathological scene");
     }
 
     // The share normalises across frame rates: the same pass cost that is over budget at 120 fps is
@@ -260,8 +255,7 @@ int main()
         clock = 0.0;
         int changes30 = 0;
         Run(c30, t, 1.5, 1000.0 / 30.0, 12000.0, clock, &changes30); // budget 5.0 ms -> fine
-        Check(c120.Scale() < 1.0f && changes30 == 0,
-              "the same cost is over budget at 120fps and inside it at 30");
+        Check(c120.Scale() < 1.0f && changes30 == 0, "the same cost is over budget at 120fps and inside it at 30");
     }
 
     // Unusable measurements are dropped, not read as zero -- zero would look like free headroom and
@@ -319,8 +313,7 @@ int main()
         double c1 = 0.0, c2 = 0.0;
         RunResponsive(a, ms, 5.0, 1000.0 / 30.0, 60000.0, c1);
         RunResponsive(b, ms, 5.0, 1000.0 / 120.0, 60000.0, c2);
-        Check(std::fabs(a.Scale() - b.Scale()) < 1e-4f,
-              "a millisecond ceiling reads the same at 30fps and 120fps");
+        Check(std::fabs(a.Scale() - b.Scale()) < 1e-4f, "a millisecond ceiling reads the same at 30fps and 120fps");
     }
 
     // --- TargetFps: the pass gives back what it costs, and no more. ---
@@ -561,12 +554,14 @@ int main()
         c.Reset(1.0f);
         double clock = 0.0;
         unsigned int seed = 12345u;
-        auto noise = [&seed]() {
+        auto noise = [&seed]()
+        {
             seed = seed * 1664525u + 1013904223u;
             return static_cast<double>(seed >> 8) / static_cast<double>(1u << 24) - 0.5; // -0.5..0.5
         };
         auto pass = [&noise](double s, double) { return (3.5 + 6.0 * s * s) * (1.0 + 0.1 * noise()); };
-        auto frame = [&noise](double s, double now) {
+        auto frame = [&noise](double s, double now)
+        {
             const double rest = 10.5 + std::sin(now / 40000.0 * 6.283185) + 2.0 * noise();
             return rest + 3.5 + 6.0 * s * s;
         };

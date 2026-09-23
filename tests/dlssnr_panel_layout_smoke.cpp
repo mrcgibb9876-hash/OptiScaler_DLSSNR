@@ -48,8 +48,8 @@ struct Panel
     {
         const float scale = 1.0f;
         rowWidth = 460.0f * scale;
-        const Metrics m { rowWidth, std::round(rowWidth * 0.8f), 160.0f * scale, 24.0f * scale, 64.0f * scale,
-                          ImVec2(18.0f, 14.0f) * scale };
+        const Metrics m { rowWidth,      std::round(rowWidth * 0.8f), 160.0f * scale, 24.0f * scale,
+                          64.0f * scale, ImVec2(18.0f, 14.0f) * scale };
 
         BeforeBegin(state, cfg, m);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, m.pad);
@@ -141,7 +141,8 @@ int main()
         Frame(8);
         expect(near(Size().y, 1080.0f), "tall panel should cap at the display height, got " + v2(Size()));
         expect(near(Size().x, fullWidth + scrollbar), "tall panel width should add the scrollbar, got " + v2(Size()));
-        expect(near(Pos().x, 24.0f) && near(Pos().y, 0.0f), "tall panel should sit at the left edge, top, got " + v2(Pos()));
+        expect(near(Pos().x, 24.0f) && near(Pos().y, 0.0f),
+               "tall panel should sit at the left edge, top, got " + v2(Pos()));
         expect(g_panel.saves == 0, "opening must not save anything");
         std::printf("PASS: first open, tall content: %s at %s, nothing saved\n", v2(Size()).c_str(), v2(Pos()).c_str());
 
@@ -185,7 +186,8 @@ int main()
             Drag(grab, ImVec2(900.0f, 300.0f));
             const ImVec2 p = Pos();
             expect(p.x > 0.0f && p.x + Size().x < 1920.0f, "should come back fully on screen, got " + v2(p));
-            expect(near(g_panel.cfg.x * 1920.0f, p.x) && near(g_panel.cfg.y * 1080.0f, p.y), "position should be saved");
+            expect(near(g_panel.cfg.x * 1920.0f, p.x) && near(g_panel.cfg.y * 1080.0f, p.y),
+                   "position should be saved");
             std::printf("PASS: grabbed back by the strip to %s\n", v2(p).c_str());
         }
 
@@ -215,9 +217,11 @@ int main()
             const ImVec2 after = Size();
             expect(near(after.x, before.x + 200.0f, 3.0f) && near(after.y, before.y - 150.0f, 3.0f),
                    "corner resize should stick: before " + v2(before) + " after " + v2(after));
-            expect(g_panel.cfg.CustomSize() && near(g_panel.cfg.w * 1920.0f, after.x) && near(g_panel.cfg.h * 1080.0f, after.y),
+            expect(g_panel.cfg.CustomSize() && near(g_panel.cfg.w * 1920.0f, after.x) &&
+                       near(g_panel.cfg.h * 1080.0f, after.y),
                    "resized size should be saved as fractions");
-            expect(near(g_panel.rowWidth, after.x - 36.0f, 2.0f) || near(g_panel.rowWidth, after.x - 36.0f - scrollbar, 2.0f),
+            expect(near(g_panel.rowWidth, after.x - 36.0f, 2.0f) ||
+                       near(g_panel.rowWidth, after.x - 36.0f - scrollbar, 2.0f),
                    "rows should follow the new inner width, got " + std::to_string(g_panel.rowWidth));
             std::printf("PASS: corner resize %s -> %s, saved (%.3f, %.3f), rows %.0f px\n", v2(before).c_str(),
                         v2(after).c_str(), g_panel.cfg.w, g_panel.cfg.h, g_panel.rowWidth);
@@ -263,7 +267,8 @@ int main()
                    "size should scale with the display, got " + v2(Size()));
             expect(near(Pos().x, saved.x * 2560.0f, 2.0f) && near(Pos().y, saved.y * 1440.0f, 2.0f),
                    "position should scale with the display, got " + v2(Pos()));
-            std::printf("PASS: reopen restores it; at 2560x1440 it is %s at %s\n", v2(Size()).c_str(), v2(Pos()).c_str());
+            std::printf("PASS: reopen restores it; at 2560x1440 it is %s at %s\n", v2(Size()).c_str(),
+                        v2(Pos()).c_str());
         }
 
         // 11. Reset layout (what the panel's button does): fits its content at the default place again.
@@ -271,8 +276,8 @@ int main()
             g_panel.cfg = Settings {};
             g_panel.state.placeFrames = 2;
             Frame(8);
-            expect(near(Size().x, fullWidth) && near(Pos().x, 24.0f), "reset should restore the default, got " +
-                                                                           v2(Pos()) + v2(Size()));
+            expect(near(Size().x, fullWidth) && near(Pos().x, 24.0f),
+                   "reset should restore the default, got " + v2(Pos()) + v2(Size()));
             std::printf("PASS: reset layout restores %s at %s\n", v2(Size()).c_str(), v2(Pos()).c_str());
         }
 

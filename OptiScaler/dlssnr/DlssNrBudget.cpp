@@ -221,8 +221,7 @@ Decision Controller::Update(double passMs, double frameMs, double nowMs, const T
         // Cost falls with the square of the scale, so the scale that would have fitted this window is
         // the current one times the square root of the ratio. That is the cost model the lever's own
         // help states, which is why this converges in a step instead of crawling down a rung at a time.
-        const float wanted =
-            hopeless ? 0.0f : static_cast<float>(Rungs[m_rung] * std::sqrt(budgetMs / medianPass));
+        const float wanted = hopeless ? 0.0f : static_cast<float>(Rungs[m_rung] * std::sqrt(budgetMs / medianPass));
         wantRung = StepToward(wanted, floorRung);
         if (wantRung <= m_rung)
             wantRung = m_rung + 1;
