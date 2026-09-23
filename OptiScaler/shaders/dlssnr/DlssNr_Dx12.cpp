@@ -4569,6 +4569,18 @@ struct TrackedGuides
     // Said once. The optical flow module logs its own failure; this is the OTHER way the route ends
     // up blind, and until now it said nothing at all.
     bool warnedGuideSize = false;
+
+    // What the panel needs to answer "is motion actually reaching the model?". The evaluate path
+    // already computes this per frame to decide whether to reset history; it just never kept it,
+    // so nothing could report it and the symptom -- sharp when still, smears when moving -- was
+    // only ever diagnosed from the outside, by reading files and inferring.
+    //
+    // Two counters rather than one flag, because the interesting case is intermittent: a provider
+    // that feeds most frames and drops some is a different problem from one that never feeds at
+    // all, and a single bool cannot tell them apart.
+    unsigned long long evaluates = 0;
+    unsigned long long blindEvaluates = 0;
+    bool lastBlind = false;
 };
 
 TrackedGuides g_tracked;
@@ -5230,6 +5242,12 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             const bool blind = motion == nullptr;
             const bool resetWhileBlind = blind && Config::Instance()->DlssNrResetWhenBlind.value_or_default();
 
+            // Kept for MotionState(), below. Free: the value is already in hand.
+            g_tracked.evaluates++;
+            if (blind)
+                g_tracked.blindEvaluates++;
+            g_tracked.lastBlind = blind;
+
             presentParams->Set(NVSDK_NGX_Parameter_Reset,
                                (!g_tracked.wasActive || flowCut || motionSourceChanged || resetWhileBlind) ? 1u : 0u);
             presentParams->Set(NVSDK_NGX_Parameter_MV_Scale_X, 1.0f);
@@ -5819,6 +5837,16 @@ const char* FailureReason() { return g_nr.failed ? g_nr.reason : ""; }
 // Same GetModuleHandleW-by-name check ConflictingNrAddon() uses, just not refusing anything --
 // this is purely "what is this NR pass actually running on" for the overlay.
 bool IsFeederPresent() { return GetModuleHandleW(L"dlss5-feed.addon64") != nullptr; }
+
+MotionReading MotionState()
+{
+    MotionReading out {};
+    out.evaluates = g_tracked.evaluates;
+    out.blindEvaluates = g_tracked.blindEvaluates;
+    out.lastBlind = g_tracked.lastBlind;
+    out.usingFlow = g_tracked.usingFlow;
+    return out;
+}
 
 // What the game offers by way of exposure, and what has been read from it. For the menu, so a user
 // can see whether this game supplies one at all without having to read a log.

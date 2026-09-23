@@ -114,6 +114,34 @@ const char* FailureReason();
 // and can be found by name, the same way ConflictingNrAddon() finds a competing consumer.
 bool IsFeederPresent();
 
+// Is motion actually reaching the model? Read-only, for the panel.
+//
+// The failure this answers is the one that has cost this project the most triage time, because it
+// looks like nothing: when no motion vectors arrive, the model is handed a zero-motion texture and
+// runs anyway. Every log line still says it ran. The picture is sharp when still and smears when
+// moving, and until now the only way to find out why was to read ReShadePreset.ini from outside
+// the game and infer.
+//
+// The panel shows it rather than acting on it. Which provider to use instead is a question about
+// files, licences and downloads, and that belongs to the manager.
+struct MotionReading
+{
+    unsigned long long evaluates = 0;
+
+    // Of those, how many were handed no vectors. Equal to evaluates means nothing has ever fed it;
+    // somewhere in between means a provider that drops frames, which is a different fault.
+    unsigned long long blindEvaluates = 0;
+
+    bool lastBlind = false;
+
+    // Vectors came from the engine's own optical flow module rather than from a ReShade provider,
+    // which is the Present route. Worth telling apart: on that route no ReShade provider is
+    // involved at all, so "change the provider" would be the wrong advice.
+    bool usingFlow = false;
+};
+
+MotionReading MotionState();
+
 // What the game offers by way of exposure. Observed every frame whether or not the setting is on, so
 // the menu can say whether turning it on would do anything here.
 struct ExposureStatus
