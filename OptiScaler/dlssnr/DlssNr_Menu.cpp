@@ -1774,7 +1774,61 @@ void RenderMenu(Config* config, float menuResScale)
             {
                 // Neither the game nor OptiScaler has DLSS-G here. (The old text, "not the active
                 // output", read as a fault on every native-DLSS game; it was really this case.)
-                ImGui::TextColored(kTextDim, "%s", Tr("This game has no NVIDIA DLSS Frame Generation of its own."));
+                //
+                // OptiScaler's own generators, XeFG and FSR FG, when the manager armed one for this game
+                // (2026-09-23). Which one is fixed at launch -- it is built into the swapchain the game
+                // creates, and OptiScaler makes it once per session -- so only its on/off and HUD fix are
+                // offered here, and both do exactly what OptiScaler's own key and menu do to them.
+                const bool optiFgOutput =
+                    state.activeFgOutput == FGOutput::XeFG || state.activeFgOutput == FGOutput::FSRFG;
+                const bool optiFg =
+                    optiFgOutput && state.activeFgInput != FGInput::NoFG && state.currentFGSwapchain != nullptr;
+                if (optiFg)
+                {
+                    char running[96];
+                    snprintf(running, sizeof(running), Tr("OptiScaler Frame Generation: %s"),
+                             state.activeFgOutput == FGOutput::XeFG ? "XeFG" : "FSR FG");
+                    ImGui::TextUnformatted(running);
+                    HelpMarker(Tr("The generator is chosen per game in OptiDLSS5-UI (Edit > Frame generation) and"
+                                  "\napplies on the game's next launch. The switches below take effect at once."));
+
+                    bool fgOn = config->FGEnabled.value_or_default();
+                    if (ImGui::Checkbox(Tr("Frame Generation on"), &fgOn))
+                    {
+                        config->FGEnabled = fgOn;
+                        // As the FG key does: a generator switched back on starts clean.
+                        if (fgOn)
+                            state.fgChanged = true;
+                        anyChanged = true;
+                    }
+
+                    const bool hudfixSupported =
+                        !config->FGDisableHUDFix.value_or_default() &&
+                        (state.swapchainInteropApi == SwapchainInteropApi::None ||
+                         state.swapchainInteropApi == SwapchainInteropApi::Dx11wDx12);
+                    if (hudfixSupported)
+                    {
+                        bool hudfix = config->FGHUDFix.value_or_default();
+                        if (ImGui::Checkbox(Tr("HUD fix"), &hudfix))
+                        {
+                            config->FGHUDFix = hudfix;
+                            // As OptiScaler's own menu does: no stale HUD-less capture survives the switch.
+                            state.clearCapturedHudlesses = true;
+                            state.fgChanged = true;
+                            anyChanged = true;
+                        }
+                        HelpMarker(Tr("Keeps the HUD and subtitles from warping in generated frames. OptiScaler"
+                                      "\nwarns it can crash some games -- if this game crashes with it on, leave"
+                                      "\nit off."));
+                    }
+                }
+                else
+                {
+                    ImGui::TextColored(kTextDim, "%s", Tr("This game has no NVIDIA DLSS Frame Generation of its own."));
+                    HelpMarker(Tr("OptiScaler can generate frames here instead: pick XeFG or FSR FG for this game in"
+                                  "\nOptiDLSS5-UI (Edit > Frame generation). It is set up when the game starts, so"
+                                  "\nit applies on the next launch; after that it switches on and off right here."));
+                }
             }
 
             // Everything below is this fork's own instrumentation, with no equivalent in NVIDIA's

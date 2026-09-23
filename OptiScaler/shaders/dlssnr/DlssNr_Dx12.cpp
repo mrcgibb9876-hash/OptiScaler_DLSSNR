@@ -4935,10 +4935,32 @@ void CaptureForPresent(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList,
 // The values in effect go on the same line, so a log can answer "did that slider land" on its own.
 void PollSettingsFromDisk()
 {
+    // Frame Generation's on/off and HUD fix are read per frame, so a reload switches them live -- but
+    // OptiScaler's own paths do one more thing when they change them, and a change arriving from the
+    // pop-out panel or Edit has to do it too, or it is a different operation from the in-game one:
+    //   on           the FG key (menu_common.cpp) sets fgChanged, so the generator starts clean
+    //                instead of interpolating against a frame from before it was off;
+    //   HUD fix      OptiScaler's menu sets clearCapturedHudlesses and fgChanged, so a stale HUD-less
+    //                capture from before the switch is never used.
+    const bool fgWas = Config::Instance()->FGEnabled.value_or_default();
+    const bool hudfixWas = Config::Instance()->FGHUDFix.value_or_default();
+
     if (!Config::Instance()->ReloadIfChangedOnDisk())
         return;
 
     const Config& r = *Config::Instance();
+    const bool fgNow = r.FGEnabled.value_or_default();
+    const bool hudfixNow = r.FGHUDFix.value_or_default();
+    if (fgNow && !fgWas)
+        State::Instance().fgChanged = true;
+    if (hudfixNow != hudfixWas)
+    {
+        State::Instance().clearCapturedHudlesses = true;
+        State::Instance().fgChanged = true;
+    }
+    if (fgNow != fgWas || hudfixNow != hudfixWas)
+        LOG_INFO("Frame Generation from disk mid-run: {} (was {}), HUD fix {} (was {})", fgNow ? "on" : "off",
+                 fgWas ? "on" : "off", hudfixNow ? "on" : "off", hudfixWas ? "on" : "off");
     LOG_INFO("Settings reloaded from disk mid-run: enabled {}, apply model {}, preset {}, style {}, passes {}, "
              "pass rate {:.2f}, intensity {:.2f}, structure {:.3f}, tone {:.3f}, working scale {:.2f}",
              r.DlssNrEnabled.value_or_default(), r.DlssNrApplyModel.value_or_default(),
