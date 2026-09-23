@@ -1802,10 +1802,9 @@ void RenderMenu(Config* config, float menuResScale)
                         anyChanged = true;
                     }
 
-                    const bool hudfixSupported =
-                        !config->FGDisableHUDFix.value_or_default() &&
-                        (state.swapchainInteropApi == SwapchainInteropApi::None ||
-                         state.swapchainInteropApi == SwapchainInteropApi::Dx11wDx12);
+                    const bool hudfixSupported = !config->FGDisableHUDFix.value_or_default() &&
+                                                 (state.swapchainInteropApi == SwapchainInteropApi::None ||
+                                                  state.swapchainInteropApi == SwapchainInteropApi::Dx11wDx12);
                     if (hudfixSupported)
                     {
                         bool hudfix = config->FGHUDFix.value_or_default();
