@@ -25,9 +25,17 @@
 // THE CONSTRAINT THAT SHAPES ALL OF THIS: changing WorkingScale sets resolutionChanged in
 // DlssNr_Dx12, which REBUILDS the NGX feature. A controller that moved every frame would rebuild
 // every frame and be far slower than doing nothing. So this one is quantised to a few rungs,
-// hysteretic, and rate limited -- at most one rung every few seconds, which is rarer than the
-// rebuilds an ordinary resolution change already causes. That is also how shipping dynamic
-// resolution works, so it is the right shape rather than a concession.
+// hysteretic, and rate limited -- at most one move per 25 s, never straight back to the scale it just
+// left, and usually far rarer than that (see Tuning). That is also how shipping dynamic resolution
+// works, so it is the right shape rather than a concession.
+//
+// Why not vary the evaluated size inside one feature, the way DLSS SR does dynamic resolution with a
+// max render size and a per-evaluate subrect? Because nothing says this feature can. It is created
+// with one DLSSNR.Width/Height that is both its input and its output size -- there is no separate
+// render/output pair like SR's -- and the subrects the forwarder fills at evaluate have only ever been
+// set to the full created size. Feeding a smaller subrect to a feature built larger is undocumented,
+// untested behaviour on the one path where a wrong guess removes the device mid-game. So the rebuild
+// stays, and the controller is what keeps it rare (Resident Evil 2, 2026-09-18).
 namespace DlssNrBudget
 {
 
@@ -75,16 +83,54 @@ struct Tuning
     // A decision is made on a window of samples rather than a spike: a single expensive frame is a
     // loading screen or an alt-tab, not a scene that got heavy.
     double windowMs = 1000.0;
-    // Sustained over budget for this long before stepping down. Short, because being over budget is
-    // the thing the player asked not to happen.
-    double overBudgetMs = 2000.0;
-    // Comfortably under for this long before stepping back up. Longer and with headroom, so a scene
-    // that is merely between heavy moments does not bounce.
-    double underBudgetMs = 5000.0;
-    // How far under budget counts as "comfortably": recover only below this share of the budget.
-    double recoverAt = 0.70;
-    // Never move twice inside this, whichever direction. One rebuild per this, worst case.
-    double dwellMs = 3000.0;
+
+    // Everything below exists because every move costs the player a visible hitch, and v2.1.0 spent
+    // them far too freely. Resident Evil 2 (Present route, 1440p, laptop GPU, 2026-09-18) moved the
+    // scale every 5-30 s -- 55, 70, 55, 70, 85, 70 -- and each move rebuilt the model and held Present
+    // for ~250 ms. The old rules (2 s over, 5 s under, 3 s dwell) were sized as if a move were free.
+    // These are sized so a move is rare, and so the controller never undoes a move it has just made.
+    // They are not in the ini: they are the controller's own stability, not a preference, and a
+    // player who wants a different scale has WorkingScale and AutoScaleFloor for that.
+
+    // Stepping down: at least downNeeded of the last downWindows windows must be over budget, and
+    // over by overMargin rather than by a hair -- 4 of 5 s at 10% over is a scene that got heavy, not
+    // a frame-pacing wobble around the line.
+    int downWindows = 5;
+    int downNeeded = 4;
+    double overMargin = 1.10;
+
+    // Stepping up: this many CONSECUTIVE windows under recoverAt of the budget (18 s), and the next
+    // rung's cost -- predicted with the square law, which overstates it, so the guess errs towards
+    // staying put -- must also fit under upHeadroom of the budget. Without the prediction, 55% at
+    // 65 fps in RE2 read as "room to spare" against a 60 fps target and went up to 70%, which cost
+    // about 2 ms and put it straight back over.
+    int upWindows = 18;
+    double recoverAt = 0.75;
+    double upHeadroom = 0.90;
+
+    // After any move, no further move for this long, whichever direction. One rebuild per 25 s,
+    // worst case, instead of one per 3 s.
+    double freezeMs = 25000.0;
+
+    // Anti-flip: the scale just left is not returned to within this, unless the pass is missing its
+    // budget by more than severeFactor -- which is not a wobble any more but a scene the current rung
+    // plainly cannot hold. This is what stops 55 -> 70 -> 55 outright.
+    double antiFlipMs = 60000.0;
+    double severeFactor = 2.0;
+
+    // Samples are thrown away for this long after a move, a rebuild or a hitch. The frames around a
+    // rebuild are the rebuild's (a ~250 ms held Present, then the model settling), and letting them
+    // into a window is how one move's own cost argued for the next one.
+    double settleMs = 2000.0;
+    // A frame this many times the smoothed frame time (and at least hitchMinMs) is a hitch: its window
+    // is discarded rather than judged.
+    double hitchFactor = 3.0;
+    double hitchMinMs = 50.0;
+
+    // Time constant of the smoothing applied to the frame figures the budget is derived from. The
+    // budget itself was swinging 5.3-10.2 ms window to window in RE2, because TargetFps derived it from
+    // the last one-second median of the frame; a scene that breathes for a second moved the goalposts.
+    double budgetTauMs = 8000.0;
 };
 
 // What the controller decided this tick. `scale` is set only when the rung changed.
@@ -110,8 +156,10 @@ class Controller
     // passMs: the pass's own measured GPU time, already trust-filtered by the caller.
     // frameMs: the frame's time.
     // nowMs: a monotonic clock in milliseconds.
+    // disturbed: the caller knows this frame is not representative -- the feature was just rebuilt.
+    // The open window is discarded and sampling pauses for settleMs.
     // Returns a new scale only on the ticks where the rung actually moves.
-    Decision Update(double passMs, double frameMs, double nowMs, const Tuning& tuning);
+    Decision Update(double passMs, double frameMs, double nowMs, const Tuning& tuning, bool disturbed = false);
 
     std::size_t Rung() const { return m_rung; }
     float Scale() const { return Rungs[m_rung]; }
@@ -122,17 +170,32 @@ class Controller
     // The rung nearest a wanted scale, within the floor. Downward moves go straight there: the
     // sustain window above is what filters transients, so the square law is allowed to land in one.
     std::size_t StepToward(float wantedScale, std::size_t floorRung) const;
-    void Settle(double nowMs);
+    // Drop the open window and pause sampling until nowMs + settleMs.
+    void Discard(double nowMs, const Tuning& tuning);
 
     std::size_t m_rung = 0;
     std::vector<double> m_passSamples;
     std::vector<double> m_frameSamples;
+    std::vector<double> m_restSamples; // frame minus pass: the part of the frame that is the game's
     double m_windowStartMs = 0.0;
-    // When the current run of over- or under-budget windows began. 0 means "not in one".
-    double m_overSinceMs = 0.0;
-    double m_underSinceMs = 0.0;
+    bool m_windowOpen = false;
+    double m_settleUntilMs = 0.0;
+
+    // Verdicts of the most recent closed windows, newest last, at most downWindows long: true = over
+    // budget by the margin. Cleared on every move.
+    std::vector<bool> m_overHistory;
+    // Consecutive windows comfortably under budget. Any other window resets it.
+    int m_underRun = 0;
+
+    // Smoothed frame and rest-of-frame, in ms. Not reset by a move: the rest of the frame is the
+    // game's and does not depend on the model's scale, which is exactly why the budget is built on it.
+    double m_frameEma = 0.0;
+    double m_restEma = 0.0;
+    bool m_emaSeeded = false;
+
+    bool m_changed = false; // has the controller moved at all yet (the freeze needs a first move)
     double m_lastChangeMs = 0.0;
-    bool m_started = false;
+    std::size_t m_leftRung = 0; // the rung the last move left
 };
 
 // Median of a sample window. A median rather than a mean because one loading-screen frame at 40 ms

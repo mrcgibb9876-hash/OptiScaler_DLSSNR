@@ -360,6 +360,11 @@ class Config
     // player never has to remember which renderer or which consumer a game ended up on. OptiScaler's
     // own menu, which had Insert, moves to Alt+O (ShortcutKey below). It was Alt+Home until now.
     CustomOptional<int> DlssNrPanelKey { VK_INSERT };
+    // Set once the panel has opened by itself inside the DLSS5 Feeder's 64-bit helper (the 32-bit route),
+    // so it does that on the game's first launch only. Opening it on every launch put it over the game each
+    // time the Feeder cast the helper's window (Assassin's Creed II, 2026-09-18). False by default so the
+    // saved true is a non-default value and survives SaveIni's default-to-auto normalising.
+    CustomOptional<bool> DlssNrPanelShownOnce { false };
     CustomOptional<uint32_t> DlssNrPreset { 0 };
     CustomOptional<float> DlssNrIntensity { 1.0f };
     // 0 default (standard), 1 natural, 2 cinematic -- the model's own processing profiles.
@@ -491,6 +496,15 @@ class Config
     // the bottom one -- which is where the trade stops being cost against quality and starts being
     // cost against artefacts.
     CustomOptional<float> DlssNrAutoScaleFloor { 0.55f };
+    // What AutoScale does with model sizes it is not using. Every size change used to destroy the NR
+    // feature and build a new one, holding Present ~250 ms (Resident Evil 2, 2026-09-18).
+    //   0  off: destroy and rebuild on every move, as before.
+    //   1  keep: a size the controller leaves stays built, so moving back to it is instant.
+    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, at most
+    //      one per 5 s, only with DLSS 5 on and the create-time settings unchanged for 10 s, preferring
+    //      a natural pause (a frame that is already long, the panel open) over the timed slot.
+    // Both only while video memory allows; a fixed WorkingScale (AutoScale off) never builds extra models.
+    CustomOptional<uint32_t> DlssNrAutoScalePrebuild { 2 };
 
     // Filter used for NR supersampling (working scale > 1): the model runs above native, and this is
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler
@@ -637,6 +651,13 @@ class Config
     // Whether the model corrects for a UI layer. Its own default is on, and on is right whenever a
     // UI resource is fed to it; off is worth having when the correction is itself the artifact.
     CustomOptional<bool> DlssNrUICorrection { true };
+    // What the model is actually built with: never UI correction with the pass before Super Resolution.
+    // The two together froze inZOI on the spot (issue #55, 2026-09-19), and before SR the frame has no UI
+    // on it for the correction to act on. The panel keeps them exclusive; this holds for a hand-edited ini.
+    bool DlssNrUICorrectionEffective() const
+    {
+        return DlssNrUICorrection.value_or_default() && !DlssNrRunBeforeSr.value_or_default();
+    }
 
     // The panel's look. Light by default: the dark palette it was originally styled after put hint
     // text at 2.65:1 against the panel, which is under half the 4.5:1 needed to read comfortably,

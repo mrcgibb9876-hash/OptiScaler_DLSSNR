@@ -160,5 +160,10 @@ bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes);
 void RequestCapture(unsigned int frames);
 bool CaptureInProgress();
 
+// Called by the entry points while DLSS 5 is switched off: drops the model sizes adaptive resolution kept
+// (they are parked, then released) and keeps the parked list draining, since the pass that normally ticks
+// it is not running. Without it a switched-off DLSS 5 would sit on every kept size's video memory.
+void IdleWhileOff();
+
 void Shutdown();
 } // namespace DlssNr

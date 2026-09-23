@@ -1257,6 +1257,10 @@ void RenderMenu(Config* config, float menuResScale)
         if (NrCheckbox(Tr("Before Super Resolution"), &beforeSr))
         {
             config->DlssNrRunBeforeSr = beforeSr;
+            // One or the other, never both: the two together froze inZOI on the spot (issue #55,
+            // 2026-09-19), and before SR the frame carries no UI for the correction to act on anyway.
+            if (beforeSr)
+                config->DlssNrUICorrection = false;
             anyChanged = true;
         }
         HelpMarker(Tr("Where the pass sits. Off is the original placement: the model runs on the finished"
@@ -1298,7 +1302,14 @@ void RenderMenu(Config* config, float menuResScale)
                                                       : Tr("Waiting"),
                     enabled && (DlssNr::IsRunning() || vulkan));
 
-        if (!DlssNr::IsRunning() && !vulkan)
+        // Switched off says so. IsRunning() is "a model is built", and the built model is deliberately kept a
+        // while after DLSS 5 goes off so turning it back on is instant -- which read as "Running - 9.36 ms"
+        // under an unticked DLSS ON, the last timing from before it went off (inZOI, issue #55, 2026-09-19).
+        if (!enabled)
+        {
+            ImGui::TextColored(kTextDim, "%s", Tr("Off"));
+        }
+        else if (!DlssNr::IsRunning() && !vulkan)
         {
             const char* reason = DlssNr::FailureReason();
 
@@ -2591,6 +2602,7 @@ void RenderMenu(Config* config, float menuResScale)
             const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
             int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
             if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
+
             {
                 config->DlssNrDepthConvention = (uint32_t) depthMode;
                 anyChanged = true;
@@ -2604,6 +2616,11 @@ void RenderMenu(Config* config, float menuResScale)
                 NrCheckbox(Tr("UI correction"), &uiCorrection))
             {
                 config->DlssNrUICorrection = uiCorrection;
+                // The other half of Before Super Resolution's rule above: turning this on moves the
+                // pass back after the upscaler, where the UI is. The two together froze inZOI on the
+                // spot (issue #55, 2026-09-19).
+                if (uiCorrection)
+                    config->DlssNrRunBeforeSr = false;
                 anyChanged = true;
             }
             HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"

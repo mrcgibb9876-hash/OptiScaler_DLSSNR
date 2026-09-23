@@ -421,6 +421,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrAutoScaleMs.set_from_config(readFloat("DlssNr", "AutoScaleMs"));
             DlssNrAutoScaleShare.set_from_config(readInt("DlssNr", "AutoScaleShare"));
             DlssNrAutoScaleFloor.set_from_config(readFloat("DlssNr", "AutoScaleFloor"));
+            DlssNrAutoScalePrebuild.set_from_config(readUInt("DlssNr", "AutoScalePrebuild"));
 
             if (auto v = readEnum<Scaler>("DlssNr", "ScalingDownscaler"))
                 DlssNrScalingDownscaler.set_from_config(*v);
@@ -483,6 +484,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrSkinStructure.set_from_config(readFloat("DlssNr", "SkinStructure"));
             DlssNrAutoMask.set_from_config(readBool("DlssNr", "AutoMask"));
             DlssNrPanelKey.set_from_config(readInt("DlssNr", "PanelKey"));
+            DlssNrPanelShownOnce.set_from_config(readBool("DlssNr", "PanelShownOnce"));
             DlssNrDepthConvention.set_from_config(readUInt("DlssNr", "DepthConvention"));
             DlssNrUICorrection.set_from_config(readBool("DlssNr", "UICorrection"));
             DlssNrLightTheme.set_from_config(readBool("DlssNr", "LightTheme"));
@@ -1371,6 +1373,8 @@ bool Config::SaveIni()
             auto panelKey = Instance()->DlssNrPanelKey.value_for_config();
             ini.SetValue("DlssNr", "PanelKey", GetIntValue(panelKey, panelKey > 0).c_str());
         }
+        ini.SetValue("DlssNr", "PanelShownOnce",
+                     GetBoolValue(Instance()->DlssNrPanelShownOnce.value_for_config()).c_str());
         ini.SetValue("DlssNr", "TransferStrength",
                      GetFloatValue(Instance()->DlssNrTransferStrength.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ColourStrength",
@@ -1400,6 +1404,8 @@ bool Config::SaveIni()
                      GetIntValue(Instance()->DlssNrAutoScaleShare.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AutoScaleFloor",
                      GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "AutoScalePrebuild",
+                     GetIntValue(Instance()->DlssNrAutoScalePrebuild.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "ScalingUpscaler", GetIntValue(Instance()->DlssNrScalingUpscaler).c_str());
         ini.SetValue("DlssNr", "ScalingSharpness",

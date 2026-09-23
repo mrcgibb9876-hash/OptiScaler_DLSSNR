@@ -7,6 +7,7 @@
 
 #include <dlssnr/DlssNr.h>
 #include <dlssnr/DlssNr_I18n.h>
+#include <dlssnr/DlssNr_Live.h>
 
 #include "input/input_system.h"
 
@@ -1565,6 +1566,14 @@ void MenuCommon::UpdateMenuInputMode(RenderMenuContext& ctx)
         // Typing into a field and the panel's own key bindings do not depend on navigation.
         io.ConfigFlags = _isVisible ? (ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad)
                                     : ImGuiConfigFlags_None;
+
+        // In the Feeder's helper this window is only ever seen as the cast inside the game, and the OS cursor is
+        // never over it -- the game has it (often hidden, in mouselook). The Feeder forwards the mouse as posted
+        // messages and leaves drawing the pointer to whatever panel the helper shows; it expects ReShade's overlay,
+        // which the manager keeps closed here so this panel is what shows. So the panel draws its own, every frame:
+        // without it there was no pointer at all over the panel (Castlevania: Lords of Shadow 2 demo, 2026-09-19).
+        if (OptiInput::InFeederHelper())
+            io.MouseDrawCursor = true;
     }
     else
     {
@@ -8199,6 +8208,9 @@ bool MenuCommon::RenderMenu()
     if (!_isInited)
         return false;
 
+    // Every frame, menu up or not: the pop-out panel's live readings (DlssNr_Live.h).
+    DlssNr::Live::Tick();
+
     RenderMenuContext ctx { State::Instance(), Config::Instance(), ImGui::GetIO() };
     ctx.now = Util::MillisecondsNow();
     ctx.currentFeature = ctx.state.currentFeature;
@@ -8267,7 +8279,19 @@ void MenuCommon::Init(HWND InHwnd, bool isUWP)
     // be cast into the game, and the cast is only on screen when the player has asked for it (Alt+Home, the key the
     // manager writes into dlss5-feed.cfg). Starting closed meant the first Alt+Home showed an empty picture and the
     // player then had to find the cast with the cursor and press Alt+Home a second time to get the panel itself.
-    _dlssNrVisible = OptiInput::InFeederHelper();
+    //
+    // Every launch, not only the first. It used to be first-launch-only ([DlssNr] PanelShownOnce), from when the
+    // Feeder put the helper's window over the game by itself and an open panel came with it. The Feeder now keeps
+    // that window behind the game and casts it only on the player's key, so after the first run every Alt+Home
+    // showed the Feeder's placeholder page ("press Home... press Insert...") instead of this panel (Castlevania:
+    // Lords of Shadow 2 demo, 2026-09-19). The cast is the only way this window is ever seen, so the panel is
+    // what it should show. PanelShownOnce is still read and written by older builds; this one ignores it.
+    _dlssNrVisible = false;
+    if (OptiInput::InFeederHelper())
+    {
+        _dlssNrVisible = true;
+        LOG_INFO("DLSS 5 panel open in the Feeder's helper: the cast of this window is the panel");
+    }
     _isUWP = isUWP;
     lastPosition = { -1000.0f, -1000.0f };
 

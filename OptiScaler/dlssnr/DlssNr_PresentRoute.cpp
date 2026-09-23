@@ -193,10 +193,14 @@ void OnPresent(IDXGISwapChain* swapChain, UINT flags)
             const auto ms =
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 
-            static unsigned slowReports = 0;
-            if (ms > 50.0 && slowReports < 5)
+            // Rate limited rather than capped. A cap of five hid every stall after the fifth, so in
+            // Resident Evil 2 (2026-09-18) the later adaptive-resolution rebuilds looked free when they
+            // were not; one line per 2 s still keeps a stalling game from flooding the log.
+            static auto lastSlowReport = std::chrono::steady_clock::time_point {};
+            if (ms > 50.0 && (lastSlowReport == std::chrono::steady_clock::time_point {} ||
+                              std::chrono::steady_clock::now() - lastSlowReport > std::chrono::seconds(2)))
             {
-                ++slowReports;
+                lastSlowReport = std::chrono::steady_clock::now();
                 LOG_WARN("DLSS-NR Present route: the pass held Present {} for {:.1f} ms", presentIndex, ms);
             }
 
@@ -482,7 +486,12 @@ void NoteUpscaleList(ID3D12GraphicsCommandList* cmdList) { g_upscaleList.store(c
 
 void PrepareForDevice(ID3D12Device* device)
 {
-    if (device == nullptr || !Config::Instance()->DlssNrEnabled.value_or_default() || !Wanted())
+    // Not gated on [DlssNr] Enabled. On these games the Present hook is the only thing that draws the panel
+    // (RunAtPresent draws it whether or not the pass runs), so a launch with Enabled=false -- the manager's
+    // "DLSS 5 off at startup", or DLSS ON unticked in the panel last session, which saves at once -- left Alt+Home
+    // with nothing to open: Resident Evil 2, 2026-09-18. The depth tracker goes in too, so ticking DLSS ON
+    // mid-session finds a depth buffer instead of waiting for a restart.
+    if (device == nullptr || !Wanted())
         return;
 
     // A game with no upscale call never reaches the evaluate-side install, so both go in as soon as its device
