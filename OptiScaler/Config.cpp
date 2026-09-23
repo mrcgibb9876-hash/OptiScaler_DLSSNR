@@ -58,33 +58,28 @@ void Config::MarkIniAsSeen()
         lastSeenWriteTime = when;
 }
 
-// Only where it is needed, rather than in every game that loads OptiScaler.
+// Whether to re-read OptiScaler.ini while the game runs. From 2026-09-14 to 2026-09-23 this was on
+// only inside dlss5-feed-host64.exe (the 32-bit route's helper, which has no window of its own), on
+// the reasoning that every other game can open the panel on a keypress.
 //
-// The 32-bit route is the case this exists for: there OptiScaler runs inside
-// dlss5-feed-host64.exe, a process with no window, so its panel cannot be put on screen over the
-// game and the ini is the only way in. Everywhere else the panel is right there on a keypress, and
-// polling a file on every frame of every game to solve a problem those games do not have is not a
-// trade worth making by default -- this sits in the render path of every title that installs
-// OptiScaler at all.
-//
-// Note the process is 64-bit in both cases: OptiScaler is never loaded into the 32-bit game itself
-// (NVIDIA ships no 32-bit NGX). The helper's executable name is what tells the two apart.
+// On everywhere since 2026-09-23, unless the ini says LiveReload=false. "Off where the panel can be
+// shown" missed that the manager's pop-out panel works ONLY through this file: on every DX11/DX12
+// game it wrote settings the engine never read again (MSFS 2024, #123: "switching DLSS 5 off did
+// nothing"). The manager writes LiveReload=true too, but a default that depends on a line being in
+// the file is the failure that happened -- OptiScaler's template has no such line. The cost of being
+// on is one file-time check per 250 ms; a reload keeps the in-memory settings if the file is bad.
 bool Config::LiveReloadWanted()
 {
     if (DlssNrLiveReload.has_value())
         return DlssNrLiveReload.value();
 
-    if (!inFeederHost.has_value())
+    if (!liveReloadLogged)
     {
-        const std::wstring exe = Util::ExePath().filename().wstring();
-        inFeederHost = _wcsicmp(exe.c_str(), L"dlss5-feed-host64.exe") == 0;
-        LOG_INFO("Live settings reload: {}",
-                 inFeederHost.value()
-                     ? "on (running in the DLSS5 Feeder's helper, where the panel cannot be shown)"
-                     : "off (this game can open the panel itself; set [DlssNr] LiveReload=true to force it on)");
+        liveReloadLogged = true;
+        LOG_INFO("Live settings reload: on (the default; set [DlssNr] LiveReload=false to stop it)");
     }
 
-    return inFeederHost.value();
+    return true;
 }
 
 bool Config::ReloadIfChangedOnDisk()

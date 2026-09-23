@@ -12,6 +12,13 @@
 #include <dlssnr/DlssNr_TimingTrust.h>
 
 #include <algorithm>
+
+namespace DlssNr
+{
+// DlssNr_Dx12.cpp. Declared here rather than by including DlssNrFeature_Dx12.h, which would pull the
+// D3D12 headers into the Vulkan pass for one function that has nothing to do with D3D12.
+void PollSettingsFromDisk();
+} // namespace DlssNr
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -509,6 +516,11 @@ std::optional<double> LastGpuTimeVk() { return g_vk.timingTrust.Untrusted() ? st
 void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* params, VkInstance instance,
                             VkPhysicalDevice physicalDevice, VkDevice device)
 {
+    // Before [DlssNr] Enabled is read, as on every D3D entry point: the native Vulkan pass never polled
+    // at all, so on a Vulkan game the manager's pop-out panel and Edit changed nothing whatever
+    // LiveReload said. Rate-limited inside (one file-time check per 250 ms).
+    PollSettingsFromDisk();
+
     auto& cfg = *Config::Instance();
 
     if (!cfg.DlssNrEnabled.value_or_default())
@@ -1127,6 +1139,11 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
             g_vk.proxyUp.reset();
         }
         g_vk.nrUpsampler = wantUpsampler;
+        // Both halves of the comparison above, or it never settles: nrScaler was only ever set by the
+        // supersample branch, so below 100% it stayed Scaler::Count and every frame drained the device
+        // and rebuilt both enlarge pipelines. Safe to share: each branch creates its own scalers when
+        // they are missing, whatever this says.
+        g_vk.nrScaler = wantScaler;
 
         if (!g_vk.editUp)
             g_vk.editUp = std::make_unique<OS_Vk>("DLSS-NR VK enlarge answer", device, physicalDevice, true, wantScaler,
