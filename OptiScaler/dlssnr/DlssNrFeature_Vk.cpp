@@ -887,6 +887,8 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     encode.ApplyModel = cfg.DlssNrApplyModel.value_or_default() ? 1u : 0u;
     encode.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
     encode.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
+    encode.Brightness = cfg.DlssNrBrightness.value_or_default();
+    encode.Contrast = cfg.DlssNrContrast.value_or_default();
     encode.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
     encode.Transfer = cfg.DlssNrTransfer.value_or_default();
     encode.DebugScale = cfg.DlssNrWhitePointScale.value_or_default();

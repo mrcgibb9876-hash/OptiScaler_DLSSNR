@@ -387,6 +387,12 @@ class Config
     // exaggerating an edit is the only honest way to see whether there is one.
     CustomOptional<float> DlssNrTransferStrength { 1.0f };
     CustomOptional<float> DlssNrColourStrength { 1.0f };
+    // A tone trim on the finished picture, for games that come out too dark or too flat (2026-09-23).
+    // Brightness lifts shadows and midtones along a curve that pins black and paper white; Contrast is
+    // an S-curve about middle grey in a perceptual scale. Both on luminance only, so hue is kept, and
+    // both exactly the identity at 1.0 -- the shader skips the step entirely there.
+    CustomOptional<float> DlssNrBrightness { 1.0f };
+    CustomOptional<float> DlssNrContrast { 1.0f };
 
     // The RenoDX reversible proxy mode. 0 = today's soft-knee encode + our composition (default,
     // byte-identical); 1 = unclipped Neutwo proxy + our composition; 2 = Neutwo proxy + pure-inverse

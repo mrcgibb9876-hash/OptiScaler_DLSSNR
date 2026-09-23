@@ -32,9 +32,11 @@ template <class T> struct Entry
 
 // ---- float -------------------------------------------------------------------------------------
 constexpr Entry<float> kFloats[] = {
+    { "Brightness", &Config::DlssNrBrightness },
     { "ColourStrength", &Config::DlssNrColourStrength },
     { "CompareSplit", &Config::DlssNrCompareSplit },
     { "CompareZoom", &Config::DlssNrCompareZoom },
+    { "Contrast", &Config::DlssNrContrast },
     { "Intensity", &Config::DlssNrIntensity },
     { "LocalStructure", &Config::DlssNrLocalStructure },
     { "LocalTone", &Config::DlssNrLocalTone },

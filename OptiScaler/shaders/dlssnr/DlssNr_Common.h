@@ -201,6 +201,13 @@ struct alignas(256) DlssNrConstants
     // preExposure * trim, so the live white point is ExposurePreMul / exposure. Mirrored in the cbuffer.
     uint32_t UseGameExposure;
     float ExposurePreMul;
+
+    // The tone trim on the finished picture (Config DlssNrBrightness / DlssNrContrast). Trailing, like
+    // everything added since, so the layout stays a flat run of 4-byte scalars both sides agree on. A
+    // dispatch that leaves them at zero -- every one but the resolve -- reads as 1.0 in the shader, so
+    // a caller that never heard of them keeps the picture it always had.
+    float Brightness;
+    float Contrast;
 };
 
 class DlssNr_Common

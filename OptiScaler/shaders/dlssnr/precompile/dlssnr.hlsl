@@ -35,7 +35,41 @@ cbuffer Params : register(b0)
     uint  gApplyModel;     // 0 output the clean frame (pass still runs), 1 apply the model's edit
     uint  gUseGameExposure;// D3D12 source-1 only: 1 = read the game's live exposure in-shader (t4)
     float gExposurePreMul; // preExposure * trim, so the live white point is gExposurePreMul / exposure
+    float gBrightness;     // tone trim, 1 = off; 0 (a dispatch that never set it) also reads as off
+    float gContrast;
 };
+
+// The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
+//
+// Both pin black (0) and paper white (1) and only reshape what lies between, so neither can blow the
+// highlights out or crush the blacks, and HDR detail above paper white passes through at its own ratio.
+// Brightness raises the curve through the shadows and midtones (a power below one in a perceptual,
+// gamma-2.2 scale, which is where "the game is too dark" lives); Contrast is an S-curve about the
+// middle of that same scale. Applied as a ratio to the whole triple, so hue and saturation are kept.
+float ToneTrimValue(float v)
+{
+    return v > 0.0 ? v : 1.0;
+}
+
+float3 ApplyToneTrim(float3 rgb)
+{
+    const float brightness = ToneTrimValue(gBrightness);
+    const float contrast = ToneTrimValue(gContrast);
+    if (brightness == 1.0 && contrast == 1.0)
+        return rgb;
+
+    const float y = dot(rgb, float3(0.2126, 0.7152, 0.0722));
+    // Nothing to shape at black, and above paper white the curve is already back to the identity.
+    if (y <= 1e-6 || y >= 1.0)
+        return rgb;
+
+    float p = pow(y, 1.0 / 2.2);
+    p = pow(p, 1.0 / brightness);
+    p = p < 0.5 ? 0.5 * pow(2.0 * p, contrast) : 1.0 - 0.5 * pow(2.0 * (1.0 - p), contrast);
+    const float shaped = pow(saturate(p), 2.2);
+
+    return rgb * (shaped / y);
+}
 
 // Bringing an impossible colour back into a possible one.
 //
@@ -996,6 +1030,10 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         result = gPassthrough != 0 ? modelDirect : NeutwoDecode(modelDirect);
     else if (gReversibleMode == 4)
         result = gPassthrough != 0 ? modelDirect : HybridDecode(modelDirect);
+
+    // The tone trim, last, on the finished picture -- replace mode included -- and before leaving the
+    // normalised space, so 1.0 is paper white whatever the game's own scale is.
+    result = ApplyToneTrim(result);
 
     // Back out of the normalised space the composition worked in.
     result *= normScale;

@@ -2119,6 +2119,45 @@ void RenderMenu(Config* config, float menuResScale)
                           "\nrolls off at the edge of what the display can show rather than clipping into a"
                           "\nflat blown patch. 1 is the model's own colour; push past it for punch."));
 
+            // The tone trim (2026-09-23: "some games come out so dark"). Same row shape as colour
+            // strength above; both are read by the resolve every frame, so no rebuild and no hitch.
+            float brightness = config->DlssNrBrightness.value_or_default();
+            auto rBrightness = NrSlider(Tr("Brightness"), &brightness, 0.5f, 2.0f, "%.2f", rowWidth);
+            if (rBrightness.changed)
+                config->DlssNrBrightness = brightness;
+            if (rBrightness.released)
+                anyChanged = true;
+
+            ImGui::SameLine();
+
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##brightness").c_str()))
+            {
+                config->DlssNrBrightness = 1.0f;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Lifts the shadows and midtones for a game that comes out too dark. Black stays"
+                          "\nblack and white stays white -- only what lies between is raised -- so the"
+                          "\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing."));
+
+            float contrast = config->DlssNrContrast.value_or_default();
+            auto rContrast = NrSlider(Tr("Contrast"), &contrast, 0.5f, 2.0f, "%.2f", rowWidth);
+            if (rContrast.changed)
+                config->DlssNrContrast = contrast;
+            if (rContrast.released)
+                anyChanged = true;
+
+            ImGui::SameLine();
+
+            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##contrast").c_str()))
+            {
+                config->DlssNrContrast = 1.0f;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("How far apart the darks and the lights sit. Above 1 is punchier: darks go"
+                          "\ndeeper and lights brighter around the middle grey. Below 1 is flatter and"
+                          "\nshows more in the shadows. Black and white themselves never move. 1 changes"
+                          "\nnothing."));
+
             SectionCaption(Tr("Colour"), rowWidth);
 
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);

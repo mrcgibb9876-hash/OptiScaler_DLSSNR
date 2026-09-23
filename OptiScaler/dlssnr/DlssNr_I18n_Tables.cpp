@@ -371,6 +371,10 @@ const char* const kKeys[] = {
     "could not allocate the readback buffers",
     "no buffer in this game is shaped like an exposure",
     "French",
+    "Brightness",
+    "Lifts the shadows and midtones for a game that comes out too dark. Black stays\nblack and white stays white -- only what lies between is raised -- so the\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing.",
+    "Contrast",
+    "How far apart the darks and the lights sit. Above 1 is punchier: darks go\ndeeper and lights brighter around the middle grey. Below 1 is flatter and\nshows more in the shadows. Black and white themselves never move. 1 changes\nnothing.",
 };
 
 const int kKeyCount = (int) (sizeof(kKeys) / sizeof(kKeys[0]));
@@ -773,6 +777,10 @@ static const char* const kTable_pt_BR[] = {
     "n\303\243o foi poss\303\255vel alocar os buffers de leitura",
     "nenhum buffer deste jogo tem o formato de uma exposi\303\247\303\243o",
     "Franc\303\252s",
+    "Brilho",
+    "Clareia as sombras e os tons m\303\251dios de um jogo que fica escuro demais. O preto\ncontinua preto e o branco continua branco -- s\303\263 o que fica entre eles sobe --\nent\303\243o os realces n\303\243o estouram. Abaixo de 1 escurece do mesmo jeito. 1 n\303\243o muda nada.",
+    "Contraste",
+    "Qu\303\243o afastados ficam os escuros e os claros. Acima de 1 fica mais marcante: os\nescuros descem e os claros sobem em torno do cinza m\303\251dio. Abaixo de 1 fica mais\nplano e mostra mais nas sombras. O preto e o branco nunca mudam. 1 n\303\243o muda\nnada.",
 };
 
 static const char* const kTable_ru[] = {
@@ -2152,6 +2160,10 @@ static const char* const kTable_ru[] = {
     " \320\277\320\276 \321\204\320\276\321\200\320\274\320\265 \320\275\320\260 \321\215\320\272\321\201\320\277"
     "\320\276\320\267\320\270\321\206\320\270\321\216",
     "\320\244\321\200\320\260\320\275\321\206\321\203\320\267\321\201\320\272\320\270\320\271",
+    "\320\257\321\200\320\272\320\276\321\201\321\202\321\214",
+    "\320\237\320\276\320\264\320\275\320\270\320\274\320\260\320\265\321\202 \321\202\320\265\320\275\320\270 \320\270 \321\201\321\200\320\265\320\264\320\275\320\270\320\265 \321\202\320\276\320\275\320\260, \320\265\321\201\320\273\320\270 \320\270\320\263\321\200\320\260 \321\201\320\273\320\270\321\210\320\272\320\276\320\274 \321\202\321\221\320\274\320\275\320\260\321\217. \320\247\321\221\321\200\320\275\320\276\320\265\n\320\276\321\201\321\202\320\260\321\221\321\202\321\201\321\217 \321\207\321\221\321\200\320\275\321\213\320\274, \320\261\320\265\320\273\320\276\320\265 -- \320\261\320\265\320\273\321\213\320\274, \320\277\320\276\320\264\320\275\320\270\320\274\320\260\320\265\321\202\321\201\321\217 \321\202\320\276\320\273\321\214\320\272\320\276 \321\202\320\276, \321\207\321\202\320\276 \320\274\320\265\320\266\320\264\321\203\n\320\275\320\270\320\274\320\270, \320\277\320\276\321\215\321\202\320\276\320\274\321\203 \321\201\320\262\320\265\321\202\320\260 \320\275\320\265 \320\277\320\265\321\200\320\265\321\201\320\262\320\265\321\207\320\270\320\262\320\260\321\216\321\202\321\201\321\217. \320\235\320\270\320\266\320\265 1 \320\267\320\260\321\202\320\265\320\274\320\275\321\217\320\265\321\202 \321\202\320\260\320\272 \320\266\320\265. 1 \320\275\320\270\321\207\320\265\320\263\320\276 \320\275\320\265 \320\274\320\265\320\275\321\217\320\265\321\202.",
+    "\320\232\320\276\320\275\321\202\321\200\320\260\321\201\321\202",
+    "\320\235\320\260\321\201\320\272\320\276\320\273\321\214\320\272\320\276 \320\264\320\260\320\273\320\265\320\272\320\276 \320\264\321\200\321\203\320\263 \320\276\321\202 \320\264\321\200\321\203\320\263\320\260 \321\202\321\221\320\274\320\275\320\276\320\265 \320\270 \321\201\320\262\320\265\321\202\320\273\320\276\320\265. \320\222\321\213\321\210\320\265 1 -- \321\201\320\276\321\207\320\275\320\265\320\265:\n\321\202\321\221\320\274\320\275\320\276\320\265 \320\263\320\273\321\203\320\261\320\266\320\265, \321\201\320\262\320\265\321\202\320\273\320\276\320\265 \321\217\321\200\321\207\320\265 \320\262\320\276\320\272\321\200\321\203\320\263 \321\201\321\200\320\265\320\264\320\275\320\265\320\263\320\276 \321\201\320\265\321\200\320\276\320\263\320\276. \320\235\320\270\320\266\320\265 1 -- \320\277\320\273\320\276\321\201\320\272\320\260\321\217\n\320\272\320\260\321\200\321\202\320\270\320\275\320\272\320\260, \320\262 \321\202\320\265\320\275\321\217\321\205 \320\262\320\270\320\264\320\275\320\276 \320\261\320\276\320\273\321\214\321\210\320\265. \320\247\321\221\321\200\320\275\320\276\320\265 \320\270 \320\261\320\265\320\273\320\276\320\265 \320\275\320\265 \321\201\320\264\320\262\320\270\320\263\320\260\321\216\321\202\321\201\321\217. 1 \320\275\320\270\321\207\320\265\320\263\320\276\n\320\275\320\265 \320\274\320\265\320\275\321\217\320\265\321\202.",
 };
 
 static const char* const kTable_ko[] = {
@@ -3076,6 +3088,10 @@ static const char* const kTable_ko[] = {
     "\353\237\274 \354\203\235\352\270\264 \353\262\204\355\215\274\352\260\200 \354\227\206\354\212\265\353\213\210"
     "\353\213\244",
     "\355\224\204\353\236\221\354\212\244\354\226\264",
+    "\353\260\235\352\270\260",
+    "\353\204\210\353\254\264 \354\226\264\353\221\241\352\262\214 \353\202\230\354\230\244\353\212\224 \352\262\214\354\236\204\354\235\230 \354\226\264\353\221\220\354\232\264 \353\266\200\353\266\204\352\263\274 \354\244\221\352\260\204 \355\206\244\354\235\204 \353\201\214\354\226\264\354\230\254\353\246\275\353\213\210\353\213\244. \352\262\200\354\235\200\354\203\211\354\235\200\n\352\262\200\354\235\200\354\203\211, \355\235\260\354\203\211\354\235\200 \355\235\260\354\203\211 \352\267\270\353\214\200\353\241\234\354\235\264\352\263\240 \352\267\270 \354\202\254\354\235\264\353\247\214 \353\260\235\354\225\204\354\247\200\353\257\200\353\241\234 \353\260\235\354\235\200 \353\266\200\353\266\204\354\235\264\n\353\202\240\354\225\204\352\260\200\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244. 1 \353\257\270\353\247\214\354\235\200 \352\260\231\354\235\200 \353\260\251\354\213\235\354\234\274\353\241\234 \354\226\264\353\221\241\352\262\214 \355\225\251\353\213\210\353\213\244. 1\354\235\200 \354\225\204\353\254\264\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
+    "\353\214\200\353\271\204",
+    "\354\226\264\353\221\220\354\232\264 \353\266\200\353\266\204\352\263\274 \353\260\235\354\235\200 \353\266\200\353\266\204\354\235\230 \354\260\250\354\235\264\354\236\205\353\213\210\353\213\244. 1\353\263\264\353\213\244 \355\201\254\353\251\264 \353\215\224 \354\204\240\353\252\205\355\225\264\354\240\270\354\204\234 \354\244\221\352\260\204 \355\232\214\354\203\211\354\235\204\n\352\270\260\354\244\200\354\234\274\353\241\234 \354\226\264\353\221\220\354\232\264 \352\263\263\354\235\200 \353\215\224 \354\226\264\353\221\241\352\263\240 \353\260\235\354\235\200 \352\263\263\354\235\200 \353\215\224 \353\260\235\354\225\204\354\247\221\353\213\210\353\213\244. 1\353\263\264\353\213\244 \354\236\221\354\234\274\353\251\264 \353\215\224\n\355\217\211\355\217\211\355\225\264\354\247\200\352\263\240 \352\267\270\353\246\274\354\236\220\352\260\200 \353\215\224 \353\247\216\354\235\264 \353\263\264\354\236\205\353\213\210\353\213\244. \352\262\200\354\235\200\354\203\211\352\263\274 \355\235\260\354\203\211\354\235\200 \354\233\200\354\247\201\354\235\264\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244. 1\354\235\200\n\354\225\204\353\254\264\352\262\203\353\217\204 \353\260\224\352\276\270\354\247\200 \354\225\212\354\212\265\353\213\210\353\213\244.",
 };
 
 static const char* const kTable_zh_CN[] = {
@@ -3853,6 +3869,10 @@ static const char* const kTable_zh_CN[] = {
     "\346\255\244\346\270\270\346\210\217\344\270\255\346\262\241\346\234\211\345\275\242\347\212\266\345\203\217"
     "\346\233\235\345\205\211\345\200\274\347\232\204\347\274\223\345\206\262\345\214\272",
     "\346\263\225\350\257\255",
+    "\344\272\256\345\272\246",
+    "\344\270\272\347\224\273\351\235\242\345\244\252\346\232\227\347\232\204\346\270\270\346\210\217\346\217\220\344\272\256\346\232\227\351\203\250\345\222\214\344\270\255\351\227\264\350\260\203\343\200\202\351\273\221\350\211\262\344\277\235\346\214\201\351\273\221\350\211\262\357\274\214\n\347\231\275\350\211\262\344\277\235\346\214\201\347\231\275\350\211\262 -- \345\217\252\346\217\220\345\215\207\344\270\244\350\200\205\344\271\213\351\227\264\347\232\204\351\203\250\345\210\206 -- \346\211\200\344\273\245\351\253\230\345\205\211\344\270\215\344\274\232\350\277\207\346\233\235\343\200\202\n\344\275\216\344\272\216 1 \344\273\245\345\220\214\346\240\267\346\226\271\345\274\217\345\217\230\346\232\227\343\200\202""1 \344\270\215\345\201\232\344\273\273\344\275\225\346\224\271\345\217\230\343\200\202",
+    "\345\257\271\346\257\224\345\272\246",
+    "\346\232\227\351\203\250\344\270\216\344\272\256\351\203\250\344\271\213\351\227\264\347\232\204\350\267\235\347\246\273\343\200\202\351\253\230\344\272\216 1 \346\233\264\346\234\211\345\212\233\345\272\246\357\274\232\345\233\264\347\273\225\344\270\255\347\201\260\357\274\214\346\232\227\351\203\250\346\233\264\346\267\261\343\200\201\n\344\272\256\351\203\250\346\233\264\344\272\256\343\200\202\344\275\216\344\272\216 1 \346\233\264\345\271\263\357\274\214\346\232\227\351\203\250\347\273\206\350\212\202\346\233\264\345\244\232\343\200\202\351\273\221\350\211\262\345\222\214\347\231\275\350\211\262\346\234\254\350\272\253\344\270\215\344\274\232\345\217\230\343\200\202\n1 \344\270\215\345\201\232\344\273\273\344\275\225\346\224\271\345\217\230\343\200\202",
 };
 
 static const char* const kTable_es[] = {
@@ -4256,6 +4276,10 @@ static const char* const kTable_es[] = {
     "no se pudieron reservar los b\303\272feres de lectura",
     "ning\303\272n b\303\272fer de este juego tiene forma de exposici\303\263n",
     "Franc\303\251s",
+    "Brillo",
+    "Levanta las sombras y los tonos medios de un juego que sale demasiado oscuro. El\nnegro sigue negro y el blanco sigue blanco -- solo sube lo que hay entre ellos --\nas\303\255 que las luces no se queman. Por debajo de 1 oscurece igual. 1 no cambia nada.",
+    "Contraste",
+    "Cu\303\241nto se separan las zonas oscuras de las claras. Por encima de 1 queda con m\303\241s\nfuerza: los oscuros bajan y los claros suben alrededor del gris medio. Por debajo\nde 1 queda m\303\241s plano y deja ver m\303\241s en las sombras. El negro y el blanco nunca se\nmueven. 1 no cambia nada.",
 };
 
 static const char* const kTable_de[] = {
@@ -4659,6 +4683,10 @@ static const char* const kTable_de[] = {
     "die Readback-Puffer lie\303\237en sich nicht anlegen",
     "kein Puffer in diesem Spiel ist wie eine Belichtung aufgebaut",
     "Franz\303\266sisch",
+    "Helligkeit",
+    "Hellt Schatten und Mittelt\303\266ne auf, wenn ein Spiel zu dunkel ist. Schwarz bleibt\nschwarz und Wei\303\237 bleibt wei\303\237 -- nur was dazwischen liegt, wird angehoben --, so\nfressen die Lichter nicht aus. Unter 1 dunkelt es auf dieselbe Weise ab. 1 \303\244ndert nichts.",
+    "Kontrast",
+    "Wie weit Dunkles und Helles auseinanderliegen. \303\234ber 1 wirkt es kr\303\244ftiger: Dunkles\nwird tiefer, Helles heller, um das mittlere Grau herum. Unter 1 wirkt es flacher und\nzeigt mehr in den Schatten. Schwarz und Wei\303\237 selbst bewegen sich nie. 1 \303\244ndert\nnichts.",
 };
 
 static const char* const kTable_fr[] = {
@@ -5082,7 +5110,27 @@ static const char* const kTable_fr[] = {
     "impossible d'allouer les buffers de relecture",
     "aucun buffer de ce jeu n'a la forme d'une exposition",
     "Fran\303\247ais",
+    "Luminosit\303\251",
+    "\303\211claircit les ombres et les tons moyens d\342\200\231un jeu trop sombre. Le noir reste noir\net le blanc reste blanc -- seul ce qui est entre les deux monte --, donc les hautes\nlumi\303\250res ne br\303\273lent pas. En dessous de 1, assombrit de la m\303\252me fa\303\247on. 1 ne change rien.",
+    "Contraste",
+    "\303\200 quel point les sombres et les clairs s\342\200\231\303\251cartent. Au-dessus de 1, plus de punch :\nles sombres plus profonds, les clairs plus lumineux autour du gris moyen. En dessous\nde 1, plus plat, et plus de d\303\251tails dans les ombres. Le noir et le blanc ne bougent\njamais. 1 ne change rien.",
 };
+
+// One entry per key in every table: the lookup indexes them without a bounds check.
+static_assert(sizeof(kTable_pt_BR) / sizeof(kTable_pt_BR[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_pt_BR must have exactly one entry per key");
+static_assert(sizeof(kTable_ru) / sizeof(kTable_ru[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_ru must have exactly one entry per key");
+static_assert(sizeof(kTable_ko) / sizeof(kTable_ko[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_ko must have exactly one entry per key");
+static_assert(sizeof(kTable_zh_CN) / sizeof(kTable_zh_CN[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_zh_CN must have exactly one entry per key");
+static_assert(sizeof(kTable_es) / sizeof(kTable_es[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_es must have exactly one entry per key");
+static_assert(sizeof(kTable_de) / sizeof(kTable_de[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_de must have exactly one entry per key");
+static_assert(sizeof(kTable_fr) / sizeof(kTable_fr[0]) == sizeof(kKeys) / sizeof(kKeys[0]),
+              "kTable_fr must have exactly one entry per key");
 
 const char* const kLanguageCodes[] = { "pt-BR", "ru", "ko", "zh-CN", "es", "de", "fr" };
 const int kLanguageCount = (int) (sizeof(kLanguageCodes) / sizeof(kLanguageCodes[0]));
