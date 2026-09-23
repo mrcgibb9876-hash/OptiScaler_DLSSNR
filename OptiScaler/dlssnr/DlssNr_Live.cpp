@@ -127,6 +127,28 @@ std::string BuildJson()
         s += "},";
     }
 
+    // motion -- is anything actually feeding the model? The in-game panel shows this on Inspect >
+    // Guide; sending it out here is what lets the pop-out show the same row rather than inferring
+    // from the deployed files, which is all it can otherwise see.
+    //
+    // It is the one reading in this file that reports a FAULT rather than a number, and the fault
+    // is invisible everywhere else: with no vectors the model is handed a zero-motion texture and
+    // runs, so "running" above is true, modelMs is a real number, and the picture still smears.
+    {
+        const DlssNr::MotionReading motion = DlssNr::MotionState();
+        s += "\"motion\":{";
+        AppendNum(s, "evaluates", (double) motion.evaluates, 0);
+        s += ',';
+        AppendNum(s, "blind", (double) motion.blindEvaluates, 0);
+        s += ',';
+        AppendBool(s, "lastBlind", motion.lastBlind);
+        s += ',';
+        // On the Present route the vectors are this engine's own optical flow and no ReShade
+        // provider is involved, so the manager must not offer to swap one.
+        AppendBool(s, "usingFlow", motion.usingFlow);
+        s += "},";
+    }
+
     // autoScale -- DrawAutoScale's status, with its three outcomes named.
     {
         const bool on = config->DlssNrAutoScale.value_or_default();
@@ -153,8 +175,7 @@ std::string BuildJson()
     {
         auto* fg = state.currentFG;
         const bool optiDlssg = state.activeFgOutput == FGOutput::DLSSG && fg != nullptr;
-        const bool gameDlssg =
-            !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
+        const bool gameDlssg = !optiDlssg && state.activeFgInput != FGInput::DLSSG && StreamlineHooks::isDlssgHooked();
         const int live = state.dlssgDetectedInterpolationCount;
         s += "\"fg\":{";
         AppendBool(s, "gameDlssg", gameDlssg);

@@ -925,8 +925,7 @@ void TickNrRetired()
 
         // Last, so it measures the whole teardown including the scaler above -- the two sides of
         // this merge each added one of these lines and both belong, in this order.
-        g_teardownMs +=
-            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
+        g_teardownMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
 
         g_nrRetired.erase(g_nrRetired.begin() + i);
     }
@@ -1026,11 +1025,11 @@ constexpr double kReadingQuietMs = 3000.0;
 // a flush happened -- the flush is usually the thing that started them.
 struct NrPrebuildPacing
 {
-    double settleFromMs = 0.0;              // last create-time settings change / switch back on / first build
-    double lastStallMs = 0.0;               // last primary build or prebuild (each holds Present)
-    double offSinceMs = 0.0;                // when DLSS 5 was seen switched off; 0 = on
-    double readingsQuietUntilMs = 0.0;      // VRAM readings before this do not feed the prediction
-    double lastOffMemoryCheckMs = 0.0;      // the kept-size memory check while off
+    double settleFromMs = 0.0;         // last create-time settings change / switch back on / first build
+    double lastStallMs = 0.0;          // last primary build or prebuild (each holds Present)
+    double offSinceMs = 0.0;           // when DLSS 5 was seen switched off; 0 = on
+    double readingsQuietUntilMs = 0.0; // VRAM readings before this do not feed the prediction
+    double lastOffMemoryCheckMs = 0.0; // the kept-size memory check while off
 };
 
 NrPrebuildPacing g_pacing;
@@ -1043,13 +1042,13 @@ double NowMs()
 // Prebuild bookkeeping, reset with the cache.
 struct NrPrebuildState
 {
-    unsigned long long liveReadyFrame = 0;  // g_frames when the live feature became evaluable
-    unsigned long long lastFrame = 0;       // g_frames of the last prebuild
-    double lastMs = 0.0;                    // and its wall clock
-    double pausedUntilMs = 0.0;             // after a size did not fit: do not ask again before this
-    double frameEma = 0.0;                  // smoothed frame time, for "this frame is already long"
-    std::set<uint64_t> failed;              // sizes whose create failed this generation
-    std::set<uint64_t> saidSkipped;         // sizes whose memory skip has been logged this generation
+    unsigned long long liveReadyFrame = 0; // g_frames when the live feature became evaluable
+    unsigned long long lastFrame = 0;      // g_frames of the last prebuild
+    double lastMs = 0.0;                   // and its wall clock
+    double pausedUntilMs = 0.0;            // after a size did not fit: do not ask again before this
+    double frameEma = 0.0;                 // smoothed frame time, for "this frame is already long"
+    std::set<uint64_t> failed;             // sizes whose create failed this generation
+    std::set<uint64_t> saidSkipped;        // sizes whose memory skip has been logged this generation
 };
 
 NrPrebuildState g_prebuild;
@@ -2011,8 +2010,8 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
 
     // Inside an open slot a pause the player already sees is preferred; after kPrebuildNaturalWaitMs
     // without one, the timed slot is taken so the rungs still get built during steady play.
-    const double slotOpenMs = std::max(g_pacing.settleFromMs + kPrebuildSettleMs,
-                                       g_pacing.lastStallMs + kPrebuildSpacingMs);
+    const double slotOpenMs =
+        std::max(g_pacing.settleFromMs + kPrebuildSettleMs, g_pacing.lastStallMs + kPrebuildSpacingMs);
     const char* opportunity = nullptr;
 
     if (ema > 0.0 && frameMs >= std::max(50.0, ema * 3.0))
@@ -2027,8 +2026,8 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
 
     // The rungs the controller can actually choose: from the floor to 100%, nearest the live size first
     // (the likeliest next move), downward first on a tie.
-    const float floor = std::clamp(cfg.DlssNrAutoScaleFloor.value_or_default(),
-                                   DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
+    const float floor =
+        std::clamp(cfg.DlssNrAutoScaleFloor.value_or_default(), DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
     const float liveScale = width != 0 ? (float) g_nr.workWidth / (float) width : 1.0f;
 
     struct Candidate
@@ -2136,12 +2135,12 @@ bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, con
     }
 
     SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
-    e.feature = g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device,
-                            cmdList, g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0),
-                            cfg.DlssNrIntensity.value_or_default(), (int) PassStyle(cfg, 0),
-                            cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
-                            cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0,
-                            cfg.DlssNrUICorrectionEffective() ? 1 : 0);
+    e.feature =
+        g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device, cmdList,
+                    g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0), cfg.DlssNrIntensity.value_or_default(),
+                    (int) PassStyle(cfg, 0), cfg.DlssNrLocalStructure.value_or_default(),
+                    cfg.DlssNrLocalTone.value_or_default(), cfg.DlssNrSkinStructure.value_or_default(),
+                    cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, cfg.DlssNrUICorrectionEffective() ? 1 : 0);
 
     const auto t2 = std::chrono::steady_clock::now();
     const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -2861,18 +2860,19 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     }
 
     {
-        const NrCacheGeneration gen { true, device, width, height, desc.Format, frame.BeforeUpscale,
-                                      frame.ColourIsLinearHdr };
+        const NrCacheGeneration gen {
+            true, device, width, height, desc.Format, frame.BeforeUpscale, frame.ColourIsLinearHdr
+        };
         const NrCacheGeneration& was = g_nrCacheGen;
 
         if (was.valid)
         {
-            const char* why = was.device != gen.device                                 ? "the device was recreated"
-                              : was.width != gen.width || was.height != gen.height     ? "the frame size changed"
-                              : was.format != gen.format                               ? "the surface format changed"
-                              : was.beforeUpscale != gen.beforeUpscale                 ? "the placement changed"
-                              : was.hdr != gen.hdr                                     ? "the HDR colour path changed"
-                                                                                       : nullptr;
+            const char* why = was.device != gen.device                             ? "the device was recreated"
+                              : was.width != gen.width || was.height != gen.height ? "the frame size changed"
+                              : was.format != gen.format                           ? "the surface format changed"
+                              : was.beforeUpscale != gen.beforeUpscale             ? "the placement changed"
+                              : was.hdr != gen.hdr                                 ? "the HDR colour path changed"
+                                                                                   : nullptr;
             if (why != nullptr)
                 FlushNrCache(why);
         }
@@ -2894,8 +2894,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     const bool tuningChanged = !TuningMatchesFeature(cfg, requestedPasses);
 
     // Only the model's size moved: the one change the cache can absorb.
-    const bool sizeOnlyChange = resolutionChanged && !tuningChanged && !placementChanged && g_nr.width == width &&
-                                g_nr.height == height;
+    const bool sizeOnlyChange =
+        resolutionChanged && !tuningChanged && !placementChanged && g_nr.width == width && g_nr.height == height;
 
     // Keep the live size rather than destroy it -- when the size being switched to is already built (a
     // swap costs no memory), or when building it next to the one kept still fits under the standard
@@ -2906,9 +2906,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     {
         const bool haveTarget = FindCachedSize(workWidth, workHeight) >= 0;
         uint64_t usage = 0, budget = 0;
-        const bool room = haveTarget ||
-                          FitsInVideoMemory(device, PredictSizeBytes(workWidth, workHeight, requestedPasses), &usage,
-                                            &budget);
+        const bool room =
+            haveTarget ||
+            FitsInVideoMemory(device, PredictSizeBytes(workWidth, workHeight, requestedPasses), &usage, &budget);
 
         if (room)
         {
