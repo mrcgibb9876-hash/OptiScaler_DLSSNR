@@ -269,6 +269,92 @@ void ReportD3D12LiveObjects(ID3D12Device* device)
 #endif
 #endif
 
+// [DlssNr] The window the game is running in, as one INFO line the manager reads off the log for its game
+// card. Nothing else at the default log level says it: the swapchain descriptor is logged at DEBUG, and
+// the ForceBorderless lines only say that a fullscreen request was refused, not what the window became.
+//
+//   DLSS-NR window: 2560x1600 borderless
+//   DLSS-NR window: 2560x1600 borderless (the game asked for exclusive fullscreen; ForceBorderless kept it out)
+//   DLSS-NR window: 1920x1080 windowed on a 2560x1600 monitor
+//   DLSS-NR window: 2560x1600 exclusive fullscreen
+//
+// The size is the swapchain's back buffer, which is what the game draws at. Borderless and windowed are
+// told apart by the window, not the descriptor -- DXGI calls both "windowed" -- so a windowed swapchain
+// whose window covers its monitor is borderless, and one that does not is a window. Written on the first
+// Present and again whenever any of it changes, so the last such line in the log is how the game ran.
+// The window rect is only read every 30 presents; nothing here is worth a per-frame call.
+namespace
+{
+void ReportWindowState(IDXGISwapChain* swapChain, HWND fallbackWindow)
+{
+    static unsigned int presents = 0;
+    if (swapChain == nullptr || (presents++ % 30) != 0)
+        return;
+
+    DXGI_SWAP_CHAIN_DESC desc {};
+    if (FAILED(swapChain->GetDesc(&desc)) || desc.BufferDesc.Width == 0 || desc.BufferDesc.Height == 0)
+        return;
+
+    const HWND hwnd = desc.OutputWindow != nullptr ? desc.OutputWindow : fallbackWindow;
+
+    // 0 exclusive fullscreen, 1 borderless, 2 windowed
+    int mode = desc.Windowed ? 2 : 0;
+    Util::MonitorInfo monitor {};
+
+    if (desc.Windowed && hwnd != nullptr)
+    {
+        RECT window {};
+        monitor = Util::GetMonitorInfoForWindow(hwnd);
+
+        if (monitor.width > 0 && monitor.height > 0 && GetWindowRect(hwnd, &window))
+        {
+            const bool coversMonitor = window.left <= monitor.x && window.top <= monitor.y &&
+                                       window.right >= monitor.x + monitor.width &&
+                                       window.bottom >= monitor.y + monitor.height;
+            if (coversMonitor)
+                mode = 1;
+        }
+    }
+
+    const bool refusedFullscreen = State::Instance().SCExclusiveFullscreen && mode != 0;
+
+    struct Seen
+    {
+        UINT width;
+        UINT height;
+        int mode;
+        bool refused;
+    };
+    static Seen last { 0, 0, -1, false };
+
+    if (last.width == desc.BufferDesc.Width && last.height == desc.BufferDesc.Height && last.mode == mode &&
+        last.refused == refusedFullscreen)
+        return;
+
+    last = { desc.BufferDesc.Width, desc.BufferDesc.Height, mode, refusedFullscreen };
+
+    std::string text;
+    switch (mode)
+    {
+    case 0:
+        text = "exclusive fullscreen";
+        break;
+    case 1:
+        text = "borderless";
+        break;
+    default:
+        text = monitor.width > 0 ? std::format("windowed on a {}x{} monitor", monitor.width, monitor.height)
+                                 : std::string("windowed");
+        break;
+    }
+
+    if (refusedFullscreen)
+        text += " (the game asked for exclusive fullscreen; ForceBorderless kept it out)";
+
+    LOG_INFO("DLSS-NR window: {}x{} {}", desc.BufferDesc.Width, desc.BufferDesc.Height, text);
+}
+} // namespace
+
 static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags,
                             const DXGI_PRESENT_PARAMETERS* pPresentParameters, IUnknown* pDevice, HWND hWnd, bool isUWP)
 {
@@ -508,6 +594,8 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
             else
                 currentFeature->TickFrozenCheck();
         }
+
+        ReportWindowState(pSwapChain, hWnd);
 
         // Draw overlay
         MenuOverlayDx::Present(pSwapChain, SyncInterval, Flags, pPresentParameters, pDevice, hWnd, isUWP);
