@@ -1257,6 +1257,10 @@ void RenderMenu(Config* config, float menuResScale)
         if (NrCheckbox(Tr("Before Super Resolution"), &beforeSr))
         {
             config->DlssNrRunBeforeSr = beforeSr;
+            // One or the other, never both: the two together froze inZOI on the spot (issue #55,
+            // 2026-09-19), and before SR the frame carries no UI for the correction to act on anyway.
+            if (beforeSr)
+                config->DlssNrUICorrection = false;
             anyChanged = true;
         }
         HelpMarker(Tr("Where the pass sits. Off is the original placement: the model runs on the finished"
@@ -1298,7 +1302,14 @@ void RenderMenu(Config* config, float menuResScale)
                                                       : Tr("Waiting"),
                     enabled && (DlssNr::IsRunning() || vulkan));
 
-        if (!DlssNr::IsRunning() && !vulkan)
+        // Switched off says so. IsRunning() is "a model is built", and the built model is deliberately kept a
+        // while after DLSS 5 goes off so turning it back on is instant -- which read as "Running - 9.36 ms"
+        // under an unticked DLSS ON, the last timing from before it went off (inZOI, issue #55, 2026-09-19).
+        if (!enabled)
+        {
+            ImGui::TextColored(kTextDim, "%s", Tr("Off"));
+        }
+        else if (!DlssNr::IsRunning() && !vulkan)
         {
             const char* reason = DlssNr::FailureReason();
 
@@ -2588,9 +2599,61 @@ void RenderMenu(Config* config, float menuResScale)
         {
             SectionCaption(Tr("Guide"), rowWidth);
 
+            // Read-only, and first, because it is the one thing on this page that can be WRONG
+            // rather than merely set badly -- and when it is wrong it looks like nothing. With no
+            // vectors the model is handed a zero-motion texture and runs anyway: every log line
+            // says it ran, and the picture is sharp when still and smears when moving. Until this
+            // row, the only way to find that out was to read ReShadePreset.ini from outside the
+            // game and infer.
+            //
+            // It says what it sees and stops there. Which provider to use instead is a question
+            // about files, licences and downloads, and none of that belongs in a game process --
+            // the manager's panel offers the swap.
+            {
+                const DlssNr::MotionReading motion = DlssNr::MotionState();
+                ImGui::PushStyleColor(ImGuiCol_Text, kText);
+                ImGui::TextUnformatted(Tr("Motion"));
+                ImGui::PopStyleColor();
+                // The same split the rows below use (NrSlider/NrCombo), so this lines up with them.
+                ImGui::SameLine(rowWidth * 0.44f);
+
+                if (motion.evaluates == 0)
+                {
+                    ImGui::TextColored(kTextDim, "%s", Tr("nothing measured yet"));
+                }
+                else if (motion.blindEvaluates == 0)
+                {
+                    ImGui::TextColored(kAccent, "%s",
+                                       motion.usingFlow ? Tr("arriving (this engine's optical flow)") : Tr("arriving"));
+                }
+                else if (motion.blindEvaluates >= motion.evaluates)
+                {
+                    // Never once fed. On a Feeder game this is the provider: its shader is missing,
+                    // it failed to compile, or the enabled technique and DLSS5_MV_PROVIDER disagree.
+                    ImGui::TextColored(kText, "%s", Tr("NONE -- the model is running blind"));
+                }
+                else
+                {
+                    // Intermittent, which is a different fault from never: a provider that feeds
+                    // most frames and drops some. Saying "some" rather than a percentage on
+                    // purpose -- the exact ratio moves with the scene and would read as precision
+                    // this does not have.
+                    ImGui::TextColored(kText, "%s", Tr("arriving, but not on every frame"));
+                }
+                HelpMarker(Tr("Whether motion vectors are actually reaching the model."
+                              "\n\nWithout them it still runs, and the result is sharp when you stand still"
+                              "\nand smears when you move. Nothing errors, so this row is the only place"
+                              "\nit shows."
+                              "\n\nOn a Feeder game they come from a ReShade shader, and which one is"
+                              "\nchosen in the app -- it can swap them in one press. On this engine's own"
+                              "\nPresent route they come from its optical flow module instead, and no"
+                              "\nReShade provider is involved."));
+            }
+
             const char* depthNames[] = { Tr("Follow the game"), Tr("Force normal"), Tr("Force inverted") };
             int depthMode = (int) config->DlssNrDepthConvention.value_or_default();
             if (NrCombo(Tr("Depth"), &depthMode, depthNames, IM_ARRAYSIZE(depthNames), rowWidth))
+
             {
                 config->DlssNrDepthConvention = (uint32_t) depthMode;
                 anyChanged = true;
@@ -2604,6 +2667,11 @@ void RenderMenu(Config* config, float menuResScale)
                 NrCheckbox(Tr("UI correction"), &uiCorrection))
             {
                 config->DlssNrUICorrection = uiCorrection;
+                // The other half of Before Super Resolution's rule above: turning this on moves the
+                // pass back after the upscaler, where the UI is. The two together froze inZOI on the
+                // spot (issue #55, 2026-09-19).
+                if (uiCorrection)
+                    config->DlssNrRunBeforeSr = false;
                 anyChanged = true;
             }
             HelpMarker(Tr("Lets the model account for a UI layer laid over the frame. On is its own default"

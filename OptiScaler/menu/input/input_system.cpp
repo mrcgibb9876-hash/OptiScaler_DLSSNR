@@ -1,7 +1,11 @@
 #include "pch.h"
 #include "input_system_internal.h"
 
+#include <dlssnr/DlssNr_CastMouse.h>
+
 #include <include/imgui/imgui.h>
+
+#include <atomic>
 
 namespace OptiInput
 {
@@ -699,6 +703,160 @@ bool ApplyExternalVirtualMouseLocked(HWND coordinateHwnd, const POINT& absoluteC
 }
 } // namespace
 
+// The Feeder helper's own mouse, for games whose window never gets mouse messages (DlssNr_CastMouse.h): while the
+// cast is on screen and the real cursor is over it, the cursor and buttons are read here and mapped onto this
+// window. Mouse only -- the keyboard stays with what the Feeder posts, so the game's keys never type into the
+// panel. Anything held is let go the moment the cursor leaves the cast or the cast is hidden.
+static bool s_castMouseActive = false;
+
+// The wheel is not something a cursor poll can see, and the game window that would get WM_MOUSEWHEEL is the
+// one getting no mouse messages. Raw input with RIDEV_INPUTSINK reaches this process in the background, so a
+// hidden window of its own takes the mouse's raw packets and keeps only the wheel. Mouse only, registered the
+// first time the cast is used, pumped from the poll below on the thread that made it.
+static HWND s_castWheelSink = nullptr;
+static bool s_castWheelTried = false;
+// Wheel units (WHEEL_DELTA = one notch) not yet handed to the panel. Counted in the window procedure, not in the
+// pump below: the Feeder's helper drains every message on this thread with its own PeekMessage(nullptr) loop and
+// dispatches them, so most WM_INPUT packets never wait for our pump -- they arrive here instead.
+static std::atomic<int> s_castWheelUnits { 0 };
+
+static void CountWheel(HRAWINPUT handle)
+{
+    RAWINPUT raw {};
+    UINT size = sizeof(raw);
+    UINT got = 0;
+    {
+        ScopedHookBypass bypass;
+        got = o_GetRawInputData != nullptr
+                  ? o_GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER))
+                  : GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
+    }
+    if (got != static_cast<UINT>(-1) && got > 0 && raw.header.dwType == RIM_TYPEMOUSE &&
+        (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL) != 0)
+    {
+        s_castWheelUnits += static_cast<SHORT>(raw.data.mouse.usButtonData);
+    }
+}
+
+static LRESULT CALLBACK CastWheelSinkProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    if (msg == WM_INPUT)
+        CountWheel(reinterpret_cast<HRAWINPUT>(lParam));
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+static void EnsureCastWheelSink()
+{
+    if (s_castWheelTried)
+        return;
+    s_castWheelTried = true;
+
+    WNDCLASSEXW wc { sizeof(wc) };
+    wc.lpfnWndProc = CastWheelSinkProc;
+    wc.hInstance = GetModuleHandleW(nullptr);
+    wc.lpszClassName = L"DlssNrCastWheelSink";
+    RegisterClassExW(&wc);
+    s_castWheelSink = CreateWindowExW(0, wc.lpszClassName, L"DLSS 5 panel wheel", WS_POPUP, 0, 0, 1, 1, nullptr,
+                                      nullptr, wc.hInstance, nullptr);
+    if (s_castWheelSink == nullptr)
+    {
+        LOG_WARN("DLSS 5 panel cast mouse: no wheel -- CreateWindowExW failed ({})", GetLastError());
+        return;
+    }
+
+    RAWINPUTDEVICE device {};
+    device.usUsagePage = 0x01; // generic desktop
+    device.usUsage = 0x02;     // mouse
+    device.dwFlags = RIDEV_INPUTSINK;
+    device.hwndTarget = s_castWheelSink;
+    BOOL registered = FALSE;
+    {
+        ScopedHookBypass bypass;
+        registered = o_RegisterRawInputDevices != nullptr ? o_RegisterRawInputDevices(&device, 1, sizeof(device))
+                                                          : RegisterRawInputDevices(&device, 1, sizeof(device));
+    }
+    if (!registered)
+    {
+        LOG_WARN("DLSS 5 panel cast mouse: no wheel -- RegisterRawInputDevices failed ({})", GetLastError());
+        DestroyWindow(s_castWheelSink);
+        s_castWheelSink = nullptr;
+        return;
+    }
+    LOG_INFO("DLSS 5 panel cast mouse: wheel read through raw input");
+}
+
+// Whole notches since the last call (positive = away from the user, as WM_MOUSEWHEEL).
+static float PumpCastWheel()
+{
+    if (s_castWheelSink == nullptr)
+        return 0.0f;
+
+    // Whatever is still queued for the sink goes through its window procedure, which does the counting.
+    MSG msg {};
+    for (int i = 0; i < 256; ++i)
+    {
+        BOOL has = FALSE;
+        {
+            ScopedHookBypass bypass;
+            has = o_PeekMessageW != nullptr ? o_PeekMessageW(&msg, s_castWheelSink, 0, 0, PM_REMOVE)
+                                            : PeekMessageW(&msg, s_castWheelSink, 0, 0, PM_REMOVE);
+        }
+        if (!has)
+            break;
+        CastWheelSinkProc(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+    }
+    return static_cast<float>(s_castWheelUnits.exchange(0)) / static_cast<float>(WHEEL_DELTA);
+}
+
+static void PollCastMouseLocked(DWORD time)
+{
+    POINT screen {};
+    POINT client {};
+    const DPI_AWARENESS_CONTEXT previous = SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    const bool over = RealGetCursorPosSafe(&screen) != FALSE && DlssNr::CastMouse::MapToPanel(screen, client);
+    if (previous != nullptr)
+        SetThreadDpiAwarenessContext(previous);
+
+    if (DlssNr::CastMouse::CastShown())
+        EnsureCastWheelSink();
+    // Always drained, so turns made while the cast was hidden or the cursor elsewhere never arrive late.
+    const float wheel = PumpCastWheel();
+
+    if (over)
+    {
+        if (wheel != 0.0f)
+        {
+            _state.MouseWheel += wheel;
+            _state.PolledMouseUsedThisFrame = true;
+        }
+        _state.PolledInputActive = true;
+        if (client.x != _state.MouseClientPos.x || client.y != _state.MouseClientPos.y)
+            _state.PolledMouseUsedThisFrame = true;
+        _state.MouseClientPos = client;
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_LBUTTON, 0, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_RBUTTON, 1, time);
+        _state.PolledMouseUsedThisFrame |= PollMouseButtonLocked(VK_MBUTTON, 2, time);
+        s_castMouseActive = true;
+    }
+    else if (s_castMouseActive)
+    {
+        for (int button = 0; button < 3; ++button)
+        {
+            if (_state.MouseButtons[button].Down)
+                SetMouseUpStateOnly(button, time);
+        }
+        _state.PolledMouseUsedThisFrame = true;
+        s_castMouseActive = false;
+    }
+
+    if (_state.PolledMouseUsedThisFrame)
+    {
+        _state.PolledMouseFrameCount++;
+        _state.PolledInputUsedThisFrame = true;
+        _state.PolledInputFrameCount++;
+    }
+}
+
 void PollInputFallbackLocked()
 {
     _state.PolledInputActive = false;
@@ -708,6 +866,10 @@ void PollInputFallbackLocked()
     _state.ExternalVirtualMouseUsedThisFrame = false;
     _state.ExternalVirtualMouseRelativeUsedThisFrame = false;
     _state.ExternalVirtualMouseAuthoritative = false;
+
+    // The Feeder's helper is never focused, so it never reaches the polling below; its mouse comes from here.
+    if (_state.Initialized && MessageDrivenInput() && _state.MenuVisible)
+        PollCastMouseLocked(GetTickCount());
 
     if (!_state.Initialized || !_state.Focused)
     {
