@@ -2213,7 +2213,8 @@ void RenderMenu(Config* config, float menuResScale)
                           "\nRE Engine games; on a Vulkan game the slider stays in charge."));
 
             const bool autoContrast = config->DlssNrAutoContrast.value_or_default();
-            float contrast = autoContrast && autoTone.measuring ? autoTone.contrast : config->DlssNrContrast.value_or_default();
+            float contrast =
+                autoContrast && autoTone.measuring ? autoTone.contrast : config->DlssNrContrast.value_or_default();
             ImGui::BeginDisabled(autoContrast);
             auto rContrast = NrSlider(Tr("Contrast"), &contrast, 0.5f, 2.0f, "%.2f", rowWidth);
             if (rContrast.changed)
