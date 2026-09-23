@@ -727,9 +727,8 @@ static void CountWheel(HRAWINPUT handle)
     UINT got = 0;
     {
         ScopedHookBypass bypass;
-        got = o_GetRawInputData != nullptr
-                  ? o_GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER))
-                  : GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
+        got = o_GetRawInputData != nullptr ? o_GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER))
+                                           : GetRawInputData(handle, RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
     }
     if (got != static_cast<UINT>(-1) && got > 0 && raw.header.dwType == RIM_TYPEMOUSE &&
         (raw.data.mouse.usButtonFlags & RI_MOUSE_WHEEL) != 0)
