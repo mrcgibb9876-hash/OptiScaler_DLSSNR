@@ -7,6 +7,7 @@
 #include "DlssNr_ExposureScan.h"
 #include "DlssNr_I18n.h"
 #include "DlssNr_PresentRoute.h"
+#include "DlssNr_ReLimiter.h"
 #include "DlssNrBudget.h"
 
 #include <Config.h>
@@ -25,6 +26,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 namespace DlssNr
@@ -748,6 +750,19 @@ static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
     if (mode < 0 || mode >= IM_ARRAYSIZE(kModeNames))
         mode = 2;
 
+    // ReLimiter is already holding the frame rate, so aiming the model's resolution at one as well
+    // means shedding detail to close a gap the limiter will never allow to close. Said here, next to
+    // the control, rather than left as a mystery when the manager turns Adjust it for me off.
+    if (DlssNrReLimiter::PacingActive())
+    {
+        ImGui::TextDisabled("%s", Tr("Frame pacing is holding the frame rate (see Pacing)."));
+        HelpMarker(Tr("ReLimiter is in this game and paces frames to a target. Aiming at a frame rate here"
+                      "\ntoo would have the model shed resolution trying to reach a number the limiter"
+                      "\nwill not let the game pass, and keep shedding it -- detail lost for no frames"
+                      "\ngained. Pick Milliseconds or Share of the frame to cap what the pass costs, or"
+                      "\nremove frame pacing if you would rather this aimed at the frame rate."));
+    }
+
     if (NrCombo(Tr("Aim at"), &mode, kModeNames, IM_ARRAYSIZE(kModeNames), rowWidth))
     {
         config->DlssNrAutoScaleMode = (uint32_t) mode;
@@ -881,6 +896,7 @@ enum PanelPage
     kPageImage,    // the filters that scale it, the guards, and how much of it lands
     kPageInspect,  // what the model is told, and the tools for looking at its work
     kPageSetup,    // keys and appearance
+    kPagePacing,   // ReLimiter's frame pacing, when it is in the process. Hidden when it is not.
     kPageCount,
 };
 
@@ -936,22 +952,191 @@ static void DragByHeader(float stripBottomY)
     }
 }
 
+// ReLimiter's own settings, drawn from what it reports rather than from a list kept here.
+//
+// The point of enumerating is that this function never has to change when ReLimiter gains a setting:
+// its registry grows by one line and the row appears here. Hardcoding the list would mean revisiting
+// this file every time they release, which is the cost that makes a fork expensive.
+//
+// Only what a controller-and-overlay UI can honestly present is drawn. Keybinds are left to ReLimiter's
+// own overlay: capturing a key combo needs the capture UI it already has, and half of one here would be
+// worse than a pointer to it.
+static void DrawPacingPage(float rowWidth)
+{
+    const ReLimiterApi* api = DlssNrReLimiter::Api();
+    if (api == nullptr)
+        return; // the tab is hidden in this case, so this is belt and braces
+
+    SectionCaption(Tr("Frame pacing"), rowWidth);
+
+    const char* version = DlssNrReLimiter::Version();
+    ImGui::TextDisabled("ReLimiter %s", version ? version : "?");
+    HelpMarker(Tr("ReLimiter holds the frame rate steady for a G-Sync or VRR display rather than making"
+                  "
+more frames. It is a separate add-on with its own overlay; these are its settings,"
+                  "
+shown here so there is one panel to look at instead of two."
+                  "
+
+Because it aims at a frame rate, Cost > Adjust it for me cannot aim at one too --"
+                  "
+see the note on that page."));
+
+    const char* lastGroup = nullptr;
+    const uint32_t settings = api->setting_count();
+
+    for (uint32_t i = 0; i < settings; ++i)
+    {
+        ReLimiterSettingInfo info {};
+        info.struct_size = sizeof(info);
+        if (!api->describe_setting(i, &info))
+            continue;
+
+        // A keybind needs a key-capture widget, which this panel has for its OWN keys only; offering a
+        // broken one for ReLimiter's would be worse than leaving them where they already work.
+        if (info.type == RELIMITER_TYPE_KEYBIND)
+            continue;
+
+        // ReLimiter groups its settings already, so the captions come from it rather than from a
+        // mapping here that would go stale.
+        if (info.group != nullptr && (lastGroup == nullptr || std::strcmp(lastGroup, info.group) != 0))
+        {
+            SectionCaption(info.group, rowWidth);
+            lastGroup = info.group;
+        }
+
+        switch (info.type)
+        {
+        case RELIMITER_TYPE_BOOL:
+        {
+            double cur = 0.0;
+            if (!api->get_number(info.key, &cur))
+                break;
+            bool on = cur != 0.0;
+            if (NrCheckbox(info.label, &on))
+            {
+                api->set_number(info.key, on ? 1.0 : 0.0);
+                api->apply();
+                api->save();
+            }
+            if (info.tooltip != nullptr && *info.tooltip != '\0')
+                HelpMarker(info.tooltip);
+            break;
+        }
+        case RELIMITER_TYPE_ENUM:
+        {
+            char buf[128] {};
+            if (!api->get_string(info.key, buf, (uint32_t) sizeof(buf)))
+                break;
+            int sel = 0;
+            for (uint32_t c = 0; c < info.choice_count; ++c)
+                if (std::strcmp(info.choices[c], buf) == 0)
+                    sel = (int) c;
+            if (NrCombo(info.label, &sel, info.choices, (int) info.choice_count, rowWidth))
+            {
+                api->set_string(info.key, info.choices[sel]);
+                api->apply();
+                api->save();
+            }
+            if (info.tooltip != nullptr && *info.tooltip != '\0')
+                HelpMarker(info.tooltip);
+            break;
+        }
+        case RELIMITER_TYPE_INT:
+        case RELIMITER_TYPE_FLOAT:
+        case RELIMITER_TYPE_DOUBLE:
+        {
+            // No range, no slider: dmfg_output_cap and oled_care_idle_minutes have no clamp in
+            // ReLimiter's own validation, and inventing ends for them would offer numbers it discards.
+            if (info.min_value == info.max_value)
+                break;
+
+            double cur = 0.0;
+            if (!api->get_number(info.key, &cur))
+                break;
+
+            // A labelled zero is a named mode -- target_fps = 0 is "stay below the VRR ceiling", not
+            // 0 fps -- and it sits outside the slider's range. So it gets its own checkbox, because a
+            // slider cannot show a mode at one end of its travel.
+            if (info.zero_label != nullptr)
+            {
+                bool autoMode = cur == 0.0;
+                if (NrCheckbox(info.zero_label, &autoMode))
+                {
+                    // Leaving auto lands on the range's low end, which is a real value ReLimiter keeps.
+                    api->set_number(info.key, autoMode ? 0.0 : info.min_value);
+                    api->apply();
+                    api->save();
+                    cur = autoMode ? 0.0 : info.min_value;
+                }
+                if (autoMode)
+                {
+                    if (info.tooltip != nullptr && *info.tooltip != '\0')
+                        HelpMarker(info.tooltip);
+                    break;
+                }
+            }
+
+            float v = (float) cur;
+            const char* fmt = info.type == RELIMITER_TYPE_INT ? "%.0f" : "%.3f";
+            auto r = NrSlider(info.label, &v, (float) info.min_value, (float) info.max_value, fmt, rowWidth);
+            if (r.released || r.changed)
+            {
+                api->set_number(info.key, (double) v);
+                api->apply();
+                // Saved on release only: an ini write per slider pixel is a file written hundreds of
+                // times for one adjustment.
+                if (r.released)
+                    api->save();
+            }
+            if (info.tooltip != nullptr && *info.tooltip != '\0')
+                HelpMarker(info.tooltip);
+            break;
+        }
+        default:
+            break; // a type this build does not know: skipped, not guessed at
+        }
+    }
+}
+
 // Drawn once, under the status lines: the same buttons the Models row uses, so the panel has one
 // way of offering a choice of several.
 static void PagePicker(float rowWidth)
 {
-    const char* names[kPageCount] = { Tr("Main"), Tr("Model"), Tr("Cost"), Tr("Image"), Tr("Inspect"), Tr("Setup") };
-    const float spacing = ImGui::GetStyle().ItemSpacing.x;
-    const float width = (rowWidth - spacing * (kPageCount - 1)) / kPageCount;
+    const char* names[kPageCount] = { Tr("Main"),    Tr("Model"), Tr("Cost"),  Tr("Image"),
+                                      Tr("Inspect"), Tr("Setup"), Tr("Pacing") };
 
+    // Pacing exists only while ReLimiter is in the process, so the strip is built from the pages that
+    // are actually there rather than divided by kPageCount. An empty page for an absent add-on is
+    // noise, and a tab that does nothing is worse than no tab at all.
+    int visible[kPageCount];
+    int count = 0;
     for (int i = 0; i < kPageCount; ++i)
+    {
+        if (i == kPagePacing && !DlssNrReLimiter::Available())
+            continue;
+        visible[count++] = i;
+    }
+
+    // If the page we were on has just gone away, land somewhere real instead of drawing nothing.
+    bool onVisible = false;
+    for (int i = 0; i < count; ++i)
+        onVisible = onVisible || visible[i] == g_page;
+    if (!onVisible)
+        g_page = kPageMain;
+
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    const float width = (rowWidth - spacing * (count - 1)) / (float) count;
+
+    for (int i = 0; i < count; ++i)
     {
         if (i > 0)
             ImGui::SameLine();
 
-        ImGui::PushID(i);
-        if (ModelButton(names[i], g_page == i, width))
-            g_page = i;
+        const int page = visible[i];
+        ImGui::PushID(page);
+        if (ModelButton(names[page], g_page == page, width))
+            g_page = page;
         ImGui::PopID();
     }
 }
@@ -3022,6 +3207,9 @@ void RenderMenu(Config* config, float menuResScale)
                           "\n\nRow widths are worked out from the font size, so far above 1.5x labels start"
                           "\nrunning into their values."));
         }
+
+        if (OnPage(kPagePacing))
+            DrawPacingPage(rowWidth);
 
         // Must be popped before End(), and on every path out of this block -- it is a stack, not a
         // per-window property like the SetWindowFontScale it replaced.
