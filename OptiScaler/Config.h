@@ -563,6 +563,17 @@ class Config
     // driver is not evidence this path is safe on a new one.
     CustomOptional<bool> DlssNrUseProxy { false };
 
+    // The Vulkan pass's guards against a game running more than one upscaler feature at once.
+    //
+    // On by default, and the default is the safe one: without them a second viewport looks like the
+    // single feature resizing, every alternation tears the whole resource set down, and one of those
+    // teardowns raced the game's frame-generation present thread and lost the device (Indiana Jones
+    // and the Great Circle, 2026-09-24). See the servingId block in dlssnr/DlssNrFeature_Vk.cpp.
+    //
+    // Here to be turned OFF, for a game where the pass follows the wrong viewport and the old
+    // behaviour was better. Turning it off restores exactly what shipped before.
+    CustomOptional<bool> DlssNrVkViewportGuard { true };
+
     // Look for the exposure the game computed but never handed to the upscaler.
     //
     // Off by default, and it has to be. Reading a resource the game owns means assuming what state
