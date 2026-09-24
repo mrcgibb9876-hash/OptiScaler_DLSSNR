@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // Writes out the frames this pass is arguing about, so questions get settled by measurement.
 //
 // Every comparison so far has been two separate video captures: different camera paths, different

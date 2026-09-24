@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // Unit tests for the adaptive model-resolution controller.
 //
 // This is the one part of the neural pass that can be tested without a GPU: the controller takes

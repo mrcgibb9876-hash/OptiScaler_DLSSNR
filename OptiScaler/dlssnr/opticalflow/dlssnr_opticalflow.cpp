@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // FidelityFX Optical Flow wrapped for the DLSS-NR Present route. See dlssnr_opticalflow.h.
 //
 // Adapted from LCPD15's DXL, src/core/OpticalFlow.cpp (AGPL-3.0): the same FidelityFX Optical Flow 1.1.2

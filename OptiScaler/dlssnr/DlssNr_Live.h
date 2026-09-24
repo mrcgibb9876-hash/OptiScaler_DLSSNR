@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 #pragma once
 
 // Live readings for the pop-out DLSS 5 panel, which runs outside the game (OptiDLSS5-UI).

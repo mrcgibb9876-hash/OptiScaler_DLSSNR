@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // Headless D3D12/WARP regression for padded pre-SR colour. No game or NVIDIA model is loaded.
 #include <windows.h>
 #include <d3d12.h>

@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // DLSS Neural Rendering calls, isolated in a module the snippet will accept as a caller.
 //
 // The snippet resolves the module owning its return address and requires that module's path to contain
