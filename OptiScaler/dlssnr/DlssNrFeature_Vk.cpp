@@ -172,24 +172,44 @@ struct VkState
     //
     // Three guards, smallest first, all off together with DlssNrVkViewportGuard:
     //
-    //  1. IDENTITY. `servingId` records the feature the state was built for, so a second viewport is
-    //     recognised as one rather than mistaken for a resize. The D3D12 path has always had this --
-    //     "a lookup on the feature handle" (DlssNrFeature_Dx12.h) -- and this path never did.
-    //  2. ONE VIEWPORT. The first feature to arrive is the one served; evaluates from any other are
-    //     skipped. A 720p second viewport is a mirror, a cutscene or a picture-in-picture, and
-    //     running the model on it was never wanted. Re-latches if the one being served stops coming
-    //     (kPrimaryGoneAfter evaluates), so a feature that is released does not take the pass with it.
-    //  3. REBUILD GUARD. Even for the served feature, a teardown within kRebuildGuardFrames
-    //     evaluates of the last one is refused and the frame sits out. A genuine resolution change
-    //     costs one skipped frame; a flap that got past the first two guards cannot reach
-    //     vkDeviceWaitIdle in a loop.
-    unsigned int servingId = 0;
+    //  1. ONE VIEWPORT, BY SIZE. The largest output being drawn is the game; anything smaller is
+    //     skipped rather than rebuilt for. Something larger is adopted at once, so a real resolution
+    //     change is followed on the frame it happens, and a served size that stops arriving is handed
+    //     over after kPrimaryGoneAfter evaluates, so the game dropping resolution for good is
+    //     followed too.
+    //  2. REBUILD GUARD. Even for the served size, a teardown within kRebuildGuardFrames evaluates of
+    //     the last one is refused and the frame sits out. A genuine resolution change costs one
+    //     unenhanced frame; a flap that reaches here another way cannot get into a vkDeviceWaitIdle
+    //     loop.
+    //
+    // Both count `seen`, every evaluate that reaches the guard, NOT `frames`, which counts only the
+    // ones actually composed. That distinction is load-bearing -- see `seen` below.
+    // Keyed on the OUTPUT SIZE, not the feature id. The first attempt latched onto the id and it was
+    // wrong: this game makes a NEW feature every time a DLSS setting changes -- handles 1000000,
+    // 1000001, 1000002 ... one per change -- so the id is not a viewport's identity, it is a
+    // serial number. The pass latched onto 1000000, that feature was released, and every later one
+    // read as "a second viewport" and was skipped. No rebuilds, so no crash; no evaluates either, so
+    // changing a DLSS 5 setting did nothing to the picture at all (reported 2026-09-24, the run after
+    // the first fix shipped).
+    //
+    // The size is the stable thing. In that run the game drew 3840x2160 throughout while the
+    // settings menu's preview came and went at 1280x720, 1129x635 and 960x540. The biggest output is
+    // the game; the small ones are the preview.
     bool serving = false;
+    uint32_t servingWidth = 0;
+    uint32_t servingHeight = 0;
     unsigned long long servingLastSeen = 0;
+    uint32_t skippedWidth = 0;
+    uint32_t skippedHeight = 0;
+    bool skippedLogged = false;
+
+    // Every evaluate that reaches the guard, composed or skipped. Separate from `frames`, which only
+    // counts composed ones -- gating the hand-over on that meant it stopped advancing the moment the
+    // pass started skipping, so the hand-over could never fire. That was the deadlock.
+    unsigned long long seen = 0;
+
     unsigned long long lastRebuildFrame = 0;
     bool rebuiltOnce = false;
-    unsigned int skippedId = 0;
-    bool skippedLogged = false;
 };
 
 // A teardown closer than this many evaluates to the last one is refused. Sized to cover a burst of
@@ -584,48 +604,9 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
     std::lock_guard<std::mutex> lock(g_vkMutex);
 
-    // One viewport. See the servingId block in VkState for what this is and why.
-    if (cfg.DlssNrVkViewportGuard.value_or_default())
-    {
-        if (!g_vk.serving)
-        {
-            g_vk.servingId = featureId;
-            g_vk.serving = true;
-            g_vk.servingLastSeen = g_vk.frames;
-            LOG_INFO("DLSS-NR Vulkan: serving upscaler feature {}", featureId);
-        }
-        else if (featureId != g_vk.servingId)
-        {
-            // The one being served has stopped coming: it was released, and this is the game's
-            // remaining feature rather than a second viewport. Hand the pass over.
-            if (g_vk.frames - g_vk.servingLastSeen > kPrimaryGoneAfter)
-            {
-                LOG_INFO("DLSS-NR Vulkan: feature {} has not evaluated for {} frames; serving {} instead",
-                         g_vk.servingId, kPrimaryGoneAfter, featureId);
-                g_vk.servingId = featureId;
-                g_vk.servingLastSeen = g_vk.frames;
-                g_vk.skippedLogged = false;
-            }
-            else
-            {
-                // Once per newcomer, not once per frame: this fires every frame the other viewport
-                // draws, and the whole point is that that is normal rather than a fault.
-                if (!g_vk.skippedLogged || g_vk.skippedId != featureId)
-                {
-                    LOG_INFO("DLSS-NR Vulkan: feature {} is a second viewport ({} is being served); "
-                             "skipping it rather than rebuilding for its size",
-                             featureId, g_vk.servingId);
-                    g_vk.skippedId = featureId;
-                    g_vk.skippedLogged = true;
-                }
-                return;
-            }
-        }
-        else
-        {
-            g_vk.servingLastSeen = g_vk.frames;
-        }
-    }
+    // Every call, before any guard below can return: the "has the served viewport gone quiet" test
+    // counts these, and counting composed frames instead is what deadlocked the first attempt.
+    g_vk.seen++;
 
     if (g_vk.failed)
         return;
@@ -727,6 +708,64 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
     if (width == 0 || height == 0)
         return;
+
+    // One viewport, chosen by OUTPUT SIZE. See the serving block in VkState.
+    if (cfg.DlssNrVkViewportGuard.value_or_default())
+    {
+        const unsigned long long area = (unsigned long long) width * height;
+        const unsigned long long servingArea = (unsigned long long) g_vk.servingWidth * g_vk.servingHeight;
+
+        if (!g_vk.serving || area > servingArea)
+        {
+            // The biggest thing being drawn is the game. Adopted immediately when something larger
+            // turns up, so a real resolution change is followed on the frame it happens.
+            if (g_vk.serving)
+                LOG_INFO("DLSS-NR Vulkan: {}x{} (feature {}) is larger than the {}x{} being served; "
+                         "following it",
+                         width, height, featureId, g_vk.servingWidth, g_vk.servingHeight);
+            else
+                LOG_INFO("DLSS-NR Vulkan: serving the {}x{} viewport (feature {})", width, height, featureId);
+            g_vk.serving = true;
+            g_vk.servingWidth = width;
+            g_vk.servingHeight = height;
+            g_vk.servingLastSeen = g_vk.seen;
+            g_vk.skippedLogged = false;
+        }
+        else if (width != g_vk.servingWidth || height != g_vk.servingHeight)
+        {
+            // Smaller. Either a second viewport drawn beside the game -- the settings-menu preview
+            // is one -- or the game itself having dropped resolution and the old size never coming
+            // back. Told apart by whether the served size is still arriving.
+            if (g_vk.seen - g_vk.servingLastSeen > kPrimaryGoneAfter)
+            {
+                LOG_INFO("DLSS-NR Vulkan: {}x{} has not been drawn for {} evaluates; serving {}x{} "
+                         "(feature {}) instead",
+                         g_vk.servingWidth, g_vk.servingHeight, kPrimaryGoneAfter, width, height, featureId);
+                g_vk.servingWidth = width;
+                g_vk.servingHeight = height;
+                g_vk.servingLastSeen = g_vk.seen;
+                g_vk.skippedLogged = false;
+            }
+            else
+            {
+                // Once per size, not once per frame: the other viewport draws every frame it is up.
+                if (!g_vk.skippedLogged || g_vk.skippedWidth != width || g_vk.skippedHeight != height)
+                {
+                    LOG_INFO("DLSS-NR Vulkan: {}x{} (feature {}) is a second viewport ({}x{} is being "
+                             "served); skipping it rather than rebuilding for its size",
+                             width, height, featureId, g_vk.servingWidth, g_vk.servingHeight);
+                    g_vk.skippedWidth = width;
+                    g_vk.skippedHeight = height;
+                    g_vk.skippedLogged = true;
+                }
+                return;
+            }
+        }
+        else
+        {
+            g_vk.servingLastSeen = g_vk.seen;
+        }
+    }
 
     // The model's working size. The slider is a fraction of the frame; at 1 it is the frame, and the
     // reduced path below never runs, so the default is byte-for-byte what it was.
@@ -847,15 +886,15 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         // backstop for a flap that reaches here another way. Sitting the frame out costs one
         // unenhanced frame; tearing the device down costs the session.
         if (cfg.DlssNrVkViewportGuard.value_or_default() && g_vk.rebuiltOnce &&
-            g_vk.frames - g_vk.lastRebuildFrame < kRebuildGuardFrames)
+            g_vk.seen - g_vk.lastRebuildFrame < kRebuildGuardFrames)
         {
-            LOG_WARN("DLSS-NR Vulkan: {}x{} wanted {} frames after the last rebuild; skipping this "
+            LOG_WARN("DLSS-NR Vulkan: {}x{} wanted {} evaluates after the last rebuild; skipping this "
                      "frame rather than tearing the resources down again",
-                     width, height, g_vk.frames - g_vk.lastRebuildFrame);
+                     width, height, g_vk.seen - g_vk.lastRebuildFrame);
             return;
         }
 
-        g_vk.lastRebuildFrame = g_vk.frames;
+        g_vk.lastRebuildFrame = g_vk.seen;
         g_vk.rebuiltOnce = true;
 
         // This block releases the feature and frees the surfaces below IMMEDIATELY. A frame-size
