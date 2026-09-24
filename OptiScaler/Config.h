@@ -554,6 +554,13 @@ class Config
     // and OptiScaler folders into Init_Ext.
     //
     // Off until it is shown to produce the same picture. If it does, the forwarder can go.
+    //
+    // Before turning this on, read the 2026-09-24 entry in dlssnr/FORWARDER_INVESTIGATION.md. A
+    // third party reports that the driver's loader could not route feature 18 AT ALL before
+    // 32.0.16.1664 -- which would explain this path's 0xBAD0000B on older drivers -- and that on
+    // 1664/1686 paired with snippet 310.8.0.0 the same route faults inside D3D12 and takes the game
+    // down. Unverified here, and nothing is gated on it, but it means a clean failure on an old
+    // driver is not evidence this path is safe on a new one.
     CustomOptional<bool> DlssNrUseProxy { false };
 
     // Look for the exposure the game computed but never handed to the upscaler.
