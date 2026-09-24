@@ -795,11 +795,43 @@ class NVNGXProxy
         LOG_INFO("result: {0:X}", (UINT) nvResult);
 
         _dx12Inited = (nvResult == NVSDK_NGX_Result_Success);
+
+        if (_dx12Inited)
+            HoldDx12SessionDevice(InDevice);
+
         return _dx12Inited;
     }
 
     static void SetDx12Inited(bool value) { _dx12Inited = value; }
 
+    // The device the real _nvngx.dll session was initialised on, with a reference of our own.
+    //
+    // _nvngx.dll keeps its Init device for the whole session without holding a reference that matters to
+    // a wrapper. Some games (Shadow of the Tomb Raider) Init on a throwaway device while their launcher
+    // is up and release it; under ReShade that device is a wrapper, and ReShade tears it down while DLSS
+    // still points at it -- with an add-on loaded, DLSS CreateFeature then faults in ReShade's freed
+    // descriptor-heap table, and without one it is a quiet use-after-free that sometimes closes the game.
+    // Holding the reference keeps the wrapper whole for as long as the session uses it, and a game that then
+    // asks for its device again gets that same live wrapper back. Dropped when the game shuts NGX down.
+
+    static void HoldDx12SessionDevice(ID3D12Device* InDevice)
+    {
+        if (InDevice == _dx12SessionDevice)
+            return;
+
+        if (InDevice != nullptr)
+            InDevice->AddRef();
+
+        if (_dx12SessionDevice != nullptr)
+            _dx12SessionDevice->Release();
+
+        _dx12SessionDevice = InDevice;
+    }
+
+  private:
+    inline static ID3D12Device* _dx12SessionDevice = nullptr;
+
+  public:
     static bool IsDx12Inited() { return _dx12Inited; }
 
     static PFN_D3D12_Init_ProjectID D3D12_Init_ProjectID() { return _module.D3D12_Init_ProjectID; }
