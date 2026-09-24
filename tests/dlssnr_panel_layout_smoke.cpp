@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // Headless regression for the DLSS 5 panel's move/resize behaviour. It drives the same
 // PanelLayout::BeforeBegin / AfterBegin the panel calls (OptiScaler/dlssnr/DlssNr_PanelLayout.h),
 // against the ImGui this build compiles (OptiScaler/include/imgui), with the mouse fed through ImGui's

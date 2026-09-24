@@ -1,3 +1,5 @@
+// Copyright (c) 2026 mrcgibb9876-hash. Original to this fork, not part of upstream OptiScaler.
+// Distributed under the GNU General Public License version 3 -- see LICENSE.
 // Minimal shader accessor for the MIT FidelityFX Optical Flow component.
 // All permutations use the same portable FP32 shader. We deliberately do not
 // advertise a wave64/FP16 specialization; there are no other SDK effects here.
