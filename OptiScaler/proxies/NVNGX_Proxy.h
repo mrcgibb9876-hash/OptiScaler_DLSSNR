@@ -819,8 +819,13 @@ class NVNGXProxy
         if (InDevice == _dx12SessionDevice)
             return;
 
+        // The manager reads this exact text in the DLL to know the engine keeps the device alive, and only
+        // then lets ReShade add-ons (frame pacing) run beside the upscaler. Keep the wording.
         if (InDevice != nullptr)
+        {
             InDevice->AddRef();
+            LOG_INFO("Holding the NGX session device {:X} for as long as the session uses it", (size_t) InDevice);
+        }
 
         if (_dx12SessionDevice != nullptr)
             _dx12SessionDevice->Release();
