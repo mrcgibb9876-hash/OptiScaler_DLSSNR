@@ -972,15 +972,10 @@ static void DrawPacingPage(float rowWidth)
     const char* version = DlssNrReLimiter::Version();
     ImGui::TextDisabled("ReLimiter %s", version ? version : "?");
     HelpMarker(Tr("ReLimiter holds the frame rate steady for a G-Sync or VRR display rather than making"
-                  "
-more frames. It is a separate add-on with its own overlay; these are its settings,"
-                  "
-shown here so there is one panel to look at instead of two."
-                  "
-
-Because it aims at a frame rate, Cost > Adjust it for me cannot aim at one too --"
-                  "
-see the note on that page."));
+                  "\nmore frames. It is a separate add-on with its own overlay; these are its settings,"
+                  "\nshown here so there is one panel to look at instead of two."
+                  "\n\nBecause it aims at a frame rate, Cost > Adjust it for me cannot aim at one too --"
+                  "\nsee the note on that page."));
 
     const char* lastGroup = nullptr;
     const uint32_t settings = api->setting_count();
