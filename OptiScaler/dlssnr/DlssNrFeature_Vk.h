@@ -44,8 +44,12 @@ namespace DlssNr
 //
 // Safe to call every frame. It builds what it needs on first use and disables itself for the session
 // rather than retrying into a crash.
+//
+// `featureId` is the upscaler feature this evaluate belongs to (NVSDK_NGX_Handle::Id). A game may run
+// more than one at once -- Indiana Jones and the Great Circle runs a second 720p viewport beside its
+// 4K main one -- and without it the two are indistinguishable from one feature resizing every frame.
 void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* params, VkInstance instance,
-                            VkPhysicalDevice physicalDevice, VkDevice device);
+                            VkPhysicalDevice physicalDevice, VkDevice device, unsigned int featureId);
 
 // Whether the native Vulkan path is up, and why not if it is not.
 bool IsRunningVk();

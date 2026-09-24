@@ -72,6 +72,7 @@ constexpr Entry<bool> kBools[] = {
     { "HoldFrame", &Config::DlssNrHoldFrame },
     { "ProbeD3D11", &Config::DlssNrProbeD3D11 },
     { "ProxyProbe", &Config::DlssNrProxyProbe },
+    { "VkViewportGuard", &Config::DlssNrVkViewportGuard },
     { "ScanExposure", &Config::DlssNrScanExposure },
     { "ScanInverted", &Config::DlssNrScanInverted },
     { "ScanMeter", &Config::DlssNrScanMeter },

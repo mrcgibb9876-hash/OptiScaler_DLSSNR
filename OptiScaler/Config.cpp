@@ -445,6 +445,7 @@ bool Config::Reload(std::filesystem::path iniPath)
                 DlssNrScalingDither.set_from_config(std::clamp(setting.value(), 0.0f, 1.0f));
             DlssNrProxyProbe.set_from_config(readBool("DlssNr", "ProxyProbe"));
             DlssNrUseProxy.set_from_config(readBool("DlssNr", "UseProxy"));
+            DlssNrVkViewportGuard.set_from_config(readBool("DlssNr", "VkViewportGuard"));
             DlssNrScanExposure.set_from_config(readBool("DlssNr", "ScanExposure"));
             DlssNrWhitePointSource.set_from_config(readUInt("DlssNr", "WhitePointSource"));
 
@@ -1440,6 +1441,8 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "ScanMeter", GetBoolValue(Instance()->DlssNrScanMeter.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Passes", GetIntValue(Instance()->DlssNrPasses.value_for_config()).c_str());
         ini.SetValue("DlssNr", "UseProxy", GetBoolValue(Instance()->DlssNrUseProxy.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "VkViewportGuard",
+                     GetBoolValue(Instance()->DlssNrVkViewportGuard.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ProxyProbe", GetBoolValue(Instance()->DlssNrProxyProbe.value_for_config()).c_str());
         // ScanExposure is a developer override with no menu control; persist it so a set ini keeps it.
         ini.SetValue("DlssNr", "ScanExposure", GetBoolValue(Instance()->DlssNrScanExposure.value_for_config()).c_str());
