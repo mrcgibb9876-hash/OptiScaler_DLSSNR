@@ -1350,8 +1350,8 @@ static void DrawRenoDxPage(float rowWidth)
                 const bool isInt = info.value_type == RENODX_HOST_VALUE_INTEGER;
                 const bool wide = info.max_value - info.min_value > 10.0f;
                 float v = cur;
-                auto r = NrSlider(info.label, &v, info.min_value, info.max_value, isInt || wide ? "%.0f" : "%.2f",
-                                  rowWidth);
+                auto r =
+                    NrSlider(info.label, &v, info.min_value, info.max_value, isInt || wide ? "%.0f" : "%.2f", rowWidth);
                 if (isInt)
                     v = std::round(v);
                 if (r.changed && v != cur)
