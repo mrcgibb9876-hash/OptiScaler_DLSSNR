@@ -28,14 +28,15 @@ and both can be open at once:
 
 | Key | Opens |
 |---|---|
-| `Insert` | OptiScaler's own overlay, with everything it normally has |
-| `Alt+Home` | the DLSS 5 Developer Controls panel |
+| `Insert` | the DLSS 5 Developer Controls panel -- the same key on every route |
+| `Alt+O` | OptiScaler's own overlay, with everything it normally has |
 
 Both are rebindable under **Keybinds** in the overlay, or in `OptiScaler.ini`
 (`ShortcutKey=` and `DlssNrPanelKey=` — a modifier lives in the bits above the key code: 256 Alt,
 512 Ctrl, 1024 Shift, so `Alt+Home` is 292). A bind with no modifier named fires whatever you are
 holding, so `Insert` still works mid-sprint with Shift down; a bind that names one has to match
-exactly. **v1.0.0 and earlier used bare `Home`** for the panel. Everything else about OptiScaler — the actual
+exactly. **v1.0.0 and earlier used bare `Home`** for the panel, and later builds `Alt+Home`; RE Engine games still
+use `Alt+Home` because REFramework owns `Insert` there. Everything else about OptiScaler — the actual
 upscaler/frame-gen hooking — is untouched.
 
 **Moving, resizing and closing the panel (v1.0.14, resizing from v1.0.18):** hold the left mouse
@@ -81,8 +82,8 @@ DLSS. **DirectX 12** is the native path, **Vulkan** works (natively and through 
 and **DirectX 11** works through the D3D11-on-D3D12 bridge. There is no DirectX 9 or 10 support and
 there won't be — those APIs have no upscaler call to intercept.
 
-Once installed, launch the game, load a save (OptiScaler doesn't run in menus), press **Insert** to
-open OptiScaler's overlay, turn **DLSS ON**, then press **Alt+Home** for the DLSS 5 panel. Neural
+Once installed, launch the game, load a save (OptiScaler doesn't run in menus), press **Alt+O** to
+open OptiScaler's overlay, turn **DLSS ON**, then press **Insert** for the DLSS 5 panel. Neural
 Rendering is **off by default** even after installing — turn it on in that panel, or set
 `Enabled=true` under `[DlssNr]` in `OptiScaler.ini`.
 
