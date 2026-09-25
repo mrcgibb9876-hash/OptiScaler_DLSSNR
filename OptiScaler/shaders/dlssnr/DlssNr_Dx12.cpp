@@ -1613,7 +1613,7 @@ void ConsumeToneReadback(float normScale, bool wantBrightness, bool wantContrast
 // kCleanSeconds and never faster than kCleanRate per second, so it does not pump. It holds still after a
 // cut (the model's history reset), when too few tiles have an edge to say anything, and for a couple of
 // readings when the halo jumps several-fold at once, which is a new scene rather than a new halo.
-constexpr float kCleanHaloFull = 0.08f;
+constexpr float kCleanHaloFull = 0.10f;
 constexpr float kCleanSeconds = 1.0f;
 constexpr float kCleanRate = 0.5f;
 constexpr unsigned int kCleanMinTiles = 24;
