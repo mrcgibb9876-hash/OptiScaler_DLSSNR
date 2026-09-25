@@ -1008,6 +1008,16 @@ sl::Result StreamlineHooks::hkslUpgradeInterface(void** baseInterface)
         return o_slUpgradeInterface(baseInterface);
     }
 
+    // Only an add-on that owns the presented frame fights DLSS-G. One that only replaces the game's shaders
+    // (The Witcher 3, Cyberpunk 2077) writes its output into the game's own buffers, the same ones DLSS-G
+    // reads, so the order Streamline chose is already right -- and it is the order pacing beside native
+    // DLSS-G was verified with. An add-on that cannot say is re-layered, as before the question existed.
+    if (DlssNrRenoDx::UsesSwapchainProxy() == 0)
+    {
+        LogLeftAlone("the RenoDX add-on only replaces shaders, its output is the game's own");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
     // The member written below is ReShade's DXGIFactory::_orig, the first after the vtable pointer. That
     // is ReShade's private layout, so it is checked against what ReShade itself reports as the wrapped
     // object before anything is written; a ReShade that ever moves it is left alone rather than patched.

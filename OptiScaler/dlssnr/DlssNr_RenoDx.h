@@ -55,6 +55,10 @@ std::string AddonInProcess();
 // that only speaks version 1, or when the add-on has nothing to substitute; the tag is then left as the
 // game set it. Native D3D12 resources and D3D12_RESOURCE_STATES.
 bool TagApiAvailable();
+// 1 when the add-on clones the back buffers and writes the presented frame itself (mods::swapchain's proxy
+// pass), 0 when it only replaces the game's shaders, -1 when the add-on cannot say (upstream builds, or
+// ours before the question existed).
+int UsesSwapchainProxy();
 // The clone RenoDX redirects the resource's writes to, as RenoDX's own dlssfix does for every tag.
 bool ResolveClone(void* nativeResource, void** outNativeResource);
 // For a colour image DLSS-G compares with the presented frame (HUD-less colour, back buffer): a texture
