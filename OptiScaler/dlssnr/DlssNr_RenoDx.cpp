@@ -11,8 +11,14 @@ namespace DlssNrRenoDx
 {
 namespace
 {
-bool s_tried = false;
+// Retried, not resolved once -- the same reason as DlssNr_ReLimiter: the panel's first frame can come
+// before ReShade has loaded its add-ons, and a miss then used to hide the HDR page for the session.
+// A miss is asked again every couple of seconds; a found add-on, or one that exports the API but was
+// refused, is final (the refusal cannot change for this process, and it keeps the warning to one line).
 const RenoDxHostApi* s_api = nullptr;
+bool s_givenUp = false;
+ULONGLONG s_lastTry = 0;
+constexpr ULONGLONG kRetryEveryMs = 2000;
 std::string s_module;
 
 // K32EnumProcessModules rather than EnumProcessModules: it lives in kernel32 on every Windows this
@@ -44,14 +50,20 @@ std::string BaseNameOf(HMODULE mod)
 
 void Resolve()
 {
-    if (s_tried)
+    if (s_api != nullptr || s_givenUp)
         return;
-    s_tried = true;
+    const ULONGLONG now = GetTickCount64();
+    if (s_lastTry != 0 && now - s_lastTry < kRetryEveryMs)
+        return;
+    s_lastTry = now;
 
     HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
     auto enumModules = k32 ? (EnumProcessModulesFn) GetProcAddress(k32, "K32EnumProcessModules") : nullptr;
     if (enumModules == nullptr)
+    {
+        s_givenUp = true; // no way to look, now or later
         return;
+    }
 
     // Asked for the count first, because a process with an add-on loaded has well over a hundred
     // modules and a fixed array would be the kind of guess that works until it does not.
@@ -72,6 +84,9 @@ void Resolve()
         auto get = (RenoDxGetHostApiFn) GetProcAddress(mod, "RenoDxGetHostApi");
         if (get == nullptr)
             continue;
+
+        // Exports the API: whatever happens next, this module's answer is final.
+        s_givenUp = true;
 
         const RenoDxHostApi* api = get(RENODX_HOST_API_VERSION);
         if (api == nullptr)
@@ -97,7 +112,8 @@ void Resolve()
                  api->setting_count ? api->setting_count() : 0);
         return;
     }
-    // No RenoDX, or one without the export. The ordinary case: every shipped build is the latter.
+    // No RenoDX (yet -- asked again in a couple of seconds unless one was refused above), or one without
+    // the export. The ordinary case: every shipped build is the latter.
 }
 } // namespace
 

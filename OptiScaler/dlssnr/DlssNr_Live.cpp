@@ -3,6 +3,7 @@
 #include "pch.h"
 #include "DlssNr_Live.h"
 #include "DlssNr.h"
+#include "DlssNr_Hosted.h"
 #include "DlssNrFeature_Vk.h"
 #include <Config.h>
 #include <State.h>
@@ -272,6 +273,10 @@ void Tick()
         if (g_requested != was)
             LOG_INFO("DLSS-NR live readings for the pop-out panel: {}", g_requested ? "on" : "off");
     }
+
+    // Pacing and HDR for the pop-out ride the same request, on this same thread -- the one both add-ons'
+    // host APIs ask to be called from. Before the early return below, which is about live.json only.
+    DlssNr::Hosted::Tick(g_dir, g_requested);
 
     if (!g_requested || now - g_lastWrite < kWriteEvery)
         return;

@@ -21,7 +21,9 @@
 
 namespace DlssNrRenoDx
 {
-// Cheap after the first call. Safe to call every frame from the panel.
+// Cheap: while nothing is found the loaded modules are walked again at most every 2 s (ReShade can
+// load its add-ons after the panel's first frame); once found, or once refused, never again. Safe to
+// call every frame from the panel.
 bool Available();
 
 // Null unless Available(). Valid for the life of the process once non-null: ReShade keeps the add-on

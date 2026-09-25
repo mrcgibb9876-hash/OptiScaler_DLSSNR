@@ -20,7 +20,8 @@
 
 namespace DlssNrReLimiter
 {
-// Cheap after the first call. Safe to call every frame from the panel.
+// Cheap: a miss is re-asked at most every 2 s (the add-on can load after the panel's first frame), a
+// hit or a final refusal is never asked again. Safe to call every frame from the panel.
 bool Available();
 
 // Null unless Available(). Valid for the life of the process once non-null: the module stays loaded.

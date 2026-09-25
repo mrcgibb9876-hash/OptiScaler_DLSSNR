@@ -860,6 +860,8 @@ copy NUL "$(SolutionDir)x64\Release\a\!! EXTRACT ALL FILES TO GAME FOLDER !!" /Y
     <ClInclude Include="dlssnr\RenoDx_Api.h" />
     <ClCompile Include="dlssnr\DlssNr_Live.cpp" />
     <ClInclude Include="dlssnr\DlssNr_Live.h" />
+    <ClCompile Include="dlssnr\DlssNr_Hosted.cpp" />
+    <ClInclude Include="dlssnr\DlssNr_Hosted.h" />
     <ClCompile Include="dlssnr\DlssNr_CastMouse.cpp" />
     <ClInclude Include="dlssnr\DlssNr_CastMouse.h" />
     <ClCompile Include="dlssnr\DlssNr_DepthTracker.cpp" />

@@ -8,16 +8,28 @@ namespace DlssNrReLimiter
 {
 namespace
 {
-// Resolved once. GetModuleHandle does not take a reference, which is what we want: ReShade owns the
-// add-on's lifetime and this must not keep it alive past that.
-bool s_tried = false;
+// GetModuleHandle does not take a reference, which is what we want: ReShade owns the add-on's lifetime
+// and this must not keep it alive past that.
+//
+// NOT resolved once. It used to be, and the first call comes from the first frame the panel draws --
+// which can be before ReShade has loaded its add-ons (OptiScaler loads ReShade itself under
+// LoadReshade=true, and ReShade loads add-ons when it initialises, not when it is mapped). A miss on
+// that first frame then hid the Pacing page for the whole session with ReLimiter running. So a miss
+// is retried every couple of seconds, and only an answer that cannot change -- the add-on is here but
+// exports no API, or one we do not speak -- stops the asking.
 const ReLimiterApi* s_api = nullptr;
+bool s_givenUp = false;
+ULONGLONG s_lastTry = 0;
+constexpr ULONGLONG kRetryEveryMs = 2000;
 
 void Resolve()
 {
-    if (s_tried)
+    if (s_api != nullptr || s_givenUp)
         return;
-    s_tried = true;
+    const ULONGLONG now = GetTickCount64();
+    if (s_lastTry != 0 && now - s_lastTry < kRetryEveryMs)
+        return;
+    s_lastTry = now;
 
     // Both bitnesses, because the 32-bit helper process loads the 32-bit add-on and the panel runs
     // there too on that route.
@@ -25,7 +37,11 @@ void Resolve()
     if (mod == nullptr)
         mod = GetModuleHandleW(L"relimiter.addon32");
     if (mod == nullptr)
-        return; // not installed here, which is the ordinary case
+        return; // not loaded (yet), which is the ordinary case -- asked again later
+
+    // From here on the module is present, and nothing below can change for this process, so every
+    // refusal is final. That is also what keeps these log lines to one each.
+    s_givenUp = true;
 
     auto get = (ReLimiterGetApiFn) GetProcAddress(mod, "ReLimiterGetApi");
     if (get == nullptr)
@@ -51,6 +67,7 @@ void Resolve()
                  api->struct_size, (unsigned) sizeof(ReLimiterApi));
         return;
     }
+    s_givenUp = false;
 
     s_api = api;
     LOG_INFO("DLSS-NR: ReLimiter {} found, host API v{} ({} settings)",
