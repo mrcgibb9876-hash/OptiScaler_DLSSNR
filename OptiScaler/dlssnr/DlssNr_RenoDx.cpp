@@ -4,6 +4,8 @@
 
 #include "DlssNr_RenoDx.h"
 
+#include <atomic>
+#include <mutex>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -51,8 +53,33 @@ std::string BaseNameOf(HMODULE mod)
     return out;
 }
 
+EnumProcessModulesFn EnumModulesFn()
+{
+    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+    return k32 ? (EnumProcessModulesFn) GetProcAddress(k32, "K32EnumProcessModules") : nullptr;
+}
+
+// Every module in the process, or an empty list if they could not be listed this time.
+std::vector<HMODULE> LoadedModules(EnumProcessModulesFn enumModules)
+{
+    // Asked for the count first, because a process with an add-on loaded has well over a hundred
+    // modules and a fixed array would be the kind of guess that works until it does not.
+    DWORD needed = 0;
+    if (!enumModules(GetCurrentProcess(), nullptr, 0, &needed) || needed == 0)
+        return {};
+    std::vector<HMODULE> mods(needed / sizeof(HMODULE));
+    if (!enumModules(GetCurrentProcess(), mods.data(), (DWORD) (mods.size() * sizeof(HMODULE)), &needed))
+        return {};
+    mods.resize(needed / sizeof(HMODULE));
+    return mods;
+}
+
 void Resolve()
 {
+    // The panel, the hosted pages and the frame's dispatch (ToneTrimSuppressed) all ask; one at a time.
+    static std::mutex resolveMutex;
+    std::lock_guard<std::mutex> lock(resolveMutex);
+
     if (s_api != nullptr || s_givenUp)
         return;
     const ULONGLONG now = GetTickCount64();
@@ -60,23 +87,16 @@ void Resolve()
         return;
     s_lastTry = now;
 
-    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
-    auto enumModules = k32 ? (EnumProcessModulesFn) GetProcAddress(k32, "K32EnumProcessModules") : nullptr;
+    auto enumModules = EnumModulesFn();
     if (enumModules == nullptr)
     {
         s_givenUp = true; // no way to look, now or later
         return;
     }
 
-    // Asked for the count first, because a process with an add-on loaded has well over a hundred
-    // modules and a fixed array would be the kind of guess that works until it does not.
-    DWORD needed = 0;
-    if (!enumModules(GetCurrentProcess(), nullptr, 0, &needed) || needed == 0)
+    std::vector<HMODULE> mods = LoadedModules(enumModules);
+    if (mods.empty())
         return;
-    std::vector<HMODULE> mods(needed / sizeof(HMODULE));
-    if (!enumModules(GetCurrentProcess(), mods.data(), (DWORD) (mods.size() * sizeof(HMODULE)), &needed))
-        return;
-    mods.resize(needed / sizeof(HMODULE));
 
     // Every module is asked, not just the ones whose name looks like RenoDX's. A name filter would be
     // a second place that knows how these files are called, and it would miss a renamed copy for no
@@ -109,11 +129,12 @@ void Resolve()
         }
         // A newer add-on may return a LARGER struct, which is fine -- we read the prefix we know.
         // Smaller would mean reading past its end, so it is refused rather than trusted.
-        if (api->struct_size < sizeof(RenoDxHostApi))
+        // The version 2 members are optional (see ResolveClone), so a version 1 add-on is still driven.
+        if (api->struct_size < RENODX_HOST_API_V1_SIZE)
         {
             LOG_WARN("DLSS-NR: {}'s host API struct is {} bytes, smaller than the {} this build expects "
                      "-- not driving it from the panel",
-                     BaseNameOf(mod), api->struct_size, (unsigned) sizeof(RenoDxHostApi));
+                     BaseNameOf(mod), api->struct_size, (unsigned) RENODX_HOST_API_V1_SIZE);
             s_reason = "api-version";
             continue;
         }
@@ -139,6 +160,120 @@ bool Available()
     return s_api != nullptr;
 }
 
+namespace
+{
+// The version 2 members, when the add-on has them.
+const RenoDxHostApi* GraphicsApi()
+{
+    Resolve();
+    if (s_api == nullptr || s_api->api_version < 2 ||
+        s_api->struct_size < offsetof(RenoDxHostApi, encode_for_swapchain) + sizeof(s_api->encode_for_swapchain))
+        return nullptr;
+    return s_api;
+}
+} // namespace
+
+bool TagApiAvailable() { return GraphicsApi() != nullptr; }
+
+namespace
+{
+// reset_settings, when the add-on has it (host API version 3). Not part of the minimum-size check in
+// Resolve(): an older add-on is still driven, it just offers no reset.
+auto ResetFn() -> void (*)()
+{
+    const RenoDxHostApi* api = Api();
+    if (api == nullptr || api->struct_size < offsetof(RenoDxHostApi, reset_settings) + sizeof(api->reset_settings))
+        return nullptr;
+    return api->reset_settings;
+}
+} // namespace
+
+bool CanReset() { return ResetFn() != nullptr; }
+
+void LogCommit(const char* source, const char* action, const char* key, double value, bool ok)
+{
+    static std::atomic<int> logged { 0 };
+    if (logged.fetch_add(1) >= 400)
+        return;
+
+    const RenoDxHostApi* api = Api();
+    float back = 0.0f;
+    const bool read = api != nullptr && key != nullptr && *key != '\0' && api->get_number(key, &back);
+    const RenoDxHostApi* v4 = V4();
+    const int preset = v4 != nullptr && v4->get_preset != nullptr ? v4->get_preset() : -1;
+    if (read)
+        LOG_DEBUG("RenoDX {}: {} {} = {} -> {}, reads back {}, preset {}", source, action, key ? key : "", value,
+                  ok ? "ok" : "fail", back, preset);
+    else
+        LOG_DEBUG("RenoDX {}: {} {} = {} -> {}, preset {}", source, action, key ? key : "", value, ok ? "ok" : "fail",
+                  preset);
+}
+
+bool ToneTrimSuppressed() { return Api() != nullptr; }
+
+const RenoDxHostApi* V4()
+{
+    const RenoDxHostApi* api = Api();
+    if (api == nullptr || api->api_version < 4 ||
+        api->struct_size < offsetof(RenoDxHostApi, section_open_by_default) + sizeof(api->section_open_by_default))
+        return nullptr;
+    return api;
+}
+
+void ResetAll()
+{
+    if (auto reset = ResetFn(); reset != nullptr)
+        reset(); // resets and saves
+}
+
+int UsesSwapchainProxy()
+{
+    // Asked once, when the game upgrades its factory: an answer from the panel's rate-limited lookup two
+    // seconds ago could predate the add-on, so look now.
+    if (s_api == nullptr && !s_givenUp)
+        s_lastTry = 0;
+
+    auto* api = GraphicsApi();
+    if (api == nullptr ||
+        api->struct_size < offsetof(RenoDxHostApi, uses_swapchain_proxy) + sizeof(api->uses_swapchain_proxy) ||
+        api->uses_swapchain_proxy == nullptr)
+        return -1;
+    return api->uses_swapchain_proxy() ? 1 : 0;
+}
+
+bool ResolveClone(void* nativeResource, void** outNativeResource)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr && api->resolve_clone != nullptr && api->resolve_clone(nativeResource, outNativeResource);
+}
+
+bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr && api->encode_for_swapchain != nullptr &&
+           api->encode_for_swapchain(nativeResource, d3d12State, outNativeResource, outD3d12State);
+}
+
+bool EncodeInPlaceForSwapchain(void* nativeResource, uint32_t d3d12State, bool isUi)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr &&
+           api->struct_size >=
+               offsetof(RenoDxHostApi, encode_in_place_for_swapchain) + sizeof(api->encode_in_place_for_swapchain) &&
+           api->encode_in_place_for_swapchain != nullptr &&
+           api->encode_in_place_for_swapchain(nativeResource, d3d12State, isUi);
+}
+
+bool EncodeUiForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr &&
+           api->struct_size >=
+               offsetof(RenoDxHostApi, encode_ui_for_swapchain) + sizeof(api->encode_ui_for_swapchain) &&
+           api->encode_ui_for_swapchain != nullptr &&
+           api->encode_ui_for_swapchain(nativeResource, d3d12State, outNativeResource, outD3d12State);
+}
+
 const RenoDxHostApi* Api()
 {
     Resolve();
@@ -161,5 +296,30 @@ const char* UnavailableReason()
 {
     Resolve();
     return s_api != nullptr ? nullptr : s_reason;
+}
+
+std::string AddonInProcess()
+{
+    // Not through Resolve(): that one is rate-limited for the panel, and this is asked once, at the
+    // moment the game builds its swap chain, when an answer from two seconds ago would be stale.
+    auto enumModules = EnumModulesFn();
+    if (enumModules == nullptr)
+        return {};
+
+    for (HMODULE mod : LoadedModules(enumModules))
+    {
+        std::string name = BaseNameOf(mod);
+        if (GetProcAddress(mod, "RenoDxGetHostApi") != nullptr)
+            return name;
+
+        // Upstream builds have no export, so the file name is what identifies them: renodx-*.addon64
+        // (or .addon for a 32-bit ReShade). The extension keeps a stray renodx*.dll from counting.
+        const size_t dot = name.find_last_of('.');
+        const std::string ext = dot == std::string::npos ? std::string() : name.substr(dot);
+        if (_strnicmp(name.c_str(), "renodx", 6) == 0 &&
+            (_stricmp(ext.c_str(), ".addon64") == 0 || _stricmp(ext.c_str(), ".addon") == 0))
+            return name;
+    }
+    return {};
 }
 } // namespace DlssNrRenoDx

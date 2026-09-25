@@ -286,6 +286,242 @@ void AppendPacing(std::string& s)
     s += "]}";
 }
 
+const char* RenoDxKindName(uint32_t kind)
+{
+    switch (kind)
+    {
+    case RENODX_HOST_KIND_FLOAT:
+        return "float";
+    case RENODX_HOST_KIND_INTEGER:
+        return "int";
+    case RENODX_HOST_KIND_BOOLEAN:
+        return "bool";
+    case RENODX_HOST_KIND_BUTTON:
+        return "button";
+    case RENODX_HOST_KIND_LABEL:
+        return "label";
+    case RENODX_HOST_KIND_BULLET:
+        return "bullet";
+    case RENODX_HOST_KIND_TEXT:
+        return "text";
+    case RENODX_HOST_KIND_TEXT_NOWRAP:
+        return "textNowrap";
+    case RENODX_HOST_KIND_CUSTOM:
+        return "custom";
+    case RENODX_HOST_KIND_INPUT_TEXT:
+        return "inputText";
+    default:
+        return nullptr;
+    }
+}
+
+// The rest of RenoDX's overlay for the pop-out (host API version 4): the add-on's title, its preset
+// switcher and every row it draws, in order, with what the pop-out needs to draw the same control. Added
+// after "settings", which stays exactly as older app builds read it. Without a version-4 add-on only
+// "apiVersion" is written.
+void AppendHdrV4(std::string& s, const RenoDxHostApi* api)
+{
+    s += ',';
+    AppendKey(s, "apiVersion");
+    AppendNumber(s, api->api_version, true);
+
+    const RenoDxHostApi* v4 = DlssNrRenoDx::V4();
+    if (v4 == nullptr)
+        return;
+
+    s += ',';
+    AppendKey(s, "title");
+    AppendString(s, v4->overlay_title != nullptr ? v4->overlay_title() : "");
+
+    // Presets: null when the mod has none.
+    s += ',';
+    AppendKey(s, "presets");
+    const uint32_t presetCount = v4->preset_count != nullptr ? v4->preset_count() : 0;
+    const int32_t preset = v4->get_preset != nullptr ? v4->get_preset() : -1;
+    if (presetCount == 0 || preset < 0)
+    {
+        s += "null";
+    }
+    else
+    {
+        s += '{';
+        AppendKey(s, "count");
+        AppendNumber(s, presetCount, true);
+        s += ',';
+        AppendKey(s, "selected");
+        AppendNumber(s, preset, true);
+        s += ',';
+        AppendKey(s, "segmented");
+        const uint32_t style = v4->preset_style != nullptr ? v4->preset_style() : RENODX_HOST_STYLE_SEGMENTED;
+        s += (style & RENODX_HOST_STYLE_SEGMENTED) != 0 ? "true" : "false";
+        s += ",\"labels\":[";
+        for (uint32_t p = 0; p < presetCount && p < 16; ++p)
+        {
+            if (p > 0)
+                s += ',';
+            const char* name = v4->preset_label != nullptr ? v4->preset_label(p) : nullptr;
+            AppendString(s, name != nullptr ? name : "");
+        }
+        s += "]}";
+    }
+
+    s += ",\"rows\":[";
+    bool first = true;
+    const uint32_t count = v4->setting_count();
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        RenoDxHostSetting info {};
+        info.struct_size = sizeof(info);
+        if (!v4->describe_setting(i, &info) || info.is_visible == 0)
+            continue;
+        const char* kind = RenoDxKindName(info.kind);
+        if (kind == nullptr)
+            continue;
+
+        // BORROWED strings: copied before the next call into the add-on.
+        const std::string key = info.key != nullptr ? info.key : "";
+        const std::string label = info.label != nullptr ? info.label : "";
+        const std::string section = info.section != nullptr ? info.section : "";
+        const std::string tooltip = info.tooltip != nullptr ? info.tooltip : "";
+        const std::string placeholder = info.placeholder != nullptr ? info.placeholder : "";
+        const std::string defaultText = info.default_text != nullptr ? info.default_text : "";
+        const uint32_t labelCount = info.label_count < kMaxComboLabels ? info.label_count : kMaxComboLabels;
+
+        std::string row;
+        row += '{';
+        AppendKey(row, "index");
+        AppendNumber(row, i, true);
+        row += ',';
+        AppendKey(row, "kind");
+        AppendString(row, kind);
+        row += ',';
+        AppendKey(row, "key");
+        AppendString(row, key.c_str());
+        row += ',';
+        AppendKey(row, "label");
+        AppendString(row, label.c_str());
+        row += ',';
+        AppendKey(row, "section");
+        AppendString(row, section.c_str());
+        row += ',';
+        AppendKey(row, "sectionOpen");
+        row +=
+            v4->section_open_by_default != nullptr && v4->section_open_by_default(section.c_str()) ? "true" : "false";
+        row += ',';
+        AppendKey(row, "tooltip");
+        AppendString(row, tooltip.c_str());
+        row += ',';
+        AppendKey(row, "enabled");
+        row += info.is_enabled != 0 ? "true" : "false";
+        row += ',';
+        AppendKey(row, "sticky");
+        row += info.is_sticky != 0 ? "true" : "false";
+        row += ',';
+        AppendKey(row, "segmented");
+        row += (info.style & RENODX_HOST_STYLE_SEGMENTED) != 0 ? "true" : "false";
+        row += ',';
+        AppendKey(row, "multiline");
+        row += (info.style & RENODX_HOST_STYLE_MULTILINE) != 0 ? "true" : "false";
+        row += ',';
+        AppendKey(row, "tint");
+        if (info.has_tint != 0)
+        {
+            char tint[8];
+            std::snprintf(tint, sizeof(tint), "#%06X", info.tint_rgb & 0xFFFFFFu);
+            AppendString(row, tint);
+        }
+        else
+        {
+            row += "null";
+        }
+        row += ',';
+        AppendKey(row, "canReset");
+        row += info.can_reset != 0 ? "true" : "false";
+        row += ',';
+        AppendKey(row, "isUsingDefault");
+        row += info.is_using_default != 0 ? "true" : "false";
+
+        // Names: a labelled int or bool's choices, or a LABEL row's text (its only entry).
+        if (labelCount > 0)
+        {
+            row += ",\"labels\":[";
+            for (uint32_t c = 0; c < labelCount; ++c)
+            {
+                if (c > 0)
+                    row += ',';
+                const char* l = v4->label_at(i, c);
+                AppendString(row, l != nullptr ? l : "");
+            }
+            row += ']';
+        }
+
+        const bool numeric = info.kind == RENODX_HOST_KIND_FLOAT || info.kind == RENODX_HOST_KIND_INTEGER ||
+                             info.kind == RENODX_HOST_KIND_BOOLEAN;
+        if (numeric && !key.empty())
+        {
+            float cur = 0.0f;
+            if (!v4->get_number(key.c_str(), &cur))
+                continue;
+            if (info.kind != RENODX_HOST_KIND_BOOLEAN)
+            {
+                row += ',';
+                AppendKey(row, "min");
+                AppendFloat(row, info.min_value);
+                row += ',';
+                AppendKey(row, "max");
+                AppendFloat(row, info.max_value);
+                row += ',';
+                AppendKey(row, "logarithmic");
+                row += info.is_logarithmic != 0 ? "true" : "false";
+            }
+            row += ',';
+            AppendKey(row, "value");
+            if (info.kind == RENODX_HOST_KIND_BOOLEAN)
+                row += cur != 0.0f ? "true" : "false";
+            else if (info.kind == RENODX_HOST_KIND_FLOAT)
+                AppendFloat(row, cur);
+            else
+                AppendNumber(row, cur, true);
+            row += ',';
+            AppendKey(row, "default");
+            if (info.kind == RENODX_HOST_KIND_BOOLEAN)
+                row += info.default_value != 0.0f ? "true" : "false";
+            else if (info.kind == RENODX_HOST_KIND_FLOAT)
+                AppendFloat(row, info.default_value);
+            else
+                AppendNumber(row, info.default_value, true);
+        }
+        else if (info.kind == RENODX_HOST_KIND_INPUT_TEXT && !key.empty())
+        {
+            char text[1024] {};
+            if (!v4->get_text(key.c_str(), text, sizeof(text)))
+                continue;
+            row += ',';
+            AppendKey(row, "value");
+            AppendString(row, text);
+            row += ',';
+            AppendKey(row, "default");
+            AppendString(row, defaultText.c_str());
+            row += ',';
+            AppendKey(row, "placeholder");
+            AppendString(row, placeholder.c_str());
+            row += ',';
+            AppendKey(row, "maxLength");
+            AppendNumber(row, info.text_max_length, true);
+            row += ',';
+            AppendKey(row, "inputTextFlags");
+            AppendNumber(row, info.input_text_flags, true);
+        }
+        row += '}';
+
+        if (!first)
+            s += ',';
+        first = false;
+        s += row;
+    }
+    s += ']';
+}
+
 void AppendHdr(std::string& s)
 {
     const RenoDxHostApi* api = DlssNrRenoDx::Api();
@@ -308,6 +544,9 @@ void AppendHdr(std::string& s)
     s += ',';
     AppendKey(s, "addon");
     AppendString(s, DlssNrRenoDx::AddonName());
+    s += ',';
+    AppendKey(s, "canReset");
+    s += DlssNrRenoDx::CanReset() ? "true" : "false";
     s += ",\"settings\":[";
 
     bool first = true;
@@ -433,7 +672,9 @@ void AppendHdr(std::string& s)
             AppendNumber(s, cur, true);
         s += '}';
     }
-    s += "]}";
+    s += ']';
+    AppendHdrV4(s, api);
+    s += '}';
 }
 
 std::string BuildBody()
@@ -586,11 +827,37 @@ void ApplyHdr(const nlohmann::json& obj)
     if (api == nullptr || !obj.is_object() || obj.empty())
         return;
 
+    // The pop-out's "Reset all to defaults" button: RenoDX resets and saves itself, then any other keys in
+    // the same command still apply on top.
+    if (auto reset = obj.find("$reset"); reset != obj.end() && reset->is_boolean() && reset->get<bool>())
+    {
+        DlssNrRenoDx::ResetAll();
+        DlssNrRenoDx::LogCommit("pop-out", "reset all", nullptr, 0.0, true);
+    }
+
+    // Version 4 commands: the preset switcher, one setting's reset button, a BUTTON row's click. Each does
+    // exactly what the same click does in RenoDX's overlay, including its own saving.
+    if (const RenoDxHostApi* v4 = DlssNrRenoDx::V4(); v4 != nullptr)
+    {
+        double n = 0.0;
+        if (auto it = obj.find("$preset"); it != obj.end() && NumberOf(*it, &n) && v4->set_preset != nullptr)
+            DlssNrRenoDx::LogCommit("pop-out", "preset", nullptr, n, v4->set_preset((int32_t) std::lround(n)));
+        if (auto it = obj.find("$resetSetting"); it != obj.end() && it->is_string() && v4->reset_setting != nullptr)
+        {
+            const std::string key = it->get<std::string>();
+            DlssNrRenoDx::LogCommit("pop-out", "reset", key.c_str(), 0.0, v4->reset_setting(key.c_str()));
+        }
+        if (auto it = obj.find("$press"); it != obj.end() && NumberOf(*it, &n) && n >= 0.0 && v4->press != nullptr)
+            DlssNrRenoDx::LogCommit("pop-out", "press", nullptr, n, v4->press((uint32_t) std::lround(n)));
+    }
+
     bool changed = false;
     const uint32_t count = api->setting_count();
     for (auto it = obj.begin(); it != obj.end(); ++it)
     {
         const std::string& key = it.key();
+        if (!key.empty() && key[0] == '$')
+            continue; // commands, handled above
         RenoDxHostSetting info {};
         bool found = false;
         for (uint32_t i = 0; i < count && !found; ++i)
@@ -607,6 +874,21 @@ void ApplyHdr(const nlohmann::json& obj)
         // Greyed in RenoDX's overlay means the value is ignored right now; not written behind its back.
         if (info.is_enabled == 0)
             continue;
+
+        // A text box's value arrives as a string (version 4 kind INPUT_TEXT, or an older add-on's TEXT).
+        const bool textBox = (DlssNrRenoDx::V4() != nullptr && info.kind == RENODX_HOST_KIND_INPUT_TEXT) ||
+                             (DlssNrRenoDx::V4() == nullptr && info.value_type == RENODX_HOST_VALUE_TEXT);
+        if (textBox)
+        {
+            if (it.value().is_string())
+            {
+                const std::string text = it.value().get<std::string>();
+                const bool ok = api->set_text(key.c_str(), text.c_str());
+                DlssNrRenoDx::LogCommit("pop-out", "text", key.c_str(), (double) text.size(), ok);
+                changed = ok || changed;
+            }
+            continue;
+        }
 
         double n = 0.0;
         if (!NumberOf(it.value(), &n))
@@ -634,7 +916,9 @@ void ApplyHdr(const nlohmann::json& obj)
             continue; // TEXT is not offered
         }
         // `key` (ours), not info.key: describe's strings are borrowed and set_number is the next call.
-        changed = api->set_number(key.c_str(), (float) n) || changed;
+        const bool ok = api->set_number(key.c_str(), (float) n);
+        DlssNrRenoDx::LogCommit("pop-out", "set", key.c_str(), n, ok);
+        changed = ok || changed;
     }
 
     // set_number already applied each value live (RenoDX runs its on_change there); save persists.
