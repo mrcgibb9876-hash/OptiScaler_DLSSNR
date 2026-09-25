@@ -169,6 +169,21 @@ const RenoDxHostApi* GraphicsApi()
 
 bool TagApiAvailable() { return GraphicsApi() != nullptr; }
 
+int UsesSwapchainProxy()
+{
+    // Asked once, when the game upgrades its factory: an answer from the panel's rate-limited lookup two
+    // seconds ago could predate the add-on, so look now.
+    if (s_api == nullptr && !s_givenUp)
+        s_lastTry = 0;
+
+    auto* api = GraphicsApi();
+    if (api == nullptr ||
+        api->struct_size < offsetof(RenoDxHostApi, uses_swapchain_proxy) + sizeof(api->uses_swapchain_proxy) ||
+        api->uses_swapchain_proxy == nullptr)
+        return -1;
+    return api->uses_swapchain_proxy() ? 1 : 0;
+}
+
 bool ResolveClone(void* nativeResource, void** outNativeResource)
 {
     auto* api = GraphicsApi();

@@ -99,6 +99,9 @@ struct RenoDxHostApi
     // Copy-back: the same pass, its result copied back into the tagged image itself at each present
     // (alpha kept when is_ui), so the tag stays as the game set it. Checked by struct_size on its own.
     bool (*encode_in_place_for_swapchain)(void* native_resource, uint32_t d3d12_state, bool is_ui);
+    // Whether the add-on clones the back buffers and writes the presented frame itself at present. False
+    // for a shader-only add-on (Witcher 3, Cyberpunk 2077), whose output is the game's own.
+    bool (*uses_swapchain_proxy)();
 };
 
 // What a version 1 add-on's struct holds; anything it reports at least this size of is drivable.
