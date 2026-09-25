@@ -519,8 +519,12 @@ static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin
 
     bool committed = false;
     ImGui::SetNextItemWidth(boxWidth);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 22, 20, 190));
-    ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+    // White box, green digits: on the dark panel a dark box hid what was being typed.
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(255, 255, 255, 255));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(245, 250, 245, 255));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(255, 255, 255, 255));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 140, 50, 255));
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0, 140, 50, 70));
     if (isInt)
     {
         int v = (int) *value;
@@ -546,7 +550,7 @@ static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin
             committed = true;
         }
     }
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(5);
 
     // What the box will take, said once beside it rather than discovered by having a number refused.
     ImGui::SameLine();
