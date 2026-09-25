@@ -754,6 +754,13 @@ class Config
     // Lossless Scaling's own Settings.xml stays the source of truth; this just tells the panel
     // which controls make sense to show.
     CustomOptional<std::wstring> LosslessScalingMode { std::wstring(L"FIXED") };
+
+    // What reaches the game's own DLSS-G of the HUD-less and UI tags while RenoDX has ReShade re-layered
+    // above Streamline (StreamlineHooks::hkslUpgradeInterface). Those are the game's buffers, which RenoDX
+    // never processed, while the presented frame is RenoDX's output: interpolating one against the other
+    // made generated frames differ in tone from real ones (pulsing). auto and drop: both tags withheld;
+    // hudless: only the HUD-less tag withheld; keep: both forwarded, as the game sets them.
+    CustomOptional<std::wstring> RenoDxDlssgHudless { std::wstring(L"auto") };
     CustomOptional<int> LosslessScalingMultiplier { 2 };
     CustomOptional<int> LosslessScalingTarget { 120 };
 

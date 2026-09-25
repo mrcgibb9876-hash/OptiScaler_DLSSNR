@@ -49,4 +49,14 @@ const char* UnavailableReason();
 // Unlike Available() this does not need the host API and is not rate-limited: StreamlineHooks asks it
 // once, when the game upgrades its DXGI factory, to decide whether ReShade has to sit above Streamline.
 std::string AddonInProcess();
+
+// NOT YET THERE, the proper fix for the DLSS-G HUD-less/UI tags (StreamlineHooks::hkslSetTag_renodx, which
+// withholds them for now): the game's HUD-less colour is in RenoDX's intermediate encoding and clipped to
+// the game's 10-bit format, while the frame DLSS-G receives has been through RenoDX's swap chain pass. To
+// give DLSS-G a matching HUD-less image the host API would need one more entry, in RenoDX's
+// src/utils/settings.hpp next to the settings ones: given a native D3D12 resource and a command list,
+// return (a) the resource's clone when RenoDX redirects it (utils::resource::GetResourceInfo, clone_enabled
+// and clone) and (b) otherwise run the same SwapchainProxyPass the add-on uses at present
+// (src/utils/draw.hpp) from that resource into a RenoDX-owned texture of the swap chain format. The engine
+// would then re-point the tag at what comes back instead of dropping it.
 } // namespace DlssNrRenoDx
