@@ -993,6 +993,12 @@ sl::Result StreamlineHooks::hkslUpgradeInterface(void** baseInterface)
         return o_slUpgradeInterface(baseInterface);
     }
 
+    if (_wcsicmp(Config::Instance()->RenoDxDlssgMode.value_or_default().c_str(), L"off") == 0)
+    {
+        LogLeftAlone("RenoDxDlssgMode=off");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
     const std::string renodx = DlssNrRenoDx::AddonInProcess();
     if (renodx.empty())
     {
@@ -1102,37 +1108,47 @@ StreamlineHooks::ScopedGameDevice::~ScopedGameDevice() { t_gameDevice = _previou
 // so every generated frame came out in the game's encoding and every real one in RenoDX's: the picture
 // pulsed. Withholding those tags (the first answer) only traded the pulsing for ghosting.
 //
-// What RenoDX's own dlssfix does, and what this does by default ([DlssNr] RenoDxDlssgHudless=redirect,
-// also "auto"), is re-point every tag at RenoDX's own version of the resource through its host API
-// (version 2, DlssNrRenoDx): a colour image DLSS-G compares with the presented frame -- HUD-less colour,
-// the back buffer -- at a texture RenoDX fills at each present with its swap chain proxy pass over that
-// image, so it is encoded exactly like the frame; anything else at RenoDX's clone of it when there is one
-// (dlssfix's own rule). Without a version 2 RenoDX, or where RenoDX has nothing to substitute, the tag is
-// forwarded as the game set it. drop / hudless / keep remain for comparison: withhold HUD-less and UI,
-// withhold HUD-less only, forward everything. Nothing changes unless the re-layer engaged.
+// The layers, each falling to the next, all through RenoDX's host API version 2 (DlssNrRenoDx), chosen by
+// [DlssNr] RenoDxDlssgMode:
+//   copy-back  RenoDX runs its swap chain proxy pass over the HUD-less and UI images and copies the result
+//              back into them at each present, before Streamline reads them; the tags stay exactly as the
+//              game set them (the design of RenoDX's own DLSS add-on, which copies the processed frame
+//              back at the DLSS-G evaluate).
+//   redirect   the same pass into a texture of RenoDX's, and the tag re-pointed at it once it is filled
+//              (the design of RenoDX's dlssfix, which re-points every tag at RenoDX's clone).
+//   original   the game's own tag.
+// auto = copy-back, else redirect, else original; copyback / redirect = that layer, else original;
+// redirect-hudless-only = redirect with the UI tag left alone; drop = HUD-less and UI withheld;
+// reorder-only = every tag as the game set it; off = no re-layer at all (hkslUpgradeInterface). The back
+// buffer is always left as tagged -- RenoDX's proxy pass has written the encoded frame into it by the time
+// Streamline reads it -- and any other tag goes to RenoDX's clone when it has one. Each outcome is logged
+// once per buffer type. Nothing changes unless the re-layer engaged.
 namespace
 {
 enum class TagFilter
 {
+    Auto,
+    CopyBack,
     Redirect,
     RedirectHudlessOnly,
     Keep,
-    HudlessOnly,
     HudlessAndUi
 };
 
 TagFilter CurrentTagFilter()
 {
-    const auto mode = Config::Instance()->RenoDxDlssgHudless.value_or_default();
-    if (_wcsicmp(mode.c_str(), L"keep") == 0)
+    const auto mode = Config::Instance()->RenoDxDlssgMode.value_or_default();
+    if (_wcsicmp(mode.c_str(), L"reorder-only") == 0 || _wcsicmp(mode.c_str(), L"off") == 0)
         return TagFilter::Keep;
-    if (_wcsicmp(mode.c_str(), L"hudless") == 0)
-        return TagFilter::HudlessOnly;
     if (_wcsicmp(mode.c_str(), L"drop") == 0)
         return TagFilter::HudlessAndUi;
+    if (_wcsicmp(mode.c_str(), L"copyback") == 0)
+        return TagFilter::CopyBack;
+    if (_wcsicmp(mode.c_str(), L"redirect") == 0)
+        return TagFilter::Redirect;
     if (_wcsicmp(mode.c_str(), L"redirect-hudless-only") == 0)
         return TagFilter::RedirectHudlessOnly;
-    return TagFilter::Redirect; // auto, redirect, redirect-all, or anything unrecognised
+    return TagFilter::Auto; // auto, or anything unrecognised
 }
 
 const char* TagName(sl::BufferType type)
@@ -1171,9 +1187,13 @@ void LogTagOnce(sl::BufferType type, const char* outcome)
 
 // The default: every tag at RenoDX's own version of its resource, see above. The copies live in *kept and
 // *resources, which are sized first so the pointers into *resources stay valid.
-const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTags, bool includeUi,
+const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTags, TagFilter filter,
                                     std::vector<sl::ResourceTag>* kept, std::vector<sl::Resource>* resources)
 {
+    const bool allowCopyBack = filter == TagFilter::Auto || filter == TagFilter::CopyBack;
+    const bool allowRedirect = filter != TagFilter::CopyBack;
+    const bool includeUi = filter != TagFilter::RedirectHudlessOnly;
+
     if (!DlssNrRenoDx::TagApiAvailable())
     {
         static std::atomic<bool> said { false };
@@ -1207,7 +1227,7 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
 
         if (tag.type == sl::kBufferTypeUIColorAndAlpha && !includeUi)
         {
-            LogTagOnce(tag.type, "forwarded as-is (RenoDxDlssgHudless=redirect-hudless-only)");
+            LogTagOnce(tag.type, "forwarded as-is (RenoDxDlssgMode=redirect-hudless-only)");
             continue;
         }
 
@@ -1218,6 +1238,22 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
         if (tag.type == sl::kBufferTypeHUDLessColor || tag.type == sl::kBufferTypeUIColorAndAlpha)
         {
             const bool ui = tag.type == sl::kBufferTypeUIColorAndAlpha;
+
+            // Copy-back first: the tag is left alone, so this can never hand Streamline anything but the
+            // game's own resource.
+            if (allowCopyBack && DlssNrRenoDx::EncodeInPlaceForSwapchain(tag.resource->native, tag.resource->state, ui))
+            {
+                LogTagOnce(tag.type, "encoded in place by RenoDX (copy-back), tag left as the game set it");
+                continue;
+            }
+            if (allowCopyBack)
+                LogTagOnce(tag.type, "copy-back not available from this RenoDX");
+            if (!allowRedirect)
+            {
+                LogTagOnce(tag.type, "the game's own image forwarded (RenoDxDlssgMode=copyback)");
+                continue;
+            }
+
             const bool encoded =
                 ui ? DlssNrRenoDx::EncodeUiForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state)
                    : DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state);
@@ -1249,11 +1285,8 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
 
 bool Withheld(TagFilter filter, sl::BufferType type)
 {
-    if (type == sl::kBufferTypeHUDLessColor)
-        return filter != TagFilter::Keep;
-    if (type == sl::kBufferTypeUIColorAndAlpha)
-        return filter == TagFilter::HudlessAndUi;
-    return false;
+    return filter == TagFilter::HudlessAndUi &&
+           (type == sl::kBufferTypeHUDLessColor || type == sl::kBufferTypeUIColorAndAlpha);
 }
 
 // The tags to forward: tags itself when nothing is withheld, else a filtered copy in *kept. The first
@@ -1271,16 +1304,16 @@ const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags
         for (uint32_t i = 0; i < *numTags; i++)
             types += (i == 0 ? "" : ",") + std::to_string(tags[i].type);
         LOG_INFO("RenoDX/DLSS-G: the game tags buffer types {} (2 HUD-less colour, 23 UI colour and alpha), "
-                 "RenoDxDlssgHudless={}",
-                 types, wstring_to_string(Config::Instance()->RenoDxDlssgHudless.value_or_default()));
+                 "RenoDxDlssgMode={}",
+                 types, wstring_to_string(Config::Instance()->RenoDxDlssgMode.value_or_default()));
     }
 
     const TagFilter filter = CurrentTagFilter();
     if (filter == TagFilter::Keep)
         return tags;
 
-    if (filter == TagFilter::Redirect || filter == TagFilter::RedirectHudlessOnly)
-        return RedirectTags(tags, *numTags, filter == TagFilter::Redirect, kept, resources);
+    if (filter != TagFilter::HudlessAndUi)
+        return RedirectTags(tags, *numTags, filter, kept, resources);
 
     kept->clear();
     bool hudless = false;
