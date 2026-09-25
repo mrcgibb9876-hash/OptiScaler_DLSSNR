@@ -1,5 +1,20 @@
-
 name: Sync upstream DLSS Neural Rendering
+
+# PR-ONLY mode.
+#
+# This workflow keeps the mirror branch (dlss-neural-rendering) current with Dagherbou's upstream
+# and then OFFERS the new upstream commits to the default branch as a pull request. It never
+# merges into, and never pushes to, dlss5-developer-controls-ui. Upstream changes reach the engine
+# only when the maintainer has built and tested the PR branch and merges the PR by hand.
+#
+# What a run does when upstream has commits the default branch does not:
+#   1. fast-forwards the mirror branch to upstream and pushes it (the mirror is not a release branch)
+#   2. builds a branch upstream-sync/<date> = default branch + merge of upstream
+#      (an already-open upstream-sync PR is reused and its branch refreshed instead)
+#   3. opens or updates the PR "Upstream update: N new commits from Dagherbou" with the commit list
+#      and the test checklist
+#   4. dispatches just_build_no_signature.yml on that branch so a test build is waiting
+# On a merge conflict it still opens the PR (branch = upstream tip) and says so; no build.
 
 on:
   schedule:
@@ -16,12 +31,20 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  actions: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
 
 env:
   UPSTREAM_URL: https://github.com/Dagherbou/OptiScaler_DLSSNR.git
+  UPSTREAM_REPO: Dagherbou/OptiScaler_DLSSNR
   UPSTREAM_BRANCH: dlss-neural-rendering
   MIRROR_BRANCH: dlss-neural-rendering
   UI_BRANCH: dlss5-developer-controls-ui
+  SYNC_PREFIX: upstream-sync/
+  BUILD_WORKFLOW: just_build_no_signature.yml
 
 jobs:
   sync:
@@ -31,6 +54,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # A PAT with the "workflow" scope lets the pushes below carry upstream changes to
+          # .github/workflows; GITHUB_TOKEN is refused for those. Optional.
+          token: ${{ secrets.SYNC_PUSH_TOKEN || github.token }}
 
       - name: Configure git identity
         run: |
@@ -47,8 +73,7 @@ jobs:
 
       # The mirror is meant to be a copy of upstream and nothing else. Commit onto it and the
       # scheduled fast-forward below stops working the moment upstream next moves: the branch is
-      # then both ahead and behind, which is not a fast-forward, and the sync fails every night
-      # until someone intervenes.
+      # then both ahead and behind, which is not a fast-forward.
       #
       # Recovering from that is a force-push, which is exactly the operation you do not want running
       # on a schedule -- so it is opt-in, and it prints what it is about to throw away first.
@@ -74,12 +99,8 @@ jobs:
 
           git reset --hard "upstream/$UPSTREAM_BRANCH"
 
-          # This push needs a token with the "workflow" scope whenever the reset adds, removes or
-          # changes anything under .github/workflows -- and it does, because the extra commits on
-          # the mirror are the ones that put the workflows there. GITHUB_TOKEN cannot do it and the
-          # push comes back "refusing to allow a GitHub App to create or update workflow".
-          #
-          # Set MIRROR_RESET_TOKEN to a PAT with that scope to use this, or do it by hand over SSH:
+          # Needs a token with the "workflow" scope whenever the reset touches .github/workflows.
+          # Set MIRROR_RESET_TOKEN to such a PAT, or do it by hand:
           #   git push origin +upstream/dlss-neural-rendering:refs/heads/dlss-neural-rendering
           git push --force-with-lease origin "$MIRROR_BRANCH"
 
@@ -92,13 +113,6 @@ jobs:
 
           BEFORE=$(git rev-parse HEAD)
 
-          # Fast-forward is the shape this is supposed to have, and while it works the mirror stays
-          # byte-identical to upstream. But it stops being possible the moment the mirror has any
-          # commit of its own AND upstream moves, and then this job fails every night for a reason
-          # that has nothing to do with the sync itself.
-          #
-          # Falling back to a merge keeps the mirror current, which is all the downstream merge into
-          # the UI branch actually needs. It is not as tidy, and the run says so.
           if git merge --ff-only "upstream/$UPSTREAM_BRANCH"; then
             :
           else
@@ -107,41 +121,139 @@ jobs:
           fi
 
           AFTER=$(git rev-parse HEAD)
-
           echo "changed=$([ "$BEFORE" != "$AFTER" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
-          if [ "$BEFORE" = "$AFTER" ]; then
-            echo "Upstream has nothing new -- already at $BEFORE."
-          fi
-
+      # Only the mirror is pushed here. The default branch is never pushed by this workflow.
       - name: Push refreshed mirror branch
         if: steps.ff.outputs.changed == 'true'
-        run: git push origin "$MIRROR_BRANCH"
-
-      - name: Merge refreshed mirror into your UI branch
-        id: merge
-        if: steps.ff.outputs.changed == 'true'
         run: |
-          git checkout -B "$UI_BRANCH" "origin/$UI_BRANCH"
-          git merge "$MIRROR_BRANCH" --no-edit
+          if ! git push origin "$MIRROR_BRANCH"; then
+            echo "::warning::Could not push the mirror (upstream probably changed .github/workflows and the token lacks the workflow scope). Continuing: the PR below is built from upstream directly."
+          fi
 
-      - name: Push UI branch (clean merge)
-        if: steps.ff.outputs.changed == 'true'
-        run: git push origin "$UI_BRANCH"
-
-      - name: On merge conflict, open a PR for manual resolution
-        if: failure() && steps.merge.outcome == 'failure'
+      # Compare UPSTREAM (not the mirror) against the default branch: the mirror carries two
+      # commits of its own that were deliberately never merged, and they are not upstream news.
+      - name: Work out what upstream has that the default branch does not
+        id: diff
         run: |
-          git merge --abort 2>/dev/null || true
+          UP="upstream/$UPSTREAM_BRANCH"
+          COUNT=$(git rev-list --count --no-merges "origin/$UI_BRANCH..$UP")
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          echo "upstream_sha=$(git rev-parse "$UP")" >> "$GITHUB_OUTPUT"
 
-          CONFLICT_BRANCH="upstream-sync-conflict-$(date +%Y%m%d%H%M%S)"
-          git checkout -b "$CONFLICT_BRANCH" "$MIRROR_BRANCH"
-          git push origin "$CONFLICT_BRANCH"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "Default branch already contains everything upstream has. Nothing to offer."
+            exit 0
+          fi
 
-          gh pr create \
-            --base "$UI_BRANCH" \
-            --head "$CONFLICT_BRANCH" \
-            --title "Upstream sync needs manual merge into $UI_BRANCH" \
-            --body "Auto-sync pulled new commits but merging into ${UI_BRANCH} did not apply cleanly. Resolve the conflicts in this PR by hand."
+          {
+            git log --no-merges --format="- [\`%h\`](https://github.com/$UPSTREAM_REPO/commit/%H) %s (%an, %ad)" \
+              --date=short -n 100 "origin/$UI_BRANCH..$UP"
+            if [ "$COUNT" -gt 100 ]; then echo "- ...and $((COUNT - 100)) more"; fi
+          } > "$RUNNER_TEMP/commits.md"
+          cat "$RUNNER_TEMP/commits.md"
+
+      - name: Build the upstream-sync branch
+        id: branch
+        if: steps.diff.outputs.count != '0'
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          # Reuse the branch of an already-open upstream-sync PR so there is only ever one.
+          EXISTING=$(gh pr list --base "$UI_BRANCH" --state open --json number,headRefName \
+            --jq "[.[] | select(.headRefName | startswith(\"$SYNC_PREFIX\"))][0] | if . then \"\(.number) \(.headRefName)\" else \"\" end")
+
+          if [ -n "$EXISTING" ]; then
+            PR_NUMBER=${EXISTING%% *}
+            BRANCH=${EXISTING#* }
+          else
+            PR_NUMBER=""
+            BRANCH="${SYNC_PREFIX}$(date -u +%Y-%m-%d)"
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "pr=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+          # Nothing new since the last run: the existing branch already holds this default-branch
+          # tip and this upstream tip. Leave it (and the build already made from it) alone.
+          if git rev-parse -q --verify "origin/$BRANCH" >/dev/null \
+             && git merge-base --is-ancestor "origin/$UI_BRANCH" "origin/$BRANCH" \
+             && git merge-base --is-ancestor "upstream/$UPSTREAM_BRANCH" "origin/$BRANCH"; then
+            echo "unchanged=true" >> "$GITHUB_OUTPUT"
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+            echo "$BRANCH is already up to date."
+            exit 0
+          fi
+          echo "unchanged=false" >> "$GITHUB_OUTPUT"
+
+          git checkout -B "$BRANCH" "origin/$UI_BRANCH"
+          if git merge --no-edit -m "Merge upstream $UPSTREAM_REPO:$UPSTREAM_BRANCH for testing" "upstream/$UPSTREAM_BRANCH"; then
+            echo "conflict=false" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > "$RUNNER_TEMP/conflicts.txt"
+            git merge --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            # The PR then comes straight from upstream's tip; GitHub marks it conflicting and it is
+            # resolved by hand (merge dlss5-developer-controls-ui into it locally).
+            git checkout -B "$BRANCH" "upstream/$UPSTREAM_BRANCH"
+          fi
+
+          # This is our own bot branch, so replacing it is fine. It is never the default branch.
+          if ! git push --force origin "HEAD:refs/heads/$BRANCH"; then
+            echo "::error::Could not push $BRANCH. If upstream changed .github/workflows, GITHUB_TOKEN is not allowed to push that: add a SYNC_PUSH_TOKEN secret (PAT with repo + workflow scopes) or push the branch by hand."
+            exit 1
+          fi
+
+      - name: Open or update the pull request
+        if: steps.diff.outputs.count != '0' && steps.branch.outputs.unchanged != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COUNT: ${{ steps.diff.outputs.count }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          PR_NUMBER: ${{ steps.branch.outputs.pr }}
+          CONFLICT: ${{ steps.branch.outputs.conflict }}
+          UPSTREAM_SHA: ${{ steps.diff.outputs.upstream_sha }}
+        run: |
+          TITLE="Upstream update: $COUNT new commits from Dagherbou"
+          BODY="$RUNNER_TEMP/body.md"
+          {
+            echo "Automatic upstream offer from \`$UPSTREAM_REPO:$UPSTREAM_BRANCH\` (at \`${UPSTREAM_SHA:0:8}\`)."
+            echo "**Nothing has been merged.** This PR only proposes the new upstream commits; merge it by hand after testing."
+            echo
+            if [ "$CONFLICT" = "true" ]; then
+              echo "> [!WARNING]"
+              echo "> **Merge conflict.** Upstream does not merge cleanly into \`$UI_BRANCH\`, so this branch is upstream's tip and no build was started."
+              echo "> Resolve locally: \`git fetch origin && git checkout $BRANCH && git merge origin/$UI_BRANCH\`, fix, push, then run the checklist."
+              echo ">"
+              echo "> Conflicting files:"
+              sed 's/^/> - `/; s/$/`/' "$RUNNER_TEMP/conflicts.txt"
+              echo
+            else
+              echo "Branch \`$BRANCH\` = \`$UI_BRANCH\` + merge of upstream. A **Build (No Signing)** run was dispatched on it: [Actions](https://github.com/${{ github.repository }}/actions/workflows/$BUILD_WORKFLOW?query=branch%3A$(printf %s "$BRANCH" | sed 's#/#%2F#g'))."
+              echo
+            fi
+            echo "### New upstream commits ($COUNT)"
+            cat "$RUNNER_TEMP/commits.md"
+            echo
+            echo "### Before merging"
+            echo "- [ ] Build: run **Build (No Signing)** (\`$BUILD_WORKFLOW\`) on \`$BRANCH\` and grab the artifact"
+            echo "- [ ] Test Cyberpunk 2077 with frame generation on (DLSS 5 + FG, watch for the TDR / VRAM crash)"
+            echo "- [ ] Test Dawnwalker with RenoDX (HDR page on the panel, host API)"
+            echo "- [ ] Test a Vulkan game (e.g. DOOM: The Dark Ages)"
+            echo "- [ ] Then merge this PR into \`$UI_BRANCH\` by hand"
+            echo
+            echo "_Opened by the sync-upstream workflow (PR-only mode). It never pushes to \`$UI_BRANCH\`._"
+          } > "$BODY"
+
+          if [ -n "$PR_NUMBER" ]; then
+            gh pr edit "$PR_NUMBER" --title "$TITLE" --body-file "$BODY"
+            gh pr comment "$PR_NUMBER" --body "Refreshed: upstream is now at \`${UPSTREAM_SHA:0:8}\` ($COUNT new commits in total)."
+          else
+            gh pr create --base "$UI_BRANCH" --head "$BRANCH" --title "$TITLE" --body-file "$BODY"
+          fi
+
+      - name: Dispatch a test build on the branch
+        if: steps.diff.outputs.count != '0' && steps.branch.outputs.unchanged != 'true' && steps.branch.outputs.conflict != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+        run: gh workflow run "$BUILD_WORKFLOW" --ref "$BRANCH"
