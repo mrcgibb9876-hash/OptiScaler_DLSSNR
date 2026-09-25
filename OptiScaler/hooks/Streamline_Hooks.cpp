@@ -522,6 +522,16 @@ sl::Result StreamlineHooks::hkslEvaluateFeature(sl::Feature feature, const sl::F
 {
     LOG_DEBUG("frameIndex: {}", static_cast<uint32_t>(frame));
 
+    // Whether the game runs DLSS-G itself, on its own command list before Present, rather than leaving it
+    // to Streamline's Present hook: then DLSS-G reads the back buffer before RenoDX's proxy pass has run.
+    if (DlssNrRenoDx::DlssgReorderActive() && feature == sl::kFeatureDLSS_G)
+    {
+        static std::atomic<bool> said { false };
+        if (!said.exchange(true))
+            LOG_INFO("RenoDX/DLSS-G: the game calls slEvaluateFeature(DLSS-G) itself, command buffer {:X}",
+                     (size_t) cmdBuffer);
+    }
+
     if (State::Instance().activeFgInput == FGInput::DLSSG && numInputs > 0 && inputs != nullptr)
     {
         for (uint32_t i = 0; i < numInputs; i++)
