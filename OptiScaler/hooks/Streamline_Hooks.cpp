@@ -1239,14 +1239,22 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
         {
             const bool ui = tag.type == sl::kBufferTypeUIColorAndAlpha;
 
+            // Copy-back happens at present. A tag the game marks only-valid-now is copied by Streamline
+            // there and then (sl.common's cloneResource), long before that, so copy-back could never reach
+            // what DLSS-G reads: those go to redirect.
+            const bool copiedAtTagTime = tag.lifecycle == sl::ResourceLifecycle::eOnlyValidNow;
+            if (allowCopyBack && copiedAtTagTime)
+                LogTagOnce(tag.type, "copy-back skipped: tagged only-valid-now, Streamline copies it at tag time");
+
             // Copy-back first: the tag is left alone, so this can never hand Streamline anything but the
             // game's own resource.
-            if (allowCopyBack && DlssNrRenoDx::EncodeInPlaceForSwapchain(tag.resource->native, tag.resource->state, ui))
+            if (allowCopyBack && !copiedAtTagTime &&
+                DlssNrRenoDx::EncodeInPlaceForSwapchain(tag.resource->native, tag.resource->state, ui))
             {
                 LogTagOnce(tag.type, "encoded in place by RenoDX (copy-back), tag left as the game set it");
                 continue;
             }
-            if (allowCopyBack)
+            if (allowCopyBack && !copiedAtTagTime)
                 LogTagOnce(tag.type, "copy-back not available from this RenoDX");
             if (!allowRedirect)
             {
@@ -1264,6 +1272,16 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
             }
             LogTagOnce(tag.type, ui ? "redirected to RenoDX's swap-chain-encoded copy (alpha kept)"
                                     : "redirected to RenoDX's swap-chain-encoded copy");
+
+            // RenoDX fills its copy at present. Tagged only-valid-now, Streamline would copy it at tag time
+            // and so get the previous frame's encode next to this frame's back buffer -- a generated frame
+            // out of step with the real one, every frame. The copy is RenoDX's own and nothing touches it
+            // before present, so it is tagged valid-until-present and Streamline reads it after the encode.
+            if (tag.lifecycle == sl::ResourceLifecycle::eOnlyValidNow)
+            {
+                (*kept)[i].lifecycle = sl::ResourceLifecycle::eValidUntilPresent;
+                LogTagOnce(tag.type, "RenoDX's copy tagged valid-until-present (the game tagged only-valid-now)");
+            }
         }
         else if (DlssNrRenoDx::ResolveClone(tag.resource->native, &substitute))
             LogTagOnce(tag.type, "redirected to RenoDX's clone");
@@ -1302,8 +1320,11 @@ const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags
     {
         std::string types;
         for (uint32_t i = 0; i < *numTags; i++)
-            types += (i == 0 ? "" : ",") + std::to_string(tags[i].type);
-        LOG_INFO("RenoDX/DLSS-G: the game tags buffer types {} (2 HUD-less colour, 23 UI colour and alpha), "
+            types += (i == 0 ? "" : ",") + std::to_string(tags[i].type) + "/" +
+                     std::to_string(static_cast<uint32_t>(tags[i].lifecycle)) + "/" +
+                     std::to_string(tags[i].resource != nullptr ? tags[i].resource->state : 0u);
+        LOG_INFO("RenoDX/DLSS-G: the game tags type/lifecycle/state {} (2 HUD-less colour, 23 UI colour and alpha; "
+                 "lifecycle 0 only-valid-now, 1 valid-until-present), "
                  "RenoDxDlssgMode={}",
                  types, wstring_to_string(Config::Instance()->RenoDxDlssgMode.value_or_default()));
     }
@@ -1906,6 +1927,23 @@ sl::Result StreamlineHooks::hkslDLSSGSetOptions(const sl::ViewportHandle& viewpo
 {
     lastDlssgViewport = viewport;
     lastDlssgOptions = options;
+
+    // What the game asks DLSS-G for, once per distinct request while RenoDX has ReShade above Streamline.
+    if (s_reshadeAboveSl)
+    {
+        static uint32_t lastLogged = UINT32_MAX;
+        const uint32_t key = static_cast<uint32_t>(options.mode) * 31u + options.numFramesToGenerate;
+        if (key != lastLogged)
+        {
+            lastLogged = key;
+            LOG_INFO(
+                "RenoDX/DLSS-G: game DLSSGOptions v{} mode {} frames {} flags {:X} color {}x{} fmt {} hudless fmt {} "
+                "ui fmt {} backbuffers {}",
+                options.structVersion, (uint32_t) options.mode, options.numFramesToGenerate, (uint32_t) options.flags,
+                options.colorWidth, options.colorHeight, options.colorBufferFormat, options.hudLessBufferFormat,
+                options.uiBufferFormat, options.numBackBuffers);
+        }
+    }
 
     // Avoid reading past the game's struct's size
     sl::DLSSGOptions newOptions {};
