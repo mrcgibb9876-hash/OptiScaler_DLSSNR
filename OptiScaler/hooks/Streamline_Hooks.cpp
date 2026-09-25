@@ -21,6 +21,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <d3d12.h>
+#include <dxgi1_6.h>
 
 static bool IsSL1AndDLSSGActive()
 {
@@ -579,9 +581,13 @@ sl::Result StreamlineHooks::hkslGetNativeInterface(void* proxyInterface, void** 
 //
 // The fix is the layering RenoDX's own "dlssfix" add-on builds, done here because this engine already
 // hooks Streamline and a second hooker crashed: ReShade's factory proxy keeps the game's pointer, and
-// only what it forwards to (its _orig) is upgraded to the SL proxy, so
+// only what it forwards to (its _orig) is replaced by an SL proxy, so
 //
 //   game -> OptiScaler wrapper -> ReShade swap chain -> SL swap chain proxy -> native swap chain
+//
+// with a ReShadeQueueFactory on each side of SL so that SL still receives the game's ReShade queue proxy
+// and the native factory the native queue (the first version handed SL the native queue and crashed on
+// DLSS-G's first Present).
 //
 // ReShade then tracks SL's fake buffers as the back buffers, the game renders into RenoDX's clone of
 // them, and ReShade's present event -- RenoDX's proxy pass, ReLimiter, ReShade's own effects -- runs on
@@ -601,9 +607,307 @@ constexpr GUID kReShadeUnwrappedObject = {
     0x7f2c9a11, 0x3b4e, 0x4d6a, { 0x81, 0x2f, 0x5e, 0x9c, 0xd3, 0x7a, 0x1b, 0x42 }
 };
 
+// ReShade's D3D12CommandQueue proxy class (source/d3d12/d3d12_command_queue.hpp).
+constexpr GUID kReShadeD3D12CommandQueue = {
+    0x2c576d2a, 0x0c1c, 0x4d1d, { 0xad, 0x7c, 0xbc, 0x4f, 0xae, 0xc1, 0x5a, 0xbc }
+};
+
 std::mutex s_reshadeAboveSlMutex;
 std::vector<IUnknown*> s_reshadeAboveSlFactories; // ReShade factory proxies already re-layered
 std::atomic<bool> s_reshadeAboveSl { false };
+
+// The device the game passed to the swap chain creation call now running on this thread, see ScopedGameDevice.
+thread_local IUnknown* t_gameDevice = nullptr;
+
+// Once only, for a message that would otherwise repeat on every swap chain.
+void LogOnce(std::atomic<bool>& said, const char* message)
+{
+    if (!said.exchange(true))
+        LOG_WARN("RenoDX/DLSS-G: {}", message);
+}
+
+// Keeps Streamline's view of the command queue what it was before the re-layering.
+//
+// ReShade unwraps the game's queue to the native one before it calls the factory it wraps. When that was
+// the native factory, below Streamline, it was right. Re-layered, the next thing down is Streamline, and
+// it was handed the native queue while its own work is recorded on ReShade's device (the game gives SL its
+// device, which is ReShade's proxy): ReShade's command lists submitted on a native queue. The first test
+// crashed in the driver on DLSS-G's first Present (nvwgf2umx <- D3D12Core!CGraphicsCommandList::Present <-
+// dxgi Present <- sl.dlss_g, SL minidump 2026-09-25). So two of these are put around Streamline, to give it
+// exactly the view it had when it sat above ReShade:
+//
+//   ReShade -> [Rewrap] -> Streamline proxy -> [Unwrap] -> native factory
+//
+// Rewrap gets the native queue from ReShade and passes on the game's ReShade queue proxy instead, the one
+// the swap chain creation hook recorded (ScopedGameDevice); Unwrap gets that proxy back from Streamline and
+// gives the native factory the native queue, which is what ReShade did for it before. Anything else is
+// forwarded unchanged. If Rewrap cannot match the queue it creates the swap chain on the native factory
+// directly -- no frame generation for that swap chain, but never Streamline on a queue it cannot use.
+class ReShadeQueueFactory final : public IDXGIFactory7
+{
+  public:
+    enum class Mode
+    {
+        Rewrap,
+        Unwrap
+    };
+
+    // Takes a reference of its own on both; bypass is only used by Rewrap.
+    ReShadeQueueFactory(Mode mode, IDXGIFactory7* inner, IDXGIFactory7* bypass)
+        : _mode(mode), _inner(inner), _bypass(bypass)
+    {
+        _inner->AddRef();
+        if (_bypass != nullptr)
+            _bypass->AddRef();
+    }
+
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppvObject) override
+    {
+        if (ppvObject == nullptr)
+            return E_POINTER;
+
+        if (riid == __uuidof(IUnknown) || riid == __uuidof(IDXGIObject) || riid == __uuidof(IDXGIFactory) ||
+            riid == __uuidof(IDXGIFactory1) || riid == __uuidof(IDXGIFactory2) || riid == __uuidof(IDXGIFactory3) ||
+            riid == __uuidof(IDXGIFactory4) || riid == __uuidof(IDXGIFactory5) || riid == __uuidof(IDXGIFactory6) ||
+            riid == __uuidof(IDXGIFactory7))
+        {
+            AddRef();
+            *ppvObject = static_cast<IDXGIFactory7*>(this);
+            return S_OK;
+        }
+
+        // Streamline's own "is this a proxy" query and ReShade's unwrap query are answered by what is below.
+        return _inner->QueryInterface(riid, ppvObject);
+    }
+
+    ULONG STDMETHODCALLTYPE AddRef() override { return InterlockedIncrement(&_ref); }
+
+    ULONG STDMETHODCALLTYPE Release() override
+    {
+        const ULONG ref = InterlockedDecrement(&_ref);
+        if (ref == 0)
+        {
+            _inner->Release();
+            if (_bypass != nullptr)
+                _bypass->Release();
+            delete this;
+        }
+        return ref;
+    }
+
+    HRESULT STDMETHODCALLTYPE SetPrivateData(REFGUID Name, UINT DataSize, const void* pData) override
+    {
+        return _inner->SetPrivateData(Name, DataSize, pData);
+    }
+    HRESULT STDMETHODCALLTYPE SetPrivateDataInterface(REFGUID Name, const IUnknown* pUnknown) override
+    {
+        return _inner->SetPrivateDataInterface(Name, pUnknown);
+    }
+    HRESULT STDMETHODCALLTYPE GetPrivateData(REFGUID Name, UINT* pDataSize, void* pData) override
+    {
+        return _inner->GetPrivateData(Name, pDataSize, pData);
+    }
+    HRESULT STDMETHODCALLTYPE GetParent(REFIID riid, void** ppParent) override
+    {
+        return _inner->GetParent(riid, ppParent);
+    }
+
+    HRESULT STDMETHODCALLTYPE EnumAdapters(UINT Adapter, IDXGIAdapter** ppAdapter) override
+    {
+        return _inner->EnumAdapters(Adapter, ppAdapter);
+    }
+    HRESULT STDMETHODCALLTYPE MakeWindowAssociation(HWND WindowHandle, UINT Flags) override
+    {
+        return _inner->MakeWindowAssociation(WindowHandle, Flags);
+    }
+    HRESULT STDMETHODCALLTYPE GetWindowAssociation(HWND* pWindowHandle) override
+    {
+        return _inner->GetWindowAssociation(pWindowHandle);
+    }
+    HRESULT STDMETHODCALLTYPE CreateSwapChain(IUnknown* pDevice, DXGI_SWAP_CHAIN_DESC* pDesc,
+                                              IDXGISwapChain** ppSwapChain) override
+    {
+        IUnknown* device = pDevice;
+        IDXGIFactory7* target = Translate(&device);
+        const HRESULT hr = target->CreateSwapChain(device, pDesc, ppSwapChain);
+        Done(device, pDevice);
+        return hr;
+    }
+    HRESULT STDMETHODCALLTYPE CreateSoftwareAdapter(HMODULE Module, IDXGIAdapter** ppAdapter) override
+    {
+        return _inner->CreateSoftwareAdapter(Module, ppAdapter);
+    }
+
+    HRESULT STDMETHODCALLTYPE EnumAdapters1(UINT Adapter, IDXGIAdapter1** ppAdapter) override
+    {
+        return _inner->EnumAdapters1(Adapter, ppAdapter);
+    }
+    BOOL STDMETHODCALLTYPE IsCurrent() override { return _inner->IsCurrent(); }
+
+    BOOL STDMETHODCALLTYPE IsWindowedStereoEnabled() override { return _inner->IsWindowedStereoEnabled(); }
+    HRESULT STDMETHODCALLTYPE CreateSwapChainForHwnd(IUnknown* pDevice, HWND hWnd, const DXGI_SWAP_CHAIN_DESC1* pDesc,
+                                                     const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pFullscreenDesc,
+                                                     IDXGIOutput* pRestrictToOutput,
+                                                     IDXGISwapChain1** ppSwapChain) override
+    {
+        IUnknown* device = pDevice;
+        IDXGIFactory7* target = Translate(&device);
+        const HRESULT hr =
+            target->CreateSwapChainForHwnd(device, hWnd, pDesc, pFullscreenDesc, pRestrictToOutput, ppSwapChain);
+        Done(device, pDevice);
+        return hr;
+    }
+    HRESULT STDMETHODCALLTYPE CreateSwapChainForCoreWindow(IUnknown* pDevice, IUnknown* pWindow,
+                                                           const DXGI_SWAP_CHAIN_DESC1* pDesc,
+                                                           IDXGIOutput* pRestrictToOutput,
+                                                           IDXGISwapChain1** ppSwapChain) override
+    {
+        IUnknown* device = pDevice;
+        IDXGIFactory7* target = Translate(&device);
+        const HRESULT hr = target->CreateSwapChainForCoreWindow(device, pWindow, pDesc, pRestrictToOutput, ppSwapChain);
+        Done(device, pDevice);
+        return hr;
+    }
+    HRESULT STDMETHODCALLTYPE GetSharedResourceAdapterLuid(HANDLE hResource, LUID* pLuid) override
+    {
+        return _inner->GetSharedResourceAdapterLuid(hResource, pLuid);
+    }
+    HRESULT STDMETHODCALLTYPE RegisterStereoStatusWindow(HWND WindowHandle, UINT wMsg, DWORD* pdwCookie) override
+    {
+        return _inner->RegisterStereoStatusWindow(WindowHandle, wMsg, pdwCookie);
+    }
+    HRESULT STDMETHODCALLTYPE RegisterStereoStatusEvent(HANDLE hEvent, DWORD* pdwCookie) override
+    {
+        return _inner->RegisterStereoStatusEvent(hEvent, pdwCookie);
+    }
+    void STDMETHODCALLTYPE UnregisterStereoStatus(DWORD dwCookie) override { _inner->UnregisterStereoStatus(dwCookie); }
+    HRESULT STDMETHODCALLTYPE RegisterOcclusionStatusWindow(HWND WindowHandle, UINT wMsg, DWORD* pdwCookie) override
+    {
+        return _inner->RegisterOcclusionStatusWindow(WindowHandle, wMsg, pdwCookie);
+    }
+    HRESULT STDMETHODCALLTYPE RegisterOcclusionStatusEvent(HANDLE hEvent, DWORD* pdwCookie) override
+    {
+        return _inner->RegisterOcclusionStatusEvent(hEvent, pdwCookie);
+    }
+    void STDMETHODCALLTYPE UnregisterOcclusionStatus(DWORD dwCookie) override
+    {
+        _inner->UnregisterOcclusionStatus(dwCookie);
+    }
+    HRESULT STDMETHODCALLTYPE CreateSwapChainForComposition(IUnknown* pDevice, const DXGI_SWAP_CHAIN_DESC1* pDesc,
+                                                            IDXGIOutput* pRestrictToOutput,
+                                                            IDXGISwapChain1** ppSwapChain) override
+    {
+        IUnknown* device = pDevice;
+        IDXGIFactory7* target = Translate(&device);
+        const HRESULT hr = target->CreateSwapChainForComposition(device, pDesc, pRestrictToOutput, ppSwapChain);
+        Done(device, pDevice);
+        return hr;
+    }
+
+    UINT STDMETHODCALLTYPE GetCreationFlags() override { return _inner->GetCreationFlags(); }
+
+    HRESULT STDMETHODCALLTYPE EnumAdapterByLuid(LUID AdapterLuid, REFIID riid, void** ppvAdapter) override
+    {
+        return _inner->EnumAdapterByLuid(AdapterLuid, riid, ppvAdapter);
+    }
+    HRESULT STDMETHODCALLTYPE EnumWarpAdapter(REFIID riid, void** ppvAdapter) override
+    {
+        return _inner->EnumWarpAdapter(riid, ppvAdapter);
+    }
+
+    HRESULT STDMETHODCALLTYPE CheckFeatureSupport(DXGI_FEATURE Feature, void* pFeatureSupportData,
+                                                  UINT FeatureSupportDataSize) override
+    {
+        return _inner->CheckFeatureSupport(Feature, pFeatureSupportData, FeatureSupportDataSize);
+    }
+
+    HRESULT STDMETHODCALLTYPE EnumAdapterByGpuPreference(UINT Adapter, DXGI_GPU_PREFERENCE GpuPreference, REFIID riid,
+                                                         void** ppvAdapter) override
+    {
+        return _inner->EnumAdapterByGpuPreference(Adapter, GpuPreference, riid, ppvAdapter);
+    }
+
+    HRESULT STDMETHODCALLTYPE RegisterAdaptersChangedEvent(HANDLE hEvent, DWORD* pdwCookie) override
+    {
+        return _inner->RegisterAdaptersChangedEvent(hEvent, pdwCookie);
+    }
+    HRESULT STDMETHODCALLTYPE UnregisterAdaptersChangedEvent(DWORD dwCookie) override
+    {
+        return _inner->UnregisterAdaptersChangedEvent(dwCookie);
+    }
+
+  private:
+    // Picks the factory to call and the device to hand it. *device may be replaced by a pointer that holds a
+    // reference of its own; Done() releases it.
+    IDXGIFactory7* Translate(IUnknown** device)
+    {
+        if (*device == nullptr)
+            return _inner;
+
+        if (_mode == Mode::Unwrap)
+        {
+            // From Streamline: ReShade's queue proxy, as the game created it. The native factory gets the queue
+            // it wraps, which is what ReShade gave it when ReShade sat directly on top.
+            IUnknown* proxy = nullptr;
+            if ((*device)->QueryInterface(kReShadeD3D12CommandQueue, (void**) &proxy) != S_OK || proxy == nullptr)
+                return _inner;
+            proxy->Release();
+
+            IUnknown* native = nullptr;
+            if (proxy->QueryInterface(kReShadeUnwrappedObject, (void**) &native) == S_OK && native != nullptr)
+            {
+                *device = native;
+                static std::atomic<bool> said { false };
+                if (!said.exchange(true))
+                    LOG_INFO("RenoDX/DLSS-G: native factory given the native queue {:X} for ReShade queue proxy {:X}",
+                             (size_t) native, (size_t) proxy);
+            }
+            return _inner;
+        }
+
+        // From ReShade: the native queue. Streamline gets the game's ReShade queue proxy for it. Not a D3D12
+        // queue (a D3D11 device): nothing of ReShade's to put back, forwarded as it is.
+        ID3D12CommandQueue* queue = nullptr;
+        if ((*device)->QueryInterface(IID_PPV_ARGS(&queue)) != S_OK || queue == nullptr)
+            return _inner;
+        queue->Release();
+
+        IUnknown* game = t_gameDevice;
+        IUnknown* native = nullptr;
+        if (game != nullptr && game->QueryInterface(kReShadeUnwrappedObject, (void**) &native) == S_OK &&
+            native != nullptr)
+        {
+            native->Release();
+            if (native == *device)
+            {
+                game->AddRef();
+                *device = game;
+                static std::atomic<bool> said { false };
+                if (!said.exchange(true))
+                    LOG_INFO("RenoDX/DLSS-G: Streamline given the game's ReShade queue proxy {:X} for native queue "
+                             "{:X}, as before the re-layering",
+                             (size_t) game, (size_t) native);
+                return _inner;
+            }
+        }
+
+        static std::atomic<bool> said { false };
+        LogOnce(said, "the game's queue could not be matched, swap chain created without Streamline (no frame "
+                      "generation on it)");
+        return _bypass != nullptr ? _bypass : _inner;
+    }
+
+    void Done(IUnknown* device, IUnknown* original)
+    {
+        if (device != original && device != nullptr)
+            device->Release();
+    }
+
+    Mode _mode;
+    IDXGIFactory7* _inner;
+    IDXGIFactory7* _bypass;
+    LONG _ref = 1;
+};
 
 // The module the object's vtable lives in exports ReShade's add-on entry point.
 bool VTableIsReShades(IUnknown* object)
@@ -724,19 +1028,54 @@ sl::Result StreamlineHooks::hkslUpgradeInterface(void** baseInterface)
         return o_slUpgradeInterface(baseInterface);
     }
 
-    // SL takes over the reference it is given, so ReShade's reference on the native factory becomes the SL
-    // proxy's, and ReShade's slot then holds the proxy's single reference. The game keeps the one it had on
-    // ReShade's factory, which is what it is handed back: nothing is added or dropped.
-    void* upgraded = wrapped;
-    const auto result = o_slUpgradeInterface(&upgraded);
-    if (result != sl::Result::eOk || upgraded == nullptr || upgraded == wrapped)
+    // Every step below either completes or undoes itself and hands the call to SL as if nothing had
+    // happened: the game then keeps SL above ReShade, which is black with RenoDX but does not crash.
+    IDXGIFactory7* native7 = nullptr;
+    if (wrapped->QueryInterface(IID_PPV_ARGS(&native7)) != S_OK || native7 == nullptr)
     {
-        LOG_WARN("RenoDX/DLSS-G: Streamline would not upgrade ReShade's native factory ({}), left as it was",
+        LogLeftAlone("the native factory has no IDXGIFactory7");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    // Unwrap sits under SL. SL takes over the reference it is given, so on success the one Unwrap was
+    // created with belongs to the SL proxy; on failure it is still ours and is dropped here.
+    auto* unwrap = new ReShadeQueueFactory(ReShadeQueueFactory::Mode::Unwrap, native7, nullptr);
+    void* upgraded = static_cast<IDXGIFactory7*>(unwrap);
+    const auto result = o_slUpgradeInterface(&upgraded);
+    if (result != sl::Result::eOk || upgraded == nullptr || upgraded == static_cast<IDXGIFactory7*>(unwrap))
+    {
+        if (upgraded != static_cast<IDXGIFactory7*>(unwrap) && upgraded != nullptr)
+            static_cast<IUnknown*>(upgraded)->Release();
+        else
+            unwrap->Release();
+
+        native7->Release();
+        LOG_WARN("RenoDX/DLSS-G: Streamline would not upgrade the factory under ReShade ({}), left as it was",
                  magic_enum::enum_name(result));
         return o_slUpgradeInterface(baseInterface);
     }
 
-    *origSlot = static_cast<IUnknown*>(upgraded);
+    IDXGIFactory7* slProxy7 = nullptr;
+    if (static_cast<IUnknown*>(upgraded)->QueryInterface(IID_PPV_ARGS(&slProxy7)) != S_OK || slProxy7 == nullptr)
+    {
+        static_cast<IUnknown*>(upgraded)->Release(); // releases Unwrap and, through it, its native reference
+        native7->Release();
+        LOG_WARN("RenoDX/DLSS-G: Streamline's factory proxy has no IDXGIFactory7, left as it was");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    // Rewrap is what ReShade forwards to. It holds its own references on the SL proxy and on the native
+    // factory (for the no-Streamline fallback), so ours are dropped once it exists.
+    auto* rewrap = new ReShadeQueueFactory(ReShadeQueueFactory::Mode::Rewrap, slProxy7, native7);
+    slProxy7->Release();
+    static_cast<IUnknown*>(upgraded)->Release();
+    native7->Release();
+
+    // ReShade's slot held one reference on the native factory; it now holds Rewrap's only reference, and
+    // the native factory stays alive through Unwrap and Rewrap. The game keeps the reference it had on
+    // ReShade's factory, which is what it is handed back.
+    *origSlot = static_cast<IDXGIFactory7*>(rewrap);
+    wrapped->Release();
     s_reshadeAboveSlFactories.push_back(reshadeFactory);
     s_reshadeAboveSl = true;
 
@@ -746,6 +1085,13 @@ sl::Result StreamlineHooks::hkslUpgradeInterface(void** baseInterface)
 
     return sl::Result::eOk;
 }
+
+StreamlineHooks::ScopedGameDevice::ScopedGameDevice(IUnknown* device) : _previous(t_gameDevice)
+{
+    t_gameDevice = device;
+}
+
+StreamlineHooks::ScopedGameDevice::~ScopedGameDevice() { t_gameDevice = _previous; }
 
 sl::Result StreamlineHooks::hkslSetD3DDevice(void* d3dDevice)
 {

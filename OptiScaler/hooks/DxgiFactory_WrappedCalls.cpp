@@ -77,6 +77,8 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChain(IDXGIFactory* realFactory, Wrap
                                                  IUnknown* pDevice, const DXGI_SWAP_CHAIN_DESC* pDesc,
                                                  IDXGISwapChain** ppSwapChain)
 {
+    StreamlineHooks::ScopedGameDevice gameDevice(pDevice);
+
     *ppSwapChain = nullptr;
 
     DXGI_SWAP_CHAIN_DESC localDesc = {};
@@ -448,6 +450,8 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForHwnd(IDXGIFactory2* realFacto
                                                         const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* pFullscreenDesc,
                                                         IDXGIOutput* pRestrictToOutput, IDXGISwapChain1** ppSwapChain)
 {
+    StreamlineHooks::ScopedGameDevice gameDevice(pDevice);
+
     *ppSwapChain = nullptr;
 
     DXGI_SWAP_CHAIN_DESC1 localDesc = {};
@@ -871,6 +875,8 @@ HRESULT DxgiFactoryWrappedCalls::CreateSwapChainForCoreWindow(IDXGIFactory2* rea
                                                               IDXGIOutput* pRestrictToOutput,
                                                               IDXGISwapChain1** ppSwapChain)
 {
+    StreamlineHooks::ScopedGameDevice gameDevice(pDevice);
+
     if (State::Instance().vulkanCreatingSC)
     {
         LOG_WARN("Vulkan is creating swapchain!");
