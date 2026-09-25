@@ -169,6 +169,27 @@ const RenoDxHostApi* GraphicsApi()
 
 bool TagApiAvailable() { return GraphicsApi() != nullptr; }
 
+namespace
+{
+// reset_settings, when the add-on has it (host API version 3). Not part of the minimum-size check in
+// Resolve(): an older add-on is still driven, it just offers no reset.
+auto ResetFn() -> void (*)()
+{
+    const RenoDxHostApi* api = Api();
+    if (api == nullptr || api->struct_size < offsetof(RenoDxHostApi, reset_settings) + sizeof(api->reset_settings))
+        return nullptr;
+    return api->reset_settings;
+}
+} // namespace
+
+bool CanReset() { return ResetFn() != nullptr; }
+
+void ResetAll()
+{
+    if (auto reset = ResetFn(); reset != nullptr)
+        reset(); // resets and saves
+}
+
 int UsesSwapchainProxy()
 {
     // Asked once, when the game upgrades its factory: an answer from the panel's rate-limited lookup two

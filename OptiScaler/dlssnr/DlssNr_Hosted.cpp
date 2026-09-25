@@ -308,6 +308,9 @@ void AppendHdr(std::string& s)
     s += ',';
     AppendKey(s, "addon");
     AppendString(s, DlssNrRenoDx::AddonName());
+    s += ',';
+    AppendKey(s, "canReset");
+    s += DlssNrRenoDx::CanReset() ? "true" : "false";
     s += ",\"settings\":[";
 
     bool first = true;
@@ -586,11 +589,18 @@ void ApplyHdr(const nlohmann::json& obj)
     if (api == nullptr || !obj.is_object() || obj.empty())
         return;
 
+    // The pop-out's "Reset all to defaults" button: RenoDX resets and saves itself, then any other keys in
+    // the same command still apply on top.
+    if (auto reset = obj.find("$reset"); reset != obj.end() && reset->is_boolean() && reset->get<bool>())
+        DlssNrRenoDx::ResetAll();
+
     bool changed = false;
     const uint32_t count = api->setting_count();
     for (auto it = obj.begin(); it != obj.end(); ++it)
     {
         const std::string& key = it.key();
+        if (key == "$reset")
+            continue;
         RenoDxHostSetting info {};
         bool found = false;
         for (uint32_t i = 0; i < count && !found; ++i)

@@ -1374,6 +1374,15 @@ static void DrawRenoDxPage(float rowWidth)
         if (info.tooltip != nullptr && *info.tooltip != '\0')
             HelpMarker(info.tooltip);
     }
+
+    // Only with an add-on that can do it itself (host API version 3), so what gets reset is exactly what
+    // RenoDX's own overlay would reset.
+    if (DlssNrRenoDx::CanReset())
+    {
+        ImGui::Spacing();
+        if (ImGui::SmallButton((std::string(Tr("Reset all to defaults")) + "##renodxreset").c_str()))
+            DlssNrRenoDx::ResetAll();
+    }
 }
 
 // Drawn once, under the status lines: the same buttons the Models row uses, so the panel has one
