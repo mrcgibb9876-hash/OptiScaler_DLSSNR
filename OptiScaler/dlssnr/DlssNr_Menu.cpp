@@ -1210,15 +1210,10 @@ static void DrawRenoDxPage(float rowWidth)
     const char* module = DlssNrRenoDx::ModuleName();
     ImGui::TextDisabled("RenoDX -- %s", module ? module : "?");
     HelpMarker(Tr("RenoDX replaces this game's tone mapping to give it real HDR, rather than expanding"
-                  "
-an SDR picture afterwards. It is a separate add-on with its own overlay; these are"
-                  "
-its settings, shown here so there is one panel to look at instead of two."
-                  "
-
-It is written against this game's own shaders, so what appears below is whatever"
-                  "
-this particular mod exposes -- it differs from game to game."));
+                  "\nan SDR picture afterwards. It is a separate add-on with its own overlay; these are"
+                  "\nits settings, shown here so there is one panel to look at instead of two."
+                  "\n\nIt is written against this game's own shaders, so what appears below is whatever"
+                  "\nthis particular mod exposes -- it differs from game to game."));
 
     const char* lastSection = nullptr;
     const uint32_t settings = api->setting_count();
