@@ -1620,6 +1620,20 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     encode.GuideWidth = guideWidth;
     encode.GuideHeight = guideHeight;
 
+    // Image Clean Up, luminance edges only: this pass has no descriptors for the depth guide or the mask
+    // history, and no halo meter to steer Auto by -- so Auto here uses the manual Strength, capped by
+    // MaxStrength. The resolve inherits these from encode; the encode itself never reads them.
+    const uint32_t cleanMode = cfg.DlssNrCleanUpMode.value_or_default();
+    if (cleanMode == 1 || cleanMode == 2)
+    {
+        float strength = std::clamp(cfg.DlssNrCleanUpStrength.value_or_default(), 0.0f, 1.0f);
+        if (cleanMode == 1)
+            strength = std::min(strength, std::clamp(cfg.DlssNrCleanUpMaxStrength.value_or_default(), 0.0f, 1.0f));
+        encode.CleanupStrength = strength;
+    }
+    encode.CleanupEdge = cleanMode == 1 ? 1.5f : std::clamp(cfg.DlssNrCleanUpEdge.value_or_default(), 0.25f, 4.0f);
+    encode.CleanupBalance = cleanMode == 1 ? 0.5f : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
+
     const VkImageSubresourceRange colourRange = colour->Resource.ImageViewInfo.SubresourceRange;
 
     // Open the measurement. Reset immediately before writing: a query pool slot must be reset before

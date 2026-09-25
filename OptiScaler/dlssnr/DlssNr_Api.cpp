@@ -35,6 +35,11 @@ template <class T> struct Entry
 // ---- float -------------------------------------------------------------------------------------
 constexpr Entry<float> kFloats[] = {
     { "Brightness", &Config::DlssNrBrightness },
+    { "CleanUpBalance", &Config::DlssNrCleanUpBalance },
+    { "CleanUpEdge", &Config::DlssNrCleanUpEdge },
+    { "CleanUpMaxStrength", &Config::DlssNrCleanUpMaxStrength },
+    { "CleanUpMotion", &Config::DlssNrCleanUpMotion },
+    { "CleanUpStrength", &Config::DlssNrCleanUpStrength },
     { "ColourStrength", &Config::DlssNrColourStrength },
     { "CompareSplit", &Config::DlssNrCompareSplit },
     { "CompareZoom", &Config::DlssNrCompareZoom },
@@ -93,6 +98,7 @@ constexpr Entry<int> kInts[] = {
 // not care about the distinction -- but a negative write is refused here rather than wrapping into
 // a huge unsigned mode nobody asked for.
 constexpr Entry<uint32_t> kUInts[] = {
+    { "CleanUpMode", &Config::DlssNrCleanUpMode },
     { "Compare", &Config::DlssNrCompare },
     { "DebugView", &Config::DlssNrDebugView },
     { "DepthConvention", &Config::DlssNrDepthConvention },

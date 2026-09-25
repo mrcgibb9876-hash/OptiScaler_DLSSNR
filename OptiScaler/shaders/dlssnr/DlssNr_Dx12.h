@@ -54,7 +54,9 @@ class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
     // The shader reads five inputs and writes two, and not every mode uses all of them. Unused slots
     // still need a view bound -- an unbound descriptor is not an empty read, it is a read from
     // nothing -- so a stand-in is written into whichever are spare.
-    static constexpr uint32_t kSrvCount = 5;
+    // t5 is the depth guide and t6 Image Clean Up's mask history (both only read by the resolve and the
+    // halo meter, and only when their flags say so).
+    static constexpr uint32_t kSrvCount = 7;
     static constexpr uint32_t kUavCount = 2;
 
     uint32_t _numThreadsX = 8;
@@ -86,5 +88,6 @@ class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
                       // Vestigial. Fed to the slot the removed edit accumulator read its history from;
                       // nothing reads it now and every caller passes nullptr. Kept only so the binding
                       // table keeps its shape -- not evidence that temporal accumulation exists.
-                      ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget, ID3D12Resource* OutKeep);
+                      ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget, ID3D12Resource* OutKeep,
+                      ID3D12Resource* InDepth = nullptr, ID3D12Resource* InHistory = nullptr);
 };

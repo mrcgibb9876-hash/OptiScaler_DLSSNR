@@ -2878,6 +2878,94 @@ void RenderMenu(Config* config, float menuResScale)
                               "\none that is already harsh, within 0.85 to 1.25. DX12, DX11 and RE Engine games."));
             }
 
+            // Image Clean Up (2026-09-26): the glow the model leaves around characters. Mode first; in Auto
+            // only the cap is live and the rest are greyed (Auto uses its own), in Manual the four rows are
+            // live and the cap is greyed, in Off everything below the mode is greyed. All read by the
+            // resolve every frame, so no rebuild.
+            SectionCaption(Tr("Image Clean Up"), rowWidth);
+
+            const char* cleanNames[] = { Tr("Off"), Tr("Auto"), Tr("Manual") };
+            int cleanMode = (int) config->DlssNrCleanUpMode.value_or_default();
+            if (cleanMode < 0 || cleanMode > 2)
+                cleanMode = 0;
+            if (NrCombo(Tr("Mode"), &cleanMode, cleanNames, IM_ARRAYSIZE(cleanNames), rowWidth))
+            {
+                config->DlssNrCleanUpMode = (uint32_t) cleanMode;
+                anyChanged = true;
+            }
+            HelpMarker(Tr("Holds back the glow the model leaves around characters and other strong edges."
+                          "\nNear a silhouette -- where the depth jumps -- or a hard brightness edge, the"
+                          "\nfinished picture may not stray far from the game's own frame nor past what the"
+                          "\npixels around it hold, so light cannot bleed across the edge. The object's own"
+                          "\npixels and flat areas are left alone, and the model's detail elsewhere is untouched."
+                          "\n\nAuto measures the glow every frame and uses as much clean up as it needs, up to"
+                          "\nMax strength, easing rather than jumping. Manual uses the sliders below."
+                          "\n\nSee what it touches with Inspect > Debug view > Image Clean Up mask."));
+
+            const bool cleanVulkan = DlssNr::IsRunningVk();
+            if (cleanMode != 0)
+            {
+                const DlssNr::CleanUpReading clean = DlssNr::CleanUpState();
+                if (cleanVulkan)
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Vulkan: edges from brightness only, and Auto uses the Strength below."));
+                else if (!clean.measuring || clean.haloBefore < 0.0f)
+                    ImGui::TextColored(kTextDim, "%s", Tr("Measuring the glow..."));
+                else
+                    ImGui::TextColored(kTextDim, Tr("Strength %.2f -- glow %.3f stops from the model, %.3f after"),
+                                       clean.strength, clean.haloBefore, std::max(clean.haloAfter, 0.0f));
+            }
+
+            ImGui::BeginDisabled(cleanMode != 1);
+            float cleanCap = config->DlssNrCleanUpMaxStrength.value_or_default();
+            auto rCap = NrSlider(Tr("Max strength"), &cleanCap, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rCap.changed)
+                config->DlssNrCleanUpMaxStrength = std::clamp(cleanCap, 0.0f, 1.0f);
+            if (rCap.released)
+                anyChanged = true;
+            ImGui::EndDisabled();
+            HelpMarker(Tr("Auto only: the most clean up it may use. Lower it if Auto softens edges you want"
+                          "\nkept."));
+
+            ImGui::BeginDisabled(cleanMode != 2);
+            float cleanStrength = config->DlssNrCleanUpStrength.value_or_default();
+            auto rCleanStrength = NrSlider(Tr("Strength"), &cleanStrength, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rCleanStrength.changed)
+                config->DlssNrCleanUpStrength = std::clamp(cleanStrength, 0.0f, 1.0f);
+            if (rCleanStrength.released)
+                anyChanged = true;
+            HelpMarker(Tr("How much of the way a glowing pixel is taken back, and how tightly it is held to"
+                          "\nwhat the pixels around it look like. 0 does nothing."));
+
+            float cleanEdge = config->DlssNrCleanUpEdge.value_or_default();
+            auto rCleanEdge = NrSlider(Tr("Edge threshold"), &cleanEdge, 0.25f, 4.0f, "%.2f", rowWidth);
+            if (rCleanEdge.changed)
+                config->DlssNrCleanUpEdge = std::clamp(cleanEdge, 0.25f, 4.0f);
+            if (rCleanEdge.released)
+                anyChanged = true;
+            HelpMarker(Tr("How hard a brightness edge has to be before it counts, in stops: lower cleans"
+                          "\nmore of the picture. Silhouettes found from depth count whatever this is."));
+
+            float cleanBalance = config->DlssNrCleanUpBalance.value_or_default();
+            auto rCleanBalance = NrSlider(Tr("Fine / wide"), &cleanBalance, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rCleanBalance.changed)
+                config->DlssNrCleanUpBalance = std::clamp(cleanBalance, 0.0f, 1.0f);
+            if (rCleanBalance.released)
+                anyChanged = true;
+            HelpMarker(Tr("Where it looks: 0 only at the pixels right beside each one, for a thin rim; 1 about"
+                          "\nfour pixels out, for a glow that sits a little off the edge; 0.5 both."));
+
+            float cleanMotion = config->DlssNrCleanUpMotion.value_or_default();
+            auto rCleanMotion = NrSlider(Tr("Motion protection"), &cleanMotion, 0.0f, 1.0f, "%.2f", rowWidth);
+            if (rCleanMotion.changed)
+                config->DlssNrCleanUpMotion = std::clamp(cleanMotion, 0.0f, 1.0f);
+            if (rCleanMotion.released)
+                anyChanged = true;
+            ImGui::EndDisabled();
+            HelpMarker(Tr("How far fast motion and newly uncovered areas hold the clean up back, so real"
+                          "\nmotion blur stays soft. Needs the game's motion vectors (DX12); with none -- the"
+                          "\nPresent route without optical flow -- it has nothing to go on and does nothing."));
+
             SectionCaption(Tr("Colour"), rowWidth);
 
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
@@ -3575,7 +3663,7 @@ void RenderMenu(Config* config, float menuResScale)
             }
 
             const char* debugNames[] = { Tr("Off"), Tr("Proxy (what the model sees)"), Tr("Model output (raw)"),
-                                         Tr("Difference (amplified)") };
+                                         Tr("Difference (amplified)"), Tr("Image Clean Up mask") };
             int debugView = (int) config->DlssNrDebugView.value_or_default();
             if (NrCombo(Tr("Debug view"), &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
             {
@@ -3583,7 +3671,10 @@ void RenderMenu(Config* config, float menuResScale)
                 anyChanged = true;
             }
             HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
-                          "\nactually changed, amplified twenty times and centred on grey."));
+                          "\nactually changed, amplified twenty times and centred on grey."
+                          "\n\nImage Clean Up mask shows the frame in grey with red where the clean up may act,"
+                          "\ngreen where it actually moved a pixel and blue where motion held it back. It"
+                          "\nworks with the clean up off too, so the edges can be checked before turning it on."));
 
             // Both of these are experiments toward dropping the forwarder entirely, which is why they
             // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path
