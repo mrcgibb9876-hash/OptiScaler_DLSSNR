@@ -182,6 +182,16 @@ bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNat
            api->encode_for_swapchain(nativeResource, d3d12State, outNativeResource, outD3d12State);
 }
 
+bool EncodeUiForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr &&
+           api->struct_size >=
+               offsetof(RenoDxHostApi, encode_ui_for_swapchain) + sizeof(api->encode_ui_for_swapchain) &&
+           api->encode_ui_for_swapchain != nullptr &&
+           api->encode_ui_for_swapchain(nativeResource, d3d12State, outNativeResource, outD3d12State);
+}
+
 const RenoDxHostApi* Api()
 {
     Resolve();

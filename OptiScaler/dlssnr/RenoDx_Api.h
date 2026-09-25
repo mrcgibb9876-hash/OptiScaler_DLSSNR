@@ -92,6 +92,10 @@ struct RenoDxHostApi
     // ReShade.
     bool (*encode_for_swapchain)(void* native_resource, uint32_t d3d12_state, void** out_native_resource,
                                  uint32_t* out_d3d12_state);
+    // The same for a UI colour-and-alpha image: its own format and alpha kept, only colour encoded. Added
+    // after the first version 2 test build, so struct_size is checked for it on its own.
+    bool (*encode_ui_for_swapchain)(void* native_resource, uint32_t d3d12_state, void** out_native_resource,
+                                    uint32_t* out_d3d12_state);
 };
 
 // What a version 1 add-on's struct holds; anything it reports at least this size of is drivable.
