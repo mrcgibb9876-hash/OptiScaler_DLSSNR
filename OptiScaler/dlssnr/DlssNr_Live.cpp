@@ -4,6 +4,7 @@
 #include "DlssNr_Live.h"
 #include "DlssNr.h"
 #include "DlssNr_Hosted.h"
+#include "DlssNr_RenoDx.h"
 #include "DlssNrFeature_Vk.h"
 #include <Config.h>
 #include <State.h>
@@ -129,6 +130,11 @@ std::string BuildJson()
         AppendOptNum(s, "modelMs", running && ms.has_value(), ms.value_or(0.0), 2);
         s += "},";
     }
+
+    // renodxActive -- a RenoDX add-on with the host API is loaded: the in-game panel hides the tone trim
+    // (Brightness, Contrast, their Auto) and sends it as identity, and the pop-out hides the same rows.
+    AppendBool(s, "renodxActive", DlssNrRenoDx::ToneTrimSuppressed());
+    s += ',';
 
     // tone -- what Auto brightness / Auto contrast are applying right now, so the pop-out's sliders can
     // show it the way the in-game panel does. null until a first reading lands.

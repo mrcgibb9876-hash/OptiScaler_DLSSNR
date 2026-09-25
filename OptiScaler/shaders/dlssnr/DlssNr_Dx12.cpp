@@ -11,6 +11,7 @@
 #include <dlssnr/DlssNr_ExposureScan.h>
 #include <dlssnr/DlssNr_PresentRoute.h>
 #include <dlssnr/DlssNr_DepthTracker.h>
+#include <dlssnr/DlssNr_RenoDx.h>
 #include <menu/menu_dx12.h>
 #include <menu/menu_common.h>
 #include <dlssnr/DlssNrFeature_Dx12.h>
@@ -3881,8 +3882,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Auto brightness / Auto contrast: the frame measured as it arrives, before anything below writes to
     // it. The meter's tile-mean branch over the whole grid, onto its own surface; tile 0 is the exposure
     // courier and ConsumeToneReadback skips it. Nothing is created or dispatched while both are off.
-    const bool autoBrightnessOn = cfg.DlssNrAutoBrightness.value_or_default();
-    const bool autoContrastOn = cfg.DlssNrAutoContrast.value_or_default();
+    // With RenoDX in the game the trim is identity and Auto is off (DlssNrRenoDx::ToneTrimSuppressed).
+    const bool toneTrimOff = DlssNrRenoDx::ToneTrimSuppressed();
+    const bool autoBrightnessOn = !toneTrimOff && cfg.DlssNrAutoBrightness.value_or_default();
+    const bool autoContrastOn = !toneTrimOff && cfg.DlssNrAutoContrast.value_or_default();
     if (autoBrightnessOn || autoContrastOn)
     {
         if (EnsureToneGrid(device))
@@ -4377,10 +4380,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
         resolveParams.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
         // Auto, where it is on, in place of the slider; the slider's own value is kept for when it is off.
-        const bool autoB = cfg.DlssNrAutoBrightness.value_or_default();
-        const bool autoC = cfg.DlssNrAutoContrast.value_or_default();
-        resolveParams.Brightness = autoB ? g_nr.autoBrightness : cfg.DlssNrBrightness.value_or_default();
-        resolveParams.Contrast = autoC ? g_nr.autoContrast : cfg.DlssNrContrast.value_or_default();
+        // With RenoDX in the game, identity: RenoDX grades the picture (the ini values are kept).
+        const bool trimOff = DlssNrRenoDx::ToneTrimSuppressed();
+        const bool autoB = !trimOff && cfg.DlssNrAutoBrightness.value_or_default();
+        const bool autoC = !trimOff && cfg.DlssNrAutoContrast.value_or_default();
+        resolveParams.Brightness =
+            trimOff ? 1.0f : (autoB ? g_nr.autoBrightness : cfg.DlssNrBrightness.value_or_default());
+        resolveParams.Contrast = trimOff ? 1.0f : (autoC ? g_nr.autoContrast : cfg.DlssNrContrast.value_or_default());
         resolveParams.DebugView = cfg.DlssNrDebugView.value_or_default();
         resolveParams.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
         resolveParams.Transfer = cfg.DlssNrTransfer.value_or_default();

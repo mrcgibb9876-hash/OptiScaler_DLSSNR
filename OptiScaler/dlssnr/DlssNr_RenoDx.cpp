@@ -5,6 +5,7 @@
 #include "DlssNr_RenoDx.h"
 
 #include <atomic>
+#include <mutex>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -75,6 +76,10 @@ std::vector<HMODULE> LoadedModules(EnumProcessModulesFn enumModules)
 
 void Resolve()
 {
+    // The panel, the hosted pages and the frame's dispatch (ToneTrimSuppressed) all ask; one at a time.
+    static std::mutex resolveMutex;
+    std::lock_guard<std::mutex> lock(resolveMutex);
+
     if (s_api != nullptr || s_givenUp)
         return;
     const ULONGLONG now = GetTickCount64();
@@ -197,12 +202,14 @@ void LogCommit(const char* source, const char* action, const char* key, double v
     const RenoDxHostApi* v4 = V4();
     const int preset = v4 != nullptr && v4->get_preset != nullptr ? v4->get_preset() : -1;
     if (read)
-        LOG_INFO("RenoDX {}: {} {} = {} -> {}, reads back {}, preset {}", source, action, key ? key : "", value,
-                 ok ? "ok" : "fail", back, preset);
+        LOG_DEBUG("RenoDX {}: {} {} = {} -> {}, reads back {}, preset {}", source, action, key ? key : "", value,
+                  ok ? "ok" : "fail", back, preset);
     else
-        LOG_INFO("RenoDX {}: {} {} = {} -> {}, preset {}", source, action, key ? key : "", value, ok ? "ok" : "fail",
-                 preset);
+        LOG_DEBUG("RenoDX {}: {} {} = {} -> {}, preset {}", source, action, key ? key : "", value, ok ? "ok" : "fail",
+                  preset);
 }
+
+bool ToneTrimSuppressed() { return Api() != nullptr; }
 
 const RenoDxHostApi* V4()
 {
