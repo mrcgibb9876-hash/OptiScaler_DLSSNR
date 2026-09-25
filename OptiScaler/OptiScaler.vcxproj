@@ -852,9 +852,12 @@ copy NUL "$(SolutionDir)x64\Release\a\!! EXTRACT ALL FILES TO GAME FOLDER !!" /Y
     <ClCompile Include="dlssnr\DlssNr_Proxy.cpp" />
     <ClCompile Include="dlssnr\DlssNr_PresentRoute.cpp" />
     <ClCompile Include="dlssnr\DlssNr_ReLimiter.cpp" />
+    <ClCompile Include="dlssnr\DlssNr_RenoDx.cpp" />
     <ClInclude Include="dlssnr\DlssNr_PresentRoute.h" />
     <ClInclude Include="dlssnr\DlssNr_ReLimiter.h" />
     <ClInclude Include="dlssnr\ReLimiter_Api.h" />
+    <ClInclude Include="dlssnr\DlssNr_RenoDx.h" />
+    <ClInclude Include="dlssnr\RenoDx_Api.h" />
     <ClCompile Include="dlssnr\DlssNr_Live.cpp" />
     <ClInclude Include="dlssnr\DlssNr_Live.h" />
     <ClCompile Include="dlssnr\DlssNr_CastMouse.cpp" />
