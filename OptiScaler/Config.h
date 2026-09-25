@@ -485,37 +485,6 @@ class Config
     // untouched whatever this is set to. 1.0 is full resolution and behaves exactly as before.
     CustomOptional<float> DlssNrWorkingScale { 1.0f };
 
-    // Adaptive model resolution: let the pass hold itself to a budget by moving WorkingScale above,
-    // instead of a number chosen once for a whole game. The controller and the reasoning behind its
-    // shape are in dlssnr/DlssNrBudget.h; these are only what the panel stores.
-    //
-    // Off by default. Every move rebuilds the NGX feature, so this is not a setting to turn on
-    // behind someone's back -- it is one they should choose, having read what it does.
-    CustomOptional<bool> DlssNrAutoScale { false };
-    // What the budget is measured in: 0 a share of the frame, 1 a millisecond ceiling on the pass,
-    // 2 a frame rate to aim at. The numbers are DlssNrBudget::Mode's own order, so the two cannot
-    // drift apart. 2 is the default because a frame rate is the one a player already has in mind.
-    CustomOptional<uint32_t> DlssNrAutoScaleMode { 2 };
-    // Mode 2: the frame rate to aim at.
-    CustomOptional<int> DlssNrAutoScaleFps { 60 };
-    // Mode 1: the flat ceiling on the pass, in milliseconds.
-    CustomOptional<float> DlssNrAutoScaleMs { 2.0f };
-    // Mode 0: the share of the frame the pass may take, as a percentage.
-    CustomOptional<int> DlssNrAutoScaleShare { 15 };
-    // The lowest the controller may take the model. Clamped to a real rung, and it cannot go below
-    // the bottom one -- which is where the trade stops being cost against quality and starts being
-    // cost against artefacts.
-    CustomOptional<float> DlssNrAutoScaleFloor { 0.55f };
-    // What AutoScale does with model sizes it is not using. Every size change used to destroy the NR
-    // feature and build a new one, holding Present ~250 ms (Resident Evil 2, 2026-09-18).
-    //   0  off: destroy and rebuild on every move, as before.
-    //   1  keep: a size the controller leaves stays built, so moving back to it is instant.
-    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, at most
-    //      one per 5 s, only with DLSS 5 on and the create-time settings unchanged for 10 s, preferring
-    //      a natural pause (a frame that is already long, the panel open) over the timed slot.
-    // Both only while video memory allows; a fixed WorkingScale (AutoScale off) never builds extra models.
-    CustomOptional<uint32_t> DlssNrAutoScalePrebuild { 2 };
-
     // Filter used for NR supersampling (working scale > 1): the model runs above native, and this is
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler
     // so NR and Output Scaling can run different filters at once. Lanczos3 is the sharp default.

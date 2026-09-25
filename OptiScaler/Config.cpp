@@ -414,13 +414,6 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrCompareTags.set_from_config(readBool("DlssNr", "CompareTags"));
             DlssNrTagScale.set_from_config(readFloat("DlssNr", "TagScale"));
             DlssNrWorkingScale.set_from_config(readFloat("DlssNr", "WorkingScale"));
-            DlssNrAutoScale.set_from_config(readBool("DlssNr", "AutoScale"));
-            DlssNrAutoScaleMode.set_from_config(readUInt("DlssNr", "AutoScaleMode"));
-            DlssNrAutoScaleFps.set_from_config(readInt("DlssNr", "AutoScaleFps"));
-            DlssNrAutoScaleMs.set_from_config(readFloat("DlssNr", "AutoScaleMs"));
-            DlssNrAutoScaleShare.set_from_config(readInt("DlssNr", "AutoScaleShare"));
-            DlssNrAutoScaleFloor.set_from_config(readFloat("DlssNr", "AutoScaleFloor"));
-            DlssNrAutoScalePrebuild.set_from_config(readUInt("DlssNr", "AutoScalePrebuild"));
 
             if (auto v = readEnum<Scaler>("DlssNr", "ScalingDownscaler"))
                 DlssNrScalingDownscaler.set_from_config(*v);
@@ -1400,17 +1393,6 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "TagScale", GetFloatValue(Instance()->DlssNrTagScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "WorkingScale",
                      GetFloatValue(Instance()->DlssNrWorkingScale.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScale", GetBoolValue(Instance()->DlssNrAutoScale.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleMode",
-                     GetIntValue(Instance()->DlssNrAutoScaleMode.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleFps", GetIntValue(Instance()->DlssNrAutoScaleFps.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleMs", GetFloatValue(Instance()->DlssNrAutoScaleMs.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleShare",
-                     GetIntValue(Instance()->DlssNrAutoScaleShare.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleFloor",
-                     GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScalePrebuild",
-                     GetIntValue(Instance()->DlssNrAutoScalePrebuild.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "ScalingUpscaler", GetIntValue(Instance()->DlssNrScalingUpscaler).c_str());
         ini.SetValue("DlssNr", "ScalingSharpness",
@@ -1941,6 +1923,12 @@ bool Config::SaveIni()
     {
         ini.Delete("FSR", "Fsr4ForceEnableInt8");
         ini.Delete("Nukems", "MakeDepthCopy", true);
+
+        // Adaptive model resolution (AutoScale) was removed; the model now always runs at the fixed
+        // WorkingScale. Its keys are dropped from ini files written before that.
+        for (const char* key : { "AutoScale", "AutoScaleMode", "AutoScaleFps", "AutoScaleMs", "AutoScaleShare",
+                                 "AutoScaleFloor", "AutoScalePrebuild" })
+            ini.Delete("DlssNr", key);
     }
 
     auto pathWStr = absoluteFileName.wstring();

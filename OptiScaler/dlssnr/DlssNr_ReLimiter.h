@@ -11,11 +11,6 @@
 // EVERYTHING HERE IS OPTIONAL. No ReLimiter, an older build without the API, or a build whose API
 // version we do not speak all end in the same place: Available() is false and the panel shows no
 // pacing page. None of it is an error and none of it is worth a log line per frame.
-//
-// WHY THE PANEL CARES BEYOND DRAWING IT. ReLimiter holds the frame rate at a target. [DlssNr] AutoScale
-// aiming at a frame rate moves the model's resolution to REACH a target. Both aim at fps, and together
-// the model sheds resolution chasing a gap the limiter will never let close. The panel therefore has to
-// know whether ReLimiter is here, not merely be able to draw its settings.
 #include "ReLimiter_Api.h"
 
 namespace DlssNrReLimiter
@@ -29,11 +24,6 @@ const ReLimiterApi* Api();
 
 // ReLimiter's product version, or nullptr.
 const char* Version();
-
-// True when ReLimiter is in the process at all. Pacing is on whatever its target says -- target_fps = 0
-// means "stay below the VRR ceiling", which is still pacing -- so presence is the condition, and this is
-// what makes AutoScale's frame-rate mode stand down.
-bool PacingActive();
 
 // Why Available() is false, as a stable code the Pacing page explains and OptiScaler.hosted.json
 // carries to the pop-out: "not-loaded" (no ReLimiter in the process, or not yet), "no-api" (a build
