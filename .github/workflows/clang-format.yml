@@ -22,8 +22,13 @@ jobs:
         #     makes the local copy harder to diff against theirs, which is the only thing it is for.
         #   DlssNr_I18n_Tables.cpp says so in its own first line: generated from the per-language
         #     lists, edit the lists and not the file.
+        #   dlssnr/ReLimiter_Api.h is a byte-faithful copy of the fork's own src/api.h, and being
+        #     byte-faithful is the whole value of it: the copy is checked against upstream with a
+        #     plain diff, and a formatter rewriting it would silently end that. Vendored for the
+        #     same reason as the FidelityFX SDK, excluded for the same reason. It has failed this
+        #     check since the Pacing page added it, which is how v2.2.16 shipped with the check red.
         #
         # What is left is code this project actually writes, which is what a style check is for.
         # Before this the check failed on 96 files, 93% of them by line someone else's or a
         # generator's, so it was permanently red and told nobody anything.
-        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/|OptiScaler/shaders/output_scaling/precompile/|OptiScaler/dlssnr/opticalflow/fidelityfx/|OptiScaler/dlssnr/opticalflow/shaders/|OptiScaler/dlssnr/DlssNr_I18n_Tables\.cpp'
+        exclude-regex: 'external/|OptiScaler/include/|OptiScaler/shaders/dlssnr/precompile/|OptiScaler/shaders/output_scaling/precompile/|OptiScaler/dlssnr/opticalflow/fidelityfx/|OptiScaler/dlssnr/opticalflow/shaders/|OptiScaler/dlssnr/DlssNr_I18n_Tables\.cpp|OptiScaler/dlssnr/ReLimiter_Api\.h'

@@ -8,6 +8,7 @@
 #include "DlssNr_I18n.h"
 #include "DlssNr_PresentRoute.h"
 #include "DlssNr_ReLimiter.h"
+#include "DlssNr_RenoDx.h"
 #include "DlssNrBudget.h"
 
 #include <Config.h>
@@ -476,6 +477,91 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     return { changed, released };
 }
 
+// A number the user types, for the values where the exact figure is the point and dragging cannot
+// reach it. A frame-rate cap is the case that forced it: the reason to set a fixed one at all is to
+// match a number chosen somewhere else -- 72 in the game's own limiter, 141 under a 144 Hz ceiling --
+// and no track from 30 to 1000 lands on those. Requested 2026-09-25.
+//
+// Committed on Enter or on leaving the field, never per keystroke: typing "120" passes through 1 and
+// 12, and writing those through to the add-on would apply two frame rates nobody asked for on the way
+// to the one they did. Out-of-range is clamped rather than refused, and the box is rewritten with
+// what was actually stored, so the field never shows a number the add-on is not holding.
+struct NumberBoxResult
+{
+    bool committed;
+};
+
+static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin, double vMax, bool isInt,
+                                   float rowWidth)
+{
+    ImGui::PushID(label);
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    float labelWidth = rowWidth * 0.44f;
+
+    // The same rule as NrSlider: a label too long for its column goes above its control rather than
+    // being run into by it. German and French make this the common case, not the exception.
+    const bool stacked = ImGui::CalcTextSize(label).x > labelWidth - style.ItemSpacing.x;
+
+    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    if (stacked)
+        labelWidth = 0.0f;
+    else
+        ImGui::SameLine(labelWidth);
+
+    float boxWidth = rowWidth - labelWidth;
+    if (boxWidth > 120.0f)
+        boxWidth = 120.0f;
+    if (boxWidth < 60.0f)
+        boxWidth = 60.0f;
+
+    bool committed = false;
+    ImGui::SetNextItemWidth(boxWidth);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 22, 20, 190));
+    ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+    if (isInt)
+    {
+        int v = (int) *value;
+        // Step 0 hides the +/- buttons: they are a slider by another name and would put the same
+        // "click your way towards it" behaviour back on the row.
+        ImGui::InputInt("##v", &v, 0, 0, ImGuiInputTextFlags_CharsDecimal);
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            double clamped = (double) v;
+            clamped = clamped < vMin ? vMin : (clamped > vMax ? vMax : clamped);
+            *value = clamped;
+            committed = true;
+        }
+    }
+    else
+    {
+        double v = *value;
+        ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.3f", ImGuiInputTextFlags_CharsDecimal);
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            double clamped = v < vMin ? vMin : (v > vMax ? vMax : v);
+            *value = clamped;
+            committed = true;
+        }
+    }
+    ImGui::PopStyleColor(2);
+
+    // What the box will take, said once beside it rather than discovered by having a number refused.
+    ImGui::SameLine();
+    char range[64] {};
+    if (isInt)
+        std::snprintf(range, sizeof(range), "%d-%d", (int) vMin, (int) vMax);
+    else
+        std::snprintf(range, sizeof(range), "%.3f-%.3f", vMin, vMax);
+    ImGui::TextColored(kTextDim, "%s", range);
+
+    ImGui::PopID();
+
+    return { committed };
+}
+
 // One entry in a row of boxed choices, defined below with the Models row it was written for.
 static bool ModelButton(const char* label, bool active, float width);
 
@@ -897,6 +983,7 @@ enum PanelPage
     kPageInspect,  // what the model is told, and the tools for looking at its work
     kPageSetup,    // keys and appearance
     kPagePacing,   // ReLimiter's frame pacing, when it is in the process. Hidden when it is not.
+    kPageHdr,      // RenoDX's HDR and tone mapping, same deal: hidden unless it is here and drivable.
     kPageCount,
 };
 
@@ -1041,7 +1128,7 @@ static void DrawPacingPage(float rowWidth)
         case RELIMITER_TYPE_FLOAT:
         case RELIMITER_TYPE_DOUBLE:
         {
-            // No range, no slider: dmfg_output_cap and oled_care_idle_minutes have no clamp in
+            // No range, no box: dmfg_output_cap and oled_care_idle_minutes have no clamp in
             // ReLimiter's own validation, and inventing ends for them would offer numbers it discards.
             if (info.min_value == info.max_value)
                 break;
@@ -1051,8 +1138,9 @@ static void DrawPacingPage(float rowWidth)
                 break;
 
             // A labelled zero is a named mode -- target_fps = 0 is "stay below the VRR ceiling", not
-            // 0 fps -- and it sits outside the slider's range. So it gets its own checkbox, because a
-            // slider cannot show a mode at one end of its travel.
+            // 0 fps -- and it sits outside the box's range. So it gets its own checkbox: a mode is
+            // not a number, and leaving it as one end of a numeric field invites someone to type 0
+            // meaning "no limit" and get the opposite.
             if (info.zero_label != nullptr)
             {
                 bool autoMode = cur == 0.0;
@@ -1072,17 +1160,16 @@ static void DrawPacingPage(float rowWidth)
                 }
             }
 
-            float v = (float) cur;
-            const char* fmt = info.type == RELIMITER_TYPE_INT ? "%.0f" : "%.3f";
-            auto r = NrSlider(info.label, &v, (float) info.min_value, (float) info.max_value, fmt, rowWidth);
-            if (r.released || r.changed)
+            // Typed, not dragged -- see NrNumberBox. One write per committed value, so the save
+            // that used to be held back until a slider was released is simply not needed.
+            double v = cur;
+            auto r =
+                NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT, rowWidth);
+            if (r.committed && v != cur)
             {
-                api->set_number(info.key, (double) v);
+                api->set_number(info.key, v);
                 api->apply();
-                // Saved on release only: an ini write per slider pixel is a file written hundreds of
-                // times for one adjustment.
-                if (r.released)
-                    api->save();
+                api->save();
             }
             if (info.tooltip != nullptr && *info.tooltip != '\0')
                 HelpMarker(info.tooltip);
@@ -1094,12 +1181,159 @@ static void DrawPacingPage(float rowWidth)
     }
 }
 
+// RenoDX's own settings, drawn from what it reports -- the same arrangement as DrawPacingPage and for
+// the same reason: RenoDX gains settings on its own schedule, and a table kept here would go stale on
+// their release rather than ours.
+//
+// Two things it does that the pacing page does not, both because RenoDX's settings are a real tree
+// rather than a flat list:
+//
+//   is_visible   RenoDX's first setting is "Settings Mode" (Simple / Intermediate / Advanced) and most
+//                of the rest are visible only above Simple. Honouring it means this page shows exactly
+//                what RenoDX's own overlay would at the same mode, including collapsing again when the
+//                player puts it back to Simple -- no list of which-settings-are-advanced kept here.
+//   is_enabled   A control RenoDX would grey is greyed, rather than accepting a value it discards.
+//
+// `group` is deliberately ignored. RenoDX uses it to put several settings on one line in its overlay;
+// this panel is one control per row because a controller has to be able to land on each of them.
+static void DrawRenoDxPage(float rowWidth)
+{
+    const RenoDxHostApi* api = DlssNrRenoDx::Api();
+    if (api == nullptr)
+        return; // the tab is hidden in this case, so this is belt and braces
+
+    SectionCaption(Tr("HDR and tone mapping"), rowWidth);
+
+    // WHICH add-on loaded is the thing to confirm here, unlike ReLimiter: RenoDX ships one per game,
+    // and the engine-wide build (renodx-unrealengine.addon64) looks identical in the folder to a
+    // bespoke one. The module name is the only place that distinction is visible.
+    const char* module = DlssNrRenoDx::ModuleName();
+    ImGui::TextDisabled("RenoDX -- %s", module ? module : "?");
+    HelpMarker(Tr("RenoDX replaces this game's tone mapping to give it real HDR, rather than expanding"
+                  "\nan SDR picture afterwards. It is a separate add-on with its own overlay; these are"
+                  "\nits settings, shown here so there is one panel to look at instead of two."
+                  "\n\nIt is written against this game's own shaders, so what appears below is whatever"
+                  "\nthis particular mod exposes -- it differs from game to game."));
+
+    const char* lastSection = nullptr;
+    const uint32_t settings = api->setting_count();
+
+    for (uint32_t i = 0; i < settings; ++i)
+    {
+        RenoDxHostSetting info {};
+        info.struct_size = sizeof(info);
+        if (!api->describe_setting(i, &info))
+            continue;
+
+        // Hidden by the add-on's own rule, so hidden here. Drawn but greyed would be a different
+        // claim -- that the setting exists and is merely unavailable -- and RenoDX means neither.
+        if (info.is_visible == 0)
+            continue;
+
+        // A label is what makes a row readable; an unlabelled setting is internal state RenoDX draws
+        // nothing for either.
+        if (info.label == nullptr || *info.label == '\0')
+            continue;
+
+        if (info.section != nullptr && *info.section != '\0' &&
+            (lastSection == nullptr || std::strcmp(lastSection, info.section) != 0))
+        {
+            SectionCaption(info.section, rowWidth);
+            lastSection = info.section;
+        }
+
+        const bool disabled = info.is_enabled == 0;
+        if (disabled)
+            ImGui::BeginDisabled();
+
+        switch (info.value_type)
+        {
+        case RENODX_HOST_VALUE_BOOLEAN:
+        {
+            float cur = 0.0f;
+            if (api->get_number(info.key, &cur))
+            {
+                bool on = cur != 0.0f;
+                if (NrCheckbox(info.label, &on))
+                {
+                    api->set_number(info.key, on ? 1.0f : 0.0f);
+                    api->save();
+                }
+            }
+            break;
+        }
+        case RENODX_HOST_VALUE_COMBO:
+        {
+            // The value IS the index, which is why this reads as a number and writes back as one.
+            float cur = 0.0f;
+            if (info.label_count > 0 && api->get_number(info.key, &cur))
+            {
+                // Gathered per draw rather than cached: label_at hands back pointers into the
+                // add-on's own std::strings, and holding those across a call into it is the lifetime
+                // bug its own comment warns about.
+                const char* labels[32];
+                const uint32_t count = info.label_count < 32 ? info.label_count : 32;
+                bool complete = true;
+                for (uint32_t c = 0; c < count; ++c)
+                {
+                    labels[c] = api->label_at(i, c);
+                    complete = complete && labels[c] != nullptr;
+                }
+                int sel = (int) cur;
+                if (complete && sel >= 0 && sel < (int) count &&
+                    NrCombo(info.label, &sel, labels, (int) count, rowWidth))
+                {
+                    api->set_number(info.key, (float) sel);
+                    api->save();
+                }
+            }
+            break;
+        }
+        case RENODX_HOST_VALUE_INTEGER:
+        case RENODX_HOST_VALUE_FLOAT:
+        {
+            // No range, no box -- the same rule the pacing page follows. RenoDX leaves min and max at
+            // zero for a setting it does not clamp, and inventing ends would offer numbers it ignores.
+            if (info.min_value == info.max_value)
+                break;
+
+            float cur = 0.0f;
+            if (api->get_number(info.key, &cur))
+            {
+                double v = cur;
+                auto r = NrNumberBox(info.label, &v, info.min_value, info.max_value,
+                                     info.value_type == RENODX_HOST_VALUE_INTEGER, rowWidth);
+                // Compared as float because that is what the add-on stores: a double that differs
+                // from `cur` only below float precision is not a change RenoDX can hold.
+                if (r.committed && (float) v != cur)
+                {
+                    api->set_number(info.key, (float) v);
+                    api->save();
+                }
+            }
+            break;
+        }
+        default:
+            // TEXT, and anything a later RenoDX adds. Skipped rather than guessed at: this panel has
+            // no text field, and a path or a preset name typed on a controller is not a thing worth
+            // building badly when RenoDX's own overlay already has it.
+            break;
+        }
+
+        if (disabled)
+            ImGui::EndDisabled();
+
+        if (info.tooltip != nullptr && *info.tooltip != '\0')
+            HelpMarker(info.tooltip);
+    }
+}
+
 // Drawn once, under the status lines: the same buttons the Models row uses, so the panel has one
 // way of offering a choice of several.
 static void PagePicker(float rowWidth)
 {
-    const char* names[kPageCount] = { Tr("Main"),    Tr("Model"), Tr("Cost"),  Tr("Image"),
-                                      Tr("Inspect"), Tr("Setup"), Tr("Pacing") };
+    const char* names[kPageCount] = { Tr("Main"),    Tr("Model"), Tr("Cost"),   Tr("Image"),
+                                      Tr("Inspect"), Tr("Setup"), Tr("Pacing"), Tr("HDR") };
 
     // Pacing exists only while ReLimiter is in the process, so the strip is built from the pages that
     // are actually there rather than divided by kPageCount. An empty page for an absent add-on is
@@ -1109,6 +1343,8 @@ static void PagePicker(float rowWidth)
     for (int i = 0; i < kPageCount; ++i)
     {
         if (i == kPagePacing && !DlssNrReLimiter::Available())
+            continue;
+        if (i == kPageHdr && !DlssNrRenoDx::Available())
             continue;
         visible[count++] = i;
     }
@@ -3205,6 +3441,8 @@ void RenderMenu(Config* config, float menuResScale)
 
         if (OnPage(kPagePacing))
             DrawPacingPage(rowWidth);
+        if (OnPage(kPageHdr))
+            DrawRenoDxPage(rowWidth);
 
         // Must be popped before End(), and on every path out of this block -- it is a stack, not a
         // per-window property like the SetWindowFontScale it replaced.
