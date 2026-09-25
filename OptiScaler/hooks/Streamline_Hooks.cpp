@@ -1093,6 +1093,125 @@ StreamlineHooks::ScopedGameDevice::ScopedGameDevice(IUnknown* device) : _previou
 
 StreamlineHooks::ScopedGameDevice::~ScopedGameDevice() { t_gameDevice = _previous; }
 
+// [DlssNr] What of the game's DLSS-G tags reaches Streamline while ReShade sits above it for RenoDX.
+//
+// Re-layered, the frame DLSS-G receives at Present is RenoDX's output (its proxy pass has already encoded
+// it for the HDR swap chain), but the game still tags its own HUD-less colour and UI colour/alpha buffers,
+// which RenoDX never processed -- on Blood of Dawnwalker an R10G10B10A2 and a BGRA8 texture (SL's
+// sl.common clones of them, 2026-09-25). DLSS-G interpolates the HUD-less buffer and lays the UI over it,
+// so every generated frame came out in the game's encoding and every real one in RenoDX's: the picture
+// pulsed. Withholding those tags leaves DLSS-G working from the presented frame alone, which is RenoDX's.
+// [DlssNr] RenoDxDlssgHudless picks what is withheld (auto/drop: both, hudless: the HUD-less tag only,
+// keep: nothing), so the two can be compared. Nothing changes unless the re-layer engaged.
+//
+// The proper fix is to hand DLSS-G RenoDX's processed equivalents instead of nothing, which needs RenoDX
+// to say which resource stands in for a given one -- see the note in DlssNr_RenoDx.h.
+namespace
+{
+enum class TagFilter
+{
+    Keep,
+    HudlessOnly,
+    HudlessAndUi
+};
+
+TagFilter CurrentTagFilter()
+{
+    const auto mode = Config::Instance()->RenoDxDlssgHudless.value_or_default();
+    if (_wcsicmp(mode.c_str(), L"keep") == 0)
+        return TagFilter::Keep;
+    if (_wcsicmp(mode.c_str(), L"hudless") == 0)
+        return TagFilter::HudlessOnly;
+    return TagFilter::HudlessAndUi; // auto, drop, or anything unrecognised
+}
+
+bool Withheld(TagFilter filter, sl::BufferType type)
+{
+    if (type == sl::kBufferTypeHUDLessColor)
+        return filter != TagFilter::Keep;
+    if (type == sl::kBufferTypeUIColorAndAlpha)
+        return filter == TagFilter::HudlessAndUi;
+    return false;
+}
+
+// The tags to forward: tags itself when nothing is withheld, else a filtered copy in *kept. The first
+// call also logs what the game tags, so a log shows the inputs DLSS-G was given.
+const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags, std::vector<sl::ResourceTag>* kept)
+{
+    if (!s_reshadeAboveSl || tags == nullptr || *numTags == 0)
+        return tags;
+
+    static std::atomic<bool> listed { false };
+    if (!listed.exchange(true))
+    {
+        std::string types;
+        for (uint32_t i = 0; i < *numTags; i++)
+            types += (i == 0 ? "" : ",") + std::to_string(tags[i].type);
+        LOG_INFO("RenoDX/DLSS-G: the game tags buffer types {} (2 HUD-less colour, 23 UI colour and alpha), "
+                 "RenoDxDlssgHudless={}",
+                 types, wstring_to_string(Config::Instance()->RenoDxDlssgHudless.value_or_default()));
+    }
+
+    const TagFilter filter = CurrentTagFilter();
+    if (filter == TagFilter::Keep)
+        return tags;
+
+    kept->clear();
+    bool hudless = false;
+    bool ui = false;
+    for (uint32_t i = 0; i < *numTags; i++)
+    {
+        if (Withheld(filter, tags[i].type))
+        {
+            hudless |= tags[i].type == sl::kBufferTypeHUDLessColor;
+            ui |= tags[i].type == sl::kBufferTypeUIColorAndAlpha;
+            continue;
+        }
+        kept->push_back(tags[i]);
+    }
+
+    if (kept->size() == *numTags)
+        return tags;
+
+    static std::atomic<bool> saidHudless { false };
+    if (hudless && !saidHudless.exchange(true))
+        LOG_INFO("RenoDX/DLSS-G: HUD-less tag withheld so generated frames match RenoDX's output");
+
+    static std::atomic<bool> saidUi { false };
+    if (ui && !saidUi.exchange(true))
+        LOG_INFO("RenoDX/DLSS-G: UI colour and alpha tag withheld so generated frames match RenoDX's output");
+
+    *numTags = static_cast<uint32_t>(kept->size());
+    return kept->data();
+}
+} // namespace
+
+sl::Result StreamlineHooks::hkslSetTag_renodx(const sl::ViewportHandle& viewport, const sl::ResourceTag* tags,
+                                              uint32_t numTags, sl::CommandBuffer* cmdBuffer)
+{
+    thread_local std::vector<sl::ResourceTag> kept;
+    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept);
+
+    // Everything withheld: there is nothing left to set, and an empty call means "remove" to SL.
+    if (forwarded != tags && numTags == 0)
+        return sl::Result::eOk;
+
+    return o_slSetTag_renodx(viewport, forwarded, numTags, cmdBuffer);
+}
+
+sl::Result StreamlineHooks::hkslSetTagForFrame_renodx(const sl::FrameToken& frame, const sl::ViewportHandle& viewport,
+                                                      const sl::ResourceTag* tags, uint32_t numTags,
+                                                      sl::CommandBuffer* cmdBuffer)
+{
+    thread_local std::vector<sl::ResourceTag> kept;
+    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept);
+
+    if (forwarded != tags && numTags == 0)
+        return sl::Result::eOk;
+
+    return o_slSetTagForFrame_renodx(frame, viewport, forwarded, numTags, cmdBuffer);
+}
+
 sl::Result StreamlineHooks::hkslSetD3DDevice(void* d3dDevice)
 {
     LOG_FUNC();
@@ -2289,6 +2408,12 @@ void StreamlineHooks::unhookInterposer()
     if (o_slInit)
         DetourDetach(&(PVOID&) o_slInit, hkslInit);
 
+    if (o_slSetTag_renodx)
+        DetourDetach(&(PVOID&) o_slSetTag_renodx, hkslSetTag_renodx);
+
+    if (o_slSetTagForFrame_renodx)
+        DetourDetach(&(PVOID&) o_slSetTagForFrame_renodx, hkslSetTagForFrame_renodx);
+
     if (o_slUpgradeInterface)
         DetourDetach(&(PVOID&) o_slUpgradeInterface, hkslUpgradeInterface);
 
@@ -2323,6 +2448,8 @@ void StreamlineHooks::unhookInterposer()
         o_slEvaluateFeature = nullptr;
         o_slSetConstants = nullptr;
         o_slUpgradeInterface = nullptr;
+        o_slSetTag_renodx = nullptr;
+        o_slSetTagForFrame_renodx = nullptr;
         o_slSetTag_sl1 = nullptr;
         o_slSetConstants_interposer_sl1 = nullptr;
         o_slEvaluateFeature_sl1 = nullptr;
@@ -2436,6 +2563,18 @@ void StreamlineHooks::hookInterposer(HMODULE slInterposer)
                     if (o_slSetConstants != nullptr)
                         DetourAttach(&(PVOID&) o_slSetConstants, hkslSetConstants);
                 }
+                else
+                {
+                    // Pass-through unless the RenoDX re-layer engaged, see hkslSetTag_renodx
+                    o_slSetTag_renodx = o_slSetTag;
+                    o_slSetTagForFrame_renodx = o_slSetTagForFrame;
+
+                    if (o_slSetTag_renodx != nullptr)
+                        DetourAttach(&(PVOID&) o_slSetTag_renodx, hkslSetTag_renodx);
+
+                    if (o_slSetTagForFrame_renodx != nullptr)
+                        DetourAttach(&(PVOID&) o_slSetTagForFrame_renodx, hkslSetTagForFrame_renodx);
+                }
 
                 if (State::Instance().activeFgInput == FGInput::DLSSG)
                 {
@@ -2476,6 +2615,8 @@ void StreamlineHooks::hookInterposer(HMODULE slInterposer)
                     o_slSetConstants = nullptr;
                     o_slGetNativeInterface = nullptr;
                     o_slUpgradeInterface = nullptr;
+                    o_slSetTag_renodx = nullptr;
+                    o_slSetTagForFrame_renodx = nullptr;
                     o_slSetD3DDevice = nullptr;
                     o_slIsFeatureSupported = nullptr;
                     o_slIsFeatureLoaded = nullptr;

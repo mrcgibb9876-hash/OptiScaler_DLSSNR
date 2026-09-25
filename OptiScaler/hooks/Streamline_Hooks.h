@@ -210,6 +210,9 @@ class StreamlineHooks
     inline static decltype(&slInit) o_slInit = nullptr;
     inline static decltype(&slSetTag) o_slSetTag = nullptr;
     inline static decltype(&slSetTagForFrame) o_slSetTagForFrame = nullptr;
+    // Separate detours for the RenoDX re-layer tag filter, only installed when the ones above are not.
+    inline static decltype(&slSetTag) o_slSetTag_renodx = nullptr;
+    inline static decltype(&slSetTagForFrame) o_slSetTagForFrame_renodx = nullptr;
     inline static decltype(&slEvaluateFeature) o_slEvaluateFeature = nullptr;
     inline static decltype(&slAllocateResources) o_slAllocateResources = nullptr;
     inline static decltype(&slSetConstants) o_slSetConstants = nullptr;
@@ -260,6 +263,12 @@ class StreamlineHooks
     static sl::Result hkslGetNativeInterface(void* proxyInterface, void** baseInterface);
 
     static sl::Result hkslUpgradeInterface(void** baseInterface);
+
+    static sl::Result hkslSetTag_renodx(const sl::ViewportHandle& viewport, const sl::ResourceTag* tags,
+                                        uint32_t numTags, sl::CommandBuffer* cmdBuffer);
+    static sl::Result hkslSetTagForFrame_renodx(const sl::FrameToken& frame, const sl::ViewportHandle& viewport,
+                                                const sl::ResourceTag* tags, uint32_t numTags,
+                                                sl::CommandBuffer* cmdBuffer);
 
     static sl::Result hkslSetD3DDevice(void* d3dDevice);
 
