@@ -21,11 +21,16 @@ namespace DlssNr
 // D3D12 headers into the Vulkan pass for one function that has nothing to do with D3D12.
 void PollSettingsFromDisk();
 } // namespace DlssNr
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
+
+#include <dxgi1_4.h>
 
 namespace DlssNr
 {
@@ -59,6 +64,12 @@ struct OwnedImage
 
     bool Valid() const { return image != VK_NULL_HANDLE && view != VK_NULL_HANDLE; }
 };
+
+// Stacked model passes: the same ceiling as DlssNr::MaxPassCount, which lives in the D3D12 header this
+// file deliberately does not include. The menu's slider and the ini are clamped to that, and this path
+// clamps to its own copy, so the two agreeing is what keeps a fourth pass from being asked of an array of
+// three.
+constexpr unsigned int kVkMaxPasses = 3;
 
 struct VkState
 {
@@ -210,6 +221,77 @@ struct VkState
 
     unsigned long long lastRebuildFrame = 0;
     bool rebuiltOnce = false;
+
+    // Evaluates that got past the viewport guard -- the served viewport's frames. The clock for
+    // everything below: a retired feature's countdown and a new one's wait before its first evaluate
+    // are both measured in frames of the thing being served, not in calls from a preview beside it.
+    unsigned long long served = 0;
+
+    // What the live features were built with (issue #132).
+    //
+    // The model reads its tuning once, when the feature is built -- the forwarder says so beside
+    // dlssnr_vk_create, and it is why the D3D12 path rebuilds on TuningMatchesFeature. This path read
+    // cfg.DlssNrPreset exactly once, at the first create, and never compared again, so on No Man's Sky
+    // picking Model A, B or C in the panel changed nothing until the resolution happened to move. Same
+    // for style, intensity and the three strengths. These are what a change is detected against.
+    struct Built
+    {
+        unsigned int preset[kVkMaxPasses] = {};
+        unsigned int style[kVkMaxPasses] = {};
+        float intensity = 0.0f;
+        float localStructure = 0.0f;
+        float localTone = 0.0f;
+        float skinStructure = 0.0f;
+        bool autoMask = false;
+    } built;
+
+    // A feature just created has only had its initialisation RECORDED into the game's command buffer.
+    // Evaluating it in that same buffer, before the buffer has been submitted, is the creation-frame
+    // dice roll that hung the GPU on D3D12 -- every one of those crashes died on a creation frame. D3D12
+    // waits for a submission epoch; Vulkan has none here, so it waits for a served evaluate on another
+    // command buffer, or kCreateSettleEvaluates of them on the same one (an engine that re-records a
+    // single buffer every frame has necessarily submitted it by then).
+    bool featurePending = false;
+    unsigned long long featureCreatedAt = 0;
+    VkCommandBuffer featureCreatedOn = VK_NULL_HANDLE;
+
+    // Stacked model passes (Passes 2 and 3). Slot 0 is unused -- pass one is `feature` above -- so the
+    // indices read the same as PassPreset(cfg, pass) on D3D12. Each layer is a feature of its own with
+    // its own temporal history; reusing pass one's would tell one temporal model that several frames
+    // elapsed in one game frame.
+    void* passFeature[kVkMaxPasses] = {};
+    bool passPending[kVkMaxPasses] = {};
+    unsigned long long passCreatedAt[kVkMaxPasses] = {};
+    VkCommandBuffer passCreatedOn[kVkMaxPasses] = {};
+    bool passNeedsReset[kVkMaxPasses] = {};
+    bool passCreateFailed[kVkMaxPasses] = {};
+
+    // The other half of the ping-pong: pass one writes `output`, pass two reads it and writes this,
+    // pass three reads this and writes `output`. Working size, built only when a second pass is asked
+    // for, so a one-pass session allocates exactly what it did before.
+    OwnedImage passScratch;
+
+    // Features taken out of service, released kRetireAfter served evaluates later rather than on the
+    // spot. The resize path can afford a vkDeviceWaitIdle -- a swapchain rebuild already stalls -- but a
+    // settings change happens mid-flight, and vkDeviceWaitIdle needs every queue externally synchronised,
+    // which a frame-generation present thread submitting on its own queue does not give it (Indiana
+    // Jones lost its device 1.9 ms after one). Parking is what the D3D12 path does for the same reason.
+    struct Retired
+    {
+        void* feature = nullptr;
+        unsigned int left = 0;
+    };
+    std::vector<Retired> retired;
+
+    // A settings change starts a short quiet period before the rebuild, so a slider being dragged is one
+    // CreateFeature when it stops rather than one every half second while it moves -- the lesson of the
+    // Before-SR run that rebuilt its model on every step and hitched each time.
+    bool settling = false;
+    std::chrono::steady_clock::time_point settleFrom {};
+
+    // The model's own share of the pass, from a second timestamp pair around the evaluates -- the
+    // "model" half of the cost line, which is what says whether the remainder (ours) is worth chasing.
+    std::optional<double> lastModelTime;
 };
 
 // A teardown closer than this many evaluates to the last one is refused. Sized to cover a burst of
@@ -233,6 +315,26 @@ constexpr unsigned long long kMeterSlots = 4;
 // clear of the slot being read.
 constexpr uint32_t kTimingSlots = 4;
 
+// Timestamps per slot: the whole pass (0, 1) and the model's evaluates inside it (2, 3). The second
+// pair is the "model" of the cost line; the difference is the encode, resolve and resamples -- ours.
+constexpr uint32_t kQueriesPerSlot = 4;
+
+// A retired feature is released this many served evaluates after it was parked. The D3D12 path's figure
+// (TickNrRetired), for the same reason: with frame generation the GPU can be several frames deep in work
+// that still references it, and 32 is far past any queue depth a game runs.
+constexpr unsigned int kRetireAfter = 32;
+
+// See featurePending. Three served evaluates on one command buffer means it has been submitted and
+// re-recorded at least twice, which it cannot be without the first submission having happened.
+constexpr unsigned long long kCreateSettleEvaluates = 3;
+
+// How long the model's settings have to hold still before the feature is rebuilt for them.
+constexpr double kSettleMs = 300.0;
+
+// What one feature is taken to cost per model pixel -- the D3D12 path's kFeatureBytesPerPixel, measured
+// on Cyberpunk at 2560x1600 and rounded up. Used only to decide whether an extra pass fits.
+constexpr uint64_t kFeatureBytesPerPixel = 192;
+
 VkState g_vk;
 std::mutex g_vkMutex;
 
@@ -244,6 +346,235 @@ void Fail(const char* why)
     g_vk.failed = true;
     g_vk.reason = why;
     LOG_ERROR("DLSS-NR Vulkan unavailable: {}", why);
+}
+
+// The same two lookups as DlssNr_Dx12.cpp's PassPreset / PassStyle, spelled out again rather than shared
+// because those live in that file's anonymous namespace beside D3D12 state. Pass 2 and 3 inherit pass
+// one's value unless the ini names one of their own. Clamped like D3D12: preset 0-3, style 0-2.
+unsigned int VkPassPreset(const Config& cfg, unsigned int pass)
+{
+    if (pass == 1 && cfg.DlssNrPass2Preset.has_value())
+        return std::min(cfg.DlssNrPass2Preset.value(), 3u);
+
+    if (pass == 2 && cfg.DlssNrPass3Preset.has_value())
+        return std::min(cfg.DlssNrPass3Preset.value(), 3u);
+
+    return std::min(cfg.DlssNrPreset.value_or_default(), 3u);
+}
+
+unsigned int VkPassStyle(const Config& cfg, unsigned int pass)
+{
+    if (pass == 1 && cfg.DlssNrPass2Style.has_value())
+        return std::min(cfg.DlssNrPass2Style.value(), 2u);
+
+    if (pass == 2 && cfg.DlssNrPass3Style.has_value())
+        return std::min(cfg.DlssNrPass3Style.value(), 2u);
+
+    return std::min(cfg.DlssNrStyle.value_or_default(), 2u);
+}
+
+// Whether pass one -- and with it every layer, because the strengths are shared -- was built with what
+// the config says now. Only what dlssnr_vk_create reads is compared: everything else is either set per
+// evaluate or belongs to the encode and resolve, which read the config every frame anyway.
+bool PrimaryTuningMatches(const Config& cfg)
+{
+    const VkState::Built& b = g_vk.built;
+
+    return b.preset[0] == VkPassPreset(cfg, 0) && b.style[0] == VkPassStyle(cfg, 0) &&
+           b.intensity == cfg.DlssNrIntensity.value_or_default() &&
+           b.localStructure == cfg.DlssNrLocalStructure.value_or_default() &&
+           b.localTone == cfg.DlssNrLocalTone.value_or_default() &&
+           b.skinStructure == cfg.DlssNrSkinStructure.value_or_default() &&
+           b.autoMask == cfg.DlssNrAutoMask.value_or_default();
+}
+
+void RecordPrimaryTuning(const Config& cfg)
+{
+    VkState::Built& b = g_vk.built;
+
+    b.preset[0] = VkPassPreset(cfg, 0);
+    b.style[0] = VkPassStyle(cfg, 0);
+    b.intensity = cfg.DlssNrIntensity.value_or_default();
+    b.localStructure = cfg.DlssNrLocalStructure.value_or_default();
+    b.localTone = cfg.DlssNrLocalTone.value_or_default();
+    b.skinStructure = cfg.DlssNrSkinStructure.value_or_default();
+    b.autoMask = cfg.DlssNrAutoMask.value_or_default();
+}
+
+// Out of service now, released later. Never on the spot: see `retired`.
+void ParkFeature(void*& feature)
+{
+    if (feature == nullptr)
+        return;
+
+    g_vk.retired.push_back({ feature, kRetireAfter });
+    feature = nullptr;
+}
+
+// Once per served evaluate. A feature whose countdown has run out is released without a device wait:
+// kRetireAfter frames on, nothing the GPU is still executing can reference it.
+void TickRetired()
+{
+    unsigned int released = 0;
+
+    for (size_t i = 0; i < g_vk.retired.size();)
+    {
+        if (--g_vk.retired[i].left > 0)
+        {
+            ++i;
+            continue;
+        }
+
+        if (g_vk.release != nullptr)
+            g_vk.release(g_vk.retired[i].feature);
+
+        g_vk.retired.erase(g_vk.retired.begin() + (std::ptrdiff_t) i);
+        ++released;
+    }
+
+    if (released > 0)
+        LOG_INFO("DLSS-NR Vulkan: released {} retired feature(s) {} evaluates after they were parked", released,
+                 kRetireAfter);
+}
+
+// Everything parked, now. Only after a vkDeviceWaitIdle (the resize path, a live shutdown), when the
+// GPU is known to be done with all of it.
+void ReleaseRetiredNow()
+{
+    for (const VkState::Retired& r : g_vk.retired)
+        if (g_vk.release != nullptr)
+            g_vk.release(r.feature);
+
+    g_vk.retired.clear();
+}
+
+// Pass one's features, and every stacked layer's, out of service together.
+void ParkAllFeatures()
+{
+    ParkFeature(g_vk.feature);
+    g_vk.featurePending = false;
+
+    for (unsigned int pass = 1; pass < kVkMaxPasses; ++pass)
+    {
+        ParkFeature(g_vk.passFeature[pass]);
+        g_vk.passPending[pass] = false;
+        g_vk.passNeedsReset[pass] = false;
+        g_vk.passCreateFailed[pass] = false;
+    }
+}
+
+// The bookkeeping for the features, once the handles themselves have been released or abandoned. Does
+// not touch `feature` or `retired`: the caller decides whether those are released or abandoned.
+void ForgetFeatureState()
+{
+    for (unsigned int pass = 1; pass < kVkMaxPasses; ++pass)
+    {
+        g_vk.passFeature[pass] = nullptr;
+        g_vk.passPending[pass] = false;
+        g_vk.passNeedsReset[pass] = false;
+        g_vk.passCreateFailed[pass] = false;
+    }
+
+    g_vk.featurePending = false;
+    g_vk.settling = false;
+    g_vk.built = VkState::Built {};
+    g_vk.lastModelTime.reset();
+}
+
+// Whether a feature created at `createdAt` on `createdOn` may be evaluated from `cmd` now. See
+// featurePending.
+bool ReadyAfterCreate(VkCommandBuffer createdOn, unsigned long long createdAt, VkCommandBuffer cmd)
+{
+    if (g_vk.served <= createdAt)
+        return false;
+
+    return cmd != createdOn || g_vk.served - createdAt >= kCreateSettleEvaluates;
+}
+
+// The process's video memory on this GPU, from DXGI. The budget is the operating system's (WDDM keeps
+// one per process per adapter, whichever API allocated), so it is the same figure the D3D12 path guards
+// with, and it needs nothing a Vulkan 1.0 instance lacks: VK_EXT_memory_budget would need the 1.1
+// properties2 entry point, which a game on a 1.0 instance does not give us. The adapter is matched by
+// vendor and device id. Unknown answers false, and the callers treat unknown as "fits" -- a driver
+// without the query must not stop the pass from running at all.
+bool ReadVideoMemoryVk(uint64_t& usage, uint64_t& budget)
+{
+    static IDXGIAdapter3* adapter = nullptr;
+    static VkPhysicalDevice adapterFor = VK_NULL_HANDLE;
+    static bool looked = false;
+
+    if (g_vk.physicalDevice == VK_NULL_HANDLE)
+        return false;
+
+    if (!looked || adapterFor != g_vk.physicalDevice)
+    {
+        looked = true;
+        adapterFor = g_vk.physicalDevice;
+
+        if (adapter != nullptr)
+        {
+            adapter->Release();
+            adapter = nullptr;
+        }
+
+        VkPhysicalDeviceProperties props {};
+        vkGetPhysicalDeviceProperties(g_vk.physicalDevice, &props);
+
+        IDXGIFactory1* factory = nullptr;
+        if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) || factory == nullptr)
+            return false;
+
+        IDXGIAdapter1* candidate = nullptr;
+        for (UINT i = 0; adapter == nullptr && factory->EnumAdapters1(i, &candidate) != DXGI_ERROR_NOT_FOUND; ++i)
+        {
+            DXGI_ADAPTER_DESC1 desc {};
+            if (SUCCEEDED(candidate->GetDesc1(&desc)) && desc.VendorId == props.vendorID &&
+                desc.DeviceId == props.deviceID)
+                candidate->QueryInterface(IID_PPV_ARGS(&adapter));
+
+            candidate->Release();
+            candidate = nullptr;
+        }
+
+        factory->Release();
+    }
+
+    if (adapter == nullptr)
+        return false;
+
+    DXGI_QUERY_VIDEO_MEMORY_INFO info {};
+    if (FAILED(adapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)) || info.Budget == 0)
+        return false;
+
+    usage = info.CurrentUsage;
+    budget = info.Budget;
+    return true;
+}
+
+// Whether `need` more bytes fit with the D3D12 path's standard reserve left over: 5% of the budget, at
+// least 384 MB. Unknown counts as fitting.
+bool FitsInVideoMemoryVk(uint64_t need, uint64_t& usage, uint64_t& budget)
+{
+    if (!ReadVideoMemoryVk(usage, budget))
+        return true;
+
+    const uint64_t reserve = std::max<uint64_t>(budget / 20, 384ull << 20);
+    return usage + need + reserve <= budget;
+}
+
+// A memory dependency between two of the model's evaluates on the same images, with no layout change.
+// Transition() records nothing when the layout already matches, and the ping-pong keeps both images in
+// GENERAL throughout -- so without this, pass two could read `output` before pass one finished writing
+// it, and pass three could overwrite it while pass two was still reading.
+void ShaderBarrier(VkCommandBuffer cmd)
+{
+    VkMemoryBarrier barrier {};
+    barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 1, &barrier, 0,
+                         nullptr, 0, nullptr);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -767,6 +1098,9 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         }
     }
 
+    // Past the guard: this is a frame of the viewport being served.
+    g_vk.served++;
+
     // The model's working size. The slider is a fraction of the frame; at 1 it is the frame, and the
     // reduced path below never runs, so the default is byte-for-byte what it was.
     // Above 1 the model supersamples (up to 2x): the proxy is enlarged, the model runs above native,
@@ -855,7 +1189,7 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
             VkQueryPoolCreateInfo info {};
             info.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
             info.queryType = VK_QUERY_TYPE_TIMESTAMP;
-            info.queryCount = kTimingSlots * 2;
+            info.queryCount = kTimingSlots * kQueriesPerSlot;
 
             if (vkCreateQueryPool(device, &info, nullptr, &g_vk.queryPool) != VK_SUCCESS)
             {
@@ -876,6 +1210,9 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
             return;
         }
     }
+
+    // Retired features count down in served frames, and are released here when theirs runs out.
+    TickRetired();
 
     // Resize. The feature is built for a size and has to be rebuilt when the frame OR the working
     // size changes -- moving the slider is a rebuild, which is why it is compared here.
@@ -912,6 +1249,25 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
             g_vk.release(g_vk.feature);
             g_vk.feature = nullptr;
         }
+
+        // The device is drained, so the stacked layers, anything parked and the ping-pong image can go
+        // now too: all of them were built for the old working size. The layers come back one per frame
+        // through the pass build below, at the new size.
+        g_vk.featurePending = false;
+
+        for (unsigned int pass = 1; pass < kVkMaxPasses; ++pass)
+        {
+            if (g_vk.passFeature[pass] != nullptr && g_vk.release != nullptr)
+                g_vk.release(g_vk.passFeature[pass]);
+
+            g_vk.passFeature[pass] = nullptr;
+            g_vk.passPending[pass] = false;
+            g_vk.passNeedsReset[pass] = false;
+            g_vk.passCreateFailed[pass] = false;
+        }
+
+        ReleaseRetiredNow();
+        DestroyImage(g_vk.passScratch);
 
         const VkFormat working = VK_FORMAT_R16G16B16A16_SFLOAT;
 
@@ -953,13 +1309,80 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         g_vk.reset = true;
     }
 
+    const unsigned int configuredPasses = std::clamp(cfg.DlssNrPasses.value_or_default(), 1u, kVkMaxPasses);
+
+    // -----------------------------------------------------------------------------------------
+    // Settings the model reads only at create time: a change retires the feature and builds another
+    // -----------------------------------------------------------------------------------------
+
+    const auto now = std::chrono::steady_clock::now();
+
+    if (g_vk.feature != nullptr && !PrimaryTuningMatches(cfg))
+    {
+        // Pass one's settings, or the strengths every layer shares: every feature was built with the
+        // old ones, so all of them go. Parked, not released -- see `retired` -- and the rebuild waits
+        // below until they are actually gone, so the old set and the new never sit in video memory
+        // together (the overlap that took the Cyberpunk run over its 12 GB).
+        LOG_INFO("DLSS-NR Vulkan: the model's settings changed (preset {} -> {}, style {} -> {}, intensity {:.2f} -> "
+                 "{:.2f}); rebuilding the feature once they hold still for {:.0f} ms",
+                 g_vk.built.preset[0], VkPassPreset(cfg, 0), g_vk.built.style[0], VkPassStyle(cfg, 0),
+                 g_vk.built.intensity, cfg.DlssNrIntensity.value_or_default(), kSettleMs);
+
+        ParkAllFeatures();
+        g_vk.settling = true;
+        g_vk.settleFrom = now;
+    }
+
+    for (unsigned int pass = 1; pass < kVkMaxPasses; ++pass)
+    {
+        if (pass >= configuredPasses)
+        {
+            // No longer asked for. Its history goes with it, and a failure latch is cleared so a later
+            // 1 -> N is a deliberate retry rather than a remembered no.
+            if (g_vk.passFeature[pass] != nullptr)
+                LOG_INFO("DLSS-NR Vulkan: pass {} no longer requested; retiring its feature", pass + 1);
+
+            ParkFeature(g_vk.passFeature[pass]);
+            g_vk.passPending[pass] = false;
+            g_vk.passNeedsReset[pass] = false;
+            g_vk.passCreateFailed[pass] = false;
+        }
+        else if (g_vk.passFeature[pass] != nullptr && (g_vk.built.preset[pass] != VkPassPreset(cfg, pass) ||
+                                                       g_vk.built.style[pass] != VkPassStyle(cfg, pass)))
+        {
+            // Only this layer's own model or style moved: only this layer is rebuilt, which is what the
+            // panel's help for Pass 2/3 model promises. Pass one keeps running meanwhile.
+            LOG_INFO("DLSS-NR Vulkan: pass {} settings changed (preset {} -> {}, style {} -> {}); rebuilding that "
+                     "layer only",
+                     pass + 1, g_vk.built.preset[pass], VkPassPreset(cfg, pass), g_vk.built.style[pass],
+                     VkPassStyle(cfg, pass));
+
+            ParkFeature(g_vk.passFeature[pass]);
+            g_vk.passPending[pass] = false;
+            g_vk.passNeedsReset[pass] = false;
+            g_vk.passCreateFailed[pass] = false;
+            g_vk.settling = true;
+            g_vk.settleFrom = now;
+        }
+    }
+
+    const bool settled =
+        !g_vk.settling || std::chrono::duration<double, std::milli>(now - g_vk.settleFrom).count() >= kSettleMs;
+
     if (g_vk.feature == nullptr)
     {
-        g_vk.feature = g_vk.create(
-            (void*) cmdBuffer, g_vk.capabilityParams, workWidth, workHeight, (int) cfg.DlssNrPreset.value_or_default(),
-            cfg.DlssNrIntensity.value_or_default(), (int) cfg.DlssNrStyle.value_or_default(),
-            cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
-            cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
+        // The old features have to be gone before a new one is built -- see above. About half a second
+        // of unenhanced frames after a change, the same wait the D3D12 path has.
+        if (!g_vk.retired.empty() || !settled)
+            return;
+
+        g_vk.settling = false;
+
+        g_vk.feature =
+            g_vk.create((void*) cmdBuffer, g_vk.capabilityParams, workWidth, workHeight, (int) VkPassPreset(cfg, 0),
+                        cfg.DlssNrIntensity.value_or_default(), (int) VkPassStyle(cfg, 0),
+                        cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
+                        cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
 
         if (g_vk.feature == nullptr)
         {
@@ -967,8 +1390,157 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
             return;
         }
 
-        LOG_INFO("DLSS-NR Vulkan: feature up at {}x{} (frame {}x{})", workWidth, workHeight, width, height);
+        RecordPrimaryTuning(cfg);
+        g_vk.featurePending = true;
+        g_vk.featureCreatedAt = g_vk.served;
+        g_vk.featureCreatedOn = cmdBuffer;
+
+        LOG_INFO("DLSS-NR Vulkan: feature up at {}x{} (frame {}x{}) -- preset {}, style {}, intensity {:.2f}",
+                 workWidth, workHeight, width, height, g_vk.built.preset[0], g_vk.built.style[0], g_vk.built.intensity);
         g_vk.reset = true;
+
+        // Nothing is evaluated on the frame a feature is created. See featurePending.
+        return;
+    }
+
+    if (g_vk.featurePending)
+    {
+        if (!ReadyAfterCreate(g_vk.featureCreatedOn, g_vk.featureCreatedAt, cmdBuffer))
+            return;
+
+        g_vk.featurePending = false;
+        LOG_INFO("DLSS-NR Vulkan: feature ready after its creation was submitted ({} served evaluates later)",
+                 g_vk.served - g_vk.featureCreatedAt);
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Stacked passes: at most one new layer per frame, and nothing evaluated on that frame
+    // -----------------------------------------------------------------------------------------
+
+    for (unsigned int pass = 1; pass < configuredPasses; ++pass)
+    {
+        if (g_vk.passFeature[pass] != nullptr)
+            continue;
+
+        // A layer that would not build stays off until Passes is changed; the ones below it run.
+        if (g_vk.passCreateFailed[pass] || !g_vk.retired.empty() || !settled)
+            break;
+
+        g_vk.settling = false;
+
+        if (!g_vk.passScratch.Valid() || g_vk.passScratch.width != workWidth || g_vk.passScratch.height != workHeight)
+        {
+            // New, so nothing in flight can reference it; no drain needed.
+            if (!CreateImage(g_vk.passScratch, workWidth, workHeight, VK_FORMAT_R16G16B16A16_SFLOAT, true))
+            {
+                g_vk.passCreateFailed[pass] = true;
+                LOG_WARN("DLSS-NR Vulkan: no image for a second model pass; running one pass");
+                break;
+            }
+        }
+
+        // An extra layer is optional, so it waits for room rather than risk the eviction that lost the
+        // device in Cyberpunk. The feature is the cost; the scratch image above is a few MB beside it.
+        {
+            const uint64_t need = (uint64_t) workWidth * workHeight * kFeatureBytesPerPixel;
+            uint64_t usage = 0, budget = 0;
+
+            if (!FitsInVideoMemoryVk(need, usage, budget))
+            {
+                static unsigned int warnedPass = 0;
+
+                if (warnedPass != pass + 1)
+                {
+                    warnedPass = pass + 1;
+                    LOG_WARN("DLSS-NR Vulkan: model pass {} not built -- video memory {} of {} MB in use, and it "
+                             "needs about {} MB more. Running {} pass(es) until there is room.",
+                             pass + 1, usage >> 20, budget >> 20, need >> 20, pass);
+                }
+                break;
+            }
+        }
+
+        // Local tone belongs to the frame and is applied by pass one only, as on D3D12.
+        g_vk.passFeature[pass] =
+            g_vk.create((void*) cmdBuffer, g_vk.capabilityParams, workWidth, workHeight, (int) VkPassPreset(cfg, pass),
+                        cfg.DlssNrIntensity.value_or_default(), (int) VkPassStyle(cfg, pass),
+                        cfg.DlssNrLocalStructure.value_or_default(), 0.0f, cfg.DlssNrSkinStructure.value_or_default(),
+                        cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1);
+
+        if (g_vk.passFeature[pass] != nullptr)
+        {
+            g_vk.built.preset[pass] = VkPassPreset(cfg, pass);
+            g_vk.built.style[pass] = VkPassStyle(cfg, pass);
+            g_vk.passPending[pass] = true;
+            g_vk.passCreatedAt[pass] = g_vk.served;
+            g_vk.passCreatedOn[pass] = cmdBuffer;
+            g_vk.passNeedsReset[pass] = true;
+            LOG_INFO("DLSS-NR Vulkan: feature for pass {} built at {}x{} with preset {}, style {}; waiting for "
+                     "submission",
+                     pass + 1, workWidth, workHeight, g_vk.built.preset[pass], g_vk.built.style[pass]);
+        }
+        else
+        {
+            // Not Fail(): pass one is fine and keeps running. Only this layer is given up on.
+            g_vk.passCreateFailed[pass] = true;
+            LOG_ERROR("DLSS-NR Vulkan: feature for pass {} failed to build; using {} pass(es)", pass + 1, pass);
+        }
+
+        // A creation frame evaluates nothing, including the layers that are ready. The frame goes out
+        // as the upscaler left it -- one unenhanced frame per layer built.
+        return;
+    }
+
+    // The layers that are built, ready and contiguous from pass one. A gap stops the count: a layer is
+    // fed the one below it, never pass one's answer twice.
+    unsigned int effectivePasses = 1;
+
+    if (g_vk.passScratch.Valid())
+    {
+        for (unsigned int pass = 1; pass < configuredPasses; ++pass)
+        {
+            if (g_vk.passFeature[pass] == nullptr)
+                break;
+
+            if (g_vk.passPending[pass])
+            {
+                if (!ReadyAfterCreate(g_vk.passCreatedOn[pass], g_vk.passCreatedAt[pass], cmdBuffer))
+                    break;
+
+                g_vk.passPending[pass] = false;
+                LOG_INFO("DLSS-NR Vulkan: feature for pass {} ready after its creation was submitted", pass + 1);
+            }
+
+            ++effectivePasses;
+        }
+    }
+
+    {
+        static unsigned int loggedConfigured = 0;
+        static unsigned int loggedEffective = 0;
+
+        if (loggedConfigured != configuredPasses || loggedEffective != effectivePasses)
+        {
+            loggedConfigured = configuredPasses;
+            loggedEffective = effectivePasses;
+            LOG_INFO("DLSS-NR Vulkan model passes: configured {}, effective {}", configuredPasses, effectivePasses);
+        }
+    }
+
+    // [DlssNr] PassRate, as on D3D12: the stacked layers run on that fraction of frames and pass one on
+    // all of them. A credit accumulator spreads the skipped frames evenly at any rate. The layers stay
+    // built either way, so a skipped frame is an evaluate not made, never a rebuild.
+    const float passRate = std::clamp(cfg.DlssNrPassRate.value_or_default(), 0.05f, 1.0f);
+
+    if (passRate < 0.999f && effectivePasses > 1)
+    {
+        static float passCredit = 0.0f;
+        passCredit += passRate;
+
+        if (passCredit >= 1.0f)
+            passCredit -= 1.0f;
+        else
+            effectivePasses = 1;
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1053,8 +1625,8 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
     if (g_vk.queryPool != VK_NULL_HANDLE)
     {
-        vkCmdResetQueryPool(cmdBuffer, g_vk.queryPool, timingSlot * 2, 2);
-        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, g_vk.queryPool, timingSlot * 2);
+        vkCmdResetQueryPool(cmdBuffer, g_vk.queryPool, timingSlot * kQueriesPerSlot, kQueriesPerSlot);
+        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, g_vk.queryPool, timingSlot * kQueriesPerSlot);
     }
 
     // The game's colour is read here and written at the end. Its layout on arrival is GENERAL, which
@@ -1222,22 +1794,90 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
     Transition(cmdBuffer, g_vk.output, VK_IMAGE_LAYOUT_GENERAL);
 
-    const int evaluated = g_vk.evaluate(
-        (void*) cmdBuffer, g_vk.feature, g_vk.capabilityParams, &modelInput->ngx, depth, motion, &g_vk.output.ngx,
-        workWidth, workHeight, guideWidth, guideHeight, depthInverted ? 1 : 0, g_vk.reset ? 1 : 0,
-        cfg.DlssNrIntensity.value_or_default(), (int) cfg.DlssNrStyle.value_or_default(),
-        cfg.DlssNrLocalStructure.value_or_default(), cfg.DlssNrLocalTone.value_or_default(),
-        cfg.DlssNrSkinStructure.value_or_default(), cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1.0f, 1.0f);
+    if (effectivePasses > 1)
+        Transition(cmdBuffer, g_vk.passScratch, VK_IMAGE_LAYOUT_GENERAL);
+
+    // Whatever last touched these -- last frame's resolve reading `output`, or last frame's pass two
+    // writing the scratch -- is finished before the model starts. A layout transition would have said
+    // so, but an image that stays in GENERAL from one frame to the next gets none.
+    if (effectivePasses > 1)
+        ShaderBarrier(cmdBuffer);
+
+    if (g_vk.queryPool != VK_NULL_HANDLE)
+        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, g_vk.queryPool,
+                            timingSlot * kQueriesPerSlot + 2);
+
+    // The encode ran once above. Its proxy stays untouched and only the model's answers ping-pong:
+    //   pass 1: proxy -> output, pass 2: output -> scratch, pass 3: scratch -> output.
+    // The final answer is resolved once, against the original proxy, so the transfer is the cumulative
+    // final-minus-base edit and the colour controls are not applied once per layer. D3D12's order.
+    OwnedImage* passInput = modelInput;
+    OwnedImage* passOutput = &g_vk.output;
+    OwnedImage* finalAnswer = nullptr;
+    unsigned int passesRun = 0;
+    const bool chainedHistory = cfg.DlssNrChainedHistory.value_or_default();
+
+    for (unsigned int pass = 0; pass < effectivePasses; ++pass)
+    {
+        void* const passFeature = pass == 0 ? g_vk.feature : g_vk.passFeature[pass];
+
+        // Pass one follows the frame's own reset. The stacked layers follow ChainedHistory: on, they
+        // reset only on the frame they were built and keep their history after; off, every frame.
+        const bool passReset = g_vk.reset || (pass > 0 && (g_vk.passNeedsReset[pass] || !chainedHistory));
+        const float passTone = pass == 0 ? cfg.DlssNrLocalTone.value_or_default() : 0.0f;
+
+        // Pass N's answer is pass N+1's input: the write has to land before the read.
+        if (pass > 0)
+            ShaderBarrier(cmdBuffer);
+
+        const int evaluated = g_vk.evaluate(
+            (void*) cmdBuffer, passFeature, g_vk.capabilityParams, &passInput->ngx, depth, motion, &passOutput->ngx,
+            workWidth, workHeight, guideWidth, guideHeight, depthInverted ? 1 : 0, passReset ? 1 : 0,
+            cfg.DlssNrIntensity.value_or_default(), (int) VkPassStyle(cfg, pass),
+            cfg.DlssNrLocalStructure.value_or_default(), passTone, cfg.DlssNrSkinStructure.value_or_default(),
+            cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, 1.0f, 1.0f);
+
+        if (evaluated != 1)
+        {
+            LOG_ERROR("DLSS-NR Vulkan: evaluate returned {} on pass {}", evaluated, pass + 1);
+
+            if (pass == 0)
+            {
+                g_vk.frames++;
+                Fail("the model refused to evaluate");
+                return;
+            }
+
+            // A stacked layer refusing is not a reason to lose pass one. That layer is retired and
+            // latched off until Passes changes; this frame resolves what the layers below it made.
+            ParkFeature(g_vk.passFeature[pass]);
+            g_vk.passPending[pass] = false;
+            g_vk.passCreateFailed[pass] = true;
+            break;
+        }
+
+        if (pass > 0)
+            g_vk.passNeedsReset[pass] = false;
+
+        finalAnswer = passOutput;
+        ++passesRun;
+
+        if (pass + 1 < effectivePasses)
+        {
+            passInput = passOutput;
+            passOutput = passOutput == &g_vk.output ? &g_vk.passScratch : &g_vk.output;
+        }
+    }
+
+    if (g_vk.queryPool != VK_NULL_HANDLE)
+        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, g_vk.queryPool,
+                            timingSlot * kQueriesPerSlot + 3);
+
+    // What reached the resolve, for the heartbeat's "this frame".
+    effectivePasses = passesRun;
 
     g_vk.reset = false;
     g_vk.frames++;
-
-    if (evaluated != 1)
-    {
-        LOG_ERROR("DLSS-NR Vulkan: evaluate returned {}", evaluated);
-        Fail("the model refused to evaluate");
-        return;
-    }
 
     // -----------------------------------------------------------------------------------------
     // Resolve: proxy + the model's answer + the untouched copy -> the frame
@@ -1251,14 +1891,14 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     // bilinear tap the Nx answer would otherwise get, which aliases the model's detail into noise. On
     // failure it falls back to the Nx pair (modelInput + output), the old behaviour.
     OwnedImage* resolveProxy = modelInput;
-    OwnedImage* resolveAnswer = &g_vk.output;
+    OwnedImage* resolveAnswer = finalAnswer;
 
     if (workScale > 1.0f && g_vk.superDown && g_vk.superDown->IsInit() && g_vk.outputNative.Valid())
     {
-        Transition(cmdBuffer, g_vk.output, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        Transition(cmdBuffer, *finalAnswer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         Transition(cmdBuffer, g_vk.outputNative, VK_IMAGE_LAYOUT_GENERAL);
 
-        VkImageInfo dsin = ImageInfoOf(g_vk.output);
+        VkImageInfo dsin = ImageInfoOf(*finalAnswer);
         VkImageInfo dsout = ImageInfoOf(g_vk.outputNative);
 
         if (g_vk.superDown->Dispatch(cmdBuffer, dsin, dsout))
@@ -1274,7 +1914,7 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     // composition is handed model minus proxy, and two filters would put the difference between them
     // inside that edit. Matched residual has to be told the edit still came from a reduced raster, since
     // the sizes no longer say so; Transfer 2 carries that, as on D3D12.
-    if (reduced && resolveAnswer == &g_vk.output && g_vk.editNative.Valid() && g_vk.proxyNative.Valid())
+    if (reduced && resolveAnswer == finalAnswer && g_vk.editNative.Valid() && g_vk.proxyNative.Valid())
     {
         const Scaler wantScaler = cfg.DlssNrScalingDownscaler.value_or_default();
         const Upsampler wantUpsampler = cfg.DlssNrScalingUpscaler.value_or_default();
@@ -1306,12 +1946,12 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
 
         if (g_vk.editUp && g_vk.editUp->IsInit() && g_vk.proxyUp && g_vk.proxyUp->IsInit())
         {
-            Transition(cmdBuffer, g_vk.output, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            Transition(cmdBuffer, *finalAnswer, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             Transition(cmdBuffer, g_vk.editNative, VK_IMAGE_LAYOUT_GENERAL);
             Transition(cmdBuffer, *modelInput, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             Transition(cmdBuffer, g_vk.proxyNative, VK_IMAGE_LAYOUT_GENERAL);
 
-            VkImageInfo editIn = ImageInfoOf(g_vk.output);
+            VkImageInfo editIn = ImageInfoOf(*finalAnswer);
             VkImageInfo editOut = ImageInfoOf(g_vk.editNative);
             VkImageInfo proxyIn = ImageInfoOf(*modelInput);
             VkImageInfo proxyOut = ImageInfoOf(g_vk.proxyNative);
@@ -1340,22 +1980,23 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         return;
     }
 
-    // Close it, and read the pair from three frames ago -- retired by now, so the read does not wait.
+    // Close it, and read the slot from three frames ago -- retired by now, so the read does not wait.
     if (g_vk.queryPool != VK_NULL_HANDLE)
     {
-        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, g_vk.queryPool, timingSlot * 2 + 1);
+        vkCmdWriteTimestamp(cmdBuffer, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, g_vk.queryPool,
+                            timingSlot * kQueriesPerSlot + 1);
         g_vk.timedFrames++;
 
         if (g_vk.timedFrames > kTimingSlots)
         {
             const uint32_t readSlot = (uint32_t) (g_vk.timedFrames % kTimingSlots);
-            uint64_t ticks[2] = {};
+            uint64_t ticks[kQueriesPerSlot] = {};
             std::optional<double> reading;
 
             // Without WAIT: a slot this old is retired, and if it somehow is not, NOT_READY is the
-            // right answer rather than a stall.
-            if (vkGetQueryPoolResults(device, g_vk.queryPool, readSlot * 2, 2, sizeof(ticks), ticks, sizeof(uint64_t),
-                                      VK_QUERY_RESULT_64_BIT) == VK_SUCCESS &&
+            // right answer rather than a stall. All four were written together, so they retire together.
+            if (vkGetQueryPoolResults(device, g_vk.queryPool, readSlot * kQueriesPerSlot, kQueriesPerSlot,
+                                      sizeof(ticks), ticks, sizeof(uint64_t), VK_QUERY_RESULT_64_BIT) == VK_SUCCESS &&
                 ticks[0] != 0 && ticks[1] > ticks[0])
             {
                 const double ms = (double) (ticks[1] - ticks[0]) * (double) g_vk.timestampPeriod / 1e6;
@@ -1365,11 +2006,72 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
                 // it or the pair straddled a device change.
                 if (NrTimingTrust::Plausible(ms))
                     g_vk.lastGpuTime = ms;
+
+                // The model's pair sits inside the whole pass's, so anything outside it is not a reading.
+                if (ticks[2] >= ticks[0] && ticks[3] > ticks[2] && ticks[3] <= ticks[1])
+                {
+                    const double model = (double) (ticks[3] - ticks[2]) * (double) g_vk.timestampPeriod / 1e6;
+
+                    if (NrTimingTrust::Plausible(model))
+                        g_vk.lastModelTime = model;
+                }
             }
 
             if (g_vk.timingTrust.Add(reading))
                 LOG_WARN("DLSS-NR Vulkan: the GPU pass timer gives scattered readings on this card; the panel "
                          "shows DLSS 5 on without a cost this session");
+        }
+
+        // The split, every 600 composed frames: the D3D12 path's line, word for word, because the
+        // manager's run log reads it (runlog.js nrTiming, which takes the last one after the last
+        // heartbeat). What is worth reading is the remainder -- the model's cost is NVIDIA's to set,
+        // everything else is ours.
+        static unsigned long long lastSplitLog = 0;
+
+        if (!g_vk.timingTrust.Untrusted() && g_vk.lastGpuTime.has_value() && g_vk.lastModelTime.has_value() &&
+            g_vk.frames - lastSplitLog > 600)
+        {
+            lastSplitLog = g_vk.frames;
+            const double total = g_vk.lastGpuTime.value();
+            const double model = std::min(g_vk.lastModelTime.value(), total);
+            LOG_INFO("DLSS-NR cost: {:.2f} ms total = {:.2f} ms model + {:.2f} ms ours ({:.0f}% ours)", total, model,
+                     total - model, total > 0.0 ? 100.0 * (total - model) / total : 0.0);
+        }
+    }
+
+    // Heartbeat, the D3D12 path's line in the D3D12 path's words (issue #132). This path wrote none, so
+    // a No Man's Sky log that had run the model for ten minutes read to the manager as a pass that
+    // never ran, and its pop-out showed no cost: runlog.js matches
+    //   DLSS-NR heartbeat: (\d+) frames run \((\d+) model failures\), ([\d.]+) fps, GPU ([^|]+?) \|
+    // and anything reworded before the "|" silently stops matching. Every 600 composed frames or two
+    // seconds, whichever is first -- the D3D12 cadence, so the pop-out's readout is as live here as
+    // there. Failures are always 0 on this path: pass one refusing disables it for the session (Fail)
+    // and a stacked layer refusing is dropped, not counted per frame.
+    {
+        static unsigned long long beatLastTotal = 0;
+        static auto beatLastTime = std::chrono::steady_clock::now();
+
+        const unsigned long long total = g_vk.frames;
+        const auto beatNow = std::chrono::steady_clock::now();
+        const double seconds = std::chrono::duration<double>(beatNow - beatLastTime).count();
+
+        if (total > beatLastTotal && (total - beatLastTotal >= 600 || seconds >= 2.0))
+        {
+            const double fps = seconds > 0.0 ? double(total - beatLastTotal) / seconds : 0.0;
+            beatLastTotal = total;
+            beatLastTime = beatNow;
+
+            const std::string gpu = g_vk.timingTrust.Untrusted() ? std::string("n/a (timer unreliable)")
+                                    : g_vk.lastGpuTime.has_value()
+                                        ? std::format("{:.2f} ms", g_vk.lastGpuTime.value())
+                                        : (g_vk.queryPool != VK_NULL_HANDLE ? std::string("not read yet")
+                                                                            : std::string("n/a (no timestamps)"));
+
+            LOG_INFO("DLSS-NR heartbeat: {} frames run ({} model failures), {:.0f} fps, GPU {} | "
+                     "intensity {:.2f}, preset {}, style {}, passes {} ({} this frame), {}, native Vulkan",
+                     total, 0, fps, gpu, cfg.DlssNrIntensity.value_or_default(), cfg.DlssNrPreset.value_or_default(),
+                     cfg.DlssNrStyle.value_or_default(), cfg.DlssNrPasses.value_or_default(), effectivePasses,
+                     reduced ? "reduced resolution" : "full resolution");
         }
     }
 
@@ -1408,6 +2110,18 @@ void ShutdownVk(bool deviceAlive)
         g_vk.keep = OwnedImage {};
         g_vk.meter = OwnedImage {};
 
+        // The same rule for the stacked layers, the parked features and the ping-pong image -- and for
+        // the two enlarge targets and their scalers, which this branch used to miss: a stale editNative
+        // is `.Valid()`, so the next resize would have vkDestroyed a dead device's image on the new one.
+        g_vk.passScratch = OwnedImage {};
+        g_vk.editNative = OwnedImage {};
+        g_vk.proxyNative = OwnedImage {};
+        g_vk.editUp.release();
+        g_vk.proxyUp.release();
+        g_vk.nrUpsampler = Upsampler::Count;
+        g_vk.retired.clear();
+        ForgetFeatureState();
+
         for (int i = 0; i < 4; ++i)
         {
             g_vk.meterReadback[i] = VK_NULL_HANDLE;
@@ -1437,6 +2151,14 @@ void ShutdownVk(bool deviceAlive)
         g_vk.release(g_vk.feature);
 
     g_vk.feature = nullptr;
+
+    for (unsigned int pass = 1; pass < kVkMaxPasses; ++pass)
+        if (g_vk.passFeature[pass] != nullptr && g_vk.release != nullptr)
+            g_vk.release(g_vk.passFeature[pass]);
+
+    ReleaseRetiredNow();
+    ForgetFeatureState();
+    DestroyImage(g_vk.passScratch);
 
     DestroyImage(g_vk.output);
     DestroyImage(g_vk.proxy);
