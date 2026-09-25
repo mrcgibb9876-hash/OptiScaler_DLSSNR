@@ -758,8 +758,9 @@ class Config
     // What reaches the game's own DLSS-G of the HUD-less and UI tags while RenoDX has ReShade re-layered
     // above Streamline (StreamlineHooks::hkslUpgradeInterface). Those are the game's buffers, which RenoDX
     // never processed, while the presented frame is RenoDX's output: interpolating one against the other
-    // made generated frames differ in tone from real ones (pulsing). auto and redirect: every tag re-pointed
-    // at RenoDX's own version through its host API v2 (StreamlineHooks, RedirectTags); drop: HUD-less and UI
+    // made generated frames differ in tone from real ones (pulsing). auto, redirect, redirect-all: HUD-less
+    // and UI re-pointed at RenoDX-encoded copies, other tags at RenoDX's clones, through its host API v2
+    // (StreamlineHooks, RedirectTags); redirect-hudless-only: the UI tag forwarded; drop: HUD-less and UI
     // tags withheld; hudless: only the HUD-less tag withheld; keep: all forwarded, as the game sets them.
     CustomOptional<std::wstring> RenoDxDlssgHudless { std::wstring(L"auto") };
     CustomOptional<int> LosslessScalingMultiplier { 2 };

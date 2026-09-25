@@ -1115,6 +1115,7 @@ namespace
 enum class TagFilter
 {
     Redirect,
+    RedirectHudlessOnly,
     Keep,
     HudlessOnly,
     HudlessAndUi
@@ -1129,7 +1130,9 @@ TagFilter CurrentTagFilter()
         return TagFilter::HudlessOnly;
     if (_wcsicmp(mode.c_str(), L"drop") == 0)
         return TagFilter::HudlessAndUi;
-    return TagFilter::Redirect; // auto, redirect, or anything unrecognised
+    if (_wcsicmp(mode.c_str(), L"redirect-hudless-only") == 0)
+        return TagFilter::RedirectHudlessOnly;
+    return TagFilter::Redirect; // auto, redirect, redirect-all, or anything unrecognised
 }
 
 const char* TagName(sl::BufferType type)
@@ -1168,8 +1171,8 @@ void LogTagOnce(sl::BufferType type, const char* outcome)
 
 // The default: every tag at RenoDX's own version of its resource, see above. The copies live in *kept and
 // *resources, which are sized first so the pointers into *resources stay valid.
-const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTags, std::vector<sl::ResourceTag>* kept,
-                                    std::vector<sl::Resource>* resources)
+const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTags, bool includeUi,
+                                    std::vector<sl::ResourceTag>* kept, std::vector<sl::Resource>* resources)
 {
     if (!DlssNrRenoDx::TagApiAvailable())
     {
@@ -1191,12 +1194,28 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
         if (tag.resource == nullptr || tag.resource->native == nullptr)
             continue;
 
+        // The back buffer is what DLSS-G is handed at present, and by then RenoDX's proxy pass has written
+        // the encoded frame into it: re-encoding it would encode it twice. As the game tagged it.
+        if (tag.type == sl::kBufferTypeBackbuffer)
+        {
+            LogTagOnce(tag.type, "forwarded as-is (RenoDX's proxy pass writes the encoded frame into it)");
+            continue;
+        }
+
         void* substitute = nullptr;
         uint32_t state = tag.resource->state;
-        const bool colour = tag.type == sl::kBufferTypeHUDLessColor || tag.type == sl::kBufferTypeBackbuffer;
 
-        if (colour && DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
+        if (tag.type == sl::kBufferTypeHUDLessColor &&
+            DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
             LogTagOnce(tag.type, "redirected to RenoDX's swap-chain-encoded copy");
+        else if (tag.type == sl::kBufferTypeUIColorAndAlpha && !includeUi)
+        {
+            LogTagOnce(tag.type, "forwarded as-is (RenoDxDlssgHudless=redirect-hudless-only)");
+            continue;
+        }
+        else if (tag.type == sl::kBufferTypeUIColorAndAlpha &&
+                 DlssNrRenoDx::EncodeUiForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
+            LogTagOnce(tag.type, "redirected to RenoDX's swap-chain-encoded copy (alpha kept)");
         else if (DlssNrRenoDx::ResolveClone(tag.resource->native, &substitute))
             LogTagOnce(tag.type, "redirected to RenoDX's clone");
         else
@@ -1247,8 +1266,8 @@ const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags
     if (filter == TagFilter::Keep)
         return tags;
 
-    if (filter == TagFilter::Redirect)
-        return RedirectTags(tags, *numTags, kept, resources);
+    if (filter == TagFilter::Redirect || filter == TagFilter::RedirectHudlessOnly)
+        return RedirectTags(tags, *numTags, filter == TagFilter::Redirect, kept, resources);
 
     kept->clear();
     bool hudless = false;

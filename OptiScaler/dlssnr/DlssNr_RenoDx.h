@@ -61,4 +61,6 @@ bool ResolveClone(void* nativeResource, void** outNativeResource);
 // RenoDX fills at each present with its swap chain proxy pass over the image, so it is encoded exactly
 // like the frame DLSS-G receives.
 bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State);
+// The same for the UI colour-and-alpha image: its alpha and format kept, only its colour encoded.
+bool EncodeUiForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State);
 } // namespace DlssNrRenoDx
