@@ -1342,19 +1342,22 @@ static void DrawRenoDxPage(float rowWidth)
             if (info.min_value == info.max_value)
                 break;
 
+            // A slider, not a typed box: brightness and grading are judged by eye while they move, and
+            // set_number applies live, so the picture follows the handle. Saved once, on release.
             float cur = 0.0f;
             if (api->get_number(info.key, &cur))
             {
-                double v = cur;
-                auto r = NrNumberBox(info.label, &v, info.min_value, info.max_value,
-                                     info.value_type == RENODX_HOST_VALUE_INTEGER, rowWidth);
-                // Compared as float because that is what the add-on stores: a double that differs
-                // from `cur` only below float precision is not a change RenoDX can hold.
-                if (r.committed && (float) v != cur)
-                {
-                    api->set_number(info.key, (float) v);
+                const bool isInt = info.value_type == RENODX_HOST_VALUE_INTEGER;
+                const bool wide = info.max_value - info.min_value > 10.0f;
+                float v = cur;
+                auto r = NrSlider(info.label, &v, info.min_value, info.max_value, isInt || wide ? "%.0f" : "%.2f",
+                                  rowWidth);
+                if (isInt)
+                    v = std::round(v);
+                if (r.changed && v != cur)
+                    api->set_number(info.key, v);
+                if (r.released)
                     api->save();
-                }
             }
             break;
         }
