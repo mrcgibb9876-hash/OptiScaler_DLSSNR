@@ -17,6 +17,7 @@
 #include <d3d12.h>
 #include <misc/IdentifyGpu.h>
 #include <hooks/Xell_Hooks.h>
+#include <dlssnr/DlssNr_RenoDx.h>
 
 #include <magic_enum.hpp>
 
@@ -543,6 +544,11 @@ static HRESULT LocalPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT 
     }
 
     LOG_DEBUG("Calling original present");
+
+    // RenoDX's proxy pass writes this frame's output into the current back buffer during the Present below;
+    // DLSS-G's evaluate compares what it is given with it (see NVSDK_NGX_D3D12_EvaluateFeature).
+    if (willPresent)
+        DlssNrRenoDx::NotePresentedBackBuffer(pSwapChain);
 
     // swapchain present
     if (pPresentParameters == nullptr)

@@ -763,6 +763,9 @@ class Config
     // redirect, redirect-hudless-only = that layer alone; drop = HUD-less and UI withheld; reorder-only =
     // tags untouched; off = ReShade not moved above Streamline at all.
     CustomOptional<std::wstring> RenoDxDlssgMode { std::wstring(L"auto") };
+    // Experimental, re-layer only: copy RenoDX's finished frame into DLSS-G's back-buffer input right before
+    // DLSS-G's evaluate when the two are different resources (NVSDK_NGX_D3D12_EvaluateFeature).
+    CustomOptional<bool> RenoDxDlssgEvalCopy { false };
     CustomOptional<int> LosslessScalingMultiplier { 2 };
     CustomOptional<int> LosslessScalingTarget { 120 };
 

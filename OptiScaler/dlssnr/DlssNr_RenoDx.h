@@ -70,4 +70,14 @@ bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNat
 bool EncodeInPlaceForSwapchain(void* nativeResource, uint32_t d3d12State, bool isUi);
 // The same for the UI colour-and-alpha image: its alpha and format kept, only its colour encoded.
 bool EncodeUiForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State);
+
+// The DLSS-G side of the re-layer (implemented in StreamlineHooks, which owns it). True once ReShade has been
+// moved above Streamline for RenoDX.
+bool DlssgReorderActive();
+// Called by the swap chain wrapper just before it hands the game's Present to ReShade: records the back
+// buffer the frame is in, which RenoDX's proxy pass then writes its output into. Does nothing unless the
+// re-layer is active.
+void NotePresentedBackBuffer(IUnknown* swapChain);
+// That back buffer, or null. Borrowed: the swap chain owns it.
+void* PresentedBackBuffer();
 } // namespace DlssNrRenoDx

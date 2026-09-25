@@ -7,6 +7,7 @@
 #include "proxies/NVNGX_Proxy.h"
 #include "dlssnr/DlssNr.h"
 #include "dlssnr/DlssNr_ExposureScan.h"
+#include "dlssnr/DlssNr_RenoDx.h"
 #include <upscalers/dlss/DLSSFeature_Dx12.h>
 #include <shaders/output_scaling/OS_Dx12.h>
 
@@ -1244,6 +1245,102 @@ static NVSDK_NGX_Result TryEvaluateOptiFeature(ID3D12GraphicsCommandList* InCmdL
  * @brief Per-frame feature execution. Runs a feature (upscaler, framegen, etc.) on a given command list using a
  * preexisting feature instance referenced by a unique handle.
  */
+// [DlssNr] What DLSS-G actually reads while RenoDX has ReShade above Streamline.
+//
+// With the game's FG on, RenoDX's proxy-pass settings stopped reaching the screen (Blood of Dawnwalker,
+// 2026-09-25): the proxy pass writes the swap chain's current back buffer at ReShade's present, but what
+// DLSS-G interpolates from and presents as the real frame is its "DLSSG.Backbuffer" input, and nothing so
+// far showed the two are the same resource. This logs them side by side, and with [DlssNr]
+// RenoDxDlssgEvalCopy=true copies RenoDX's finished frame into DLSS-G's input right before the evaluate --
+// the copy-back of RenoDX's own DLSS add-on (its "ngx_evaluate.dlssg_copyback"), done where DLSS-G reads.
+static void RenoDxDlssgEvaluate(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* params)
+{
+    if (!DlssNrRenoDx::DlssgReorderActive() || cmdList == nullptr || params == nullptr)
+        return;
+
+    ID3D12Resource* input = nullptr;
+    ID3D12Resource* hudless = nullptr;
+    ID3D12Resource* outputReal = nullptr;
+    uint32_t hdr = 0;
+    uint32_t frameIndex = 0;
+    params->Get("DLSSG.Backbuffer", &input);
+    params->Get("DLSSG.HUDLess", &hudless);
+    params->Get("DLSSG.OutputReal", &outputReal);
+    params->Get("DLSSG.ColorBuffersHDR", &hdr);
+    params->Get("DLSSG.MultiFrameIndex", &frameIndex);
+
+    auto* presented = static_cast<ID3D12Resource*>(DlssNrRenoDx::PresentedBackBuffer());
+
+    D3D12_RESOURCE_DESC inputDesc {};
+    D3D12_RESOURCE_DESC presentedDesc {};
+    if (input != nullptr)
+        inputDesc = input->GetDesc();
+    if (presented != nullptr)
+        presentedDesc = presented->GetDesc();
+
+    static int logged = 0;
+    static ID3D12Resource* lastInput = nullptr;
+    if (logged < 6 || (input != lastInput && logged < 40))
+    {
+        logged++;
+        LOG_INFO("RenoDX/DLSS-G: evaluate reads backbuffer {:X} ({}x{} fmt {}) hudless {:X} outputReal {:X}, "
+                 "HDR {}, frame index {}; RenoDX's presented back buffer {:X} ({}x{} fmt {}){}",
+                 (size_t) input, inputDesc.Width, inputDesc.Height, (uint32_t) inputDesc.Format, (size_t) hudless,
+                 (size_t) outputReal, hdr, frameIndex, (size_t) presented, presentedDesc.Width, presentedDesc.Height,
+                 (uint32_t) presentedDesc.Format,
+                 input == presented ? " -- the same resource" : " -- a different resource");
+    }
+    lastInput = input;
+
+    if (!Config::Instance()->RenoDxDlssgEvalCopy.value_or_default() || input == nullptr || presented == nullptr ||
+        input == presented || frameIndex > 1)
+        return;
+
+    // Only a straight copy: same size, same sample count, same format family.
+    const bool copyable = inputDesc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D &&
+                          inputDesc.Width == presentedDesc.Width && inputDesc.Height == presentedDesc.Height &&
+                          inputDesc.SampleDesc.Count == presentedDesc.SampleDesc.Count &&
+                          inputDesc.Format == presentedDesc.Format;
+    if (!copyable)
+    {
+        static bool said = false;
+        if (!said)
+        {
+            said = true;
+            LOG_WARN("RenoDX/DLSS-G: eval copy skipped, DLSS-G's input and RenoDX's back buffer differ in size or "
+                     "format");
+        }
+        return;
+    }
+
+    // DLSS-G's input is read as a shader resource here (the state the engine's HUD fix-up uses for it too);
+    // the back buffer has just been presented from, so it is in PRESENT/COMMON.
+    D3D12_RESOURCE_BARRIER barriers[2] {};
+    for (auto& barrier : barriers)
+    {
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+    }
+    barriers[0].Transition.pResource = presented;
+    barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+    barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+    barriers[1].Transition.pResource = input;
+    barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+    barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+    cmdList->ResourceBarrier(2, barriers);
+    cmdList->CopyResource(input, presented);
+    std::swap(barriers[0].Transition.StateBefore, barriers[0].Transition.StateAfter);
+    std::swap(barriers[1].Transition.StateBefore, barriers[1].Transition.StateAfter);
+    cmdList->ResourceBarrier(2, barriers);
+
+    static bool said = false;
+    if (!said)
+    {
+        said = true;
+        LOG_INFO("RenoDX/DLSS-G: eval copy, RenoDX's finished frame copied into DLSS-G's input before the evaluate");
+    }
+}
+
 NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCommandList* InCmdList,
                                                                const NVSDK_NGX_Handle* InFeatureHandle,
                                                                NVSDK_NGX_Parameter* InParameters,
@@ -1292,6 +1389,8 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_EvaluateFeature(ID3D12GraphicsCom
 
         if (InParameters->Get("DLSSG.CameraFar", &dlssgCameraFar) == NVSDK_NGX_Result_Success)
             lastDlssgCameraFar = dlssgCameraFar;
+
+        RenoDxDlssgEvaluate(InCmdList, InParameters);
     }
     else if (fgCreated)
     {
