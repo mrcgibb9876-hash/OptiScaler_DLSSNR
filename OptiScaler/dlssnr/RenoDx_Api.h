@@ -59,7 +59,61 @@ struct RenoDxHostSetting
     int32_t is_visible;
     int32_t is_enabled;
     int32_t is_global;
+
+    // ---- Version 4 (appended). An add-on that speaks 1-3 fills none of these, so they are read only
+    // when api_version >= 4 -- see DlssNrRenoDx::V4(). ----
+
+    // What RenoDX's overlay actually draws: RenoDxHostSettingKind (its SettingValueType). value_type above
+    // stays as it was for older hosts, so a version-4 host switches on this instead.
+    uint32_t kind;
+    // What the per-setting reset restores (numeric kinds; INPUT_TEXT uses default_text). A mod may move
+    // it at run time, so read it each time.
+    float default_value;
+    // The overlay draws a reset button for this setting (it also hides it while the preset is Off).
+    int32_t can_reset;
+    // The value equals its default.
+    int32_t is_using_default;
+    // INPUT_TEXT: the default text and the greyed hint shown while the box is empty. Borrowed.
+    const char* default_text;
+    const char* placeholder;
+    // INPUT_TEXT: longest value set_text keeps, in bytes; 0 = no limit.
+    uint32_t text_max_length;
+    // INPUT_TEXT: the ImGuiInputTextFlags the mod gave its box, in the add-on's ImGui's bit values.
+    uint32_t input_text_flags;
+    // RENODX_HOST_STYLE_* bits.
+    uint32_t style;
+    // The mod's accent colour for this control, 0xRRGGBB, when has_tint is 1.
+    int32_t has_tint;
+    uint32_t tint_rgb;
+    // FLOAT/INTEGER: the overlay's slider is logarithmic.
+    int32_t is_logarithmic;
+    // The overlay draws sticky settings above the preset switcher, the rest below it.
+    int32_t is_sticky;
 };
+
+// RenoDxHostSetting::kind -- matches renodx::utils::settings::RenoDxHostSettingKind (= SettingValueType).
+enum RenoDxHostSettingKind : uint32_t
+{
+    RENODX_HOST_KIND_FLOAT = 0,
+    RENODX_HOST_KIND_INTEGER = 1, // a slider; a combo when label_count > 0
+    RENODX_HOST_KIND_BOOLEAN = 2, // label_count is 0 (Off/On) or 2 (the mod's own two names)
+    RENODX_HOST_KIND_BUTTON = 3,  // no value; press(index) runs it
+    RENODX_HOST_KIND_LABEL = 4,   // read-only "label: text"; the text is label_at(index, 0)
+    RENODX_HOST_KIND_BULLET = 5,
+    RENODX_HOST_KIND_TEXT = 6,
+    RENODX_HOST_KIND_TEXT_NOWRAP = 7,
+    RENODX_HOST_KIND_CUSTOM = 8, // drawn by the mod inside ReShade's overlay; nothing to drive from here
+    RENODX_HOST_KIND_INPUT_TEXT = 9,
+};
+
+enum RenoDxHostStyle : uint32_t
+{
+    RENODX_HOST_STYLE_SEGMENTED = 1u << 0,
+    RENODX_HOST_STYLE_MULTILINE = 1u << 1,
+};
+
+// RenoDxHostSetting as versions 1-3 defined it (ended at is_global).
+#define RENODX_HOST_SETTING_V1_SIZE (offsetof(RenoDxHostSetting, is_global) + sizeof(int32_t))
 
 struct RenoDxHostApi
 {
@@ -106,6 +160,21 @@ struct RenoDxHostApi
     // Version 3: RenoDX's own overlay reset (non-global, resettable settings to their defaults), then
     // saved. Checked by struct_size on its own -- see DlssNrRenoDx::CanReset.
     void (*reset_settings)();
+
+    // ---- Version 4 ---- the rest of RenoDX's overlay, each doing exactly what the same click does there.
+    // Presets: preset_count entries (0 when the mod has presets off; then get_preset is -1). Entry 0 is
+    // Off, while which the overlay greys every control and hides every reset button.
+    uint32_t (*preset_count)();
+    const char* (*preset_label)(uint32_t preset); // borrowed
+    int32_t (*get_preset)();
+    bool (*set_preset)(int32_t preset);
+    uint32_t (*preset_style)(); // RENODX_HOST_STYLE_* for the switcher
+    // The per-setting reset button (refused while the preset is Off or the setting has none).
+    bool (*reset_setting)(const char* key);
+    // A BUTTON setting's click, by setting index.
+    bool (*press)(uint32_t index);
+    const char* (*overlay_title)();
+    bool (*section_open_by_default)(const char* section);
 };
 
 // What a version 1 add-on's struct holds; anything it reports at least this size of is drivable.

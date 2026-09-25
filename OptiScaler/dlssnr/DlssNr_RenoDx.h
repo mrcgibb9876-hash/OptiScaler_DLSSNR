@@ -58,6 +58,9 @@ bool TagApiAvailable();
 // Whether the add-on can reset its settings (host API version 3), and doing it: every setting its own
 // overlay's reset touches back to its default, saved.
 bool CanReset();
+// The add-on's host API when it speaks version 4 (presets, per-setting reset, buttons, the full setting
+// description), else null. Each version-4 function pointer is still checked for null before a call.
+const RenoDxHostApi* V4();
 void ResetAll();
 // 1 when the add-on clones the back buffers and writes the presented frame itself (mods::swapchain's proxy
 // pass), 0 when it only replaces the game's shaders, -1 when the add-on cannot say (upstream builds, or
