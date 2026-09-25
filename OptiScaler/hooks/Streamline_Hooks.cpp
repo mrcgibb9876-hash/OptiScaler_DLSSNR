@@ -12,11 +12,15 @@
 #include <framegen/nvngx/Nvngx_FG.h>
 #include <proxies/KernelBase_Proxy.h>
 #include <imgui/ImGuiNotify.hpp>
+#include <dlssnr/DlssNr_RenoDx.h>
 
 #include <json.hpp>
 #include <sl1_reflex.h>
 #include <magic_enum.hpp>
 #include "detours/detours.h"
+
+#include <algorithm>
+#include <atomic>
 
 static bool IsSL1AndDLSSGActive()
 {
@@ -556,6 +560,191 @@ sl::Result StreamlineHooks::hkslGetNativeInterface(void* proxyInterface, void** 
     LOG_FUNC();
     auto result = o_slGetNativeInterface(proxyInterface, baseInterface);
     return result;
+}
+
+// [DlssNr] RenoDX beside the game's own DLSS Frame Generation -- ReShade has to sit ABOVE Streamline.
+//
+// What goes wrong without this (The Blood of Dawnwalker, UE5 + Streamline 2.7.30, 2026-09-25): the game
+// upgrades the DXGI factory it got -- ReShade's proxy -- to a Streamline proxy, so SL wraps ReShade:
+//
+//   game -> SL swap chain proxy -> OptiScaler wrapper -> ReShade swap chain -> native swap chain
+//
+// With DLSS-G loaded, SL's GetBuffer hands the game its own "fake" back buffers (SL log: cloneFakeBuffers,
+// nv.sl.dlss_g.tex2d.fake-swapchain-buffer) and at Present writes the real frame and the generated ones
+// into the native back buffers itself. ReShade only knows the native ones, so RenoDX clones THOSE, the
+// game never draws into the clone, and at each present RenoDX's swap chain proxy pass copies the unwritten
+// clone over the frame SL just wrote. Black screen; the OptiScaler overlay, drawn through ReShade's
+// device into the same clone and never cleared, leaves cursor trails. FG off is fine because the game
+// then renders into buffers ReShade can see.
+//
+// The fix is the layering RenoDX's own "dlssfix" add-on builds, done here because this engine already
+// hooks Streamline and a second hooker crashed: ReShade's factory proxy keeps the game's pointer, and
+// only what it forwards to (its _orig) is upgraded to the SL proxy, so
+//
+//   game -> OptiScaler wrapper -> ReShade swap chain -> SL swap chain proxy -> native swap chain
+//
+// ReShade then tracks SL's fake buffers as the back buffers, the game renders into RenoDX's clone of
+// them, and ReShade's present event -- RenoDX's proxy pass, ReLimiter, ReShade's own effects -- runs on
+// the game's Present, before DLSS-G takes the buffer. Only when all of these hold: ReShade's factory
+// proxy is what the game upgrades, its layout checks out, a RenoDX add-on is loaded, and OptiScaler is
+// not running frame generation of its own on this game. Everything else is passed to SL untouched.
+namespace
+{
+// ReShade's DXGIFactory proxy class (source/dxgi/dxgi_factory.hpp) and DXGISwapChain proxy class
+// (source/dxgi/dxgi_swapchain.hpp); QueryInterface for either returns the proxy itself.
+constexpr GUID kReShadeDXGIFactory = { 0x019778d4, 0xa03a, 0x7af4, { 0xb8, 0x89, 0xe9, 0x23, 0x62, 0xd2, 0x02, 0x38 } };
+constexpr GUID kReShadeDXGISwapChain = {
+    0x1f445f9f, 0x9887, 0x4c4c, { 0x90, 0x55, 0x4e, 0x3b, 0xad, 0xaf, 0xcc, 0xa8 }
+};
+// ReShade's IID_UnwrappedObject (source/com_utils.hpp): a proxy answers it with the object it wraps.
+constexpr GUID kReShadeUnwrappedObject = {
+    0x7f2c9a11, 0x3b4e, 0x4d6a, { 0x81, 0x2f, 0x5e, 0x9c, 0xd3, 0x7a, 0x1b, 0x42 }
+};
+
+std::mutex s_reshadeAboveSlMutex;
+std::vector<IUnknown*> s_reshadeAboveSlFactories; // ReShade factory proxies already re-layered
+std::atomic<bool> s_reshadeAboveSl { false };
+
+// The module the object's vtable lives in exports ReShade's add-on entry point.
+bool VTableIsReShades(IUnknown* object)
+{
+    HMODULE mod = nullptr;
+    if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCWSTR>(*reinterpret_cast<void**>(object)), &mod) ||
+        mod == nullptr)
+        return false;
+
+    return KernelBaseProxy::GetProcAddress_()(mod, "ReShadeRegisterAddon") != nullptr;
+}
+
+// Why the factory was left as it is, logged once per reason so a player's log says which gate stopped it.
+void LogLeftAlone(const char* reason)
+{
+    static std::mutex saidMutex;
+    static std::vector<std::string> said;
+    std::lock_guard<std::mutex> lock(saidMutex);
+    if (std::find(said.begin(), said.end(), reason) != said.end())
+        return;
+    said.emplace_back(reason);
+    LOG_INFO("RenoDX/DLSS-G: DXGI factory left under Streamline ({})", reason);
+}
+} // namespace
+
+bool StreamlineHooks::isReShadeAboveStreamline(IUnknown* swapChain)
+{
+    if (!s_reshadeAboveSl || swapChain == nullptr)
+        return false;
+
+    IUnknown* proxy = nullptr;
+    if (swapChain->QueryInterface(kReShadeDXGISwapChain, (void**) &proxy) != S_OK || proxy == nullptr)
+        return false;
+
+    proxy->Release();
+    return true;
+}
+
+sl::Result StreamlineHooks::hkslUpgradeInterface(void** baseInterface)
+{
+    if (baseInterface == nullptr || *baseInterface == nullptr)
+        return o_slUpgradeInterface(baseInterface);
+
+    auto* object = static_cast<IUnknown*>(*baseInterface);
+
+    // Only a DXGI factory that is, or wraps, ReShade's factory proxy. A device, a queue, a swap chain, a
+    // factory without ReShade -- all of it goes to SL as before.
+    IUnknown* reshadeFactory = nullptr;
+    if (object->QueryInterface(kReShadeDXGIFactory, (void**) &reshadeFactory) != S_OK || reshadeFactory == nullptr)
+    {
+        IDXGIFactory* factory = nullptr;
+        if (object->QueryInterface(IID_PPV_ARGS(&factory)) == S_OK && factory != nullptr)
+        {
+            factory->Release();
+            LogLeftAlone("the factory is not a ReShade proxy");
+        }
+
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    reshadeFactory->Release(); // the game's reference keeps it alive
+
+    std::lock_guard<std::mutex> lock(s_reshadeAboveSlMutex);
+
+    // The game upgrades its factory again for a later swap chain: ReShade already forwards to SL's proxy,
+    // and upgrading that would stack a second SL proxy on the first. Hand the same factory back.
+    if (std::find(s_reshadeAboveSlFactories.begin(), s_reshadeAboveSlFactories.end(), reshadeFactory) !=
+        s_reshadeAboveSlFactories.end())
+        return sl::Result::eOk;
+
+    if (State::Instance().activeFgInput == FGInput::DLSSG || State::Instance().activeFgInput == FGInput::NvngxFG ||
+        State::Instance().activeFgOutput != FGOutput::NoFG)
+    {
+        // OptiScaler's own frame generation sits in this same swap chain chain; not re-layered.
+        LogLeftAlone("OptiScaler frame generation is configured");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    if (!VTableIsReShades(reshadeFactory))
+    {
+        LogLeftAlone("the factory proxy is not ReShade's");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    const std::string renodx = DlssNrRenoDx::AddonInProcess();
+    if (renodx.empty())
+    {
+        // ReShade under Streamline is what ReLimiter pacing beside native DLSS-G was verified with; without
+        // RenoDX there is no reason to move it.
+        LogLeftAlone("no RenoDX add-on loaded");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    // The member written below is ReShade's DXGIFactory::_orig, the first after the vtable pointer. That
+    // is ReShade's private layout, so it is checked against what ReShade itself reports as the wrapped
+    // object before anything is written; a ReShade that ever moves it is left alone rather than patched.
+    IUnknown* wrapped = nullptr;
+    if (reshadeFactory->QueryInterface(kReShadeUnwrappedObject, (void**) &wrapped) != S_OK || wrapped == nullptr)
+    {
+        LogLeftAlone("ReShade does not report the factory it wraps");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    wrapped->Release(); // ReShade's own reference keeps it alive
+
+    auto** origSlot = reinterpret_cast<IUnknown**>(reshadeFactory) + 1;
+    if (*origSlot != wrapped)
+    {
+        LogLeftAlone("ReShade's factory layout is not the expected one");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    IUnknown* alreadySl = nullptr;
+    if (Util::CheckForRealObject(__FUNCTION__, wrapped, &alreadySl))
+    {
+        LogLeftAlone("ReShade already wraps a Streamline proxy");
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    // SL takes over the reference it is given, so ReShade's reference on the native factory becomes the SL
+    // proxy's, and ReShade's slot then holds the proxy's single reference. The game keeps the one it had on
+    // ReShade's factory, which is what it is handed back: nothing is added or dropped.
+    void* upgraded = wrapped;
+    const auto result = o_slUpgradeInterface(&upgraded);
+    if (result != sl::Result::eOk || upgraded == nullptr || upgraded == wrapped)
+    {
+        LOG_WARN("RenoDX/DLSS-G: Streamline would not upgrade ReShade's native factory ({}), left as it was",
+                 magic_enum::enum_name(result));
+        return o_slUpgradeInterface(baseInterface);
+    }
+
+    *origSlot = static_cast<IUnknown*>(upgraded);
+    s_reshadeAboveSlFactories.push_back(reshadeFactory);
+    s_reshadeAboveSl = true;
+
+    LOG_INFO("RenoDX/DLSS-G present order fixed: ReShade factory {:X} now forwards to Streamline proxy {:X} "
+             "(native {:X}); ReShade and {} see the game's Present before DLSS-G",
+             (size_t) reshadeFactory, (size_t) upgraded, (size_t) wrapped, renodx);
+
+    return sl::Result::eOk;
 }
 
 sl::Result StreamlineHooks::hkslSetD3DDevice(void* d3dDevice)
@@ -1754,6 +1943,9 @@ void StreamlineHooks::unhookInterposer()
     if (o_slInit)
         DetourDetach(&(PVOID&) o_slInit, hkslInit);
 
+    if (o_slUpgradeInterface)
+        DetourDetach(&(PVOID&) o_slUpgradeInterface, hkslUpgradeInterface);
+
     if (o_slInit_sl1)
         DetourDetach(&(PVOID&) o_slInit_sl1, hkslInit_sl1);
 
@@ -1784,6 +1976,7 @@ void StreamlineHooks::unhookInterposer()
         o_slSetTagForFrame = nullptr;
         o_slEvaluateFeature = nullptr;
         o_slSetConstants = nullptr;
+        o_slUpgradeInterface = nullptr;
         o_slSetTag_sl1 = nullptr;
         o_slSetConstants_interposer_sl1 = nullptr;
         o_slEvaluateFeature_sl1 = nullptr;
@@ -1850,6 +2043,8 @@ void StreamlineHooks::hookInterposer(HMODULE slInterposer)
                 KernelBaseProxy::GetProcAddress_()(slInterposer, "slSetConstants"));
             o_slGetNativeInterface = reinterpret_cast<decltype(&slGetNativeInterface)>(
                 KernelBaseProxy::GetProcAddress_()(slInterposer, "slGetNativeInterface"));
+            o_slUpgradeInterface = reinterpret_cast<decltype(&slUpgradeInterface)>(
+                KernelBaseProxy::GetProcAddress_()(slInterposer, "slUpgradeInterface"));
             o_slSetD3DDevice = reinterpret_cast<decltype(&slSetD3DDevice)>(
                 KernelBaseProxy::GetProcAddress_()(slInterposer, "slSetD3DDevice"));
             o_slGetNewFrameToken = reinterpret_cast<decltype(&slGetNewFrameToken)>(
@@ -1878,6 +2073,10 @@ void StreamlineHooks::hookInterposer(HMODULE slInterposer)
 
                 if (o_slEvaluateFeature != nullptr)
                     DetourAttach(&(PVOID&) o_slEvaluateFeature, hkslEvaluateFeature);
+
+                // Pass-through unless RenoDX needs ReShade above Streamline, see hkslUpgradeInterface
+                if (o_slUpgradeInterface != nullptr)
+                    DetourAttach(&(PVOID&) o_slUpgradeInterface, hkslUpgradeInterface);
 
                 if (State::Instance().activeFgInput == FGInput::NvngxFG ||
                     State::Instance().activeFgInput == FGInput::DLSSG)
@@ -1930,6 +2129,7 @@ void StreamlineHooks::hookInterposer(HMODULE slInterposer)
                     o_slAllocateResources = nullptr;
                     o_slSetConstants = nullptr;
                     o_slGetNativeInterface = nullptr;
+                    o_slUpgradeInterface = nullptr;
                     o_slSetD3DDevice = nullptr;
                     o_slIsFeatureSupported = nullptr;
                     o_slIsFeatureLoaded = nullptr;

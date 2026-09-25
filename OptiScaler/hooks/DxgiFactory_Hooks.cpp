@@ -4,6 +4,7 @@
 
 #include "D3D11_Hooks.h"
 #include "D3D12_Hooks.h"
+#include "Streamline_Hooks.h"
 
 #include <Config.h>
 
@@ -755,7 +756,8 @@ HRESULT DxgiFactoryHooks::CreateSwapChain(IDXGIFactory* realFactory, IUnknown* p
 
             // Check for SL proxy
             IDXGISwapChain* realSC = nullptr;
-            if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+            if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+                !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
                 realSC = *ppSwapChain;
 
             State::Instance().currentRealSwapchain = realSC;
@@ -1179,7 +1181,8 @@ HRESULT DxgiFactoryHooks::CreateSwapChainForHwnd(IDXGIFactory2* realFactory, IUn
 
             // check for SL proxy
             IDXGISwapChain1* realSC = nullptr;
-            if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+            if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+                !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
                 realSC = *ppSwapChain;
 
             State::Instance().currentRealSwapchain = realSC;
@@ -1308,7 +1311,8 @@ HRESULT DxgiFactoryHooks::CreateSwapChainForCoreWindow(IDXGIFactory2* realFactor
     {
         // check for SL proxy
         IDXGISwapChain* realSC = nullptr;
-        if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+        if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+            !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
             realSC = *ppSwapChain;
 
         State::Instance().currentRealSwapchain = realSC;
@@ -1660,7 +1664,8 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChain(IDXGIFactory* realFactory, IUnkno
 
             // Check for SL proxy
             IDXGISwapChain* realSC = nullptr;
-            if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+            if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+                !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
                 realSC = *ppSwapChain;
 
             State::Instance().currentRealSwapchain = realSC;
@@ -1996,7 +2001,8 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChainForHwnd(IDXGIFactory2* realFactory
         {
             // check for SL proxy
             IDXGISwapChain1* realSC = nullptr;
-            if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+            if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+                !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
                 realSC = *ppSwapChain;
 
             State::Instance().currentRealSwapchain = realSC;
@@ -2125,7 +2131,8 @@ HRESULT DxgiFactoryHooks::DLSSGCreateSwapChainForCoreWindow(IDXGIFactory2* realF
     {
         // check for SL proxy
         IDXGISwapChain* realSC = nullptr;
-        if (!Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
+        if (StreamlineHooks::isReShadeAboveStreamline(*ppSwapChain) ||
+            !Util::CheckForRealObject(__FUNCTION__, *ppSwapChain, (IUnknown**) &realSC))
             realSC = *ppSwapChain;
 
         State::Instance().currentRealSwapchain = realSC;

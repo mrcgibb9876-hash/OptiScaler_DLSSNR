@@ -19,6 +19,8 @@
 // same place: Available() is false and the panel shows no RenoDX page. None of it is an error.
 #include "RenoDx_Api.h"
 
+#include <string>
+
 namespace DlssNrRenoDx
 {
 // Cheap: while nothing is found the loaded modules are walked again at most every 2 s (ReShade can
@@ -42,4 +44,9 @@ const char* ModuleName();
 // renodx* is loaded but exports no host API -- every upstream build today), "api-version" (one whose
 // API this engine does not speak). nullptr when it is available.
 const char* UnavailableReason();
+
+// The file name of a RenoDX add-on loaded in this process right now, upstream build or ours, or empty.
+// Unlike Available() this does not need the host API and is not rate-limited: StreamlineHooks asks it
+// once, when the game upgrades its DXGI factory, to decide whether ReShade has to sit above Streamline.
+std::string AddonInProcess();
 } // namespace DlssNrRenoDx

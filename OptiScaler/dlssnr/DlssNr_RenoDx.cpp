@@ -51,6 +51,27 @@ std::string BaseNameOf(HMODULE mod)
     return out;
 }
 
+EnumProcessModulesFn EnumModulesFn()
+{
+    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
+    return k32 ? (EnumProcessModulesFn) GetProcAddress(k32, "K32EnumProcessModules") : nullptr;
+}
+
+// Every module in the process, or an empty list if they could not be listed this time.
+std::vector<HMODULE> LoadedModules(EnumProcessModulesFn enumModules)
+{
+    // Asked for the count first, because a process with an add-on loaded has well over a hundred
+    // modules and a fixed array would be the kind of guess that works until it does not.
+    DWORD needed = 0;
+    if (!enumModules(GetCurrentProcess(), nullptr, 0, &needed) || needed == 0)
+        return {};
+    std::vector<HMODULE> mods(needed / sizeof(HMODULE));
+    if (!enumModules(GetCurrentProcess(), mods.data(), (DWORD) (mods.size() * sizeof(HMODULE)), &needed))
+        return {};
+    mods.resize(needed / sizeof(HMODULE));
+    return mods;
+}
+
 void Resolve()
 {
     if (s_api != nullptr || s_givenUp)
@@ -60,23 +81,16 @@ void Resolve()
         return;
     s_lastTry = now;
 
-    HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
-    auto enumModules = k32 ? (EnumProcessModulesFn) GetProcAddress(k32, "K32EnumProcessModules") : nullptr;
+    auto enumModules = EnumModulesFn();
     if (enumModules == nullptr)
     {
         s_givenUp = true; // no way to look, now or later
         return;
     }
 
-    // Asked for the count first, because a process with an add-on loaded has well over a hundred
-    // modules and a fixed array would be the kind of guess that works until it does not.
-    DWORD needed = 0;
-    if (!enumModules(GetCurrentProcess(), nullptr, 0, &needed) || needed == 0)
+    std::vector<HMODULE> mods = LoadedModules(enumModules);
+    if (mods.empty())
         return;
-    std::vector<HMODULE> mods(needed / sizeof(HMODULE));
-    if (!enumModules(GetCurrentProcess(), mods.data(), (DWORD) (mods.size() * sizeof(HMODULE)), &needed))
-        return;
-    mods.resize(needed / sizeof(HMODULE));
 
     // Every module is asked, not just the ones whose name looks like RenoDX's. A name filter would be
     // a second place that knows how these files are called, and it would miss a renamed copy for no
@@ -161,5 +175,30 @@ const char* UnavailableReason()
 {
     Resolve();
     return s_api != nullptr ? nullptr : s_reason;
+}
+
+std::string AddonInProcess()
+{
+    // Not through Resolve(): that one is rate-limited for the panel, and this is asked once, at the
+    // moment the game builds its swap chain, when an answer from two seconds ago would be stale.
+    auto enumModules = EnumModulesFn();
+    if (enumModules == nullptr)
+        return {};
+
+    for (HMODULE mod : LoadedModules(enumModules))
+    {
+        std::string name = BaseNameOf(mod);
+        if (GetProcAddress(mod, "RenoDxGetHostApi") != nullptr)
+            return name;
+
+        // Upstream builds have no export, so the file name is what identifies them: renodx-*.addon64
+        // (or .addon for a 32-bit ReShade). The extension keeps a stray renodx*.dll from counting.
+        const size_t dot = name.find_last_of('.');
+        const std::string ext = dot == std::string::npos ? std::string() : name.substr(dot);
+        if (_strnicmp(name.c_str(), "renodx", 6) == 0 &&
+            (_stricmp(ext.c_str(), ".addon64") == 0 || _stricmp(ext.c_str(), ".addon") == 0))
+            return name;
+    }
+    return {};
 }
 } // namespace DlssNrRenoDx

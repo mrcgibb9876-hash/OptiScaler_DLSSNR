@@ -170,6 +170,13 @@ class StreamlineHooks
     static bool isPclHooked();
     static bool isReflexHooked();
 
+    // True when the game's DXGI factory was re-layered so that ReShade sits above Streamline (see
+    // hkslUpgradeInterface) and swapChain is ReShade's proxy. Such a swap chain answers the Streamline
+    // "real object" query by forwarding it through ReShade to Streamline's native swap chain; unwrapping
+    // it that way would put OptiScaler's wrapper straight on the native one, skipping both ReShade and
+    // DLSS-G. The swap chain creation hooks ask this first and keep ReShade's proxy when it is true.
+    static bool isReShadeAboveStreamline(IUnknown* swapChain);
+
   private:
     inline static sl::RenderAPI renderApi = sl::RenderAPI::eCount;
     inline static std::mutex setConstantsMutex {};
@@ -190,6 +197,7 @@ class StreamlineHooks
     inline static decltype(&slAllocateResources) o_slAllocateResources = nullptr;
     inline static decltype(&slSetConstants) o_slSetConstants = nullptr;
     inline static decltype(&slGetNativeInterface) o_slGetNativeInterface = nullptr;
+    inline static decltype(&slUpgradeInterface) o_slUpgradeInterface = nullptr;
     inline static decltype(&slSetD3DDevice) o_slSetD3DDevice = nullptr;
     inline static decltype(&slGetNewFrameToken) o_slGetNewFrameToken = nullptr;
     inline static decltype(&slIsFeatureSupported) o_slIsFeatureSupported = nullptr;
@@ -233,6 +241,8 @@ class StreamlineHooks
                                             const sl::ViewportHandle& viewport);
 
     static sl::Result hkslGetNativeInterface(void* proxyInterface, void** baseInterface);
+
+    static sl::Result hkslUpgradeInterface(void** baseInterface);
 
     static sl::Result hkslSetD3DDevice(void* d3dDevice);
 
