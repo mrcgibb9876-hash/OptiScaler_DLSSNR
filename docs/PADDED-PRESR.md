@@ -51,7 +51,7 @@ Dawnwalker and NVIDIA's acceptance of its exact odd-sized model inputs still nee
 
 Use a new build of the actual loaded OptiScaler proxy (for example `dxgi.dll`), not just a replaced
 unused `OptiScaler.dll`. Existing published releases do not acquire the fix from new README/INI files.
-Start with one NR pass, **Before Super Resolution** on in the Alt+Home DLSS 5 panel (or
+Start with one NR pass, **Before Super Resolution** on in the DLSS 5 panel (Insert) (or
 `[DlssNr] RunBeforeSR=true`), model resolution at 100%, and RR/FG off.
 Switch Performance to Balanced and check `OptiScaler.log` for:
 
