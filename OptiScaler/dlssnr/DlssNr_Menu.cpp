@@ -1413,8 +1413,9 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
             }
             if (NrCombo(label, &sel, items.data(), (int) items.size(), rowWidth))
             {
-                api->set_number(key, (float) sel);
+                const bool ok = api->set_number(key, (float) sel);
                 api->save();
+                DlssNrRenoDx::LogCommit("page", "set", key, sel, ok);
             }
             break;
         }
@@ -1438,7 +1439,10 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
         if (r.changed && v != cur)
             api->set_number(key, v);
         if (r.released)
+        {
             api->save();
+            DlssNrRenoDx::LogCommit("page", "set", key, v, true);
+        }
         break;
     }
     case RENODX_HOST_KIND_BOOLEAN:
@@ -1459,8 +1463,9 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
                 int sel = cur != 0.0f ? 1 : 0;
                 if (NrCombo(label, &sel, items, 2, rowWidth))
                 {
-                    api->set_number(key, (float) sel);
+                    const bool ok = api->set_number(key, (float) sel);
                     api->save();
+                    DlssNrRenoDx::LogCommit("page", "set", key, sel, ok);
                 }
                 break;
             }
@@ -1468,8 +1473,9 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
         bool on = cur != 0.0f;
         if (NrCheckbox(label, &on))
         {
-            api->set_number(key, on ? 1.0f : 0.0f);
+            const bool ok = api->set_number(key, on ? 1.0f : 0.0f);
             api->save();
+            DlssNrRenoDx::LogCommit("page", "set", key, on ? 1.0 : 0.0, ok);
         }
         break;
     }
@@ -1477,7 +1483,7 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
     {
         // By index: buttons usually have no key. The add-on saves after its own click, as its overlay does.
         if (v4 != nullptr && v4->press != nullptr && ImGui::Button(label))
-            v4->press(row.index);
+            DlssNrRenoDx::LogCommit("page", "press", label, row.index, v4->press(row.index));
         break;
     }
     case RENODX_HOST_KIND_LABEL:
@@ -1558,8 +1564,9 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
         store->SetBool(wasActiveId, ImGui::IsItemActive());
         if (ImGui::IsItemDeactivatedAfterEdit())
         {
-            api->set_text(key, edit.c_str());
+            const bool ok = api->set_text(key, edit.c_str());
             api->save();
+            DlssNrRenoDx::LogCommit("page", "text", key, (double) edit.size(), ok);
         }
         break;
     }
@@ -1574,7 +1581,7 @@ static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, con
     {
         ImGui::SameLine();
         if (ImGui::SmallButton(Tr("Reset")))
-            v4->reset_setting(key);
+            DlssNrRenoDx::LogCommit("page", "reset", key, row.index, v4->reset_setting(key));
     }
 
     ImGui::PopID();
@@ -1613,7 +1620,7 @@ static void DrawRenoDxPresets(const RenoDxHostApi* v4, float rowWidth)
         for (const auto& n : names)
             items.push_back(n.c_str());
         if (NrCombo(Tr("Preset"), &sel, items.data(), (int) items.size(), rowWidth) && sel != current)
-            v4->set_preset(sel);
+            DlssNrRenoDx::LogCommit("page", "preset", nullptr, sel, v4->set_preset(sel));
         return;
     }
 
@@ -1621,15 +1628,15 @@ static void DrawRenoDxPresets(const RenoDxHostApi* v4, float rowWidth)
     auto r = NrSlider(Tr("Preset"), &v, 0.0f, (float) (names.size() - 1), "%.0f", rowWidth);
     const int picked = (int) std::round(v);
     if (r.changed && picked != current)
-        v4->set_preset(picked);
+        DlssNrRenoDx::LogCommit("page", "preset", nullptr, picked, v4->set_preset(picked));
     if (current >= 0 && current < (int) names.size())
         ImGui::TextColored(kTextDim, "%s", names[current].c_str());
 }
 
 // The HDR page: RenoDX's own overlay, option for option. With an add-on that speaks host API version 4 that
-// is its sticky settings, its preset switcher, then every section as it draws them (collapsible, opened as
-// it opens them), each setting in its own kind of control with its reset button; with an older add-on, the
-// values it can describe, as before.
+// is its settings in its own order with the preset switcher where it draws it, every section as it draws them
+// (collapsible, opened as it opens them), each setting in its own kind of control with its reset button; with an older
+// add-on, the values it can describe, as before.
 static void DrawRenoDxPage(float rowWidth)
 {
     const RenoDxHostApi* api = DlssNrRenoDx::Api();
@@ -1672,42 +1679,47 @@ static void DrawRenoDxPage(float rowWidth)
     const int32_t preset = v4 != nullptr && v4->get_preset != nullptr ? v4->get_preset() : -1;
     const bool presetOff = preset == 0;
 
-    // Sticky settings above the switcher, the rest below it -- the overlay's order.
-    for (int pass = 0; pass < 2; ++pass)
+    // RenoDX's overlay loop, step for step: the preset switcher goes in just before the first setting that is
+    // not sticky (so sticky ones above it stay above it), and a new section opens a collapsible node, opened
+    // or closed as the overlay opens it.
+    bool presetsDrawn = false;
+    std::string lastSection;
+    bool sectionOpen = true;
+    for (const auto& row : rows)
     {
-        const bool stickyPass = pass == 0;
-        if (!stickyPass)
-            DrawRenoDxPresets(v4, rowWidth);
-
-        const std::string* lastSection = nullptr;
-        bool sectionOpen = true;
-        for (const auto& row : rows)
+        if (!row.sticky && !presetsDrawn)
         {
-            if (row.sticky != stickyPass)
-                continue;
-
-            if (!row.section.empty() && (lastSection == nullptr || *lastSection != row.section))
-            {
-                lastSection = &row.section;
-                if (v4 != nullptr)
-                {
-                    const bool openByDefault =
-                        v4->section_open_by_default != nullptr && v4->section_open_by_default(row.section.c_str());
-                    sectionOpen = ImGui::CollapsingHeader(
-                        row.section.c_str(), openByDefault ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
-                }
-                else
-                {
-                    SectionCaption(row.section.c_str(), rowWidth);
-                    sectionOpen = true;
-                }
-            }
-            if (!sectionOpen)
-                continue;
-
-            DrawRenoDxRow(api, v4, row, presetOff, rowWidth);
+            DrawRenoDxPresets(v4, rowWidth);
+            presetsDrawn = true;
         }
+
+        if (row.section != lastSection)
+        {
+            lastSection = row.section;
+            if (row.section.empty())
+            {
+                sectionOpen = true;
+            }
+            else if (v4 != nullptr)
+            {
+                const bool openByDefault =
+                    v4->section_open_by_default != nullptr && v4->section_open_by_default(row.section.c_str());
+                sectionOpen = ImGui::CollapsingHeader(
+                    row.section.c_str(), openByDefault ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+            }
+            else
+            {
+                SectionCaption(row.section.c_str(), rowWidth);
+                sectionOpen = true;
+            }
+        }
+        if (!sectionOpen)
+            continue;
+
+        DrawRenoDxRow(api, v4, row, presetOff, rowWidth);
     }
+    if (!presetsDrawn)
+        DrawRenoDxPresets(v4, rowWidth);
 
     // Only with an add-on that can do it itself (host API version 3), so what gets reset is exactly what
     // RenoDX's own overlay would reset.
@@ -1717,7 +1729,10 @@ static void DrawRenoDxPage(float rowWidth)
         if (presetOff)
             ImGui::BeginDisabled();
         if (ImGui::SmallButton((std::string(Tr("Reset all to defaults")) + "##renodxreset").c_str()))
+        {
             DlssNrRenoDx::ResetAll();
+            DlssNrRenoDx::LogCommit("page", "reset all", nullptr, 0.0, true);
+        }
         if (presetOff)
             ImGui::EndDisabled();
     }

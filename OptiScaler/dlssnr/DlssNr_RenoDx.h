@@ -61,6 +61,11 @@ bool CanReset();
 // The add-on's host API when it speaks version 4 (presets, per-setting reset, buttons, the full setting
 // description), else null. Each version-4 function pointer is still checked for null before a call.
 const RenoDxHostApi* V4();
+// One line per committed change from our panel or the pop-out, so "the slider does nothing" can be told
+// apart from "the value never arrived": what was set, whether the add-on took it, what it reads back and
+// which preset was current. Source is "page" or "pop-out"; action is "set", "reset", "press",
+// "preset", "text" or "reset all". Capped per session.
+void LogCommit(const char* source, const char* action, const char* key, double value, bool ok);
 void ResetAll();
 // 1 when the add-on clones the back buffers and writes the presented frame itself (mods::swapchain's proxy
 // pass), 0 when it only replaces the game's shaders, -1 when the add-on cannot say (upstream builds, or
