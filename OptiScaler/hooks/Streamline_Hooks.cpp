@@ -1205,17 +1205,30 @@ const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTag
         void* substitute = nullptr;
         uint32_t state = tag.resource->state;
 
-        if (tag.type == sl::kBufferTypeHUDLessColor &&
-            DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
-            LogTagOnce(tag.type, "redirected to RenoDX's swap-chain-encoded copy");
-        else if (tag.type == sl::kBufferTypeUIColorAndAlpha && !includeUi)
+        if (tag.type == sl::kBufferTypeUIColorAndAlpha && !includeUi)
         {
             LogTagOnce(tag.type, "forwarded as-is (RenoDxDlssgHudless=redirect-hudless-only)");
             continue;
         }
-        else if (tag.type == sl::kBufferTypeUIColorAndAlpha &&
-                 DlssNrRenoDx::EncodeUiForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
-            LogTagOnce(tag.type, "redirected to RenoDX's swap-chain-encoded copy (alpha kept)");
+
+        // HUD-less and UI get RenoDX's encoded copy or nothing: RenoDX answers false until a pass has
+        // filled that copy (and again after one fails), and an unfilled texture handed to DLSS-G made its
+        // feature creation fail and the GPU fault (2026-09-25). Their clone is no substitute either, it is
+        // in the same unencoded state as the original. So on false the game's own tag goes through.
+        if (tag.type == sl::kBufferTypeHUDLessColor || tag.type == sl::kBufferTypeUIColorAndAlpha)
+        {
+            const bool ui = tag.type == sl::kBufferTypeUIColorAndAlpha;
+            const bool encoded =
+                ui ? DlssNrRenoDx::EncodeUiForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state)
+                   : DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state);
+            if (!encoded)
+            {
+                LogTagOnce(tag.type, "not yet encoded by RenoDX, the game's own image forwarded");
+                continue;
+            }
+            LogTagOnce(tag.type, ui ? "redirected to RenoDX's swap-chain-encoded copy (alpha kept)"
+                                    : "redirected to RenoDX's swap-chain-encoded copy");
+        }
         else if (DlssNrRenoDx::ResolveClone(tag.resource->native, &substitute))
             LogTagOnce(tag.type, "redirected to RenoDX's clone");
         else
