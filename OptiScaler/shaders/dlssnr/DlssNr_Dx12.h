@@ -33,8 +33,9 @@
 //
 // The shader still records at most meter + encode + downsample + resolve per frame. Extra model layers
 // are NGX evaluates and do not consume this ring; their A/B resources and feature histories are
-// persistent. Forty-eight slots leave twelve fully populated frames before descriptor/constant reuse.
-#define DLSSNR_NUM_OF_HEAPS 48
+// persistent. Image Clean Up adds its two halo meters (2026-09-26), up to eight a frame with the tone
+// meter and the calibration: sixty-four slots keep eight fully populated frames before any reuse.
+#define DLSSNR_NUM_OF_HEAPS 64
 
 class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
 {
