@@ -169,28 +169,6 @@ std::string BuildJson()
         s += "},";
     }
 
-    // autoScale -- DrawAutoScale's status, with its three outcomes named.
-    {
-        const bool on = config->DlssNrAutoScale.value_or_default();
-        const AutoScaleStatus st = DlssNr::AutoScale();
-        const char* stateName = !on ? "off" : !st.running ? "settling" : st.gameLimited ? "short" : "holding";
-        s += "\"autoScale\":{";
-        AppendBool(s, "on", on);
-        s += ',';
-        AppendOptNum(s, "scale", on && st.running, st.scale, 3);
-        s += ",\"state\":\"";
-        s += stateName;
-        s += "\",";
-        AppendNum(s, "mode", (double) config->DlssNrAutoScaleMode.value_or_default(), 0);
-        s += ',';
-        AppendNum(s, "fps", (double) config->DlssNrAutoScaleFps.value_or_default(), 0);
-        s += ',';
-        AppendNum(s, "ms", (double) config->DlssNrAutoScaleMs.value_or_default(), 2);
-        s += ',';
-        AppendNum(s, "share", (double) config->DlssNrAutoScaleShare.value_or_default(), 0);
-        s += "},";
-    }
-
     // fg -- what the Frame Generation section decides between.
     {
         auto* fg = state.currentFG;

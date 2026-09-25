@@ -100,8 +100,6 @@ const char* Version()
     return s_api && s_api->product_version ? s_api->product_version() : nullptr;
 }
 
-bool PacingActive() { return Available(); }
-
 const char* UnavailableReason()
 {
     Resolve();
