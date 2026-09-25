@@ -427,6 +427,21 @@ class Config
     // light source, whatever the model returns.
     CustomOptional<float> DlssNrMaxRatio { 2.0f };
 
+    // Image Clean Up: the glow the model leaves around characters and other strong edges, held back by a
+    // local version of the guard above (see CleanUp in dlssnr.hlsl). Mode 0 off (the default until tested),
+    // 1 Auto -- the halo is measured every frame and the strength follows it, up to MaxStrength, with the
+    // edge, balance and motion settings at their defaults -- 2 Manual, the four values below as set.
+    // Strength 0..1; Edge is the local contrast, in stops, where an edge starts to count (fully at twice
+    // it); Balance 0 looks only at the 3x3 around a pixel, 1 only four pixels out, 0.5 both; Motion is how
+    // far fast motion and motion-vector breaks hold it back (D3D12, where the resolve has the game's
+    // vectors). Auto measures on D3D12; on Vulkan, Auto uses the manual Strength capped by MaxStrength.
+    CustomOptional<uint32_t> DlssNrCleanUpMode { 0 };
+    CustomOptional<float> DlssNrCleanUpMaxStrength { 0.8f };
+    CustomOptional<float> DlssNrCleanUpStrength { 0.6f };
+    CustomOptional<float> DlssNrCleanUpEdge { 1.5f };
+    CustomOptional<float> DlssNrCleanUpBalance { 0.5f };
+    CustomOptional<float> DlssNrCleanUpMotion { 0.5f };
+
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
     CustomOptional<uint32_t> DlssNrTransfer { 1 };

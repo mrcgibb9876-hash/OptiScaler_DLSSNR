@@ -131,6 +131,25 @@ std::string BuildJson()
         s += "},";
     }
 
+    // cleanup -- Image Clean Up: the mode ([DlssNr] CleanUpMode, 0 off, 1 auto, 2 manual), the strength
+    // the composition ran with last (Auto's own choice in Auto), the halo meter's two readings in stops
+    // (the model's glow, and what is left of it after the clean up) and the composition pass's GPU time,
+    // which the clean up runs inside. null where there is no reading.
+    {
+        const DlssNr::CleanUpReading clean = DlssNr::CleanUpState();
+        s += "\"cleanup\":{";
+        AppendNum(s, "mode", (double) config->DlssNrCleanUpMode.value_or_default(), 0);
+        s += ',';
+        AppendOptNum(s, "strength", clean.measuring, clean.strength, 2);
+        s += ',';
+        AppendOptNum(s, "haloBefore", clean.measuring && clean.haloBefore >= 0.0f, clean.haloBefore, 3);
+        s += ',';
+        AppendOptNum(s, "haloAfter", clean.measuring && clean.haloAfter >= 0.0f, clean.haloAfter, 3);
+        s += ',';
+        AppendOptNum(s, "composeMs", clean.composeMs.has_value(), clean.composeMs.value_or(0.0), 3);
+        s += "},";
+    }
+
     // renodxActive -- a RenoDX add-on with the host API is loaded: the in-game panel hides the tone trim
     // (Brightness, Contrast, their Auto) and sends it as identity, and the pop-out hides the same rows.
     AppendBool(s, "renodxActive", DlssNrRenoDx::ToneTrimSuppressed());

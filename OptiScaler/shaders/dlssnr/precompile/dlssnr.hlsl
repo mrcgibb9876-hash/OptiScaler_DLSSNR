@@ -37,6 +37,15 @@ cbuffer Params : register(b0)
     float gExposurePreMul; // preExposure * trim, so the live white point is gExposurePreMul / exposure
     float gBrightness;     // tone trim, 1 = off; 0 (a dispatch that never set it) also reads as off
     float gContrast;
+    // Image Clean Up -- see CleanUp below. Strength 0 (every dispatch that never set it) skips it all.
+    float gCleanupStrength; // 0..1
+    float gCleanupEdge;     // local contrast, in stops, where an edge starts to count
+    float gCleanupBalance;  // 0 fine (3x3) .. 1 wide (radius 4)
+    float gCleanupMotion;   // how far fast motion and motion-vector breaks hold it back, 0..1
+    uint  gCleanupHaveMotion; // the motion slot holds real vectors, scaled by gMvScale to pixels
+    uint  gCleanupHaveDepth;  // t5 holds the depth guide (D3D12)
+    uint  gCleanupDepthInverted;
+    uint  gCleanupHistory;    // 0 no mask history, 1 write only (first frame), 2 read t6 and write u1
 };
 
 // The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
@@ -509,6 +518,287 @@ float3 CubeScaleResidual(float3 P, float3 T)
     return P + saturate(alpha) * d;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Image Clean Up: the glow around characters.
+//
+// The model brightens the dark side of a strong edge (and now and then darkens the bright side), which
+// reads as a halo following every character across a bright background. The Highlight guard above
+// cannot see it: it bounds each pixel against its own value by a single ratio for the whole frame, and a
+// halo is well inside 2x. What marks a halo is WHERE it is -- beside an edge the frame itself has, above
+// all a silhouette, where the depth jumps -- and which way it goes: light carried across that edge.
+//
+// So this is a local guard, built from the techniques temporal upscalers use to keep history honest:
+//
+//   The mask. Mostly the depth buffer (D3D12): the ratio of the nearest to the farthest depth around the
+//   pixel, in stops, so a character against the distance counts and a texture on a wall does not, and
+//   weighted toward the far side, where the glow lands. Luminance contrast in the frame the model was
+//   shown adds to it, at two scales -- the 3x3 around the pixel, and a ring four pixels out read through
+//   bilinear taps, each of which averages a 2x2 block (a half-resolution level of a pyramid, built on the
+//   fly instead of stored). Without depth (Vulkan) luminance alone decides. The mask is carried from
+//   frame to frame along the motion vectors and averaged with the new one, so it does not flicker.
+//
+//   The band. The composed pixel may move only inside a band around the frame's own value: never past
+//   the range of the neighbourhood (the anti-ringing clamp of libplacebo/mpv, on the nearest texels at
+//   the fine scale), and not past mean +- gamma * sigma of it either (Salvi's variance clipping), which
+//   is what stops a dark pixel with a few bright neighbours from being lifted toward them. Strength
+//   narrows gamma from 2.5 to 1 as well as deciding how much of the way the pixel is taken. Within the
+//   band a pixel in the middle of a transition gets more room than one at either side of it, so the model
+//   can still re-draw an edge; what it cannot do is carry light from one side to the other. The frame's
+//   own value is always inside the band, so the clean up can only ever move a pixel back toward it.
+//
+//   The model's own local tone change is measured over a wider footprint than any halo (the proxy it was
+//   shown against what it returned, twelve pixels out each way) and the band moves with it, so a model
+//   that brightens a whole region is not pulled back at every edge inside it.
+//
+//   Worked in log2 luminance, so a threshold means the same at every brightness and HDR highlights are
+//   not favoured over shadows. One scalar on the whole triple, like the guard: a halo is a luminance
+//   artefact, and a per-channel clamp is the hue distorter this file avoids everywhere else.
+//
+//   Held back where the game's motion vectors say the picture is moving fast (real motion blur is soft
+//   and should stay soft) or breaks apart (a disocclusion, where there is no history to trust), when
+//   those vectors are here to read.
+// ---------------------------------------------------------------------------------------------
+
+// The depth guide and the clean up's own mask history, D3D12 only: the Vulkan pass has no descriptors
+// for them, so everything that reads them is compiled out there and its flags are never set.
+#ifndef VK_MODE
+Texture2D<float4>   gDepth        : register(t5);
+Texture2D<float4>   gCleanHistory : register(t6);
+#endif
+
+static const float kCleanupFloor = 1.0 / 512.0; // the ratio's own floor: nothing below it is light
+static const float kCleanupTolerance = 0.15;    // stops a pixel may always move, edge or not
+
+static const float2 kCleanupRing[8] = { float2(4.5, 0.0),  float2(-4.5, 0.0), float2(0.0, 4.5),
+                                        float2(0.0, -4.5), float2(3.5, 3.5),  float2(-3.5, 3.5),
+                                        float2(3.5, -3.5), float2(-3.5, -3.5) };
+static const float2 kCleanupFar[4] = { float2(12.0, 0.0), float2(-12.0, 0.0), float2(0.0, 12.0),
+                                       float2(0.0, -12.0) };
+static const int2 kCleanupCross[4] = { int2(2, 0), int2(-2, 0), int2(0, 2), int2(0, -2) };
+
+float CleanupLog(float y) { return log2(max(y, 0.0) + kCleanupFloor); }
+
+float CleanupDisplayLuma(float3 c)
+{
+    return dot(max(gPassthrough != 0 ? c : SrgbToLinear(c), 0.0), kLuma);
+}
+
+// The frame's log luminance at a texel: the untouched frame (resolve), or the proxy the model was shown
+// (the halo meter, which has no untouched frame bound). Both land in the same normalised scale.
+float CleanupLogAt(bool fromProxy, int2 p, int2 size, float normScale)
+{
+    p = clamp(p, int2(0, 0), size - 1);
+    if (fromProxy)
+        return CleanupLog(CleanupDisplayLuma(gSource.Load(int3(p, 0)).rgb));
+    return CleanupLog(dot(max(gOriginal.Load(int3(p, 0)).rgb, 0.0), kLuma) / normScale);
+}
+
+// Bilinear on purpose: each tap sits between texels and averages two or four of them.
+float CleanupLogSampled(bool fromProxy, float2 uvq, float normScale)
+{
+    if (fromProxy)
+        return CleanupLog(CleanupDisplayLuma(gSource.SampleLevel(gLinear, uvq, 0).rgb));
+    return CleanupLog(dot(max(gOriginal.SampleLevel(gLinear, uvq, 0).rgb, 0.0), kLuma) / normScale);
+}
+
+struct CleanupStats
+{
+    float x;        // the pixel itself
+    float lo;       // the neighbourhood's range, fine or wide by the balance
+    float hi;
+    float mean;     // and its moments, over all seventeen taps
+    float sigma;
+    float lumaEdge; // 0..1, how much of an edge luminance alone says this is
+};
+
+CleanupStats CleanupStatsAt(bool fromProxy, int2 c, int2 size, float normScale)
+{
+    CleanupStats s;
+    const float2 texel = 1.0 / float2(size);
+    const float2 uvc = (float2(c) + 0.5) * texel;
+
+    s.x = CleanupLogAt(fromProxy, c, size, normScale);
+
+    float fineMin = s.x;
+    float fineMax = s.x;
+    float sum = s.x;
+    float sumSq = s.x * s.x;
+
+    [unroll] for (int j = -1; j <= 1; ++j)
+    {
+        [unroll] for (int i = -1; i <= 1; ++i)
+        {
+            if (i == 0 && j == 0)
+                continue;
+
+            const float v = CleanupLogAt(fromProxy, c + int2(i, j), size, normScale);
+            fineMin = min(fineMin, v);
+            fineMax = max(fineMax, v);
+            sum += v;
+            sumSq += v * v;
+        }
+    }
+
+    float wideMin = fineMin;
+    float wideMax = fineMax;
+
+    [unroll] for (int k = 0; k < 8; ++k)
+    {
+        const float v = CleanupLogSampled(fromProxy, uvc + kCleanupRing[k] * texel, normScale);
+        wideMin = min(wideMin, v);
+        wideMax = max(wideMax, v);
+        sum += v;
+        sumSq += v * v;
+    }
+
+    s.mean = sum / 17.0;
+    s.sigma = sqrt(max(sumSq / 17.0 - s.mean * s.mean, 0.0));
+
+    const float threshold = max(gCleanupEdge, 0.05);
+    const float balance = saturate(gCleanupBalance);
+    const float weightFine = saturate(2.0 - 2.0 * balance);
+    const float weightWide = saturate(2.0 * balance);
+    s.lumaEdge = max(weightFine * smoothstep(threshold, threshold * 2.0, fineMax - fineMin),
+                     weightWide * smoothstep(threshold, threshold * 2.0, wideMax - wideMin));
+    s.lo = lerp(fineMin, wideMin, weightWide);
+    s.hi = lerp(fineMax, wideMax, weightWide);
+    return s;
+}
+
+// Where the pixel's luminance may go, before the model's local tone shift. See the block comment.
+float2 CleanupBand(CleanupStats s, float strength)
+{
+    const float gamma = lerp(2.5, 1.0, saturate(strength));
+    const float t = saturate((s.x - s.lo) / max(s.hi - s.lo, 1e-4));
+    const float room = kCleanupTolerance + t * (1.0 - t) * (s.hi - s.lo);
+    const float boxLo = max(s.lo, s.mean - gamma * s.sigma);
+    const float boxHi = min(s.hi, s.mean + gamma * s.sigma);
+    return float2(max(s.x - room, min(boxLo, s.x) - kCleanupTolerance),
+                  min(s.x + room, max(boxHi, s.x) + kCleanupTolerance));
+}
+
+// The model's local tone change around uvc: log of what it returned over log of what it was shown.
+float CleanupShift(float2 uvc, float2 texel)
+{
+    float modelSum = CleanupDisplayLuma(gModel.SampleLevel(gLinear, uvc, 0).rgb);
+    float proxySum = CleanupDisplayLuma(gSource.SampleLevel(gLinear, uvc, 0).rgb);
+
+    [unroll] for (int f = 0; f < 4; ++f)
+    {
+        const float2 at = uvc + kCleanupFar[f] * texel;
+        modelSum += CleanupDisplayLuma(gModel.SampleLevel(gLinear, at, 0).rgb);
+        proxySum += CleanupDisplayLuma(gSource.SampleLevel(gLinear, at, 0).rgb);
+    }
+
+    return SanitizeFinite(CleanupLog(modelSum * 0.2) - CleanupLog(proxySum * 0.2), 0.0);
+}
+
+// The guide's texel under a normalised position, inside the part of the guide the game rendered.
+int2 CleanupGuideTexel(float2 uvq)
+{
+    const int2 guide = int2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
+    return clamp(int2(uvq * float2(guide)), int2(0, 0), guide - 1);
+}
+
+// x: how much of a depth edge this is, 0..1. y: how far toward the far side of it the pixel sits, 0..1.
+// z: the pixel's own log2 reciprocal depth, which the mask history keeps to spot a disocclusion.
+float3 CleanupDepthMask(float2 uvq)
+{
+#ifndef VK_MODE
+    if (gCleanupHaveDepth == 0)
+        return float3(0.0, 0.0, 0.0);
+
+    const int2 guide = int2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
+    const int2 g = CleanupGuideTexel(uvq);
+
+    // Reciprocal depth, whichever way the game stores it: a perspective depth buffer is close to 1/z
+    // reversed and to 1 - 1/z otherwise, so the log of this ratio is the depth ratio in stops without
+    // knowing the projection. The sky (0 or 1) sits at the floor and makes every silhouette against it
+    // an edge, which is what it is.
+    float centre = 0.0;
+    float lo = 1e30;
+    float hi = -1e30;
+
+    [unroll] for (int j = -1; j <= 1; ++j)
+    {
+        [unroll] for (int i = -1; i <= 1; ++i)
+        {
+            const float d = gDepth.Load(int3(clamp(g + int2(i, j), int2(0, 0), guide - 1), 0)).r;
+            const float v = log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7));
+            if (i == 0 && j == 0)
+                centre = v;
+            lo = min(lo, v);
+            hi = max(hi, v);
+        }
+    }
+
+    // Three texels out as well, so the mask reaches the few pixels of glow beside the silhouette.
+    [unroll] for (int k = 0; k < 4; ++k)
+    {
+        const int2 at = clamp(g + kCleanupCross[k] + kCleanupCross[k] / 2, int2(0, 0), guide - 1);
+        const float d = gDepth.Load(int3(at, 0)).r;
+        const float v = log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7));
+        lo = min(lo, v);
+        hi = max(hi, v);
+    }
+
+    const float range = hi - lo;
+    const float nearness = saturate((centre - lo) / max(range, 1e-4));
+    return SanitizeFinite3(float3(smoothstep(0.2, 0.6, range), 1.0 - nearness, centre), float3(0.0, 0.0, 0.0));
+#else
+    return float3(0.0, 0.0, 0.0);
+#endif
+}
+
+// Depth first, luminance with it. At a silhouette only its far side counts -- the background, where the
+// glow lands -- and the object's own pixels are left alone however bright the edge; it counts whether or
+// not it is also a brightness edge. Where there is no depth edge a luminance edge counts for a little, so
+// a bright window frame on a wall is still cleaned, gently. Without depth, luminance alone.
+float CleanupEdgeMask(float lumaEdge, float2 depthMask)
+{
+#ifndef VK_MODE
+    if (gCleanupHaveDepth != 0)
+    {
+        const float farSide = smoothstep(0.25, 0.75, depthMask.y);
+        const float depthEdge = depthMask.x * farSide * lerp(0.6, 1.0, lumaEdge);
+        return saturate(depthEdge + (1.0 - depthMask.x) * 0.3 * lumaEdge);
+    }
+#endif
+    return lumaEdge;
+}
+
+// The motion vector under a normalised position, in pixels of this dispatch; zero when there are none.
+float2 CleanupMotionAt(float2 uvq)
+{
+    if (gCleanupHaveMotion == 0)
+        return float2(0.0, 0.0);
+    return SanitizeFinite3(float3(gMotion.Load(int3(CleanupGuideTexel(uvq), 0)).rg * float2(gMvScaleX, gMvScaleY), 0.0),
+                           float3(0.0, 0.0, 0.0)).xy;
+}
+
+// How much motion holds the clean up back here, 0..1: fast motion, or vectors that break apart.
+float CleanupReject(float2 uvq, float2 mv)
+{
+    if (gCleanupHaveMotion == 0 || gCleanupMotion <= 0.0)
+        return 0.0;
+
+    const int2 guide = int2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
+    const int2 g = CleanupGuideTexel(uvq);
+    const float2 scale = float2(gMvScaleX, gMvScaleY);
+
+    float spread = 0.0;
+
+    [unroll] for (int m = 0; m < 4; ++m)
+    {
+        const int2 at = clamp(g + kCleanupCross[m], int2(0, 0), guide - 1);
+        spread = max(spread, length(gMotion.Load(int3(at, 0)).rg * scale - mv));
+    }
+
+    const float fast = smoothstep(24.0, 64.0, length(mv));
+    const float broken = smoothstep(2.0, 8.0, spread);
+    return SanitizeFinite(saturate(gCleanupMotion) * max(fast, broken), 0.0);
+}
+
 [numthreads(8, 8, 1)]
 void CSMain(uint3 id : SV_DispatchThreadID)
 {
@@ -544,6 +834,78 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // nothing about scale; the peak says where the top of the range is, which is exactly what the
     // divisor has to match. One specular hit cannot decide the answer because the host takes a
     // percentile across tiles afterwards.
+    // The halo meter, for Image Clean Up. One thread per tile of the 64x64 grid, writing how far a picture
+    // strays outside the band the clean up would allow it, in stops, averaged over the tile's masked
+    // points -- or -1 when the tile has no edge in it. A 4x4 lattice per tile: 65536 points over the frame.
+    //
+    //   5  what the model was shown (t0) against what it returned (t1), before any clean up -- what Auto
+    //      steers by, so it reads the glow the model makes and never the result of its own correction.
+    //   6  the untouched frame (t0 and t2) against the finished one (t1): what is left after the clean up.
+    //      The two numbers side by side in the log are the measurement of whether it works.
+    if (gMode == 5 || gMode == 6)
+    {
+        const bool after = gMode == 6;
+        const float meterScale = gPassthrough != 0 ? 1.0 : WhitePoint();
+
+        uint pw, ph;
+        gSource.GetDimensions(pw, ph);
+        const int2 psize = int2(max(pw, 1u), max(ph, 1u));
+        const float2 ptexel = 1.0 / float2(psize);
+
+        const uint tx0 = (uint) (((float) id.x * (float) psize.x) / (float) gWidth);
+        const uint tx1 = (uint) (((float) (id.x + 1) * (float) psize.x) / (float) gWidth);
+        const uint ty0 = (uint) (((float) id.y * (float) psize.y) / (float) gHeight);
+        const uint ty1 = (uint) (((float) (id.y + 1) * (float) psize.y) / (float) gHeight);
+        const uint stepX = max((tx1 - tx0) / 4u, 1u);
+        const uint stepY = max((ty1 - ty0) / 4u, 1u);
+
+        // The tile's own tone shift first, as the resolve takes it, so a model that brightens the whole
+        // tile is not read as glowing.
+        float modelSum = 0.0;
+        float proxySum = 0.0;
+
+        [loop] for (uint sy = ty0 + stepY / 2u; sy < max(ty1, ty0 + 1u); sy += stepY)
+        {
+            [loop] for (uint sx = tx0 + stepX / 2u; sx < max(tx1, tx0 + 1u); sx += stepX)
+            {
+                const int2 p = min(int2(sx, sy), psize - 1);
+                const float3 answer = gModel.SampleLevel(gLinear, (float2(p) + 0.5) * ptexel, 0).rgb;
+                const float3 shown = gSource.Load(int3(p, 0)).rgb;
+                modelSum += after ? dot(max(answer, 0.0), kLuma) / meterScale : CleanupDisplayLuma(answer);
+                proxySum += after ? dot(max(shown, 0.0), kLuma) / meterScale : CleanupDisplayLuma(shown);
+            }
+        }
+
+        const float shift = SanitizeFinite(CleanupLog(modelSum) - CleanupLog(proxySum), 0.0);
+
+        float sumExcess = 0.0;
+        float sumWeight = 0.0;
+
+        [loop] for (uint ty = ty0 + stepY / 2u; ty < max(ty1, ty0 + 1u); ty += stepY)
+        {
+            [loop] for (uint tx = tx0 + stepX / 2u; tx < max(tx1, tx0 + 1u); tx += stepX)
+            {
+                const int2 p = min(int2(tx, ty), psize - 1);
+                const float2 uvp = (float2(p) + 0.5) * ptexel;
+                const CleanupStats stats = CleanupStatsAt(!after, p, psize, meterScale);
+                const float edge = CleanupEdgeMask(stats.lumaEdge, CleanupDepthMask(uvp).xy);
+
+                if (edge > 0.05)
+                {
+                    const float2 band = CleanupBand(stats, 1.0) + shift;
+                    const float3 answer = gModel.SampleLevel(gLinear, uvp, 0).rgb;
+                    const float m =
+                        CleanupLog(after ? dot(max(answer, 0.0), kLuma) / meterScale : CleanupDisplayLuma(answer));
+                    sumExcess += edge * (max(m - band.y, 0.0) + max(band.x - m, 0.0));
+                    sumWeight += edge;
+                }
+            }
+        }
+
+        gTarget[id.xy] = float4(sumWeight > 0.5 ? SanitizeFinite(sumExcess / sumWeight, 0.0) : -1.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
     if (gMode == 4)
     {
         uint fullW, fullH;
@@ -1030,6 +1392,77 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         result = gPassthrough != 0 ? modelDirect : NeutwoDecode(modelDirect);
     else if (gReversibleMode == 4)
         result = gPassthrough != 0 ? modelDirect : HybridDecode(modelDirect);
+
+    // Image Clean Up, on the finished composition -- replace mode included, since the raw model glows
+    // the same -- and before the tone trim, so it compares like with like: the frame and the picture
+    // made from it, in the same normalised space. Strength 0 skips all of it.
+    if (gCleanupStrength > 0.0 || gDebugView == 4)
+    {
+        uint cw, ch;
+        gOriginal.GetDimensions(cw, ch);
+        const int2 csize = int2(max(cw, 1u), max(ch, 1u));
+        const int2 at = gCompareMode == 1 ? int2(cmpUv * float2(csize)) : int2(id.xy);
+        const float2 ctexel = 1.0 / float2(csize);
+        const float2 uvAt = (float2(at) + 0.5) * ctexel;
+
+        const CleanupStats stats = CleanupStatsAt(false, at, csize, normScale);
+        const float3 depthMask = CleanupDepthMask(uvAt);
+        float edge = CleanupEdgeMask(stats.lumaEdge, depthMask.xy);
+        const float2 mv = CleanupMotionAt(uvAt);
+        const float reject = CleanupReject(uvAt, mv);
+
+#ifndef VK_MODE
+        // The mask's own history, so it holds still from frame to frame. Last frame's mask is fetched
+        // where the motion vectors say this pixel was (the same place when there are none -- the Present
+        // route's zero field), and averaged in only if the depth there is the depth here: a surface
+        // that was not there last frame (a disocclusion, a cut) takes this frame's mask alone.
+        if (gCleanupHistory != 0)
+        {
+            if (gCleanupHistory == 2)
+            {
+                const float2 prevUv = uvAt + mv * ctexel;
+
+                if (all(prevUv >= 0.0) && all(prevUv <= 1.0))
+                {
+                    const float2 prev = gCleanHistory.SampleLevel(gLinear, prevUv, 0).rg;
+                    const bool sameSurface = gCleanupHaveDepth == 0 || abs(prev.y - depthMask.z) < 0.25;
+
+                    if (sameSurface && all(isfinite(prev)))
+                        edge = lerp(saturate(prev.x), edge, gCleanupHaveMotion != 0 ? 0.5 : 0.6);
+                }
+            }
+
+            gKeep[id.xy] = float4(edge, depthMask.z, 0.0, 0.0);
+        }
+#endif
+
+        const float resultLuma = dot(max(result, 0.0), kLuma);
+        const float resultLog = CleanupLog(resultLuma);
+        float moved = resultLog;
+        float amount = 0.0;
+
+        if (edge > 0.0)
+        {
+            const float2 band = CleanupBand(stats, gCleanupStrength) + CleanupShift(uvAt, ctexel);
+            amount = saturate(gCleanupStrength) * edge * (1.0 - reject);
+            moved = lerp(resultLog, clamp(resultLog, band.x, band.y), amount);
+        }
+
+        // The debug view: the frame in grey, red where the mask makes a pixel eligible, green where it
+        // was actually moved (four times the stops it moved), blue where motion held it back.
+        if (gDebugView == 4)
+        {
+            const float grey = 0.35 * saturate(pow(saturate(originalLuma), 1.0 / 2.2));
+            const float3 shown =
+                float3(grey, grey, grey) + 0.65 * float3(edge, saturate(abs(moved - resultLog) * 4.0), reject);
+            gTarget[id.xy] = float4(SrgbToLinear(saturate(shown)) * gDebugScale, originalSample.a);
+            return;
+        }
+
+        // Only a real move is applied, so a strength that rounds to nothing leaves the pixel bit-identical.
+        if (amount > 1e-4 && resultLuma > 1e-6)
+            result *= SanitizeFinite(max(exp2(moved) - kCleanupFloor, 0.0) / resultLuma, 1.0);
+    }
 
     // The tone trim, last, on the finished picture -- replace mode included -- and before leaving the
     // normalised space, so 1.0 is paper white whatever the game's own scale is.

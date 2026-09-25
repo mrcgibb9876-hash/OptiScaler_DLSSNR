@@ -22,7 +22,9 @@ enum DlssNrMode : uint32_t
     DlssNrMode_Resolve = 1,    // proxy + the model's answer + the untouched copy -> the edited frame
     DlssNrMode_Downsample = 2, // the proxy -> a smaller proxy, when the model works below full size
     DlssNrMode_Meter = 3,      // the exposure texture -> tile (0,0), for the white point
-    DlssNrMode_Calibrate = 4   // the untouched frame -> a grid of tile peak luminances
+    DlssNrMode_Calibrate = 4,  // the untouched frame -> a grid of tile peak luminances
+    DlssNrMode_HaloMeter = 5,  // proxy + the model's answer -> a grid of how far the answer glows past edges
+    DlssNrMode_HaloAfter = 6   // the untouched frame + the finished one -> the same grid, after Image Clean Up
 };
 
 // The meter's grid. 64 x 64 tiles over the whole frame, whatever its size.
@@ -210,6 +212,25 @@ struct alignas(256) DlssNrConstants
     // a caller that never heard of them keeps the picture it always had.
     float Brightness;
     float Contrast;
+
+    // Image Clean Up (Config DlssNrCleanUp*): near strong edges in the frame the model was shown, the
+    // composed picture's luminance may not move far from the frame's own, nor past the range of its
+    // neighbourhood -- which is what the glow around characters is. Zero strength (every dispatch that
+    // never set it, and the default) skips the whole block, so the pass is bit-identical without it.
+    // CleanupEdge is in stops of local contrast; CleanupBalance 0 fine (3x3) .. 1 wide (radius 4);
+    // CleanupMotion how far large motion and motion-vector discontinuities hold it back, used only
+    // when CleanupHaveMotion says the motion slot really holds the game's vectors (MvScale and
+    // GuideWidth/Height then describe them, in pixels of this dispatch). Trailing, like the rest.
+    float CleanupStrength;
+    float CleanupEdge;
+    float CleanupBalance;
+    float CleanupMotion;
+    uint32_t CleanupHaveMotion;
+    // D3D12 only (the Vulkan pass has no descriptors for them): t5 holds the depth guide, which way it
+    // runs, and the mask history -- 0 none, 1 write u1 only (a first frame), 2 read t6 and write u1.
+    uint32_t CleanupHaveDepth;
+    uint32_t CleanupDepthInverted;
+    uint32_t CleanupHistory;
 };
 
 class DlssNr_Common

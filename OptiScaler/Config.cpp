@@ -402,6 +402,12 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrAutoBrightness.set_from_config(readBool("DlssNr", "AutoBrightness"));
             DlssNrAutoContrast.set_from_config(readBool("DlssNr", "AutoContrast"));
             DlssNrMaxRatio.set_from_config(readFloat("DlssNr", "MaxRatio"));
+            DlssNrCleanUpMode.set_from_config(readUInt("DlssNr", "CleanUpMode"));
+            DlssNrCleanUpMaxStrength.set_from_config(readFloat("DlssNr", "CleanUpMaxStrength"));
+            DlssNrCleanUpStrength.set_from_config(readFloat("DlssNr", "CleanUpStrength"));
+            DlssNrCleanUpEdge.set_from_config(readFloat("DlssNr", "CleanUpEdge"));
+            DlssNrCleanUpBalance.set_from_config(readFloat("DlssNr", "CleanUpBalance"));
+            DlssNrCleanUpMotion.set_from_config(readFloat("DlssNr", "CleanUpMotion"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
 
             DlssNrWhitePointFromExposure.set_from_config(readBool("DlssNr", "WhitePointFromExposure"));
@@ -1378,6 +1384,16 @@ bool Config::SaveIni()
                      GetBoolValue(Instance()->DlssNrAutoBrightness.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AutoContrast", GetBoolValue(Instance()->DlssNrAutoContrast.value_for_config()).c_str());
         ini.SetValue("DlssNr", "MaxRatio", GetFloatValue(Instance()->DlssNrMaxRatio.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMode", GetIntValue(Instance()->DlssNrCleanUpMode.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMaxStrength",
+                     GetFloatValue(Instance()->DlssNrCleanUpMaxStrength.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpStrength",
+                     GetFloatValue(Instance()->DlssNrCleanUpStrength.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpEdge", GetFloatValue(Instance()->DlssNrCleanUpEdge.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBalance",
+                     GetFloatValue(Instance()->DlssNrCleanUpBalance.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMotion",
+                     GetFloatValue(Instance()->DlssNrCleanUpMotion.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Transfer", GetIntValue(Instance()->DlssNrTransfer.value_for_config()).c_str());
 
         ini.SetValue("DlssNr", "ProbeD3D11", GetBoolValue(Instance()->DlssNrProbeD3D11.value_for_config()).c_str());

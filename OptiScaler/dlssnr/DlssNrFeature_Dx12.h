@@ -116,6 +116,20 @@ struct AutoToneReading
 
 AutoToneReading AutoTone();
 
+// Image Clean Up (D3D12): the strength the resolve ran with last (Auto's own choice in Auto), and the
+// halo meter's two readings, in stops -- the model's glow before the clean up, and what is left of it in
+// the finished picture. -1 until a reading lands; measuring is false while the clean up is off.
+struct CleanUpReading
+{
+    bool measuring = false;
+    float strength = 0.0f;
+    float haloBefore = -1.0f;
+    float haloAfter = -1.0f;
+    std::optional<double> composeMs; // the composition pass, which the clean up runs inside
+};
+
+CleanUpReading CleanUpState();
+
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 
