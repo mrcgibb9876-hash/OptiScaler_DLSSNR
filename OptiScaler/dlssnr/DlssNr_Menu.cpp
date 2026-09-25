@@ -1202,16 +1202,37 @@ static void DrawPacingPage(float rowWidth)
                 }
             }
 
-            // Typed, not dragged -- see NrNumberBox. One write per committed value, so the save
-            // that used to be held back until a slider was released is simply not needed.
-            double v = cur;
-            auto r =
-                NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT, rowWidth);
-            if (r.committed && v != cur)
+            // The frame-rate cap alone is typed (see NrNumberBox): it has to land on 72 or 141 exactly,
+            // which a track from 30 to 1000 cannot do. Every other number is a slider, written as it
+            // moves and pushed into the limiter and saved once, on release.
+            if (std::strcmp(info.key, "target_fps") == 0)
             {
-                api->set_number(info.key, v);
-                api->apply();
-                api->save();
+                double v = cur;
+                auto r = NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT,
+                                     rowWidth);
+                if (r.committed && v != cur)
+                {
+                    api->set_number(info.key, v);
+                    api->apply();
+                    api->save();
+                }
+            }
+            else
+            {
+                const bool isInt = info.type == RELIMITER_TYPE_INT;
+                const bool wide = info.max_value - info.min_value > 10.0;
+                float v = (float) cur;
+                auto r = NrSlider(info.label, &v, (float) info.min_value, (float) info.max_value,
+                                  isInt || wide ? "%.0f" : "%.2f", rowWidth);
+                if (isInt)
+                    v = std::round(v);
+                if (r.changed && (double) v != cur)
+                    api->set_number(info.key, (double) v);
+                if (r.released)
+                {
+                    api->apply();
+                    api->save();
+                }
             }
             if (info.tooltip != nullptr && *info.tooltip != '\0')
                 HelpMarker(info.tooltip);
