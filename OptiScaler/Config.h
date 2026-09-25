@@ -1087,6 +1087,7 @@ class Config
     CustomOptional<int> FGHUDLimit { 1 };
     CustomOptional<bool> FGHUDFixExtended { false };
     CustomOptional<bool> FGImmediateCapture { false };
+    CustomOptional<bool> FGHudfixPersistentBindings { true };
     CustomOptional<bool> FGDontUseSwapchainBuffers { false };
     CustomOptional<bool> FGRelaxedResolutionCheck { false };
     CustomOptional<bool> FGHudfixDisableRTV { false };

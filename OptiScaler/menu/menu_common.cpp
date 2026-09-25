@@ -23,6 +23,7 @@
 #include <nvapi/fakenvapi.h>
 #include <hooks/Reflex_Hooks.h>
 
+#include <BuildInfo.h>
 #include <version_check.h>
 
 #include <upscaler_time/UpscalerTime_Vk.h>
@@ -8049,7 +8050,7 @@ void MenuCommon::RenderMainMenuWindow(RenderMenuContext& ctx)
         if (windowTitle.empty())
         {
             windowTitle =
-                StrFmt("%s - %s %s %s %s", VER_PRODUCT_NAME, state.gameExe.c_str(),
+                StrFmt("%s - %s %s %s %s", BuildInfo::ProductName(), state.gameExe.c_str(),
                        state.gameName.empty() ? "" : StrFmt("- %s", state.gameName.c_str()).c_str(),
                        (state.detectedQuirks.size() > 0) ? "(Q)" : "", state.isOptiPatcherSucceed ? "(OP)" : "");
         }

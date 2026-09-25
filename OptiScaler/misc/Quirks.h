@@ -151,6 +151,9 @@ static const QuirkEntry quirkTable[] = {
     // Trails in the Sky 1st Chapter
     QUIRK_ENTRY("sora_1st.exe", GameQuirk::UseFsr2Dx11Inputs, GameQuirk::DisableDxgiSpoofing),
 
+    // Trails in the Sky 2nd Chapter
+    QUIRK_ENTRY("sora_2nd.exe", GameQuirk::UseFsr2Dx11Inputs, GameQuirk::DisableDxgiSpoofing),
+
     // NINJA GAIDEN 4
     // No spoof needed for DLSS inputs, Hudfix incompatible
     QUIRK_ENTRY("ninjagaiden4-steam.exe", GameQuirk::DisableDxgiSpoofing, GameQuirk::DisableResizeSkip,
@@ -165,9 +168,8 @@ static const QuirkEntry quirkTable[] = {
 
     // The Last of Us Part I
     // Hudfix incompatible
-    QUIRK_ENTRY("tlou-i.exe", GameQuirk::AllowedFrameAhead2, GameQuirk::DisableDxgiSpoofing, GameQuirk::DisableHudfix),
-    QUIRK_ENTRY("tlou-i-l.exe", GameQuirk::AllowedFrameAhead2, GameQuirk::DisableDxgiSpoofing,
-                GameQuirk::DisableHudfix),
+    QUIRK_ENTRY("tlou-i.exe", GameQuirk::AllowedFrameAhead2, GameQuirk::DisableDxgiSpoofing),
+    QUIRK_ENTRY("tlou-i-l.exe", GameQuirk::AllowedFrameAhead2, GameQuirk::DisableDxgiSpoofing),
 
     // Horizon Forbidden West
     QUIRK_ENTRY("horizonforbiddenwest.exe", GameQuirk::AllowedFrameAhead2),
@@ -448,6 +450,14 @@ static const QuirkEntry quirkTable[] = {
     QUIRK_ENTRY("acblackflag.exe", GameQuirk::DisableDxgiSpoofing),
     QUIRK_ENTRY("acblackflag_plus.exe", GameQuirk::DisableDxgiSpoofing),
 
+    // FBC: Firebreak
+    // SL spoof enough to unlock everything DLSS
+    QUIRK_ENTRY("fbcfirebreak.exe", GameQuirk::DisableDxgiSpoofing),
+
+    // CONTROL Resonant
+    // SL spoof enough to unlock everything DLSS
+    QUIRK_ENTRY("controlresonant.exe", GameQuirk::DisableDxgiSpoofing),
+
     // SL spoof enough to unlock everything DLSS/No spoof needed for DLSS inputs
     //
     // Crysis 3 Remastered, Warhammer 40,000: Darktide, Rise of the Ronin, DYNASTY WARRIORS: ORIGINS, Crysis Remastered,
@@ -542,7 +552,7 @@ static const QuirkEntry quirkTable[] = {
 
     // Rise of the Tomb Raider
     // Hudfix incompatible
-    QUIRK_ENTRY("rottr.exe", GameQuirk::DisableHudfix, GameQuirk::SkipD3D11FeatureLevelElevation),
+    QUIRK_ENTRY("rottr.exe", GameQuirk::SkipD3D11FeatureLevelElevation),
 
     // Shadow of the Tomb Raider
     // Hudfix incompatible
