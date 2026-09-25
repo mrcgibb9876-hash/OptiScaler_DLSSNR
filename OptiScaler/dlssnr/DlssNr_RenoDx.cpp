@@ -184,6 +184,15 @@ auto ResetFn() -> void (*)()
 
 bool CanReset() { return ResetFn() != nullptr; }
 
+const RenoDxHostApi* V4()
+{
+    const RenoDxHostApi* api = Api();
+    if (api == nullptr || api->api_version < 4 ||
+        api->struct_size < offsetof(RenoDxHostApi, section_open_by_default) + sizeof(api->section_open_by_default))
+        return nullptr;
+    return api;
+}
+
 void ResetAll()
 {
     if (auto reset = ResetFn(); reset != nullptr)
