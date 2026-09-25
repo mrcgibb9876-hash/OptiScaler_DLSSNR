@@ -934,6 +934,33 @@ void LogLeftAlone(const char* reason)
 }
 } // namespace
 
+namespace
+{
+std::atomic<void*> s_presentedBackBuffer { nullptr };
+} // namespace
+
+bool DlssNrRenoDx::DlssgReorderActive() { return s_reshadeAboveSl; }
+
+void DlssNrRenoDx::NotePresentedBackBuffer(IUnknown* swapChain)
+{
+    if (!s_reshadeAboveSl || swapChain == nullptr)
+        return;
+
+    IDXGISwapChain3* sc3 = nullptr;
+    if (swapChain->QueryInterface(IID_PPV_ARGS(&sc3)) != S_OK || sc3 == nullptr)
+        return;
+
+    ID3D12Resource* buffer = nullptr;
+    if (sc3->GetBuffer(sc3->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&buffer)) == S_OK && buffer != nullptr)
+    {
+        s_presentedBackBuffer = buffer;
+        buffer->Release(); // the swap chain keeps it alive
+    }
+    sc3->Release();
+}
+
+void* DlssNrRenoDx::PresentedBackBuffer() { return s_presentedBackBuffer.load(); }
+
 bool StreamlineHooks::isReShadeAboveStreamline(IUnknown* swapChain)
 {
     if (!s_reshadeAboveSl || swapChain == nullptr)

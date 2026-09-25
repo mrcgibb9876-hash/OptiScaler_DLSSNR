@@ -469,6 +469,7 @@ bool Config::Reload(std::filesystem::path iniPath)
             LosslessScalingGameTitle.set_from_config(readWString("DlssNr", "LosslessScalingGameTitle"));
             LosslessScalingMode.set_from_config(readWString("DlssNr", "LosslessScalingMode"));
             RenoDxDlssgMode.set_from_config(readWString("DlssNr", "RenoDxDlssgMode"));
+            RenoDxDlssgEvalCopy.set_from_config(readBool("DlssNr", "RenoDxDlssgEvalCopy"));
             LosslessScalingMultiplier.set_from_config(readInt("DlssNr", "LosslessScalingMultiplier"));
             LosslessScalingTarget.set_from_config(readInt("DlssNr", "LosslessScalingTarget"));
             LosslessScalingHotkeyMods.set_from_config(readInt("DlssNr", "LosslessScalingHotkeyMods"));
@@ -1457,6 +1458,8 @@ bool Config::SaveIni()
                      wstring_to_string(Instance()->LosslessScalingMode.value_for_config_or(L"FIXED")).c_str());
         ini.SetValue("DlssNr", "RenoDxDlssgMode",
                      wstring_to_string(Instance()->RenoDxDlssgMode.value_for_config_or(L"auto")).c_str());
+        ini.SetValue("DlssNr", "RenoDxDlssgEvalCopy",
+                     GetBoolValue(Instance()->RenoDxDlssgEvalCopy.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LosslessScalingMultiplier",
                      GetIntValue(Instance()->LosslessScalingMultiplier.value_for_config()).c_str());
         ini.SetValue("DlssNr", "LosslessScalingTarget",
