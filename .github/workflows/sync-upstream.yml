@@ -1,24 +1,9 @@
+
 name: Sync upstream DLSS Neural Rendering
 
-# Upstream cannot change this fork on its own. That is the whole point of this file.
-#
-# It used to run at 06:00 every day and, whenever upstream had moved, merge the refreshed mirror
-# straight into the branch every engine release is cut from and push it. Nobody asked for that
-# merge, nobody read it, and it would have arrived while the release pin in the manager's
-# package.json still named a tag built from the branch as it was the night before.
-#
-# It never actually fired, and only by luck: Dagherbou's dlss-neural-rendering has not moved since
-# our mirror caught up to it, so the merge was a no-op every night. The first upstream commit would
-# have ended that -- and not with one commit either. The mirror carries 144 commits this branch has
-# never had (it forked at 4f17a05d, before the DLSS-NR work landed upstream, and the fork
-# re-implemented that work its own way), so the first scheduled run after any upstream push would
-# have merged all 144 of them plus whatever was new, unreviewed, onto the default branch.
-#
-# So: no schedule. Upstream is fetched when someone asks for it, the mirror branch is where it
-# lands, and the only way it reaches dlss5-developer-controls-ui is a pull request a person reads
-# and merges. Taking upstream work is a decision, not a cron job.
-
 on:
+  schedule:
+    - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       reset_mirror:
@@ -61,11 +46,12 @@ jobs:
           git fetch upstream "$UPSTREAM_BRANCH"
 
       # The mirror is meant to be a copy of upstream and nothing else. Commit onto it and the
-      # fast-forward below stops working the moment upstream next moves: the branch is then both
-      # ahead and behind, which is not a fast-forward.
+      # scheduled fast-forward below stops working the moment upstream next moves: the branch is
+      # then both ahead and behind, which is not a fast-forward, and the sync fails every night
+      # until someone intervenes.
       #
-      # Recovering from that is a force-push, so it stays opt-in, and it prints what it is about to
-      # throw away first.
+      # Recovering from that is a force-push, which is exactly the operation you do not want running
+      # on a schedule -- so it is opt-in, and it prints what it is about to throw away first.
       - name: Reset the mirror to upstream (only when asked)
         if: inputs.reset_mirror
         env:
@@ -106,9 +92,13 @@ jobs:
 
           BEFORE=$(git rev-parse HEAD)
 
-          # While this works the mirror stays byte-identical to upstream. It stops being possible
-          # the moment the mirror has a commit of its own AND upstream moves; a merge keeps the
-          # mirror current, which is all the pull request below needs. The run says which happened.
+          # Fast-forward is the shape this is supposed to have, and while it works the mirror stays
+          # byte-identical to upstream. But it stops being possible the moment the mirror has any
+          # commit of its own AND upstream moves, and then this job fails every night for a reason
+          # that has nothing to do with the sync itself.
+          #
+          # Falling back to a merge keeps the mirror current, which is all the downstream merge into
+          # the UI branch actually needs. It is not as tidy, and the run says so.
           if git merge --ff-only "upstream/$UPSTREAM_BRANCH"; then
             :
           else
@@ -124,48 +114,34 @@ jobs:
             echo "Upstream has nothing new -- already at $BEFORE."
           fi
 
-      # Only the mirror branch is written. If upstream touched anything under .github/workflows this
-      # push fails, because GITHUB_TOKEN may not write workflow files -- which is the right failure:
-      # it stops, loudly, instead of changing this fork.
       - name: Push refreshed mirror branch
         if: steps.ff.outputs.changed == 'true'
         run: git push origin "$MIRROR_BRANCH"
 
-      # The mirror never merges itself into the UI branch. It asks.
-      #
-      # Whether it applies cleanly is not the question -- a clean merge of work nobody read is the
-      # thing this fork is being kept safe from. So it is always a pull request, and the diff is
-      # against a branch that has diverged from the mirror by design: expect it to be large, and
-      # expect most of it not to be wanted.
-      - name: Ask for the refreshed mirror to be merged into the UI branch
+      - name: Merge refreshed mirror into your UI branch
+        id: merge
         if: steps.ff.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_BODY: |
-            Upstream `Dagherbou/OptiScaler_DLSSNR:dlss-neural-rendering` has new commits, and the
-            mirror branch has been fast-forwarded (or merged) to carry them.
-
-            Nothing has been pushed to the default branch. This pull request exists so someone
-            decides what of it this fork actually wants.
-
-            Two things to know before reading the diff:
-
-            - The mirror and the UI branch diverged on purpose. The UI branch forked before
-              upstream's DLSS-NR work landed and re-implemented it differently, so this diff
-              includes a large body of commits that have deliberately never been on the default
-              branch. Merging the whole thing is almost certainly the wrong move.
-            - Cherry-pick what is wanted onto its own branch instead, and close this. It will be
-              reopened the next time upstream moves.
         run: |
-          EXISTING=$(gh pr list --base "$UI_BRANCH" --head "$MIRROR_BRANCH" --state open --json number --jq '.[0].number' || true)
+          git checkout -B "$UI_BRANCH" "origin/$UI_BRANCH"
+          git merge "$MIRROR_BRANCH" --no-edit
 
-          if [ -n "$EXISTING" ]; then
-            echo "PR #$EXISTING is already open for this; it now carries the refreshed mirror."
-            exit 0
-          fi
+      - name: Push UI branch (clean merge)
+        if: steps.ff.outputs.changed == 'true'
+        run: git push origin "$UI_BRANCH"
+
+      - name: On merge conflict, open a PR for manual resolution
+        if: failure() && steps.merge.outcome == 'failure'
+        run: |
+          git merge --abort 2>/dev/null || true
+
+          CONFLICT_BRANCH="upstream-sync-conflict-$(date +%Y%m%d%H%M%S)"
+          git checkout -b "$CONFLICT_BRANCH" "$MIRROR_BRANCH"
+          git push origin "$CONFLICT_BRANCH"
 
           gh pr create \
             --base "$UI_BRANCH" \
-            --head "$MIRROR_BRANCH" \
-            --title "Upstream has moved: review $MIRROR_BRANCH before it reaches $UI_BRANCH" \
-            --body "$PR_BODY"
+            --head "$CONFLICT_BRANCH" \
+            --title "Upstream sync needs manual merge into $UI_BRANCH" \
+            --body "Auto-sync pulled new commits but merging into ${UI_BRANCH} did not apply cleanly. Resolve the conflicts in this PR by hand."
+        env:
+          GH_TOKEN: ${{ github.token }}
