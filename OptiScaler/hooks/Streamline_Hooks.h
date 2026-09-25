@@ -177,6 +177,23 @@ class StreamlineHooks
     // DLSS-G. The swap chain creation hooks ask this first and keep ReShade's proxy when it is true.
     static bool isReShadeAboveStreamline(IUnknown* swapChain);
 
+    // Held by the swap chain creation hooks for the length of the game's call: the device the game passed
+    // (with ReShade loaded, ReShade's command queue proxy). ReShade unwraps it to the native queue before
+    // it calls down, and once the factory is re-layered the next thing down is Streamline, which must be
+    // given ReShade's proxy exactly as it was when it sat above ReShade -- see ReShadeQueueFactory.
+    class ScopedGameDevice
+    {
+      public:
+        explicit ScopedGameDevice(IUnknown* device);
+        ~ScopedGameDevice();
+
+        ScopedGameDevice(const ScopedGameDevice&) = delete;
+        ScopedGameDevice& operator=(const ScopedGameDevice&) = delete;
+
+      private:
+        IUnknown* _previous = nullptr;
+    };
+
   private:
     inline static sl::RenderAPI renderApi = sl::RenderAPI::eCount;
     inline static std::mutex setConstantsMutex {};
