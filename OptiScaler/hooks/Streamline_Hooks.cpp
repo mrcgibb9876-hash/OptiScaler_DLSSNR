@@ -1100,16 +1100,21 @@ StreamlineHooks::ScopedGameDevice::~ScopedGameDevice() { t_gameDevice = _previou
 // which RenoDX never processed -- on Blood of Dawnwalker an R10G10B10A2 and a BGRA8 texture (SL's
 // sl.common clones of them, 2026-09-25). DLSS-G interpolates the HUD-less buffer and lays the UI over it,
 // so every generated frame came out in the game's encoding and every real one in RenoDX's: the picture
-// pulsed. Withholding those tags leaves DLSS-G working from the presented frame alone, which is RenoDX's.
-// [DlssNr] RenoDxDlssgHudless picks what is withheld (auto/drop: both, hudless: the HUD-less tag only,
-// keep: nothing), so the two can be compared. Nothing changes unless the re-layer engaged.
+// pulsed. Withholding those tags (the first answer) only traded the pulsing for ghosting.
 //
-// The proper fix is to hand DLSS-G RenoDX's processed equivalents instead of nothing, which needs RenoDX
-// to say which resource stands in for a given one -- see the note in DlssNr_RenoDx.h.
+// What RenoDX's own dlssfix does, and what this does by default ([DlssNr] RenoDxDlssgHudless=redirect,
+// also "auto"), is re-point every tag at RenoDX's own version of the resource through its host API
+// (version 2, DlssNrRenoDx): a colour image DLSS-G compares with the presented frame -- HUD-less colour,
+// the back buffer -- at a texture RenoDX fills at each present with its swap chain proxy pass over that
+// image, so it is encoded exactly like the frame; anything else at RenoDX's clone of it when there is one
+// (dlssfix's own rule). Without a version 2 RenoDX, or where RenoDX has nothing to substitute, the tag is
+// forwarded as the game set it. drop / hudless / keep remain for comparison: withhold HUD-less and UI,
+// withhold HUD-less only, forward everything. Nothing changes unless the re-layer engaged.
 namespace
 {
 enum class TagFilter
 {
+    Redirect,
     Keep,
     HudlessOnly,
     HudlessAndUi
@@ -1122,7 +1127,92 @@ TagFilter CurrentTagFilter()
         return TagFilter::Keep;
     if (_wcsicmp(mode.c_str(), L"hudless") == 0)
         return TagFilter::HudlessOnly;
-    return TagFilter::HudlessAndUi; // auto, drop, or anything unrecognised
+    if (_wcsicmp(mode.c_str(), L"drop") == 0)
+        return TagFilter::HudlessAndUi;
+    return TagFilter::Redirect; // auto, redirect, or anything unrecognised
+}
+
+const char* TagName(sl::BufferType type)
+{
+    switch (type)
+    {
+    case sl::kBufferTypeDepth:
+        return "depth";
+    case sl::kBufferTypeMotionVectors:
+        return "motion vectors";
+    case sl::kBufferTypeHUDLessColor:
+        return "HUD-less colour";
+    case sl::kBufferTypeUIColorAndAlpha:
+        return "UI colour and alpha";
+    case sl::kBufferTypeBackbuffer:
+        return "back buffer";
+    case sl::kBufferTypeNoWarpMask:
+        return "no-warp mask";
+    default:
+        return "other";
+    }
+}
+
+// Once per buffer type and outcome, so the log names what DLSS-G was given for each input.
+void LogTagOnce(sl::BufferType type, const char* outcome)
+{
+    static std::mutex saidMutex;
+    static std::vector<std::string> said;
+    std::string key = std::to_string(type) + outcome;
+    std::lock_guard<std::mutex> lock(saidMutex);
+    if (std::find(said.begin(), said.end(), key) != said.end())
+        return;
+    said.push_back(std::move(key));
+    LOG_INFO("RenoDX/DLSS-G: {} ({}) {}", TagName(type), type, outcome);
+}
+
+// The default: every tag at RenoDX's own version of its resource, see above. The copies live in *kept and
+// *resources, which are sized first so the pointers into *resources stay valid.
+const sl::ResourceTag* RedirectTags(const sl::ResourceTag* tags, uint32_t numTags, std::vector<sl::ResourceTag>* kept,
+                                    std::vector<sl::Resource>* resources)
+{
+    if (!DlssNrRenoDx::TagApiAvailable())
+    {
+        static std::atomic<bool> said { false };
+        if (!said.exchange(true))
+            LOG_WARN("RenoDX/DLSS-G: the loaded RenoDX has no host API version 2, tags forwarded as the game set "
+                     "them (expect generated frames to differ from real ones)");
+        return tags;
+    }
+
+    kept->assign(tags, tags + numTags);
+    resources->clear();
+    resources->reserve(numTags);
+    bool changed = false;
+
+    for (uint32_t i = 0; i < numTags; i++)
+    {
+        const auto& tag = tags[i];
+        if (tag.resource == nullptr || tag.resource->native == nullptr)
+            continue;
+
+        void* substitute = nullptr;
+        uint32_t state = tag.resource->state;
+        const bool colour = tag.type == sl::kBufferTypeHUDLessColor || tag.type == sl::kBufferTypeBackbuffer;
+
+        if (colour && DlssNrRenoDx::EncodeForSwapchain(tag.resource->native, tag.resource->state, &substitute, &state))
+            LogTagOnce(tag.type, "redirected to RenoDX's swap-chain-encoded copy");
+        else if (DlssNrRenoDx::ResolveClone(tag.resource->native, &substitute))
+            LogTagOnce(tag.type, "redirected to RenoDX's clone");
+        else
+        {
+            LogTagOnce(tag.type, "has no RenoDX clone, forwarded as-is");
+            continue;
+        }
+
+        resources->push_back(*tag.resource);
+        resources->back().native = substitute;
+        resources->back().state = state;
+        (*kept)[i].resource = &resources->back();
+        changed = true;
+    }
+
+    return changed ? kept->data() : tags;
 }
 
 bool Withheld(TagFilter filter, sl::BufferType type)
@@ -1136,7 +1226,8 @@ bool Withheld(TagFilter filter, sl::BufferType type)
 
 // The tags to forward: tags itself when nothing is withheld, else a filtered copy in *kept. The first
 // call also logs what the game tags, so a log shows the inputs DLSS-G was given.
-const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags, std::vector<sl::ResourceTag>* kept)
+const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags, std::vector<sl::ResourceTag>* kept,
+                                  std::vector<sl::Resource>* resources)
 {
     if (!s_reshadeAboveSl || tags == nullptr || *numTags == 0)
         return tags;
@@ -1155,6 +1246,9 @@ const sl::ResourceTag* FilterTags(const sl::ResourceTag* tags, uint32_t* numTags
     const TagFilter filter = CurrentTagFilter();
     if (filter == TagFilter::Keep)
         return tags;
+
+    if (filter == TagFilter::Redirect)
+        return RedirectTags(tags, *numTags, kept, resources);
 
     kept->clear();
     bool hudless = false;
@@ -1190,7 +1284,8 @@ sl::Result StreamlineHooks::hkslSetTag_renodx(const sl::ViewportHandle& viewport
                                               uint32_t numTags, sl::CommandBuffer* cmdBuffer)
 {
     thread_local std::vector<sl::ResourceTag> kept;
-    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept);
+    thread_local std::vector<sl::Resource> resources;
+    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept, &resources);
 
     // Everything withheld: there is nothing left to set, and an empty call means "remove" to SL.
     if (forwarded != tags && numTags == 0)
@@ -1204,7 +1299,8 @@ sl::Result StreamlineHooks::hkslSetTagForFrame_renodx(const sl::FrameToken& fram
                                                       sl::CommandBuffer* cmdBuffer)
 {
     thread_local std::vector<sl::ResourceTag> kept;
-    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept);
+    thread_local std::vector<sl::Resource> resources;
+    const sl::ResourceTag* forwarded = FilterTags(tags, &numTags, &kept, &resources);
 
     if (forwarded != tags && numTags == 0)
         return sl::Result::eOk;
