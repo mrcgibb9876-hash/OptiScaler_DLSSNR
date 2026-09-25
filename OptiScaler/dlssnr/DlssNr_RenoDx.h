@@ -61,6 +61,12 @@ bool CanReset();
 // The add-on's host API when it speaks version 4 (presets, per-setting reset, buttons, the full setting
 // description), else null. Each version-4 function pointer is still checked for null before a call.
 const RenoDxHostApi* V4();
+
+// True while a RenoDX add-on that speaks the host API is loaded. The DLSS 5 tone trim (Brightness,
+// Contrast and their Auto modes) is grading, and in such a game RenoDX does the grading: the trim is
+// hidden in the panel and sent to the shaders as identity (1, 1, Auto off), while the values saved in
+// the ini are left alone so they come back if RenoDX is removed. Safe to call every frame from any thread.
+bool ToneTrimSuppressed();
 // One line per committed change from our panel or the pop-out, so "the slider does nothing" can be told
 // apart from "the value never arrived": what was set, whether the add-on took it, what it reads back and
 // which preset was current. Source is "page" or "pop-out"; action is "set", "reset", "press",
