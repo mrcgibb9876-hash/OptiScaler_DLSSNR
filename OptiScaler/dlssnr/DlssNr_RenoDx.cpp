@@ -4,6 +4,7 @@
 
 #include "DlssNr_RenoDx.h"
 
+#include <atomic>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -183,6 +184,25 @@ auto ResetFn() -> void (*)()
 } // namespace
 
 bool CanReset() { return ResetFn() != nullptr; }
+
+void LogCommit(const char* source, const char* action, const char* key, double value, bool ok)
+{
+    static std::atomic<int> logged { 0 };
+    if (logged.fetch_add(1) >= 400)
+        return;
+
+    const RenoDxHostApi* api = Api();
+    float back = 0.0f;
+    const bool read = api != nullptr && key != nullptr && *key != '\0' && api->get_number(key, &back);
+    const RenoDxHostApi* v4 = V4();
+    const int preset = v4 != nullptr && v4->get_preset != nullptr ? v4->get_preset() : -1;
+    if (read)
+        LOG_INFO("RenoDX {}: {} {} = {} -> {}, reads back {}, preset {}", source, action, key ? key : "", value,
+                 ok ? "ok" : "fail", back, preset);
+    else
+        LOG_INFO("RenoDX {}: {} {} = {} -> {}, preset {}", source, action, key ? key : "", value, ok ? "ok" : "fail",
+                 preset);
+}
 
 const RenoDxHostApi* V4()
 {

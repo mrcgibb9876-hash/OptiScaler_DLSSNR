@@ -354,7 +354,7 @@ void AppendHdrV4(std::string& s, const RenoDxHostApi* api)
         AppendKey(s, "segmented");
         const uint32_t style = v4->preset_style != nullptr ? v4->preset_style() : RENODX_HOST_STYLE_SEGMENTED;
         s += (style & RENODX_HOST_STYLE_SEGMENTED) != 0 ? "true" : "false";
-        s += "," labels ":[";
+        s += ",\"labels\":[";
         for (uint32_t p = 0; p < presetCount && p < 16; ++p)
         {
             if (p > 0)
@@ -365,7 +365,7 @@ void AppendHdrV4(std::string& s, const RenoDxHostApi* api)
         s += "]}";
     }
 
-    s += "," rows ":[";
+    s += ",\"rows\":[";
     bool first = true;
     const uint32_t count = v4->setting_count();
     for (uint32_t i = 0; i < count; ++i)
@@ -444,7 +444,7 @@ void AppendHdrV4(std::string& s, const RenoDxHostApi* api)
         // Names: a labelled int or bool's choices, or a LABEL row's text (its only entry).
         if (labelCount > 0)
         {
-            row += "," labels ":[";
+            row += ",\"labels\":[";
             for (uint32_t c = 0; c < labelCount; ++c)
             {
                 if (c > 0)
@@ -830,7 +830,10 @@ void ApplyHdr(const nlohmann::json& obj)
     // The pop-out's "Reset all to defaults" button: RenoDX resets and saves itself, then any other keys in
     // the same command still apply on top.
     if (auto reset = obj.find("$reset"); reset != obj.end() && reset->is_boolean() && reset->get<bool>())
+    {
         DlssNrRenoDx::ResetAll();
+        DlssNrRenoDx::LogCommit("pop-out", "reset all", nullptr, 0.0, true);
+    }
 
     // Version 4 commands: the preset switcher, one setting's reset button, a BUTTON row's click. Each does
     // exactly what the same click does in RenoDX's overlay, including its own saving.
@@ -838,11 +841,14 @@ void ApplyHdr(const nlohmann::json& obj)
     {
         double n = 0.0;
         if (auto it = obj.find("$preset"); it != obj.end() && NumberOf(*it, &n) && v4->set_preset != nullptr)
-            v4->set_preset((int32_t) std::lround(n));
+            DlssNrRenoDx::LogCommit("pop-out", "preset", nullptr, n, v4->set_preset((int32_t) std::lround(n)));
         if (auto it = obj.find("$resetSetting"); it != obj.end() && it->is_string() && v4->reset_setting != nullptr)
-            v4->reset_setting(it->get<std::string>().c_str());
+        {
+            const std::string key = it->get<std::string>();
+            DlssNrRenoDx::LogCommit("pop-out", "reset", key.c_str(), 0.0, v4->reset_setting(key.c_str()));
+        }
         if (auto it = obj.find("$press"); it != obj.end() && NumberOf(*it, &n) && n >= 0.0 && v4->press != nullptr)
-            v4->press((uint32_t) std::lround(n));
+            DlssNrRenoDx::LogCommit("pop-out", "press", nullptr, n, v4->press((uint32_t) std::lround(n)));
     }
 
     bool changed = false;
@@ -850,7 +856,8 @@ void ApplyHdr(const nlohmann::json& obj)
     for (auto it = obj.begin(); it != obj.end(); ++it)
     {
         const std::string& key = it.key();
-        if (!key.empty() && key[0] == '
+        if (!key.empty() && key[0] == '$')
+            continue; // commands, handled above
         RenoDxHostSetting info {};
         bool found = false;
         for (uint32_t i = 0; i < count && !found; ++i)
@@ -874,7 +881,12 @@ void ApplyHdr(const nlohmann::json& obj)
         if (textBox)
         {
             if (it.value().is_string())
-                changed = api->set_text(key.c_str(), it.value().get<std::string>().c_str()) || changed;
+            {
+                const std::string text = it.value().get<std::string>();
+                const bool ok = api->set_text(key.c_str(), text.c_str());
+                DlssNrRenoDx::LogCommit("pop-out", "text", key.c_str(), (double) text.size(), ok);
+                changed = ok || changed;
+            }
             continue;
         }
 
@@ -904,155 +916,14 @@ void ApplyHdr(const nlohmann::json& obj)
             continue; // TEXT is not offered
         }
         // `key` (ours), not info.key: describe's strings are borrowed and set_number is the next call.
-        changed = api->set_number(key.c_str(), (float) n) || changed;
+        const bool ok = api->set_number(key.c_str(), (float) n);
+        DlssNrRenoDx::LogCommit("pop-out", "set", key.c_str(), n, ok);
+        changed = ok || changed;
     }
 
     // set_number already applied each value live (RenoDX runs its on_change there); save persists.
     if (changed)
         api->save();
-}
-
-void CheckCommands(const std::filesystem::path& dir)
-{
-    const auto path = dir / L"OptiScaler.hosted.set.json";
-    WIN32_FILE_ATTRIBUTE_DATA data {};
-    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data))
-        return; // no command yet, the ordinary case
-    if (data.nFileSizeHigh != 0 || data.nFileSizeLow > kMaxCommandBytes)
-        return;
-    if (CompareFileTime(&data.ftLastWriteTime, &g_cmdTime) == 0 && data.nFileSizeLow == g_cmdSize)
-        return;
-
-    // Shared for write and delete, so this read never blocks the app's rename of its next command.
-    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE)
-        return; // mid-rename: the stamp is not recorded, so the next check tries again
-    std::string text(data.nFileSizeLow, '\0');
-    DWORD read = 0;
-    const bool ok = text.empty() || (ReadFile(h, text.data(), (DWORD) text.size(), &read, nullptr) != 0);
-    CloseHandle(h);
-    if (!ok)
-        return;
-    text.resize(read);
-
-    // Not exceptions: a torn or hand-edited file is an ordinary thing to meet here, and discarded is
-    // the answer for it. Its stamp is not recorded either, so the complete file is read when it lands.
-    const nlohmann::json j = nlohmann::json::parse(text, nullptr, false);
-    if (j.is_discarded() || !j.is_object())
-        return;
-    g_cmdTime = data.ftLastWriteTime;
-    g_cmdSize = data.nFileSizeLow;
-
-    // For this process only. The file outlives the game, and the next session starts at ack 0, so
-    // without this a stale command -- every change from last time -- would replay into a fresh game.
-    const auto pid = j.find("pid");
-    if (pid == j.end() || !pid->is_number() || pid->get<double>() != (double) GetCurrentProcessId())
-        return;
-
-    const auto seqIt = j.find("seq");
-    if (seqIt == j.end() || !seqIt->is_number())
-        return;
-    const double seqD = seqIt->get<double>();
-    if (!std::isfinite(seqD) || seqD < 1.0)
-        return;
-    const unsigned long long seq = (unsigned long long) seqD;
-    if (seq <= g_ack)
-        return; // already applied; the app is waiting to see its ack, which the next write carries
-
-    const auto pacing = j.find("pacing");
-    if (pacing != j.end())
-        ApplyPacing(*pacing);
-    const auto hdr = j.find("hdr");
-    if (hdr != j.end())
-        ApplyHdr(*hdr);
-
-    // Acknowledged even when a key was refused: the app then shows the add-on's real value, which is
-    // the honest answer, rather than waiting forever on a change that will never land.
-    g_ack = seq;
-    g_publishNow = true;
-    LOG_DEBUG("DLSS-NR hosted pages: applied command {}", seq);
-}
-} // namespace
-
-void Tick(const std::filesystem::path& dir, bool requested)
-{
-    if (!requested || dir.empty())
-        return;
-
-    const auto now = Clock::now();
-    if (now - g_lastCommandCheck >= kCommandCheckEvery)
-    {
-        g_lastCommandCheck = now;
-        CheckCommands(dir);
-    }
-
-    if (!g_publishNow && now - g_lastBuild < kBuildEvery)
-        return;
-    g_lastBuild = now;
-
-    std::string body = BuildBody();
-    const bool changed = g_publishNow || body != g_lastBody;
-    if (!changed && now - g_lastWrite < kWriteAtLeastEvery)
-        return;
-
-    g_publishNow = false;
-    g_lastWrite = now;
-    Write(dir, body);
-    g_lastBody = std::move(body);
-}
-} // namespace DlssNr::Hosted
-)
-            continue; // commands, handled above
-RenoDxHostSetting info {};
-bool found = false;
-for (uint32_t i = 0; i < count && !found; ++i)
-{
-    info = {};
-    info.struct_size = sizeof(info);
-    found = api->describe_setting(i, &info) && info.key != nullptr && key == info.key;
-}
-if (!found)
-{
-    LOG_DEBUG("DLSS-NR hosted pages: RenoDX has no setting {}", key);
-    continue;
-}
-// Greyed in RenoDX's overlay means the value is ignored right now; not written behind its back.
-if (info.is_enabled == 0)
-    continue;
-
-double n = 0.0;
-if (!NumberOf(it.value(), &n))
-    continue;
-
-switch (info.value_type)
-{
-case RENODX_HOST_VALUE_BOOLEAN:
-    n = n != 0.0 ? 1.0 : 0.0;
-    break;
-case RENODX_HOST_VALUE_COMBO:
-    if (info.label_count == 0)
-        continue;
-    n = std::clamp(std::round(n), 0.0, (double) (info.label_count - 1));
-    break;
-case RENODX_HOST_VALUE_INTEGER:
-case RENODX_HOST_VALUE_FLOAT:
-    if (info.min_value == info.max_value)
-        continue;
-    n = std::clamp(n, (double) info.min_value, (double) info.max_value);
-    if (info.value_type == RENODX_HOST_VALUE_INTEGER)
-        n = std::round(n);
-    break;
-default:
-    continue; // TEXT is not offered
-}
-// `key` (ours), not info.key: describe's strings are borrowed and set_number is the next call.
-changed = api->set_number(key.c_str(), (float) n) || changed;
-}
-
-// set_number already applied each value live (RenoDX runs its on_change there); save persists.
-if (changed)
-    api->save();
 }
 
 void CheckCommands(const std::filesystem::path& dir)
