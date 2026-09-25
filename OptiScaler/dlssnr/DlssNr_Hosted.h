@@ -15,7 +15,10 @@
 //
 //   OptiScaler.hosted.json      what the in-game Pacing and HDR pages would draw right now: every
 //                               setting the pages show, with its label, range, choices and current
-//                               value, plus `ack`, the last command applied. Rebuilt every 500 ms,
+//                               value, plus `ack`, the last command applied. An add-on that cannot be
+//                               driven is `available:false` with `reason` (not-loaded / no-api /
+//                               api-version), so the pop-out can grey its page and say why, as the
+//                               in-game page does. Rebuilt every 500 ms,
 //                               written when it changes and at least every second so `at` stays fresh.
 //                               Same gate as OptiScaler.live.json: nothing at all without a live request.
 //   OptiScaler.hosted.set.json  written by the app: {"seq":N,"pid":P,"pacing":{key:value},"hdr":{...}}.

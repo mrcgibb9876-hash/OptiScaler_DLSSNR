@@ -36,4 +36,10 @@ const char* AddonName();
 // The module it was found in, e.g. "renodx-unrealengine.addon64", or nullptr. Shown in the panel
 // because with a per-game add-on, WHICH one loaded is the thing a player needs to confirm.
 const char* ModuleName();
+
+// Why Available() is false, as a stable code the HDR page explains and OptiScaler.hosted.json carries
+// to the pop-out: "not-loaded" (no RenoDX add-on in the process, or not yet), "no-api" (a module named
+// renodx* is loaded but exports no host API -- every upstream build today), "api-version" (one whose
+// API this engine does not speak). nullptr when it is available.
+const char* UnavailableReason();
 } // namespace DlssNrRenoDx

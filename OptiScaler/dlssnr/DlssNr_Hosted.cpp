@@ -157,6 +157,10 @@ void AppendPacing(std::string& s)
     s += api != nullptr ? "true" : "false";
     if (api == nullptr)
     {
+        // Why not, so the pop-out's greyed page can say it in a sentence (DlssNr_ReLimiter.h).
+        s += ',';
+        AppendKey(s, "reason");
+        AppendString(s, DlssNrReLimiter::UnavailableReason());
         s += ",\"settings\":[]}";
         return;
     }
@@ -290,6 +294,9 @@ void AppendHdr(std::string& s)
     s += api != nullptr ? "true" : "false";
     if (api == nullptr)
     {
+        s += ',';
+        AppendKey(s, "reason");
+        AppendString(s, DlssNrRenoDx::UnavailableReason());
         s += ",\"settings\":[]}";
         return;
     }

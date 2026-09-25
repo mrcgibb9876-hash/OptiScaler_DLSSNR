@@ -982,8 +982,8 @@ enum PanelPage
     kPageImage,    // the filters that scale it, the guards, and how much of it lands
     kPageInspect,  // what the model is told, and the tools for looking at its work
     kPageSetup,    // keys and appearance
-    kPagePacing,   // ReLimiter's frame pacing, when it is in the process. Hidden when it is not.
-    kPageHdr,      // RenoDX's HDR and tone mapping, same deal: hidden unless it is here and drivable.
+    kPagePacing,   // ReLimiter's frame pacing. Always listed; greyed with the reason when it is not here.
+    kPageHdr,      // RenoDX's HDR and tone mapping, same deal: greyed unless it is here and drivable.
     kPageCount,
 };
 
@@ -1048,11 +1048,53 @@ static void DragByHeader(float stripBottomY)
 // Only what a controller-and-overlay UI can honestly present is drawn. Keybinds are left to ReLimiter's
 // own overlay: capturing a key combo needs the capture UI it already has, and half of one here would be
 // worse than a pointer to it.
+// A Pacing or HDR page whose add-on cannot be driven in this game: greyed, with one plain line saying
+// why and what to do. The tab stays listed either way -- hidden, a player who had heard of the feature
+// had nowhere to look and nothing to tell him why it was not there.
+static void DrawAddonMissing(const char* caption, const char* why, float rowWidth)
+{
+    ImGui::BeginDisabled();
+    SectionCaption(caption, rowWidth);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+    ImGui::TextUnformatted(why);
+    ImGui::PopTextWrapPos();
+    ImGui::EndDisabled();
+}
+
+// The codes are DlssNrReLimiter::UnavailableReason()'s; the pop-out explains the same codes in its own
+// words, from OptiScaler.hosted.json.
+static const char* PacingMissingText(const char* reason)
+{
+    if (reason != nullptr && std::strcmp(reason, "no-api") == 0)
+        return Tr("ReLimiter is running, but this build of it cannot be driven from this panel -- its own "
+                  "overlay still works. Adding frame pacing again from the app installs one that can.");
+    if (reason != nullptr && std::strcmp(reason, "api-version") == 0)
+        return Tr("ReLimiter is running, but it speaks a different version of the panel's interface than "
+                  "this DLSS 5 engine. Update DLSS 5 or frame pacing from the app.");
+    return Tr("Frame pacing is not installed on this game -- turn it on from the app's card or the pop-out; "
+              "it takes effect the next time the game starts.");
+}
+
+static const char* HdrMissingText(const char* reason)
+{
+    if (reason != nullptr && std::strcmp(reason, "no-api") == 0)
+        return Tr("RenoDX is running, but this build of it cannot be driven from this panel -- its own "
+                  "overlay still works.");
+    if (reason != nullptr && std::strcmp(reason, "api-version") == 0)
+        return Tr("RenoDX is running, but it speaks a different version of the panel's interface than "
+                  "this DLSS 5 engine. Update DLSS 5 or RenoDX from the app.");
+    return Tr("HDR (RenoDX) is not installed on this game -- turn it on from the app's card or the pop-out; "
+              "it takes effect the next time the game starts.");
+}
+
 static void DrawPacingPage(float rowWidth)
 {
     const ReLimiterApi* api = DlssNrReLimiter::Api();
     if (api == nullptr)
-        return; // the tab is hidden in this case, so this is belt and braces
+    {
+        DrawAddonMissing(Tr("Frame pacing"), PacingMissingText(DlssNrReLimiter::UnavailableReason()), rowWidth);
+        return;
+    }
 
     SectionCaption(Tr("Frame pacing"), rowWidth);
 
@@ -1200,7 +1242,10 @@ static void DrawRenoDxPage(float rowWidth)
 {
     const RenoDxHostApi* api = DlssNrRenoDx::Api();
     if (api == nullptr)
-        return; // the tab is hidden in this case, so this is belt and braces
+    {
+        DrawAddonMissing(Tr("HDR and tone mapping"), HdrMissingText(DlssNrRenoDx::UnavailableReason()), rowWidth);
+        return;
+    }
 
     SectionCaption(Tr("HDR and tone mapping"), rowWidth);
 
@@ -1335,19 +1380,14 @@ static void PagePicker(float rowWidth)
     const char* names[kPageCount] = { Tr("Main"),    Tr("Model"), Tr("Cost"),   Tr("Image"),
                                       Tr("Inspect"), Tr("Setup"), Tr("Pacing"), Tr("HDR") };
 
-    // Pacing exists only while ReLimiter is in the process, so the strip is built from the pages that
-    // are actually there rather than divided by kPageCount. An empty page for an absent add-on is
-    // noise, and a tab that does nothing is worse than no tab at all.
+    // Every page is listed, Pacing and HDR included whether or not their add-on is in this game. They
+    // used to be hidden without it, which left a player who had heard of the feature with nowhere to
+    // find it and nothing to say why; the page now greys itself and says what to do instead
+    // (DrawAddonMissing). The strip is still built from a list so a page can be dropped again cheaply.
     int visible[kPageCount];
     int count = 0;
     for (int i = 0; i < kPageCount; ++i)
-    {
-        if (i == kPagePacing && !DlssNrReLimiter::Available())
-            continue;
-        if (i == kPageHdr && !DlssNrRenoDx::Available())
-            continue;
         visible[count++] = i;
-    }
 
     // If the page we were on has just gone away, land somewhere real instead of drawing nothing.
     bool onVisible = false;

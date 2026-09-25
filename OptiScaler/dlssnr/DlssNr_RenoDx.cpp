@@ -4,6 +4,7 @@
 
 #include "DlssNr_RenoDx.h"
 
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -20,11 +21,13 @@ bool s_givenUp = false;
 ULONGLONG s_lastTry = 0;
 constexpr ULONGLONG kRetryEveryMs = 2000;
 std::string s_module;
+// Why s_api is null, as the stable code UnavailableReason() hands out.
+const char* s_reason = "not-loaded";
 
 // K32EnumProcessModules rather than EnumProcessModules: it lives in kernel32 on every Windows this
 // engine runs on, so resolving it by name costs one GetProcAddress and adds no link dependency.
 // Adding Psapi.lib would mean editing four AdditionalDependencies lines in the vcxproj to gain
-// nothing. If it is somehow absent, Available() is false and the page simply does not appear.
+// nothing. If it is somehow absent, Available() is false and the page says RenoDX is not there.
 using EnumProcessModulesFn = BOOL(WINAPI*)(HANDLE, HMODULE*, DWORD, LPDWORD);
 
 // The module's file name without its directory. GetModuleFileNameW is kernel32, so this needs no
@@ -79,11 +82,19 @@ void Resolve()
     // a second place that knows how these files are called, and it would miss a renamed copy for no
     // gain: GetProcAddress for a name a module does not export is an export-table lookup that fails,
     // done once at startup.
+    bool sawByName = false;
     for (HMODULE mod : mods)
     {
         auto get = (RenoDxGetHostApiFn) GetProcAddress(mod, "RenoDxGetHostApi");
         if (get == nullptr)
+        {
+            // Only for the page's explanation, never for finding it: a RenoDX add-on WITHOUT the export
+            // (every upstream build today) is "installed but cannot be driven from here", which is a
+            // different thing to tell a player from "not installed".
+            if (!sawByName && _strnicmp(BaseNameOf(mod).c_str(), "renodx", 6) == 0)
+                sawByName = true;
             continue;
+        }
 
         // Exports the API: whatever happens next, this module's answer is final.
         s_givenUp = true;
@@ -93,6 +104,7 @@ void Resolve()
         {
             LOG_WARN("DLSS-NR: {} does not speak RenoDX host API version {} -- not driving it from the panel",
                      BaseNameOf(mod), RENODX_HOST_API_VERSION);
+            s_reason = "api-version";
             continue;
         }
         // A newer add-on may return a LARGER struct, which is fine -- we read the prefix we know.
@@ -102,16 +114,20 @@ void Resolve()
             LOG_WARN("DLSS-NR: {}'s host API struct is {} bytes, smaller than the {} this build expects "
                      "-- not driving it from the panel",
                      BaseNameOf(mod), api->struct_size, (unsigned) sizeof(RenoDxHostApi));
+            s_reason = "api-version";
             continue;
         }
 
         s_api = api;
         s_module = BaseNameOf(mod);
+        s_reason = nullptr;
         LOG_INFO("DLSS-NR: RenoDX found in {} (addon \"{}\"), host API v{} ({} settings)", s_module,
                  api->addon_name ? api->addon_name() : "?", api->api_version,
                  api->setting_count ? api->setting_count() : 0);
         return;
     }
+    if (!s_givenUp)
+        s_reason = sawByName ? "no-api" : "not-loaded";
     // No RenoDX (yet -- asked again in a couple of seconds unless one was refused above), or one without
     // the export. The ordinary case: every shipped build is the latter.
 }
@@ -139,5 +155,11 @@ const char* ModuleName()
 {
     Resolve();
     return s_module.empty() ? nullptr : s_module.c_str();
+}
+
+const char* UnavailableReason()
+{
+    Resolve();
+    return s_api != nullptr ? nullptr : s_reason;
 }
 } // namespace DlssNrRenoDx

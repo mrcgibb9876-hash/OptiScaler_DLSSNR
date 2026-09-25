@@ -34,4 +34,10 @@ const char* Version();
 // means "stay below the VRR ceiling", which is still pacing -- so presence is the condition, and this is
 // what makes AutoScale's frame-rate mode stand down.
 bool PacingActive();
+
+// Why Available() is false, as a stable code the Pacing page explains and OptiScaler.hosted.json
+// carries to the pop-out: "not-loaded" (no ReLimiter in the process, or not yet), "no-api" (a build
+// without the host API), "api-version" (one whose API this engine does not speak). nullptr when it is
+// available.
+const char* UnavailableReason();
 } // namespace DlssNrReLimiter

@@ -19,6 +19,8 @@ namespace
 // exports no API, or one we do not speak -- stops the asking.
 const ReLimiterApi* s_api = nullptr;
 bool s_givenUp = false;
+// Why s_api is null, as the stable code UnavailableReason() hands out.
+const char* s_reason = "not-loaded";
 ULONGLONG s_lastTry = 0;
 constexpr ULONGLONG kRetryEveryMs = 2000;
 
@@ -48,6 +50,7 @@ void Resolve()
     {
         // A ReLimiter older than the host API. Nothing is wrong; it simply cannot be driven from here.
         LOG_INFO("DLSS-NR: ReLimiter is loaded but exports no host API -- its own overlay still works");
+        s_reason = "no-api";
         return;
     }
 
@@ -56,6 +59,7 @@ void Resolve()
     {
         LOG_WARN("DLSS-NR: ReLimiter does not speak host API version {} -- not driving it from the panel",
                  RELIMITER_API_VERSION);
+        s_reason = "api-version";
         return;
     }
     // A build newer than this header could return a LARGER struct; smaller would mean fields we would
@@ -65,11 +69,13 @@ void Resolve()
         LOG_WARN("DLSS-NR: ReLimiter's host API struct is {} bytes, smaller than the {} this build "
                  "expects -- not driving it from the panel",
                  api->struct_size, (unsigned) sizeof(ReLimiterApi));
+        s_reason = "api-version";
         return;
     }
     s_givenUp = false;
 
     s_api = api;
+    s_reason = nullptr;
     LOG_INFO("DLSS-NR: ReLimiter {} found, host API v{} ({} settings)",
              api->product_version ? api->product_version() : "?", api->api_version,
              api->setting_count ? api->setting_count() : 0);
@@ -95,4 +101,10 @@ const char* Version()
 }
 
 bool PacingActive() { return Available(); }
+
+const char* UnavailableReason()
+{
+    Resolve();
+    return s_api != nullptr ? nullptr : s_reason;
+}
 } // namespace DlssNrReLimiter
