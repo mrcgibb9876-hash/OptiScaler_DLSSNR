@@ -96,6 +96,9 @@ struct RenoDxHostApi
     // after the first version 2 test build, so struct_size is checked for it on its own.
     bool (*encode_ui_for_swapchain)(void* native_resource, uint32_t d3d12_state, void** out_native_resource,
                                     uint32_t* out_d3d12_state);
+    // Copy-back: the same pass, its result copied back into the tagged image itself at each present
+    // (alpha kept when is_ui), so the tag stays as the game set it. Checked by struct_size on its own.
+    bool (*encode_in_place_for_swapchain)(void* native_resource, uint32_t d3d12_state, bool is_ui);
 };
 
 // What a version 1 add-on's struct holds; anything it reports at least this size of is drivable.
