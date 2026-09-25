@@ -476,6 +476,91 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     return { changed, released };
 }
 
+// A number the user types, for the values where the exact figure is the point and dragging cannot
+// reach it. A frame-rate cap is the case that forced it: the reason to set a fixed one at all is to
+// match a number chosen somewhere else -- 72 in the game's own limiter, 141 under a 144 Hz ceiling --
+// and no track from 30 to 1000 lands on those. Requested 2026-09-25.
+//
+// Committed on Enter or on leaving the field, never per keystroke: typing "120" passes through 1 and
+// 12, and writing those through to the add-on would apply two frame rates nobody asked for on the way
+// to the one they did. Out-of-range is clamped rather than refused, and the box is rewritten with
+// what was actually stored, so the field never shows a number the add-on is not holding.
+struct NumberBoxResult
+{
+    bool committed;
+};
+
+static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin, double vMax, bool isInt,
+                                   float rowWidth)
+{
+    ImGui::PushID(label);
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    float labelWidth = rowWidth * 0.44f;
+
+    // The same rule as NrSlider: a label too long for its column goes above its control rather than
+    // being run into by it. German and French make this the common case, not the exception.
+    const bool stacked = ImGui::CalcTextSize(label).x > labelWidth - style.ItemSpacing.x;
+
+    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    if (stacked)
+        labelWidth = 0.0f;
+    else
+        ImGui::SameLine(labelWidth);
+
+    float boxWidth = rowWidth - labelWidth;
+    if (boxWidth > 120.0f)
+        boxWidth = 120.0f;
+    if (boxWidth < 60.0f)
+        boxWidth = 60.0f;
+
+    bool committed = false;
+    ImGui::SetNextItemWidth(boxWidth);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 22, 20, 190));
+    ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+    if (isInt)
+    {
+        int v = (int) *value;
+        // Step 0 hides the +/- buttons: they are a slider by another name and would put the same
+        // "click your way towards it" behaviour back on the row.
+        ImGui::InputInt("##v", &v, 0, 0, ImGuiInputTextFlags_CharsDecimal);
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            double clamped = (double) v;
+            clamped = clamped < vMin ? vMin : (clamped > vMax ? vMax : clamped);
+            *value = clamped;
+            committed = true;
+        }
+    }
+    else
+    {
+        double v = *value;
+        ImGui::InputDouble("##v", &v, 0.0, 0.0, "%.3f", ImGuiInputTextFlags_CharsDecimal);
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            double clamped = v < vMin ? vMin : (v > vMax ? vMax : v);
+            *value = clamped;
+            committed = true;
+        }
+    }
+    ImGui::PopStyleColor(2);
+
+    // What the box will take, said once beside it rather than discovered by having a number refused.
+    ImGui::SameLine();
+    char range[64] {};
+    if (isInt)
+        std::snprintf(range, sizeof(range), "%d-%d", (int) vMin, (int) vMax);
+    else
+        std::snprintf(range, sizeof(range), "%.3f-%.3f", vMin, vMax);
+    ImGui::TextColored(kTextDim, "%s", range);
+
+    ImGui::PopID();
+
+    return { committed };
+}
+
 // One entry in a row of boxed choices, defined below with the Models row it was written for.
 static bool ModelButton(const char* label, bool active, float width);
 
@@ -1041,7 +1126,7 @@ static void DrawPacingPage(float rowWidth)
         case RELIMITER_TYPE_FLOAT:
         case RELIMITER_TYPE_DOUBLE:
         {
-            // No range, no slider: dmfg_output_cap and oled_care_idle_minutes have no clamp in
+            // No range, no box: dmfg_output_cap and oled_care_idle_minutes have no clamp in
             // ReLimiter's own validation, and inventing ends for them would offer numbers it discards.
             if (info.min_value == info.max_value)
                 break;
@@ -1051,8 +1136,9 @@ static void DrawPacingPage(float rowWidth)
                 break;
 
             // A labelled zero is a named mode -- target_fps = 0 is "stay below the VRR ceiling", not
-            // 0 fps -- and it sits outside the slider's range. So it gets its own checkbox, because a
-            // slider cannot show a mode at one end of its travel.
+            // 0 fps -- and it sits outside the box's range. So it gets its own checkbox: a mode is
+            // not a number, and leaving it as one end of a numeric field invites someone to type 0
+            // meaning "no limit" and get the opposite.
             if (info.zero_label != nullptr)
             {
                 bool autoMode = cur == 0.0;
@@ -1072,17 +1158,16 @@ static void DrawPacingPage(float rowWidth)
                 }
             }
 
-            float v = (float) cur;
-            const char* fmt = info.type == RELIMITER_TYPE_INT ? "%.0f" : "%.3f";
-            auto r = NrSlider(info.label, &v, (float) info.min_value, (float) info.max_value, fmt, rowWidth);
-            if (r.released || r.changed)
+            // Typed, not dragged -- see NrNumberBox. One write per committed value, so the save
+            // that used to be held back until a slider was released is simply not needed.
+            double v = cur;
+            auto r =
+                NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT, rowWidth);
+            if (r.committed && v != cur)
             {
-                api->set_number(info.key, (double) v);
+                api->set_number(info.key, v);
                 api->apply();
-                // Saved on release only: an ini write per slider pixel is a file written hundreds of
-                // times for one adjustment.
-                if (r.released)
-                    api->save();
+                api->save();
             }
             if (info.tooltip != nullptr && *info.tooltip != '\0')
                 HelpMarker(info.tooltip);
