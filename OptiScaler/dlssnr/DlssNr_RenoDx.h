@@ -50,13 +50,15 @@ const char* UnavailableReason();
 // once, when the game upgrades its DXGI factory, to decide whether ReShade has to sit above Streamline.
 std::string AddonInProcess();
 
-// NOT YET THERE, the proper fix for the DLSS-G HUD-less/UI tags (StreamlineHooks::hkslSetTag_renodx, which
-// withholds them for now): the game's HUD-less colour is in RenoDX's intermediate encoding and clipped to
-// the game's 10-bit format, while the frame DLSS-G receives has been through RenoDX's swap chain pass. To
-// give DLSS-G a matching HUD-less image the host API would need one more entry, in RenoDX's
-// src/utils/settings.hpp next to the settings ones: given a native D3D12 resource and a command list,
-// return (a) the resource's clone when RenoDX redirects it (utils::resource::GetResourceInfo, clone_enabled
-// and clone) and (b) otherwise run the same SwapchainProxyPass the add-on uses at present
-// (src/utils/draw.hpp) from that resource into a RenoDX-owned texture of the swap chain format. The engine
-// would then re-point the tag at what comes back instead of dropping it.
+// Host API version 2 (mrcgibb9876-hash/renodx feat/dlssg-tags), for the DLSS-G tags the game sets while
+// ReShade sits above Streamline (StreamlineHooks::hkslSetTag_renodx). All three are false with an add-on
+// that only speaks version 1, or when the add-on has nothing to substitute; the tag is then left as the
+// game set it. Native D3D12 resources and D3D12_RESOURCE_STATES.
+bool TagApiAvailable();
+// The clone RenoDX redirects the resource's writes to, as RenoDX's own dlssfix does for every tag.
+bool ResolveClone(void* nativeResource, void** outNativeResource);
+// For a colour image DLSS-G compares with the presented frame (HUD-less colour, back buffer): a texture
+// RenoDX fills at each present with its swap chain proxy pass over the image, so it is encoded exactly
+// like the frame DLSS-G receives.
+bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State);
 } // namespace DlssNrRenoDx

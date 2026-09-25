@@ -123,11 +123,12 @@ void Resolve()
         }
         // A newer add-on may return a LARGER struct, which is fine -- we read the prefix we know.
         // Smaller would mean reading past its end, so it is refused rather than trusted.
-        if (api->struct_size < sizeof(RenoDxHostApi))
+        // The version 2 members are optional (see ResolveClone), so a version 1 add-on is still driven.
+        if (api->struct_size < RENODX_HOST_API_V1_SIZE)
         {
             LOG_WARN("DLSS-NR: {}'s host API struct is {} bytes, smaller than the {} this build expects "
                      "-- not driving it from the panel",
-                     BaseNameOf(mod), api->struct_size, (unsigned) sizeof(RenoDxHostApi));
+                     BaseNameOf(mod), api->struct_size, (unsigned) RENODX_HOST_API_V1_SIZE);
             s_reason = "api-version";
             continue;
         }
@@ -151,6 +152,34 @@ bool Available()
 {
     Resolve();
     return s_api != nullptr;
+}
+
+namespace
+{
+// The version 2 members, when the add-on has them.
+const RenoDxHostApi* GraphicsApi()
+{
+    Resolve();
+    if (s_api == nullptr || s_api->api_version < 2 ||
+        s_api->struct_size < offsetof(RenoDxHostApi, encode_for_swapchain) + sizeof(s_api->encode_for_swapchain))
+        return nullptr;
+    return s_api;
+}
+} // namespace
+
+bool TagApiAvailable() { return GraphicsApi() != nullptr; }
+
+bool ResolveClone(void* nativeResource, void** outNativeResource)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr && api->resolve_clone != nullptr && api->resolve_clone(nativeResource, outNativeResource);
+}
+
+bool EncodeForSwapchain(void* nativeResource, uint32_t d3d12State, void** outNativeResource, uint32_t* outD3d12State)
+{
+    auto* api = GraphicsApi();
+    return api != nullptr && api->encode_for_swapchain != nullptr &&
+           api->encode_for_swapchain(nativeResource, d3d12State, outNativeResource, outD3d12State);
 }
 
 const RenoDxHostApi* Api()

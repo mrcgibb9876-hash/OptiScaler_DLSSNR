@@ -18,6 +18,7 @@
 // NOTE ON AVAILABILITY. No shipped RenoDX build exports this yet; it comes from
 // mrcgibb9876-hash/renodx (feat/host-api), offered upstream. An add-on without the export is the
 // ordinary case and simply means the panel shows no RenoDX page.
+#include <cstddef>
 #include <cstdint>
 
 #define RENODX_HOST_API_VERSION 1
@@ -79,6 +80,21 @@ struct RenoDxHostApi
     bool (*set_text)(const char* key, const char* value);
     // Persist to the current preset's config section, as RenoDX's overlay does after a change.
     void (*save)();
+
+    // Version 2 (mrcgibb9876-hash/renodx feat/dlssg-tags). Read only when api_version >= 2 and struct_size
+    // reaches them -- see DlssNrRenoDx::ResolveClone / EncodeForSwapchain. Native D3D12 resources and
+    // D3D12_RESOURCE_STATES throughout; false means "nothing to substitute, tag the original".
+    //
+    // The clone RenoDX redirects the resource's writes to (the lookup of RenoDX's dlssfix slSetTag hook).
+    bool (*resolve_clone)(void* native_resource, void** out_native_resource);
+    // For a colour image DLSS-G compares with the presented frame: a swap-chain-format texture that
+    // receives RenoDX's swap chain proxy pass over the image at each present, before the frame leaves
+    // ReShade.
+    bool (*encode_for_swapchain)(void* native_resource, uint32_t d3d12_state, void** out_native_resource,
+                                 uint32_t* out_d3d12_state);
 };
+
+// What a version 1 add-on's struct holds; anything it reports at least this size of is drivable.
+#define RENODX_HOST_API_V1_SIZE (offsetof(RenoDxHostApi, resolve_clone))
 
 using RenoDxGetHostApiFn = const RenoDxHostApi* (*) (uint32_t requested_version);
