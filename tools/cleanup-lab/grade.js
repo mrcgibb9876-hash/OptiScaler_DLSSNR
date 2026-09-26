@@ -17,13 +17,15 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { loadCapture, writePng } = require('./cap.js');
+const capLib = require('./cap.js');
+const { loadCapture, writePng } = capLib;
 const argv = process.argv.slice(2);
 const dir = argv[0];
 const cropsAt = argv.indexOf('--crops') >= 0 ? argv[argv.indexOf('--crops') + 1] : null;
 const variantAt = argv.indexOf('--variant') >= 0 ? argv[argv.indexOf('--variant') + 1] : null;
 const quiet = argv.includes('--quiet');
-const { S, img } = loadCapture(dir);
+const capture = loadCapture(dir);
+const { S, img } = capture;
 const W = S.width, H = S.height, N = W * H;
 
 const dec = (v) => Math.pow(Math.max(v, 0), 2.2);
@@ -45,7 +47,7 @@ let afterImg = img.composed_after;
 if (variantAt) { const raw = fs.readFileSync(variantAt); let f; if (variantAt.endsWith('.rgba')) { f = new Float32Array(N * 4); for (let i = 0; i < N * 4; i++) f[i] = raw[i] / 255; } else f = new Float32Array(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)); afterImg = { w: W, h: H, data: f }; }
 const Lin = linLog(img.input), Lb = linLog(img.composed_before), La = linLog(afterImg), Lm = linLog(img.model);
 const D = new Float32Array(N);
-for (let i = 0; i < N; i++) D[i] = img.mask.data[i * 4 + 1];
+D.set(capLib.logDepth(capture));
 
 // Box blur, clamped window average.
 function box(src, r) {
@@ -238,7 +240,7 @@ if (cropsAt) {
     for (let p = 0; p < P; p++) for (let y = 0; y < OH; y++) for (let x = 0; x < T * Z; x++) {
       const sx = c.x + ((x / Z) | 0), sy = c.y + ((y / Z) | 0), i = (sy * W + sx) * 4; let col;
       if (srcs[p]) col = [srcs[p][i] * gain, srcs[p][i + 1] * gain, srcs[p][i + 2] * gain];
-      else { const m = img.mask.data; col = [m[i], Math.min(Math.abs(La[sy * W + sx] - Lb[sy * W + sx]) * 4, 1), 0.25 * Math.min(Math.max(img.input.data[i + 1] * gain, 0), 1)]; }
+      else { const m = img.mask ? img.mask.data : null; col = [m ? m[i] : 0, Math.min(Math.abs(La[sy * W + sx] - Lb[sy * W + sx]) * 4, 1), 0.25 * Math.min(Math.max(img.input.data[i + 1] * gain, 0), 1)]; }
       const o = (y * OW + p * (T * Z + gap) + x) * 3;
       for (let ch = 0; ch < 3; ch++) rgb[o + ch] = Math.max(0, Math.min(255, Math.round(col[ch] * 255)));
     }
