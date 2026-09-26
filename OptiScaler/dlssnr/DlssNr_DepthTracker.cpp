@@ -6,10 +6,13 @@
 
 #include <detours/detours.h>
 
+#include <algorithm>
 #include <atomic>
 #include <format>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -20,6 +23,7 @@ constexpr size_t kSlotCreateDepthStencilView = 21;
 constexpr size_t kSlotCopyDescriptors = 23;
 constexpr size_t kSlotCopyDescriptorsSimple = 24;
 // ID3D12GraphicsCommandList: ... ResourceBarrier 26, OMSetRenderTargets 46, ClearDepthStencilView 47.
+constexpr size_t kSlotResetList = 10;
 constexpr size_t kSlotResourceBarrier = 26;
 constexpr size_t kSlotOMSetRenderTargets = 46;
 constexpr size_t kSlotClearDepthStencilView = 47;
@@ -33,11 +37,14 @@ using OMSetRenderTargetsFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*
 using ClearDepthStencilViewFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, D3D12_CPU_DESCRIPTOR_HANDLE,
                                                          D3D12_CLEAR_FLAGS, FLOAT, UINT8, UINT, const D3D12_RECT*);
 using ResourceBarrierFn = void(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, UINT, const D3D12_RESOURCE_BARRIER*);
+using ResetListFn = HRESULT(STDMETHODCALLTYPE*)(ID3D12GraphicsCommandList*, ID3D12CommandAllocator*,
+                                                ID3D12PipelineState*);
 
 CreateDepthStencilViewFn o_CreateDepthStencilView = nullptr;
 OMSetRenderTargetsFn o_OMSetRenderTargets = nullptr;
 ClearDepthStencilViewFn o_ClearDepthStencilView = nullptr;
 ResourceBarrierFn o_ResourceBarrier = nullptr;
+ResetListFn o_ResetList = nullptr;
 
 bool IsDepthFormat(DXGI_FORMAT format)
 {
@@ -75,6 +82,17 @@ struct Entry
     std::atomic<unsigned int> state { D3D12_RESOURCE_STATE_COMMON };
     std::atomic<bool> stateKnown { false };
     std::atomic<bool> reversed { true };
+
+    // The same, counted when the list that recorded it is SUBMITTED rather than when it is recorded. A
+    // game that records its next frame before presenting this one -- or hands out a fresh, identical depth
+    // buffer every frame, as RE Engine does -- has two buffers bound in the same Present-to-Present window,
+    // and record-time counts cannot tell which one the GPU will have written last when the pass copies at
+    // Present. Written under g_listMutex.
+    unsigned int writesSubmitted = 0; // DSV binds for writing and depth clears, since the last Present
+    unsigned int writesLastFrame = 0;
+    unsigned long long lastWriteSeq = 0; // submission order of the last of them
+    unsigned int submittedState = D3D12_RESOURCE_STATE_COMMON;
+    bool submittedStateKnown = false;
 };
 
 constexpr unsigned int kMaxCandidates = 96;
@@ -91,6 +109,7 @@ struct DsvSlot
 {
     std::atomic<SIZE_T> handle { 0 };
     std::atomic<int> candidate { -1 };
+    std::atomic<bool> readOnly { false }; // a read-only depth view: bound, but nothing written through it
 };
 
 Entry g_entries[kMaxCandidates];
@@ -105,6 +124,29 @@ std::atomic<unsigned int> g_depthBindsMatched { 0 };
 
 // Adding is rare (a new depth buffer or view); serialising it keeps two threads from claiming one slot.
 std::mutex g_addMutex;
+
+// What each open command list did to the candidates, in order, applied when the list is submitted
+// (OnExecute) and dropped when it is reset without having been.
+struct ListEvent
+{
+    int candidate;
+    unsigned char kind; // 0 bound for writing, 1 cleared, 2 transitioned
+    unsigned int state;
+};
+std::mutex g_listMutex;
+std::unordered_map<const void*, std::vector<ListEvent>> g_pending;
+unsigned long long g_submitSeq = 0;
+
+void Note(const void* list, int candidate, unsigned char kind, unsigned int state)
+{
+    std::lock_guard<std::mutex> lock(g_listMutex);
+    g_pending[list].push_back(ListEvent { candidate, kind, state });
+}
+
+// Which rule picks among the candidates (DlssNr::DepthTracker::Policy). Written at Present only.
+constexpr int kPolicyCount = 3;
+std::atomic<int> g_policy { 0 };
+bool g_lastPickSubmitted = false; // the current pick came from submitted work (Present thread only)
 
 size_t DsvHash(SIZE_T handle)
 {
@@ -165,6 +207,47 @@ void MapHandle(SIZE_T handle, int candidate)
 
     g_dsvTable[home].handle.store(handle, std::memory_order_relaxed);
     g_dsvTable[home].candidate.store(candidate, std::memory_order_relaxed);
+}
+
+bool HandleReadOnly(SIZE_T handle)
+{
+    size_t i = DsvHash(handle);
+
+    for (size_t probe = 0; probe < kDsvMaxProbe; ++probe)
+    {
+        const SIZE_T key = g_dsvTable[i].handle.load(std::memory_order_relaxed);
+
+        if (key == handle)
+            return g_dsvTable[i].readOnly.load(std::memory_order_relaxed);
+
+        if (key == 0)
+            return false;
+
+        i = (i + 1) & (kDsvTableSize - 1);
+    }
+
+    return false;
+}
+
+void SetHandleReadOnly(SIZE_T handle, bool readOnly)
+{
+    size_t i = DsvHash(handle);
+
+    for (size_t probe = 0; probe < kDsvMaxProbe; ++probe)
+    {
+        const SIZE_T key = g_dsvTable[i].handle.load(std::memory_order_relaxed);
+
+        if (key == handle)
+        {
+            g_dsvTable[i].readOnly.store(readOnly, std::memory_order_relaxed);
+            return;
+        }
+
+        if (key == 0)
+            return;
+
+        i = (i + 1) & (kDsvTableSize - 1);
+    }
 }
 
 void UnmapCandidate(int candidate)
@@ -302,7 +385,10 @@ void STDMETHODCALLTYPE hkCreateDepthStencilView(ID3D12Device* device, ID3D12Reso
         std::lock_guard<std::mutex> lock(g_addMutex);
 
         if (candidate >= 0 || CandidateForHandle(handle.ptr) >= 0)
+        {
             MapHandle(handle.ptr, candidate);
+            SetHandleReadOnly(handle.ptr, desc != nullptr && (desc->Flags & D3D12_DSV_FLAG_READ_ONLY_DEPTH) != 0);
+        }
     }
 
     o_CreateDepthStencilView(device, resource, desc, handle);
@@ -324,7 +410,10 @@ void CopyDsvMappings(UINT count, D3D12_CPU_DESCRIPTOR_HANDLE dest, D3D12_CPU_DES
         const int candidate = CandidateForHandle(from);
 
         if (candidate >= 0 || CandidateForHandle(to) >= 0)
+        {
             MapHandle(to, candidate);
+            SetHandleReadOnly(to, HandleReadOnly(from));
+        }
     }
 }
 
@@ -396,6 +485,9 @@ void STDMETHODCALLTYPE hkOMSetRenderTargets(ID3D12GraphicsCommandList* list, UIN
         {
             g_entries[candidate].binds.fetch_add(1, std::memory_order_relaxed);
             g_depthBindsMatched.fetch_add(1, std::memory_order_relaxed);
+
+            if (!HandleReadOnly(depthStencil->ptr))
+                Note(list, candidate, 0, D3D12_RESOURCE_STATE_DEPTH_WRITE);
         }
     }
 
@@ -419,6 +511,8 @@ void STDMETHODCALLTYPE hkClearDepthStencilView(ID3D12GraphicsCommandList* list,
 
         if ((flags & D3D12_CLEAR_FLAG_DEPTH) != 0)
             entry.reversed.store(depth < 0.5f, std::memory_order_relaxed);
+
+        Note(list, candidate, 1, D3D12_RESOURCE_STATE_DEPTH_WRITE);
     }
 
     o_ClearDepthStencilView(list, depthStencil, flags, depth, stencil, rectCount, rects);
@@ -444,6 +538,7 @@ void STDMETHODCALLTYPE hkResourceBarrier(ID3D12GraphicsCommandList* list, UINT b
                 {
                     g_entries[c].state.store(barrier.Transition.StateAfter, std::memory_order_relaxed);
                     g_entries[c].stateKnown.store(true, std::memory_order_relaxed);
+                    Note(list, static_cast<int>(c), 2, barrier.Transition.StateAfter);
                     break;
                 }
             }
@@ -451,6 +546,18 @@ void STDMETHODCALLTYPE hkResourceBarrier(ID3D12GraphicsCommandList* list, UINT b
     }
 
     o_ResourceBarrier(list, barrierCount, barriers);
+}
+
+// A list reset without having been submitted: what it recorded never runs.
+HRESULT STDMETHODCALLTYPE hkResetList(ID3D12GraphicsCommandList* list, ID3D12CommandAllocator* allocator,
+                                      ID3D12PipelineState* state)
+{
+    {
+        std::lock_guard<std::mutex> lock(g_listMutex);
+        g_pending.erase(list);
+    }
+
+    return o_ResetList(list, allocator, state);
 }
 
 void** VtableOf(IUnknown* object) { return *static_cast<void***>(static_cast<void*>(object)); }
@@ -493,6 +600,7 @@ bool Install(ID3D12Device* device)
     o_ResourceBarrier = static_cast<ResourceBarrierFn>(VtableOf(list)[kSlotResourceBarrier]);
     o_OMSetRenderTargets = static_cast<OMSetRenderTargetsFn>(VtableOf(list)[kSlotOMSetRenderTargets]);
     o_ClearDepthStencilView = static_cast<ClearDepthStencilViewFn>(VtableOf(list)[kSlotClearDepthStencilView]);
+    o_ResetList = static_cast<ResetListFn>(VtableOf(list)[kSlotResetList]);
 
     list->Release();
     allocator->Release();
@@ -505,6 +613,7 @@ bool Install(ID3D12Device* device)
     DetourAttach(&(PVOID&) o_ResourceBarrier, hkResourceBarrier);
     DetourAttach(&(PVOID&) o_OMSetRenderTargets, hkOMSetRenderTargets);
     DetourAttach(&(PVOID&) o_ClearDepthStencilView, hkClearDepthStencilView);
+    DetourAttach(&(PVOID&) o_ResetList, hkResetList);
     const LONG committed = DetourTransactionCommit();
 
     if (committed != NO_ERROR)
@@ -520,12 +629,89 @@ bool Install(ID3D12Device* device)
 
 bool Installed() { return g_installed.load(std::memory_order_acquire); }
 
+void OnExecute(unsigned int count, ID3D12CommandList* const* lists)
+{
+    if (!Installed() || lists == nullptr)
+        return;
+
+    std::lock_guard<std::mutex> lock(g_listMutex);
+
+    if (g_pending.empty())
+        return;
+
+    for (unsigned int l = 0; l < count; ++l)
+    {
+        const auto found = g_pending.find(lists[l]);
+        if (found == g_pending.end())
+            continue;
+
+        for (const ListEvent& event : found->second)
+        {
+            if (event.candidate < 0 || event.candidate >= static_cast<int>(kMaxCandidates))
+                continue;
+
+            Entry& entry = g_entries[event.candidate];
+            ++g_submitSeq;
+
+            if (event.kind != 2)
+            {
+                ++entry.writesSubmitted;
+                entry.lastWriteSeq = g_submitSeq;
+            }
+
+            if (event.kind != 0)
+            {
+                entry.submittedState = event.state;
+                entry.submittedStateKnown = true;
+            }
+        }
+
+        g_pending.erase(found);
+    }
+}
+
+int Policy() { return g_policy.load(std::memory_order_relaxed); }
+
+const char* PolicyName(int policy)
+{
+    switch (policy)
+    {
+    case 0:
+        return "most written in the submitted frame";
+    case 1:
+        return "last written in the submitted frame";
+    default:
+        return "most bound while recording (the old rule)";
+    }
+}
+
+int NextPolicy()
+{
+    const int next = (g_policy.load(std::memory_order_relaxed) + 1) % kPolicyCount;
+    g_policy.store(next, std::memory_order_relaxed);
+    return next;
+}
+
 void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
 {
     if (!Installed())
         return;
 
     const unsigned int count = g_count.load(std::memory_order_acquire);
+
+    {
+        std::lock_guard<std::mutex> lock(g_listMutex);
+
+        for (unsigned int i = 0; i < count; ++i)
+        {
+            g_entries[i].writesLastFrame = g_entries[i].writesSubmitted;
+            g_entries[i].writesSubmitted = 0;
+        }
+
+        // A list left open across many frames (never submitted, never reset) is dropped rather than kept.
+        if (g_pending.size() > 4096)
+            g_pending.clear();
+    }
 
     for (unsigned int i = 0; i < count; ++i)
     {
@@ -550,8 +736,38 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
     // Score, highest wins: the render size exactly, then bound this frame, then how often. Square powers of
     // two are shadow maps. A candidate whose width is not the render width is never taken: a wrong-sized
     // depth handed to the model is worse than none.
+    //
+    // The size given is the swapchain's, which a letterboxed game draws only part of: Resident Evil 2 draws
+    // 1920x1080 inside a 1920x1200 swapchain, so no candidate was ever "the render size exactly" and the
+    // choice fell to bind counts alone. A candidate of the full width and a shorter height -- the picture
+    // between the bars -- now scores as the render size, the tallest such first.
+    //
+    // Then, unless the old rule is asked for (Policy 2), only candidates the SUBMITTED work wrote this frame
+    // are in the running, ordered by how many writes (Policy 0) or by which was written last (Policy 1), the
+    // other breaking ties. The copy at Present then takes the buffer the GPU has just finished writing for
+    // this very frame. Record-time counts, with the previous choice winning a tie, could take the buffer of
+    // the frame before -- the depth guide sitting 5-11 px off the picture on Resident Evil 2's captures
+    // (2026-09-26) whenever anything moved. When nothing was submitted with a candidate in it (a game that
+    // submits through a path these hooks do not see), the old rule stands in.
+    const int policy = g_policy.load(std::memory_order_relaxed);
+    bool anySubmitted = false;
+
+    if (policy != 2)
+    {
+        for (unsigned int i = 0; i < count; ++i)
+        {
+            const Entry& entry = g_entries[i];
+            if (entry.resource.load(std::memory_order_relaxed) != nullptr && entry.writesLastFrame != 0 &&
+                (renderWidth == 0 || entry.width == renderWidth))
+                anySubmitted = true;
+        }
+    }
+
+    g_lastPickSubmitted = anySubmitted;
+
     int best = -1;
     long long bestScore = -1;
+    unsigned long long bestSeq = 0;
 
     for (unsigned int i = 0; i < count; ++i)
     {
@@ -560,7 +776,7 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
         if (entry.resource.load(std::memory_order_relaxed) == nullptr)
             continue;
 
-        if (entry.bindsLastFrame == 0 && entry.clearsLastFrame == 0)
+        if (anySubmitted ? entry.writesLastFrame == 0 : (entry.bindsLastFrame == 0 && entry.clearsLastFrame == 0))
             continue;
 
         if (renderWidth != 0 && entry.width != renderWidth)
@@ -570,6 +786,8 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
 
         if (renderWidth != 0 && renderHeight != 0 && entry.height == renderHeight)
             score += 1000000;
+        else if (renderHeight != 0 && entry.height < renderHeight && entry.height * 2 > renderHeight)
+            score += 1000000 - static_cast<long long>(renderHeight - entry.height);
         else
             score += 200000;
 
@@ -578,6 +796,21 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
 
         if (squarePowerOfTwo)
             score -= 500000;
+
+        if (anySubmitted)
+        {
+            // Writes decide (Policy 0), or only break ties (Policy 1, where the last written wins).
+            if (policy == 0)
+                score += static_cast<long long>(std::min(entry.writesLastFrame, 5000u)) * 10;
+
+            if (score > bestScore || (score == bestScore && entry.lastWriteSeq > bestSeq))
+            {
+                bestScore = score;
+                bestSeq = entry.lastWriteSeq;
+                best = static_cast<int>(i);
+            }
+            continue;
+        }
 
         score += static_cast<long long>(entry.bindsLastFrame) * 10;
         score += entry.clearsLastFrame;
@@ -630,13 +863,19 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
 
     const Entry& chosen = g_entries[best];
 
-    // Logged on a change of size or format only: the index moves every frame on RE Engine.
-    if (chosen.width != g_selectedWidth || chosen.height != g_selectedHeight || chosen.format != g_selectedFormat)
+    // Logged on a change of size, format or rule only: the index moves every frame on RE Engine.
+    static int saidPolicy = -1;
+    static int saidSubmitted = -1;
+    if (chosen.width != g_selectedWidth || chosen.height != g_selectedHeight || chosen.format != g_selectedFormat ||
+        saidPolicy != policy || saidSubmitted != (anySubmitted ? 1 : 0))
     {
+        saidPolicy = policy;
+        saidSubmitted = anySubmitted ? 1 : 0;
         LOG_INFO("DLSS-NR depth tracker: scene depth is {}x{} format {} ({} binds, {} clears last frame, {} "
-                 "candidates)",
+                 "writes submitted, {} candidates; picked by {}{})",
                  chosen.width, chosen.height, (int) chosen.format, chosen.bindsLastFrame, chosen.clearsLastFrame,
-                 count);
+                 chosen.writesLastFrame, count, anySubmitted ? PolicyName(policy) : PolicyName(2),
+                 anySubmitted || policy == 2 ? "" : " -- nothing submitted with a candidate in it");
     }
 
     g_selectedIndex = best;
@@ -660,7 +899,14 @@ bool Selected(Selection& out)
     out.width = entry.width;
     out.height = entry.height;
     out.format = entry.format;
-    out.state = static_cast<D3D12_RESOURCE_STATES>(entry.state.load(std::memory_order_relaxed));
+    // The state the submitted work left it in, when the pick came from submitted work: the record-time
+    // state may already be the next frame's.
+    {
+        std::lock_guard<std::mutex> lock(g_listMutex);
+        out.state = g_lastPickSubmitted && entry.submittedStateKnown
+                        ? static_cast<D3D12_RESOURCE_STATES>(entry.submittedState)
+                        : static_cast<D3D12_RESOURCE_STATES>(entry.state.load(std::memory_order_relaxed));
+    }
     out.reversed = entry.reversed.load(std::memory_order_relaxed);
     return true;
 }
@@ -677,6 +923,17 @@ void Invalidate()
         g_entries[i].bindsLastFrame = 0;
         g_entries[i].clearsLastFrame = 0;
         g_entries[i].staleFrames = 0;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(g_listMutex);
+        g_pending.clear();
+        for (unsigned int i = 0; i < count; ++i)
+        {
+            g_entries[i].writesSubmitted = 0;
+            g_entries[i].writesLastFrame = 0;
+            g_entries[i].submittedStateKnown = false;
+        }
     }
 
     for (size_t i = 0; i < kDsvTableSize; ++i)

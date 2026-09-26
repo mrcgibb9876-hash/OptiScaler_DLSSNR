@@ -31,8 +31,21 @@ bool Install(ID3D12Device* device);
 
 bool Installed();
 
-// Once per Present: closes the frame's counts and chooses the scene depth for a frame of this size.
+// Once per Present: closes the frame's counts and chooses the scene depth for a frame of this size (the
+// swapchain's; a letterboxed picture of the same width and a shorter height counts as that size).
 void EndFrame(unsigned int renderWidth, unsigned int renderHeight);
+
+// From the queues' ExecuteCommandLists, before the lists go to the driver: what those lists did to the
+// candidates now counts, in submission order.
+void OnExecute(unsigned int count, ID3D12CommandList* const* lists);
+
+// The rule that picks among the candidates: 0 the most writes (DSV bound for writing, clears) in the work
+// submitted since the last Present, the last written breaking ties; 1 the last written; 2 the old rule, most
+// bound while recording with the previous pick winning ties. The Present route's depth/colour alignment check
+// moves to the next one when the depth keeps sitting off the picture.
+int Policy();
+int NextPolicy();
+const char* PolicyName(int policy);
 
 struct Selection
 {
