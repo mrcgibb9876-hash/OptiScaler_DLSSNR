@@ -132,8 +132,8 @@ std::string BuildJson()
     }
 
     // cleanup -- Image Clean Up: the mode ([DlssNr] CleanUpMode, 0 off, 1 auto, 2 manual), the strength
-    // the composition ran with last (Auto's own choice in Auto), the halo meter's two readings in stops
-    // (the model's glow, and what is left of it after the clean up) and the composition pass's GPU time,
+    // the composition ran with last (Auto's own choice in Auto), the halo meter's readings in stops (the
+    // composed picture before the clean up, after it, and the model's own change) and the composition's GPU time,
     // which the clean up runs inside. null where there is no reading.
     {
         const DlssNr::CleanUpReading clean = DlssNr::CleanUpState();
@@ -145,6 +145,8 @@ std::string BuildJson()
         AppendOptNum(s, "haloBefore", clean.measuring && clean.haloBefore >= 0.0f, clean.haloBefore, 3);
         s += ',';
         AppendOptNum(s, "haloAfter", clean.measuring && clean.haloAfter >= 0.0f, clean.haloAfter, 3);
+        s += ',';
+        AppendOptNum(s, "haloModel", clean.measuring && clean.haloModel >= 0.0f, clean.haloModel, 3);
         s += ',';
         AppendOptNum(s, "composeMs", clean.composeMs.has_value(), clean.composeMs.value_or(0.0), 3);
         s += "},";

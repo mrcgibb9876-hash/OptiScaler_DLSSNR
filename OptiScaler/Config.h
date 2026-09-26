@@ -432,14 +432,15 @@ class Config
     // 1 Auto -- the halo is measured every frame and the strength follows it, up to MaxStrength, with the
     // edge, balance and motion settings at their defaults -- 2 Manual, the four values below as set.
     // Strength 0..1; Edge is the local contrast, in stops, where an edge starts to count (fully at twice
-    // it); Balance 0 looks only at the 3x3 around a pixel, 1 only four pixels out, 0.5 both; Motion is how
+    // it); Balance is the reach -- 0 the 3x3 around a pixel, 0.5 out to about 5 pixels, 1 out to about 12;
+    // Motion is how
     // far fast motion and motion-vector breaks hold it back (D3D12, where the resolve has the game's
     // vectors). Auto measures on D3D12; on Vulkan, Auto uses the manual Strength capped by MaxStrength.
     CustomOptional<uint32_t> DlssNrCleanUpMode { 0 };
-    CustomOptional<float> DlssNrCleanUpMaxStrength { 0.8f };
+    CustomOptional<float> DlssNrCleanUpMaxStrength { 1.0f };
     CustomOptional<float> DlssNrCleanUpStrength { 0.6f };
     CustomOptional<float> DlssNrCleanUpEdge { 1.5f };
-    CustomOptional<float> DlssNrCleanUpBalance { 0.5f };
+    CustomOptional<float> DlssNrCleanUpBalance { 0.75f };
     CustomOptional<float> DlssNrCleanUpMotion { 0.5f };
 
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched

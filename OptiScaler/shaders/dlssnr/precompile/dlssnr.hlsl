@@ -42,10 +42,10 @@ cbuffer Params : register(b0)
     float gCleanupEdge;     // local contrast, in stops, where an edge starts to count
     float gCleanupBalance;  // 0 fine (3x3) .. 1 wide (radius 4)
     float gCleanupMotion;   // how far fast motion and motion-vector breaks hold it back, 0..1
-    uint  gCleanupHaveMotion; // the motion slot holds real vectors, scaled by gMvScale to pixels
+    uint  gCleanupHaveMotion; // 1 the game's vectors, 2 optical flow (Present route), scaled by gMvScale to pixels
     uint  gCleanupHaveDepth;  // t5 holds the depth guide (D3D12)
     uint  gCleanupDepthInverted;
-    uint  gCleanupHistory;    // 0 no mask history, 1 write only (first frame), 2 read t6 and write u1
+    uint  gCleanupHistory;    // 0 none, 1 write u1/u2 only (first frame), 2 also read t6
 };
 
 // The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
@@ -555,7 +555,11 @@ float3 CubeScaleResidual(float3 P, float3 T)
 //   Tuned on a synthetic frame (a disc against a background, the model adding +-0.12 stops of detail, a
 //   0.1-stop brightening and a 0.6-stop glow decaying over 3 pixels on the background side): the glow
 //   left within 6 pixels of the silhouette falls from 0.26 stops to 0.20 / 0.12 / 0.08 at strength
-//   0.3 / 0.6 / 1, and every pixel off the mask is bit-identical.
+//   0.3 / 0.6 / 1, and every pixel off the mask is bit-identical. Resident Evil 2 (2026-09-26) asked for
+//   more reach than that frame had: the rings now go out to about 12 pixels, from a groupshared tile.
+//
+//   On a frame the game has already tone mapped (passthrough) the values are display-encoded, so the log
+//   is scaled by 2.2 there: a stop is a stop of light either way, and the thresholds mean the same.
 //
 //   Worked in log2 luminance, so a threshold means the same at every brightness and HDR highlights are
 //   not favoured over shadows. One scalar on the whole triple, like the guard: a halo is a luminance
@@ -566,147 +570,74 @@ float3 CubeScaleResidual(float3 P, float3 T)
 //   those vectors are here to read.
 // ---------------------------------------------------------------------------------------------
 
-// The depth guide and the clean up's own mask history, D3D12 only: the Vulkan pass has no descriptors
-// for them, so everything that reads them is compiled out there and its flags are never set.
+// The depth guide, the clean up's mask history and its model reading, D3D12 only: the Vulkan pass has
+// no descriptors for them, so everything that reads them is compiled out there and its flags are never
+// set. u2 is the model reading in the resolve and the third halo grid in the meter.
 #ifndef VK_MODE
 Texture2D<float4>   gDepth        : register(t5);
 Texture2D<float4>   gCleanHistory : register(t6);
+Texture2D<float4>   gCleanModel   : register(t7);
+RWTexture2D<float4> gAux          : register(u2);
 #endif
 
-static const float kCleanupFloor = 1.0 / 512.0; // the ratio's own floor: nothing below it is light
-static const float kCleanupTolerance = 0.15;    // stops a pixel may always move at strength 0
+// Linear light: nothing below this, relative to paper white, is light. A frame that is already tone mapped
+// (passthrough) holds display-encoded values instead, so there the log is scaled by 2.2 -- a stop means a
+// stop of light either way, and the thresholds and tolerances below mean the same thing on an SDR frame
+// as on an HDR one -- and the floor is the same light level, encoded.
+static const float kCleanupFloor = 1.0 / 512.0;
+static const float kCleanupFloorEncoded = 0.0587; // (1/512)^(1/2.2)
+static const float kCleanupTolerance = 0.15;      // stops a pixel may always move at strength 0
 static const float kCleanupToleranceTight = 0.06; // ... and at strength 1
 
-static const float2 kCleanupRing[8] = { float2(4.5, 0.0),  float2(-4.5, 0.0), float2(0.0, 4.5),
-                                        float2(0.0, -4.5), float2(3.5, 3.5),  float2(-3.5, 3.5),
-                                        float2(3.5, -3.5), float2(-3.5, -3.5) };
+// The neighbourhood lives in groupshared memory: each 8x8 group loads its tile plus twelve pixels all
+// round once -- the frame's log luminance and the depth under each pixel -- and every pixel then reads
+// its rings from there instead of from the textures. 32x32 values of each, two loads per thread of 16.
+#define CLEAN_APRON 12
+#define CLEAN_TILE 32
+groupshared float gsCleanLuma[CLEAN_TILE * CLEAN_TILE];
+groupshared float gsCleanDepth[CLEAN_TILE * CLEAN_TILE];
+groupshared float gsCleanShift[4];
+
+static const int2 kCleanupMeso[8] = { int2(4, 0), int2(-5, 0), int2(0, 4), int2(0, -5),
+                                      int2(3, 3), int2(-4, 3), int2(3, -4), int2(-4, -4) };
+static const int2 kCleanupWide[8] = { int2(9, 0), int2(-10, 0), int2(0, 9), int2(0, -10),
+                                      int2(6, 6), int2(-7, 6), int2(6, -7), int2(-7, -7) };
+static const int2 kCleanupDepthNear[8] = { int2(3, 0), int2(-3, 0), int2(0, 3), int2(0, -3),
+                                           int2(6, 0), int2(-6, 0), int2(0, 6), int2(0, -6) };
+static const int2 kCleanupDepthDiag[4] = { int2(4, 4), int2(-4, 4), int2(4, -4), int2(-4, -4) };
+static const int2 kCleanupDepthFar[8] = { int2(9, 0),  int2(-9, 0), int2(0, 9),  int2(0, -9),
+                                          int2(12, 0), int2(-12, 0), int2(0, 12), int2(0, -12) };
+static const int2 kCleanupDepthFarDiag[4] = { int2(8, 8), int2(-8, 8), int2(8, -8), int2(-8, -8) };
 static const float2 kCleanupFar[4] = { float2(24.0, 0.0), float2(-24.0, 0.0), float2(0.0, 24.0),
                                        float2(0.0, -24.0) };
-static const int2 kCleanupReach[8] = { int2(6, 0),  int2(-6, 0), int2(0, 6),  int2(0, -6),
-                                       int2(4, 4),  int2(-4, 4), int2(4, -4), int2(-4, -4) };
 static const int2 kCleanupCross[4] = { int2(2, 0), int2(-2, 0), int2(0, 2), int2(0, -2) };
 
-float CleanupLog(float y) { return log2(max(y, 0.0) + kCleanupFloor); }
+float CleanupLog(float y)
+{
+    if (gPassthrough != 0)
+        return 2.2 * log2(max(y, 0.0) + kCleanupFloorEncoded);
+    return log2(max(y, 0.0) + kCleanupFloor);
+}
+
+float CleanupUnlog(float l)
+{
+    if (gPassthrough != 0)
+        return max(exp2(l / 2.2) - kCleanupFloorEncoded, 0.0);
+    return max(exp2(l) - kCleanupFloor, 0.0);
+}
 
 float CleanupDisplayLuma(float3 c)
 {
     return dot(max(gPassthrough != 0 ? c : SrgbToLinear(c), 0.0), kLuma);
 }
 
-// The frame's log luminance at a texel: the untouched frame (resolve), or the proxy the model was shown
-// (the halo meter, which has no untouched frame bound). Both land in the same normalised scale.
-float CleanupLogAt(bool fromProxy, int2 p, int2 size, float normScale)
+// Whether this dispatch runs the clean up through the groupshared tile. Uniform across the dispatch, so
+// every thread of a group takes the same branch and reaches the barrier. Side by side comparison maps
+// each half onto the whole frame, which a tile around the pixel cannot follow, so the clean up is not
+// drawn there (the wipe shows it).
+bool CleanupWanted()
 {
-    p = clamp(p, int2(0, 0), size - 1);
-    if (fromProxy)
-        return CleanupLog(CleanupDisplayLuma(gSource.Load(int3(p, 0)).rgb));
-    return CleanupLog(dot(max(gOriginal.Load(int3(p, 0)).rgb, 0.0), kLuma) / normScale);
-}
-
-// Bilinear on purpose: each tap sits between texels and averages two or four of them.
-float CleanupLogSampled(bool fromProxy, float2 uvq, float normScale)
-{
-    if (fromProxy)
-        return CleanupLog(CleanupDisplayLuma(gSource.SampleLevel(gLinear, uvq, 0).rgb));
-    return CleanupLog(dot(max(gOriginal.SampleLevel(gLinear, uvq, 0).rgb, 0.0), kLuma) / normScale);
-}
-
-struct CleanupStats
-{
-    float x;        // the pixel itself
-    float lo;       // the neighbourhood's range, fine or wide by the balance
-    float hi;
-    float mean;     // and its moments, over all seventeen taps
-    float sigma;
-    float lumaEdge; // 0..1, how much of an edge luminance alone says this is
-};
-
-CleanupStats CleanupStatsAt(bool fromProxy, int2 c, int2 size, float normScale)
-{
-    CleanupStats s;
-    const float2 texel = 1.0 / float2(size);
-    const float2 uvc = (float2(c) + 0.5) * texel;
-
-    s.x = CleanupLogAt(fromProxy, c, size, normScale);
-
-    float fineMin = s.x;
-    float fineMax = s.x;
-    float sum = s.x;
-    float sumSq = s.x * s.x;
-
-    [unroll] for (int j = -1; j <= 1; ++j)
-    {
-        [unroll] for (int i = -1; i <= 1; ++i)
-        {
-            if (i == 0 && j == 0)
-                continue;
-
-            const float v = CleanupLogAt(fromProxy, c + int2(i, j), size, normScale);
-            fineMin = min(fineMin, v);
-            fineMax = max(fineMax, v);
-            sum += v;
-            sumSq += v * v;
-        }
-    }
-
-    float wideMin = fineMin;
-    float wideMax = fineMax;
-
-    [unroll] for (int k = 0; k < 8; ++k)
-    {
-        const float v = CleanupLogSampled(fromProxy, uvc + kCleanupRing[k] * texel, normScale);
-        wideMin = min(wideMin, v);
-        wideMax = max(wideMax, v);
-        sum += v;
-        sumSq += v * v;
-    }
-
-    s.mean = sum / 17.0;
-    s.sigma = sqrt(max(sumSq / 17.0 - s.mean * s.mean, 0.0));
-
-    const float threshold = max(gCleanupEdge, 0.05);
-    const float balance = saturate(gCleanupBalance);
-    const float weightFine = saturate(2.0 - 2.0 * balance);
-    const float weightWide = saturate(2.0 * balance);
-    s.lumaEdge = max(weightFine * smoothstep(threshold, threshold * 2.0, fineMax - fineMin),
-                     weightWide * smoothstep(threshold, threshold * 2.0, wideMax - wideMin));
-    s.lo = lerp(fineMin, wideMin, weightWide);
-    s.hi = lerp(fineMax, wideMax, weightWide);
-    return s;
-}
-
-// Where the pixel's luminance may go, before the model's local tone shift. See the block comment.
-float2 CleanupBand(CleanupStats s, float strength)
-{
-    const float gamma = lerp(2.5, 1.0, saturate(strength));
-    const float tolerance = lerp(kCleanupTolerance, kCleanupToleranceTight, saturate(strength));
-    const float t = saturate((s.x - s.lo) / max(s.hi - s.lo, 1e-4));
-    const float room = tolerance + smoothstep(0.15, 0.5, min(t, 1.0 - t)) * 0.5 * (s.hi - s.lo);
-    const float boxLo = max(s.lo, s.mean - gamma * s.sigma);
-    const float boxHi = min(s.hi, s.mean + gamma * s.sigma);
-    return float2(max(s.x - room, min(boxLo, s.x) - tolerance), min(s.x + room, max(boxHi, s.x) + tolerance));
-}
-
-// The model's local tone change around uvc: log of what it returned over log of what it was shown, 24
-// pixels out each way, the median of the four. after: the finished frame (t1) against the untouched one
-// (t0), both linear and divided by scale, for the meter's second reading.
-float CleanupShift(float2 uvc, float2 texel, bool after, float scale)
-{
-    float r[4];
-
-    [unroll] for (int f = 0; f < 4; ++f)
-    {
-        const float2 at = uvc + kCleanupFar[f] * texel;
-        const float3 answer = gModel.SampleLevel(gLinear, at, 0).rgb;
-        const float3 shown = gSource.SampleLevel(gLinear, at, 0).rgb;
-        const float a = after ? dot(max(answer, 0.0), kLuma) / scale : CleanupDisplayLuma(answer);
-        const float b = after ? dot(max(shown, 0.0), kLuma) / scale : CleanupDisplayLuma(shown);
-        r[f] = CleanupLog(a) - CleanupLog(b);
-    }
-
-    const float lo = max(min(r[0], r[1]), min(r[2], r[3]));
-    const float hi = min(max(r[0], r[1]), max(r[2], r[3]));
-    return SanitizeFinite(0.5 * (lo + hi), 0.0);
+    return gMode == 1 && (gCleanupStrength > 0.0 || gDebugView == 4) && gCompareMode != 1 && gApplyModel != 0;
 }
 
 // The guide's texel under a normalised position, inside the part of the guide the game rendered.
@@ -716,63 +647,213 @@ int2 CleanupGuideTexel(float2 uvq)
     return clamp(int2(uvq * float2(guide)), int2(0, 0), guide - 1);
 }
 
-// x: how much of a depth edge this is, 0..1. y: how far toward the far side of it the pixel sits, 0..1.
-// z: the pixel's own log2 reciprocal depth, which the mask history keeps to spot a disocclusion.
-float3 CleanupDepthMask(float2 uvq)
+// The log of the reciprocal depth under a normalised position, whichever way the game stores it: a
+// perspective depth buffer is close to 1/z reversed and to 1 - 1/z otherwise, so differences of this are
+// depth ratios in stops without knowing the projection. The sky (0 or 1) sits at the floor and makes
+// every silhouette against it an edge, which is what it is. 0 without depth.
+float CleanupDepthLog(float2 uvq)
 {
 #ifndef VK_MODE
-    if (gCleanupHaveDepth == 0)
-        return float3(0.0, 0.0, 0.0);
+    if (gCleanupHaveDepth != 0)
+    {
+        const float d = gDepth.Load(int3(CleanupGuideTexel(uvq), 0)).r;
+        return SanitizeFinite(log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7)), 0.0);
+    }
+#endif
+    return 0.0;
+}
 
-    const int2 guide = int2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
-    const int2 g = CleanupGuideTexel(uvq);
+// The model's local tone change at a position: log of what it returned over log of what it was shown.
+float CleanupShiftTap(float2 at)
+{
+    return SanitizeFinite(CleanupLog(CleanupDisplayLuma(gModel.SampleLevel(gLinear, at, 0).rgb)) -
+                              CleanupLog(CleanupDisplayLuma(gSource.SampleLevel(gLinear, at, 0).rgb)),
+                          0.0);
+}
 
-    // Reciprocal depth, whichever way the game stores it: a perspective depth buffer is close to 1/z
-    // reversed and to 1 - 1/z otherwise, so the log of this ratio is the depth ratio in stops without
-    // knowing the projection. The sky (0 or 1) sits at the floor and makes every silhouette against it
-    // an edge, which is what it is.
-    float centre = 0.0;
-    float lo = 1e30;
-    float hi = -1e30;
+void CleanupFill(uint2 group, uint index)
+{
+    uint ow, oh;
+    gOriginal.GetDimensions(ow, oh);
+    const int2 size = int2(max(ow, 1u), max(oh, 1u));
+    const float normScale = gPassthrough != 0 ? 1.0 : WhitePoint();
+    const int2 origin = int2(group) * 8 - CLEAN_APRON;
+
+    for (uint k = index; k < CLEAN_TILE * CLEAN_TILE; k += 64u)
+    {
+        const int2 p = clamp(origin + int2(k % CLEAN_TILE, k / CLEAN_TILE), int2(0, 0), size - 1);
+        gsCleanLuma[k] = CleanupLog(dot(max(gOriginal.Load(int3(p, 0)).rgb, 0.0), kLuma) / normScale);
+        gsCleanDepth[k] = CleanupDepthLog((float2(p) + 0.5) / float2(size));
+    }
+
+    // The model's regional tone change, 24 pixels out from the group's middle each way -- well outside
+    // any halo -- one tap per thread; the median of the four is taken per pixel below.
+    if (index < 4u)
+    {
+        const float2 texel = 1.0 / float2(size);
+        const float2 middle = (float2(group * 8u) + 4.0) * texel;
+        gsCleanShift[index] = CleanupShiftTap(middle + kCleanupFar[index] * texel);
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+}
+
+float CleanupL(int2 local, int2 d)
+{
+    const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
+    return gsCleanLuma[at.y * CLEAN_TILE + at.x];
+}
+
+// A 2x2 average from d: a half-resolution sample, so a ring of eight covers the ring rather than eight
+// single pixels of it.
+float CleanupL2(int2 local, int2 d)
+{
+    return 0.25 * (CleanupL(local, d) + CleanupL(local, d + int2(1, 0)) + CleanupL(local, d + int2(0, 1)) +
+                   CleanupL(local, d + int2(1, 1)));
+}
+
+float CleanupD(int2 local, int2 d)
+{
+    const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
+    return gsCleanDepth[at.y * CLEAN_TILE + at.x];
+}
+
+struct CleanupStats
+{
+    float x;        // the pixel itself
+    float lo;       // the neighbourhood's range, as far out as the reach says
+    float hi;
+    float mean;     // and its moments, over all twenty-five taps
+    float sigma;
+    float lumaEdge; // 0..1, how much of an edge luminance alone says this is
+};
+
+// Reach (CleanUpBalance): 0 the 3x3 only; 0.5 adds a half-resolution ring four pixels out; 1 adds a
+// second one nine pixels out, for a glow that sits well off the edge.
+CleanupStats CleanupStatsLocal(int2 local)
+{
+    CleanupStats s;
+    s.x = CleanupL(local, int2(0, 0));
+
+    float fineMin = s.x;
+    float fineMax = s.x;
+    float sum = 0.0;
+    float sumSq = 0.0;
 
     [unroll] for (int j = -1; j <= 1; ++j)
     {
         [unroll] for (int i = -1; i <= 1; ++i)
         {
-            const float d = gDepth.Load(int3(clamp(g + int2(i, j), int2(0, 0), guide - 1), 0)).r;
-            const float v = log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7));
-            if (i == 0 && j == 0)
-                centre = v;
+            const float v = CleanupL(local, int2(i, j));
+            fineMin = min(fineMin, v);
+            fineMax = max(fineMax, v);
+            sum += v;
+            sumSq += v * v;
+        }
+    }
+
+    float mesoMin = fineMin;
+    float mesoMax = fineMax;
+    float wideMin = fineMin;
+    float wideMax = fineMax;
+
+    [unroll] for (int k = 0; k < 8; ++k)
+    {
+        const float m = CleanupL2(local, kCleanupMeso[k]);
+        mesoMin = min(mesoMin, m);
+        mesoMax = max(mesoMax, m);
+        const float w = CleanupL2(local, kCleanupWide[k]);
+        wideMin = min(wideMin, w);
+        wideMax = max(wideMax, w);
+        sum += m + w;
+        sumSq += m * m + w * w;
+    }
+
+    s.mean = sum / 25.0;
+    s.sigma = sqrt(max(sumSq / 25.0 - s.mean * s.mean, 0.0));
+
+    const float threshold = max(gCleanupEdge, 0.05);
+    const float reach = saturate(gCleanupBalance);
+    const float weightMeso = saturate(2.0 * reach);
+    const float weightWide = saturate(2.0 * reach - 1.0);
+    s.lumaEdge = max(smoothstep(threshold, threshold * 2.0, fineMax - fineMin),
+                     max(weightMeso * smoothstep(threshold, threshold * 2.0, mesoMax - mesoMin),
+                         weightWide * smoothstep(threshold, threshold * 2.0, wideMax - wideMin)));
+    s.lo = lerp(lerp(fineMin, mesoMin, weightMeso), min(mesoMin, wideMin), weightWide);
+    s.hi = lerp(lerp(fineMax, mesoMax, weightMeso), max(mesoMax, wideMax), weightWide);
+    return s;
+}
+
+// x: how much of a depth edge this is, 0..1. y: how far toward the far side of it the pixel sits, 0..1.
+// z: the pixel's own log reciprocal depth, which the mask history keeps to spot a disocclusion.
+float3 CleanupDepthMaskLocal(int2 local)
+{
+#ifndef VK_MODE
+    if (gCleanupHaveDepth == 0)
+        return float3(0.0, 0.0, 0.0);
+
+    const float centre = CleanupD(local, int2(0, 0));
+    float lo = centre;
+    float hi = centre;
+
+    [unroll] for (int j = -1; j <= 1; ++j)
+    {
+        [unroll] for (int i = -1; i <= 1; ++i)
+        {
+            const float v = CleanupD(local, int2(i, j));
             lo = min(lo, v);
             hi = max(hi, v);
         }
     }
 
-    // Three texels out as well, and then six (four on the diagonals), so the mask reaches the glow a
-    // few pixels off the silhouette, not only the pixels touching it.
-    [unroll] for (int k = 0; k < 4; ++k)
+    // Three and six pixels out always; nine and twelve with the full reach, so the mask covers a glow
+    // that spreads well off the silhouette.
+    [unroll] for (int k = 0; k < 8; ++k)
     {
-        const int2 at = clamp(g + kCleanupCross[k] + kCleanupCross[k] / 2, int2(0, 0), guide - 1);
-        const float d = gDepth.Load(int3(at, 0)).r;
-        const float v = log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7));
+        const float v = CleanupD(local, kCleanupDepthNear[k]);
         lo = min(lo, v);
         hi = max(hi, v);
     }
 
-    [unroll] for (int r = 0; r < 8; ++r)
+    [unroll] for (int d = 0; d < 4; ++d)
     {
-        const int2 at = clamp(g + kCleanupReach[r], int2(0, 0), guide - 1);
-        const float d = gDepth.Load(int3(at, 0)).r;
-        const float v = log2(max(gCleanupDepthInverted != 0 ? d : 1.0 - d, 1e-7));
+        const float v = CleanupD(local, kCleanupDepthDiag[d]);
         lo = min(lo, v);
         hi = max(hi, v);
     }
 
-    const float range = hi - lo;
-    const float nearness = saturate((centre - lo) / max(range, 1e-4));
+    const float nearRange = hi - lo;
+    const float weightWide = saturate(2.0 * saturate(gCleanupBalance) - 1.0);
+
+    if (weightWide > 0.0)
+    {
+        float farLo = lo;
+        float farHi = hi;
+
+        [unroll] for (int f = 0; f < 8; ++f)
+        {
+            const float v = CleanupD(local, kCleanupDepthFar[f]);
+            farLo = min(farLo, v);
+            farHi = max(farHi, v);
+        }
+
+        [unroll] for (int g = 0; g < 4; ++g)
+        {
+            const float v = CleanupD(local, kCleanupDepthFarDiag[g]);
+            farLo = min(farLo, v);
+            farHi = max(farHi, v);
+        }
+
+        lo = lerp(lo, farLo, weightWide);
+        hi = lerp(hi, farHi, weightWide);
+    }
+
     // 0.35 to 1 stop: a floor running away toward the horizon changes depth steadily from pixel to pixel
     // and stays under it; a character against anything behind it is well over.
-    return SanitizeFinite3(float3(smoothstep(0.35, 1.0, range), 1.0 - nearness, centre), float3(0.0, 0.0, 0.0));
+    const float range = hi - lo;
+    const float edge = max(smoothstep(0.35, 1.0, nearRange), smoothstep(0.35, 1.0, range) * lerp(1.0, 0.8, weightWide));
+    const float nearness = saturate((centre - lo) / max(range, 1e-4));
+    return SanitizeFinite3(float3(edge, 1.0 - nearness, centre), float3(0.0, 0.0, 0.0));
 #else
     return float3(0.0, 0.0, 0.0);
 #endif
@@ -795,6 +876,26 @@ float CleanupEdgeMask(float lumaEdge, float2 depthMask)
     return lumaEdge;
 }
 
+// Where the pixel's luminance may go, before the model's local tone shift. See the block comment.
+float2 CleanupBand(CleanupStats s, float strength)
+{
+    const float gamma = lerp(2.5, 1.0, saturate(strength));
+    const float tolerance = lerp(kCleanupTolerance, kCleanupToleranceTight, saturate(strength));
+    const float t = saturate((s.x - s.lo) / max(s.hi - s.lo, 1e-4));
+    const float room = tolerance + smoothstep(0.15, 0.5, min(t, 1.0 - t)) * 0.5 * (s.hi - s.lo);
+    const float boxLo = max(s.lo, s.mean - gamma * s.sigma);
+    const float boxHi = min(s.hi, s.mean + gamma * s.sigma);
+    return float2(max(s.x - room, min(boxLo, s.x) - tolerance), min(s.x + room, max(boxHi, s.x) + tolerance));
+}
+
+// The median of the group's four shift taps.
+float CleanupShift()
+{
+    const float lo = max(min(gsCleanShift[0], gsCleanShift[1]), min(gsCleanShift[2], gsCleanShift[3]));
+    const float hi = min(max(gsCleanShift[0], gsCleanShift[1]), max(gsCleanShift[2], gsCleanShift[3]));
+    return 0.5 * (lo + hi);
+}
+
 // The motion vector under a normalised position, in pixels of this dispatch; zero when there are none.
 float2 CleanupMotionAt(float2 uvq)
 {
@@ -804,11 +905,17 @@ float2 CleanupMotionAt(float2 uvq)
                            float3(0.0, 0.0, 0.0)).xy;
 }
 
-// How much motion holds the clean up back here, 0..1: fast motion, or vectors that break apart.
+// How much motion holds the clean up back here, 0..1: fast motion, or vectors that break apart. Optical
+// flow (gCleanupHaveMotion 2, the Present route) is least reliable exactly at a silhouette, where it
+// breaks apart whether or not anything was uncovered, so there only fast motion counts, at half weight.
 float CleanupReject(float2 uvq, float2 mv)
 {
     if (gCleanupHaveMotion == 0 || gCleanupMotion <= 0.0)
         return 0.0;
+
+    const float fast = smoothstep(24.0, 64.0, length(mv));
+    if (gCleanupHaveMotion == 2)
+        return SanitizeFinite(0.5 * saturate(gCleanupMotion) * fast, 0.0);
 
     const int2 guide = int2(max(gGuideWidth, 1u), max(gGuideHeight, 1u));
     const int2 g = CleanupGuideTexel(uvq);
@@ -822,14 +929,19 @@ float CleanupReject(float2 uvq, float2 mv)
         spread = max(spread, length(gMotion.Load(int3(at, 0)).rg * scale - mv));
     }
 
-    const float fast = smoothstep(24.0, 64.0, length(mv));
     const float broken = smoothstep(2.0, 8.0, spread);
     return SanitizeFinite(saturate(gCleanupMotion) * max(fast, broken), 0.0);
 }
 
 [numthreads(8, 8, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID)
+void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
 {
+    // Image Clean Up's groupshared tile, filled by every thread of the group -- those past the edge of the
+    // frame too -- before any of them may leave, since the fill ends in a barrier.
+    const int2 cleanLocal = int2(id.xy) - int2(gid.xy) * 8;
+    if (CleanupWanted())
+        CleanupFill(gid.xy, gi);
+
     if (id.x >= gWidth || id.y >= gHeight)
         return;
 
@@ -862,58 +974,52 @@ void CSMain(uint3 id : SV_DispatchThreadID)
     // nothing about scale; the peak says where the top of the range is, which is exactly what the
     // divisor has to match. One specular hit cannot decide the answer because the host takes a
     // percentile across tiles afterwards.
-    // The halo meter, for Image Clean Up. One thread per tile of the 64x64 grid, writing how far a picture
-    // strays outside the band the clean up would allow it, in stops, averaged over the tile's masked
-    // points -- or -1 when the tile has no edge in it. A 4x4 lattice per tile: 65536 points over the frame.
-    //
-    //   5  what the model was shown (t0) against what it returned (t1), before any clean up -- what Auto
-    //      steers by, so it reads the glow the model makes and never the result of its own correction.
-    //   6  the untouched frame (t0 and t2) against the finished one (t1): what is left after the clean up.
-    //      The two numbers side by side in the log are the measurement of whether it works.
-    if (gMode == 5 || gMode == 6)
+    // The halo meter, for Image Clean Up. One thread per tile of the 64x64 grid, over what the resolve
+    // just wrote (the mask history, t6, and the model reading, t7): for each, the mask-weighted mean of
+    // how far the picture strays outside the loosest band the clean up allows, in stops, or -1 when the
+    // tile has no edge in it. u0 the composed picture before the clean up (what Auto steers by), u1 after
+    // it, u2 the model's own change laid on the frame. The resolve covers only the picture, so letterbox
+    // bars are never in it. An 8x8 lattice per tile.
+    if (gMode == 5)
     {
-        const bool after = gMode == 6;
-        const float meterScale = gPassthrough != 0 ? 1.0 : WhitePoint();
+#ifndef VK_MODE
+        uint hw, hh;
+        gCleanHistory.GetDimensions(hw, hh);
 
-        uint pw, ph;
-        gSource.GetDimensions(pw, ph);
-        const int2 psize = int2(max(pw, 1u), max(ph, 1u));
-        const float2 ptexel = 1.0 / float2(psize);
+        const uint tx0 = (id.x * hw) / gWidth;
+        const uint tx1 = ((id.x + 1u) * hw) / gWidth;
+        const uint ty0 = (id.y * hh) / gHeight;
+        const uint ty1 = ((id.y + 1u) * hh) / gHeight;
+        const uint stepX = max((tx1 - tx0) / 8u, 1u);
+        const uint stepY = max((ty1 - ty0) / 8u, 1u);
 
-        const uint tx0 = (uint) (((float) id.x * (float) psize.x) / (float) gWidth);
-        const uint tx1 = (uint) (((float) (id.x + 1) * (float) psize.x) / (float) gWidth);
-        const uint ty0 = (uint) (((float) id.y * (float) psize.y) / (float) gHeight);
-        const uint ty1 = (uint) (((float) (id.y + 1) * (float) psize.y) / (float) gHeight);
-        const uint stepX = max((tx1 - tx0) / 4u, 1u);
-        const uint stepY = max((ty1 - ty0) / 4u, 1u);
-
-        float sumExcess = 0.0;
-        float sumWeight = 0.0;
+        float weight = 0.0;
+        float before = 0.0;
+        float after = 0.0;
+        float model = 0.0;
 
         [loop] for (uint ty = ty0 + stepY / 2u; ty < max(ty1, ty0 + 1u); ty += stepY)
         {
             [loop] for (uint tx = tx0 + stepX / 2u; tx < max(tx1, tx0 + 1u); tx += stepX)
             {
-                const int2 p = min(int2(tx, ty), psize - 1);
-                const float2 uvp = (float2(p) + 0.5) * ptexel;
-                const CleanupStats stats = CleanupStatsAt(!after, p, psize, meterScale);
-                const float edge = CleanupEdgeMask(stats.lumaEdge, CleanupDepthMask(uvp).xy);
+                const int3 p = int3(min(tx, hw - 1u), min(ty, hh - 1u), 0);
+                const float4 h = gCleanHistory.Load(p);
 
-                if (edge > 0.05)
+                if (h.r > 0.05 && all(isfinite(h)))
                 {
-                    // The loosest band (strength 0): what is past it is glow beyond the model's ordinary
-                    // detail, which is what there is to clean.
-                    const float2 band = CleanupBand(stats, 0.0) + CleanupShift(uvp, ptexel, after, meterScale);
-                    const float3 answer = gModel.SampleLevel(gLinear, uvp, 0).rgb;
-                    const float m =
-                        CleanupLog(after ? dot(max(answer, 0.0), kLuma) / meterScale : CleanupDisplayLuma(answer));
-                    sumExcess += edge * (max(m - band.y, 0.0) + max(band.x - m, 0.0));
-                    sumWeight += edge;
+                    weight += h.r;
+                    before += h.b;
+                    after += h.a;
+                    model += gCleanModel.Load(p).r;
                 }
             }
         }
 
-        gTarget[id.xy] = float4(sumWeight > 0.5 ? SanitizeFinite(sumExcess / sumWeight, 0.0) : -1.0, 0.0, 0.0, 1.0);
+        const bool any = weight > 0.5;
+        gTarget[id.xy] = float4(any ? before / weight : -1.0, 0.0, 0.0, 1.0);
+        gKeep[id.xy] = float4(any ? after / weight : -1.0, 0.0, 0.0, 1.0);
+        gAux[id.xy] = float4(any ? SanitizeFinite(model / weight, 0.0) : -1.0, 0.0, 0.0, 1.0);
+#endif
         return;
     }
 
@@ -1406,44 +1512,33 @@ void CSMain(uint3 id : SV_DispatchThreadID)
 
     // Image Clean Up, on the finished composition -- replace mode included, since the raw model glows
     // the same -- and before the tone trim, so it compares like with like: the frame and the picture
-    // made from it, in the same normalised space. Strength 0 skips all of it.
-    if (gCleanupStrength > 0.0 || gDebugView == 4)
+    // made from it, in the same normalised space. The neighbourhood was loaded into groupshared memory at
+    // the top of the shader (CleanupFill).
+    if (CleanupWanted())
     {
-        uint cw, ch;
-        gOriginal.GetDimensions(cw, ch);
-        const int2 csize = int2(max(cw, 1u), max(ch, 1u));
-        const int2 at = gCompareMode == 1 ? int2(cmpUv * float2(csize)) : int2(id.xy);
-        const float2 ctexel = 1.0 / float2(csize);
-        const float2 uvAt = (float2(at) + 0.5) * ctexel;
-
-        const CleanupStats stats = CleanupStatsAt(false, at, csize, normScale);
-        const float3 depthMask = CleanupDepthMask(uvAt);
+        const CleanupStats stats = CleanupStatsLocal(cleanLocal);
+        const float3 depthMask = CleanupDepthMaskLocal(cleanLocal);
         float edge = CleanupEdgeMask(stats.lumaEdge, depthMask.xy);
-        const float2 mv = CleanupMotionAt(uvAt);
-        const float reject = CleanupReject(uvAt, mv);
+        const float2 mv = CleanupMotionAt(uv);
+        const float reject = CleanupReject(uv, mv);
 
 #ifndef VK_MODE
         // The mask's own history, so it holds still from frame to frame. Last frame's mask is fetched
-        // where the motion vectors say this pixel was (the same place when there are none -- the Present
-        // route's zero field), and averaged in only if the depth there is the depth here: a surface
-        // that was not there last frame (a disocclusion, a cut) takes this frame's mask alone.
-        if (gCleanupHistory != 0)
+        // where the motion vectors say this pixel was (the same place when there are none), and averaged
+        // in only if the depth there is the depth here: a surface that was not there last frame (a
+        // disocclusion, a cut) takes this frame's mask alone.
+        if (gCleanupHistory == 2)
         {
-            if (gCleanupHistory == 2)
+            const float2 prevUv = uv + mv / float2(gWidth, gHeight);
+
+            if (all(prevUv >= 0.0) && all(prevUv <= 1.0))
             {
-                const float2 prevUv = uvAt + mv * ctexel;
+                const float2 prev = gCleanHistory.SampleLevel(gLinear, prevUv, 0).rg;
+                const bool sameSurface = gCleanupHaveDepth == 0 || abs(prev.y - depthMask.z) < 0.25;
 
-                if (all(prevUv >= 0.0) && all(prevUv <= 1.0))
-                {
-                    const float2 prev = gCleanHistory.SampleLevel(gLinear, prevUv, 0).rg;
-                    const bool sameSurface = gCleanupHaveDepth == 0 || abs(prev.y - depthMask.z) < 0.25;
-
-                    if (sameSurface && all(isfinite(prev)))
-                        edge = lerp(saturate(prev.x), edge, gCleanupHaveMotion != 0 ? 0.5 : 0.6);
-                }
+                if (sameSurface && all(isfinite(prev)))
+                    edge = lerp(saturate(prev.x), edge, gCleanupHaveMotion != 0 ? 0.5 : 0.6);
             }
-
-            gKeep[id.xy] = float4(edge, depthMask.z, 0.0, 0.0);
         }
 #endif
 
@@ -1451,13 +1546,34 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         const float resultLog = CleanupLog(resultLuma);
         float moved = resultLog;
         float amount = 0.0;
+        float2 loose = float2(resultLog, resultLog);
 
         if (edge > 0.0)
         {
-            const float2 band = CleanupBand(stats, gCleanupStrength) + CleanupShift(uvAt, ctexel, false, 1.0);
+            const float shift = CleanupShift();
+            const float2 band = CleanupBand(stats, gCleanupStrength) + shift;
+            loose = CleanupBand(stats, 0.0) + shift;
             amount = saturate(1.5 * gCleanupStrength) * edge * (1.0 - reject);
-            moved = lerp(resultLog, clamp(resultLog, band.x, band.y), amount);
+            if (amount > 1e-4)
+                moved = lerp(resultLog, clamp(resultLog, band.x, band.y), amount);
         }
+
+#ifndef VK_MODE
+        // What the halo meter reads (DlssNrMode_HaloMeter), all against the same loosest band and weighted
+        // by the same mask, so the three readings differ only in the picture measured: the model's own
+        // change laid on the frame, the composed picture before the clean up, and after it. With nothing
+        // moved, after is before exactly.
+        if (gCleanupHistory != 0)
+        {
+            const float modelLog = stats.x + CleanupLog(CleanupDisplayLuma(modelSample.rgb)) -
+                                   CleanupLog(CleanupDisplayLuma(proxySample.rgb));
+            const float excessModel = max(modelLog - loose.y, 0.0) + max(loose.x - modelLog, 0.0);
+            const float excessBefore = max(resultLog - loose.y, 0.0) + max(loose.x - resultLog, 0.0);
+            const float excessAfter = max(moved - loose.y, 0.0) + max(loose.x - moved, 0.0);
+            gKeep[id.xy] = float4(edge, depthMask.z, edge * excessBefore, edge * excessAfter);
+            gAux[id.xy] = float4(SanitizeFinite(edge * excessModel, 0.0), 0.0, 0.0, 0.0);
+        }
+#endif
 
         // The debug view: the frame in grey, red where the mask makes a pixel eligible, green where it
         // was actually moved (four times the stops it moved), blue where motion held it back.
@@ -1471,8 +1587,8 @@ void CSMain(uint3 id : SV_DispatchThreadID)
         }
 
         // Only a real move is applied, so a strength that rounds to nothing leaves the pixel bit-identical.
-        if (amount > 1e-4 && resultLuma > 1e-6)
-            result *= SanitizeFinite(max(exp2(moved) - kCleanupFloor, 0.0) / resultLuma, 1.0);
+        if (moved != resultLog && resultLuma > 1e-6)
+            result *= SanitizeFinite(CleanupUnlog(moved) / resultLuma, 1.0);
     }
 
     // The tone trim, last, on the finished picture -- replace mode included -- and before leaving the
