@@ -244,6 +244,40 @@ xefg_swapchain_d3d12_resource_data_t XeFG_Dx12::GetResourceData(FG_ResourceType 
     return resourceParam;
 }
 
+// The device XeFG's swapchain context is built on: the one the game's own queue belongs to.
+//
+// currentD3D12Device is whatever was captured last, and OptiScaler's D3D12CreateDevice hook runs
+// beneath ReShade, so on a game that creates its device after ReShade loads it is the RAW device.
+// XeFG then makes its internal present queue on that raw device, ReShade sees a swap chain "created
+// without a proxy Direct3D device", skips it, and no ReShade add-on ever gets a present -- ReLimiter
+// frame pacing sees no frames with XeFG on (Shadow of the Tomb Raider, 2026-09-24). The game's queue
+// carries ReShade's wrapper, so its device does too. A Streamline proxy is taken off first, as the
+// swapchain creation below already does. Without ReShade this is the same device as before.
+static ID3D12Device* SwapchainContextDevice(ID3D12CommandQueue* cmdQueue)
+{
+    IUnknown* realQueue = nullptr;
+
+    if (cmdQueue != nullptr && !Util::CheckForRealObject(__FUNCTION__, cmdQueue, &realQueue))
+        realQueue = cmdQueue;
+
+    ID3D12Device* device = nullptr;
+
+    if (realQueue != nullptr && ((ID3D12CommandQueue*) realQueue)->GetDevice(IID_PPV_ARGS(&device)) == S_OK &&
+        device != nullptr)
+    {
+        // The queue keeps its device alive; no reference of our own is needed.
+        device->Release();
+
+        if (device != State::Instance().currentD3D12Device)
+            LOG_INFO("XeFG context on the game queue's device {:X}, not the captured {:X}", (size_t) device,
+                     (size_t) State::Instance().currentD3D12Device);
+
+        return device;
+    }
+
+    return State::Instance().currentD3D12Device;
+}
+
 bool XeFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQueue, DXGI_SWAP_CHAIN_DESC* desc,
                                 IDXGISwapChain** swapChain, bool readyToRelease)
 {
@@ -292,7 +326,7 @@ bool XeFG_Dx12::CreateSwapchain(IDXGIFactory* factory, ID3D12CommandQueue* cmdQu
         if (State::Instance().currentD3D12Device == nullptr)
             return false;
 
-        CreateSwapchainContext(State::Instance().currentD3D12Device);
+        CreateSwapchainContext(SwapchainContextDevice(cmdQueue));
 
         if (_swapChainContext == nullptr)
             return false;
@@ -495,7 +529,7 @@ bool XeFG_Dx12::CreateSwapchain1(IDXGIFactory* factory, ID3D12CommandQueue* cmdQ
         if (State::Instance().currentD3D12Device == nullptr)
             return false;
 
-        CreateSwapchainContext(State::Instance().currentD3D12Device);
+        CreateSwapchainContext(SwapchainContextDevice(cmdQueue));
 
         if (_swapChainContext == nullptr)
             return false;

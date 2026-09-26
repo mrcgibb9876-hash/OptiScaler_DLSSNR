@@ -9,7 +9,6 @@
 #include "DlssNr_PresentRoute.h"
 #include "DlssNr_ReLimiter.h"
 #include "DlssNr_RenoDx.h"
-#include "DlssNrBudget.h"
 
 #include <Config.h>
 #include <misc/IdentifyGpu.h>
@@ -29,6 +28,8 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace DlssNr
 {
@@ -156,6 +157,11 @@ static const Palette* g_pal = &Light();
 #define kTextDim (g_pal->textDim)
 #define kTrack (g_pal->track)
 #define kPanelBg (g_pal->panelBg)
+
+// A label colour for the row being drawn: the RenoDX page sets it to the mod's accent for a tinted
+// setting, and every control helper below draws its label in it. Null the rest of the time.
+static const ImVec4* g_labelTint = nullptr;
+static ImVec4 LabelColor() { return g_labelTint != nullptr ? *g_labelTint : kText; }
 
 static float PanelWidth(float scale) { return 460.0f * scale; }
 
@@ -412,7 +418,7 @@ static SliderResult NrSlider(const char* label, float* value, float vMin, float 
     if (trackWidth < 40.0f)
         trackWidth = 40.0f;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
     if (stacked)
@@ -503,7 +509,7 @@ static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin
     // being run into by it. German and French make this the common case, not the exception.
     const bool stacked = ImGui::CalcTextSize(label).x > labelWidth - style.ItemSpacing.x;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
     if (stacked)
@@ -519,8 +525,12 @@ static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin
 
     bool committed = false;
     ImGui::SetNextItemWidth(boxWidth);
-    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(20, 22, 20, 190));
-    ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+    // White box, green digits: on the dark panel a dark box hid what was being typed.
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(255, 255, 255, 255));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(245, 250, 245, 255));
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(255, 255, 255, 255));
+    ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 140, 50, 255));
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0, 140, 50, 70));
     if (isInt)
     {
         int v = (int) *value;
@@ -546,7 +556,7 @@ static NumberBoxResult NrNumberBox(const char* label, double* value, double vMin
             committed = true;
         }
     }
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(5);
 
     // What the box will take, said once beside it rather than discovered by having a number refused.
     ImGui::SameLine();
@@ -573,7 +583,7 @@ static bool NrCombo(const char* label, int* v, const char* const* items, int cou
 {
     float labelWidth = rowWidth * 0.44f;
 
-    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
     ImGui::TextUnformatted(label);
     ImGui::PopStyleColor();
     ImGui::SameLine(labelWidth);
@@ -745,7 +755,7 @@ static bool NrCheckbox(const char* label, bool* v, bool caps = false)
     ImGui::SameLine();
     // Section-level rows ("DLSS ON", "MODEL AUTOMASK", "DEVELOPER MASKING") are letter-tracked
     // caps in the caption colour; the per-object rows under them stay sentence case.
-    ImGui::PushStyleColor(ImGuiCol_Text, caps ? kCaption : kText);
+    ImGui::PushStyleColor(ImGuiCol_Text, caps ? kCaption : LabelColor());
     if (caps)
         TrackedText(Caps(label).c_str());
     else
@@ -777,194 +787,6 @@ static bool InheritedProfileCombo(const char* label, CustomOptional<uint32_t, No
     return true;
 }
 
-// Adaptive model resolution: the controls, and a live sentence saying what it is doing.
-//
-// The sentence matters as much as the controls. A scale that moves on its own is indistinguishable
-// from a bug unless the panel says why it moved, and the one case a player most needs told -- the
-// frame rate they asked for is out of reach for reasons that have nothing to do with this pass --
-// is the case where a silent floor looks most like a failure.
-static void DrawAutoScale(Config* config, float rowWidth, bool& anyChanged)
-{
-    // The floor cannot go below the controller's own bottom rung; asking for less would set a number
-    // the controller could not honour and then quietly stop above it.
-    const int kFloorMin = (int) std::lroundf(DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1] * 100.0f);
-
-    bool autoOn = config->DlssNrAutoScale.value_or_default();
-
-    if (NrCheckbox(Tr("Adjust it for me"), &autoOn))
-    {
-        config->DlssNrAutoScale = autoOn;
-        anyChanged = true;
-    }
-
-    HelpMarker(Tr("Moves Model resolution up and down while you play, so the pass costs what you asked"
-                  "\nit to cost instead of what one number chosen before the game started happens to"
-                  "\ncost in this scene."
-                  "\n\nIt only ever changes the MODEL's resolution. The frame is never reduced, so this"
-                  "\ncannot soften the picture the way a dynamic render resolution does -- the most it"
-                  "\ncan cost is some of the model's own detail."
-                  "\n\nIt steps between four settings a few seconds apart at most, because each change"
-                  "\nrebuilds the model and rebuilding it every frame would be slower than doing nothing."));
-
-    if (!autoOn)
-        return;
-
-    // Native Vulkan runs its own pass with its own timer and does not go through the controller yet.
-    // Saying so is better than showing controls that quietly do nothing on that route.
-    if (IsRunningVk())
-    {
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-        ImGui::TextColored(kTextDim, "%s",
-                           Tr("Not on the native Vulkan path yet - it runs its own pass. Model resolution "
-                              "stays where you put it here."));
-        ImGui::PopTextWrapPos();
-        return;
-    }
-
-    // The three ways of saying what the budget is, in the words a player would use rather than the
-    // controller's own. Order matches DlssNrBudget::Mode.
-    // Not static: Tr() resolves against the language chosen this frame, and a static array would
-    // freeze whichever language happened to be up the first time this drew.
-    const char* const kModeNames[] = {
-        Tr("Share of the frame"),
-        Tr("Milliseconds"),
-        Tr("Frame rate"),
-    };
-
-    int mode = (int) config->DlssNrAutoScaleMode.value_or_default();
-
-    if (mode < 0 || mode >= IM_ARRAYSIZE(kModeNames))
-        mode = 2;
-
-    // ReLimiter is already holding the frame rate, so aiming the model's resolution at one as well
-    // means shedding detail to close a gap the limiter will never allow to close. Said here, next to
-    // the control, rather than left as a mystery when the manager turns Adjust it for me off.
-    if (DlssNrReLimiter::PacingActive())
-    {
-        ImGui::TextDisabled("%s", Tr("Frame pacing is holding the frame rate (see Pacing)."));
-        HelpMarker(Tr("ReLimiter is in this game and paces frames to a target. Aiming at a frame rate here"
-                      "\ntoo would have the model shed resolution trying to reach a number the limiter"
-                      "\nwill not let the game pass, and keep shedding it -- detail lost for no frames"
-                      "\ngained. Pick Milliseconds or Share of the frame to cap what the pass costs, or"
-                      "\nremove frame pacing if you would rather this aimed at the frame rate."));
-    }
-
-    if (NrCombo(Tr("Aim at"), &mode, kModeNames, IM_ARRAYSIZE(kModeNames), rowWidth))
-    {
-        config->DlssNrAutoScaleMode = (uint32_t) mode;
-        anyChanged = true;
-    }
-
-    HelpMarker(Tr("Frame rate: aim at a number of frames per second. The one most people want, and the"
-                  "\nonly one that can fall short -- the pass can give back what it costs and no more,"
-                  "\nso if the game itself cannot reach the number, the panel says so."
-                  "\n\nMilliseconds: hold the pass under a flat time. Exactly what the cost line above"
-                  "\nmeasures, with no arithmetic in between."
-                  "\n\nShare of the frame: let the pass take at most a percentage of each frame. This one"
-                  "\nlooks after itself as the frame rate moves - 15% is 2.5 ms at 60 fps and 1.25 at 120."));
-
-    if (mode == 2)
-    {
-        float fps = (float) config->DlssNrAutoScaleFps.value_or_default();
-        auto r = NrSlider(Tr("Frame rate"), &fps, 30.0f, 240.0f, "%.0f fps", rowWidth);
-
-        if (r.changed || r.released)
-        {
-            config->DlssNrAutoScaleFps = std::clamp((int) std::lroundf(fps), 30, 240);
-            if (r.released)
-                anyChanged = true;
-        }
-
-        HelpMarker(Tr("The frame rate to aim at. Applied live - there is nothing to rebuild for a change"
-                      "\nof target, only for a change of model resolution it leads to."));
-    }
-    else if (mode == 1)
-    {
-        float ms = config->DlssNrAutoScaleMs.value_or_default();
-        auto r = NrSlider(Tr("Cost ceiling"), &ms, 0.5f, 10.0f, "%.1f ms", rowWidth);
-
-        if (r.changed || r.released)
-        {
-            config->DlssNrAutoScaleMs = std::clamp(ms, 0.5f, 10.0f);
-            if (r.released)
-                anyChanged = true;
-        }
-
-        HelpMarker(Tr("The most the pass may cost, in milliseconds. Compare it with the cost shown at the"
-                      "\ntop of this panel, which is the same measurement."));
-    }
-    else
-    {
-        float share = (float) config->DlssNrAutoScaleShare.value_or_default();
-        auto r = NrSlider(Tr("Share of the frame"), &share, 2.0f, 50.0f, "%.0f%%", rowWidth);
-
-        if (r.changed || r.released)
-        {
-            config->DlssNrAutoScaleShare = std::clamp((int) std::lroundf(share), 2, 50);
-            if (r.released)
-                anyChanged = true;
-        }
-
-        HelpMarker(Tr("How much of each frame the pass may take."));
-    }
-
-    float floorPercent = config->DlssNrAutoScaleFloor.value_or_default() * 100.0f;
-    auto rFloor = NrSlider(Tr("Never go below"), &floorPercent, (float) kFloorMin, 100.0f, "%.0f%%", rowWidth);
-
-    if (rFloor.changed || rFloor.released)
-    {
-        config->DlssNrAutoScaleFloor = std::clamp((int) std::lroundf(floorPercent), kFloorMin, 100) / 100.0f;
-        if (rFloor.released)
-            anyChanged = true;
-    }
-
-    HelpMarker(Tr("The lowest model resolution this may choose. Raise it to keep more of the model's"
-                  "\ndetail and let the frame rate give way instead."
-                  "\n\nIt stops here because this is where the trade changes character: above it the"
-                  "\nmodel is simply working on a smaller picture, and below it fine detail - hair,"
-                  "\nfoliage, thin edges - starts to break down rather than soften."));
-
-    const AutoScaleStatus st = AutoScale();
-
-    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
-
-    if (!st.running)
-    {
-        // On, but nothing to steer on: either the timer is not trusted on this card and route, or
-        // this route supplies no frame time. Both are already said elsewhere in the panel; here it
-        // only needs to be clear that nothing is moving.
-        ImGui::TextColored(kTextDim, "%s", Tr("Waiting for readings - model resolution is not moving yet."));
-    }
-    else if (st.gameLimited)
-    {
-        ImGui::TextColored(ImVec4(0.95f, 0.70f, 0.20f, 1.0f),
-                           Tr("At %.0f%% and still short of %d fps - the rest of the frame is the game's, "
-                              "not DLSS 5's."),
-                           st.scale * 100.0f, config->DlssNrAutoScaleFps.value_or_default());
-    }
-    else
-    {
-        const ImVec4 kOk(0.55f, 0.85f, 0.45f, 1.0f);
-
-        if (mode == 2)
-            ImGui::TextColored(kOk, Tr("Holding %d fps - model at %.0f%%%s"),
-                               config->DlssNrAutoScaleFps.value_or_default(), st.scale * 100.0f,
-                               st.atFloor ? Tr(", as low as it goes") : "");
-        else if (mode == 1)
-            ImGui::TextColored(kOk, Tr("Holding the pass under %.1f ms - model at %.0f%%%s"),
-                               config->DlssNrAutoScaleMs.value_or_default(), st.scale * 100.0f,
-                               st.atFloor ? Tr(", as low as it goes") : "");
-        else
-            ImGui::TextColored(kOk, Tr("Holding the pass to %d%% of the frame - model at %.0f%%%s"),
-                               config->DlssNrAutoScaleShare.value_or_default(), st.scale * 100.0f,
-                               st.atFloor ? Tr(", as low as it goes") : "");
-
-        if (st.lastPassMs > 0.0)
-            ImGui::TextColored(kTextDim, Tr("Pass %.2f ms against a %.2f ms budget."), st.lastPassMs, st.lastBudgetMs);
-    }
-
-    ImGui::PopTextWrapPos();
-}
 // ── the panel's pages ─────────────────────────────────────────────────────────────────────────
 //
 // One long scroll is hard to read over a moving picture and hard to point anyone at ("under Cost,
@@ -978,12 +800,12 @@ enum PanelPage
 {
     kPageMain = 0, // whether the pass runs at all, and what it is doing right now
     kPageModel,    // which model, how strong, and what it must leave alone
-    kPageCost,     // passes, model resolution, and the budget controller
+    kPageCost,     // passes and model resolution
     kPageImage,    // the filters that scale it, the guards, and how much of it lands
     kPageInspect,  // what the model is told, and the tools for looking at its work
     kPageSetup,    // keys and appearance
-    kPagePacing,   // ReLimiter's frame pacing, when it is in the process. Hidden when it is not.
-    kPageHdr,      // RenoDX's HDR and tone mapping, same deal: hidden unless it is here and drivable.
+    kPagePacing,   // ReLimiter's frame pacing. Always listed; greyed with the reason when it is not here.
+    kPageHdr,      // RenoDX's HDR and tone mapping, same deal: greyed unless it is here and drivable.
     kPageCount,
 };
 
@@ -1048,11 +870,53 @@ static void DragByHeader(float stripBottomY)
 // Only what a controller-and-overlay UI can honestly present is drawn. Keybinds are left to ReLimiter's
 // own overlay: capturing a key combo needs the capture UI it already has, and half of one here would be
 // worse than a pointer to it.
+// A Pacing or HDR page whose add-on cannot be driven in this game: greyed, with one plain line saying
+// why and what to do. The tab stays listed either way -- hidden, a player who had heard of the feature
+// had nowhere to look and nothing to tell him why it was not there.
+static void DrawAddonMissing(const char* caption, const char* why, float rowWidth)
+{
+    ImGui::BeginDisabled();
+    SectionCaption(caption, rowWidth);
+    ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+    ImGui::TextUnformatted(why);
+    ImGui::PopTextWrapPos();
+    ImGui::EndDisabled();
+}
+
+// The codes are DlssNrReLimiter::UnavailableReason()'s; the pop-out explains the same codes in its own
+// words, from OptiScaler.hosted.json.
+static const char* PacingMissingText(const char* reason)
+{
+    if (reason != nullptr && std::strcmp(reason, "no-api") == 0)
+        return Tr("ReLimiter is running, but this build of it cannot be driven from this panel -- its own "
+                  "overlay still works. Adding frame pacing again from the app installs one that can.");
+    if (reason != nullptr && std::strcmp(reason, "api-version") == 0)
+        return Tr("ReLimiter is running, but it speaks a different version of the panel's interface than "
+                  "this DLSS 5 engine. Update DLSS 5 or frame pacing from the app.");
+    return Tr("Frame pacing is not installed on this game -- turn it on from the app's card or the pop-out; "
+              "it takes effect the next time the game starts.");
+}
+
+static const char* HdrMissingText(const char* reason)
+{
+    if (reason != nullptr && std::strcmp(reason, "no-api") == 0)
+        return Tr("RenoDX is running, but this build of it cannot be driven from this panel -- its own "
+                  "overlay still works.");
+    if (reason != nullptr && std::strcmp(reason, "api-version") == 0)
+        return Tr("RenoDX is running, but it speaks a different version of the panel's interface than "
+                  "this DLSS 5 engine. Update DLSS 5 or RenoDX from the app.");
+    return Tr("HDR (RenoDX) is not installed on this game -- turn it on from the app's card or the pop-out; "
+              "it takes effect the next time the game starts.");
+}
+
 static void DrawPacingPage(float rowWidth)
 {
     const ReLimiterApi* api = DlssNrReLimiter::Api();
     if (api == nullptr)
-        return; // the tab is hidden in this case, so this is belt and braces
+    {
+        DrawAddonMissing(Tr("Frame pacing"), PacingMissingText(DlssNrReLimiter::UnavailableReason()), rowWidth);
+        return;
+    }
 
     SectionCaption(Tr("Frame pacing"), rowWidth);
 
@@ -1060,9 +924,7 @@ static void DrawPacingPage(float rowWidth)
     ImGui::TextDisabled("ReLimiter %s", version ? version : "?");
     HelpMarker(Tr("ReLimiter holds the frame rate steady for a G-Sync or VRR display rather than making"
                   "\nmore frames. It is a separate add-on with its own overlay; these are its settings,"
-                  "\nshown here so there is one panel to look at instead of two."
-                  "\n\nBecause it aims at a frame rate, Cost > Adjust it for me cannot aim at one too --"
-                  "\nsee the note on that page."));
+                  "\nshown here so there is one panel to look at instead of two."));
 
     const char* lastGroup = nullptr;
     const uint32_t settings = api->setting_count();
@@ -1160,16 +1022,37 @@ static void DrawPacingPage(float rowWidth)
                 }
             }
 
-            // Typed, not dragged -- see NrNumberBox. One write per committed value, so the save
-            // that used to be held back until a slider was released is simply not needed.
-            double v = cur;
-            auto r =
-                NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT, rowWidth);
-            if (r.committed && v != cur)
+            // The frame-rate cap alone is typed (see NrNumberBox): it has to land on 72 or 141 exactly,
+            // which a track from 30 to 1000 cannot do. Every other number is a slider, written as it
+            // moves and pushed into the limiter and saved once, on release.
+            if (std::strcmp(info.key, "target_fps") == 0)
             {
-                api->set_number(info.key, v);
-                api->apply();
-                api->save();
+                double v = cur;
+                auto r = NrNumberBox(info.label, &v, info.min_value, info.max_value, info.type == RELIMITER_TYPE_INT,
+                                     rowWidth);
+                if (r.committed && v != cur)
+                {
+                    api->set_number(info.key, v);
+                    api->apply();
+                    api->save();
+                }
+            }
+            else
+            {
+                const bool isInt = info.type == RELIMITER_TYPE_INT;
+                const bool wide = info.max_value - info.min_value > 10.0;
+                float v = (float) cur;
+                auto r = NrSlider(info.label, &v, (float) info.min_value, (float) info.max_value,
+                                  isInt || wide ? "%.0f" : "%.2f", rowWidth);
+                if (isInt)
+                    v = std::round(v);
+                if (r.changed && (double) v != cur)
+                    api->set_number(info.key, (double) v);
+                if (r.released)
+                {
+                    api->apply();
+                    api->save();
+                }
             }
             if (info.tooltip != nullptr && *info.tooltip != '\0')
                 HelpMarker(info.tooltip);
@@ -1196,11 +1079,382 @@ static void DrawPacingPage(float rowWidth)
 //
 // `group` is deliberately ignored. RenoDX uses it to put several settings on one line in its overlay;
 // this panel is one control per row because a controller has to be able to land on each of them.
+// One RenoDX setting, copied out of describe_setting at once: its strings are borrowed from the add-on
+// and good only until the next call into its API, and drawing a row makes several.
+struct RenoDxRow
+{
+    uint32_t index = 0;
+    uint32_t kind = RENODX_HOST_KIND_FLOAT;
+    std::string key;
+    std::string label;
+    std::string section;
+    std::string tooltip;
+    std::string placeholder;
+    float minValue = 0.0f;
+    float maxValue = 0.0f;
+    uint32_t labelCount = 0;
+    uint32_t textMaxLength = 0;
+    uint32_t style = 0;
+    bool enabled = true;
+    bool canReset = false;
+    bool usingDefault = true;
+    bool logarithmic = false;
+    bool sticky = false;
+    bool hasTint = false;
+    ImVec4 tint {};
+};
+
+// RenoDX's own kind for a setting. From an add-on that speaks version 4 that is `kind` as it stands; from an
+// older one it is rebuilt from value_type, and TEXT (which older add-ons report for their text boxes) is
+// left out, as this page always left it out for them.
+static bool ReadRenoDxRow(const RenoDxHostApi* api, bool v4, uint32_t index, RenoDxRow* row)
+{
+    RenoDxHostSetting info {};
+    info.struct_size = sizeof(info);
+    if (!api->describe_setting(index, &info) || info.is_visible == 0)
+        return false;
+
+    row->index = index;
+    row->key = info.key != nullptr ? info.key : "";
+    row->label = info.label != nullptr ? info.label : "";
+    row->section = info.section != nullptr ? info.section : "";
+    row->tooltip = info.tooltip != nullptr ? info.tooltip : "";
+    row->minValue = info.min_value;
+    row->maxValue = info.max_value;
+    row->labelCount = info.label_count;
+    row->enabled = info.is_enabled != 0;
+
+    if (v4)
+    {
+        row->kind = info.kind;
+        row->placeholder = info.placeholder != nullptr ? info.placeholder : "";
+        row->textMaxLength = info.text_max_length;
+        row->style = info.style;
+        row->canReset = info.can_reset != 0;
+        row->usingDefault = info.is_using_default != 0;
+        row->logarithmic = info.is_logarithmic != 0;
+        row->sticky = info.is_sticky != 0;
+        row->hasTint = info.has_tint != 0;
+        row->tint = ImVec4(((info.tint_rgb >> 16) & 0xFF) / 255.0f, ((info.tint_rgb >> 8) & 0xFF) / 255.0f,
+                           (info.tint_rgb & 0xFF) / 255.0f, 1.0f);
+        return true;
+    }
+
+    switch (info.value_type)
+    {
+    case RENODX_HOST_VALUE_FLOAT:
+        row->kind = RENODX_HOST_KIND_FLOAT;
+        return true;
+    case RENODX_HOST_VALUE_INTEGER:
+    case RENODX_HOST_VALUE_COMBO:
+        row->kind = RENODX_HOST_KIND_INTEGER;
+        return true;
+    case RENODX_HOST_VALUE_BOOLEAN:
+        row->kind = RENODX_HOST_KIND_BOOLEAN;
+        return true;
+    default:
+        return false;
+    }
+}
+
+// The labels of a named choice, copied (label_at hands back the add-on's own strings).
+static std::vector<std::string> RenoDxLabels(const RenoDxHostApi* api, const RenoDxRow& row)
+{
+    std::vector<std::string> labels;
+    for (uint32_t c = 0; c < row.labelCount && c < 64; ++c)
+    {
+        const char* l = api->label_at(row.index, c);
+        if (l == nullptr)
+            return {};
+        labels.emplace_back(l);
+    }
+    return labels;
+}
+
+// Text typed into a RenoDX text box, kept while the box has focus: the add-on is written only when the
+// box is left (Enter or a click elsewhere), so a half-typed path never reaches it.
+static std::unordered_map<std::string, std::string> s_renodxTextEdits;
+
+// One row of RenoDX's overlay. `presetOff`: the overlay's own rule while the preset switcher is on Off --
+// every control greyed, every reset button hidden.
+static void DrawRenoDxRow(const RenoDxHostApi* api, const RenoDxHostApi* v4, const RenoDxRow& row, bool presetOff,
+                          float rowWidth)
+{
+    const char* label = row.label.c_str();
+    const char* key = row.key.c_str();
+    const bool hasKey = !row.key.empty();
+
+    // The mod's accent colour on this row's label, or its text for the text kinds.
+    g_labelTint = row.hasTint ? &row.tint : nullptr;
+
+    const bool disabled = !row.enabled || presetOff;
+    if (disabled)
+        ImGui::BeginDisabled();
+
+    ImGui::PushID((int) row.index);
+    bool drawnControl = true;
+
+    switch (row.kind)
+    {
+    case RENODX_HOST_KIND_FLOAT:
+    case RENODX_HOST_KIND_INTEGER:
+    {
+        float cur = 0.0f;
+        if (!hasKey || row.label.empty() || !api->get_number(key, &cur))
+        {
+            drawnControl = false;
+            break;
+        }
+
+        if (row.kind == RENODX_HOST_KIND_INTEGER && row.labelCount > 0)
+        {
+            // The value IS the index. NrCombo draws boxes when they fit (RenoDX's segmented style) and a
+            // dropdown otherwise.
+            const auto labels = RenoDxLabels(api, row);
+            std::vector<const char*> items;
+            for (const auto& l : labels)
+                items.push_back(l.c_str());
+            int sel = (int) cur;
+            if (items.empty() || sel < 0 || sel >= (int) items.size())
+            {
+                drawnControl = false;
+                break;
+            }
+            if (NrCombo(label, &sel, items.data(), (int) items.size(), rowWidth))
+            {
+                const bool ok = api->set_number(key, (float) sel);
+                api->save();
+                DlssNrRenoDx::LogCommit("page", "set", key, sel, ok);
+            }
+            break;
+        }
+
+        // No range, no slider: RenoDX leaves min and max equal for a value it does not clamp.
+        if (row.minValue == row.maxValue)
+        {
+            drawnControl = false;
+            break;
+        }
+
+        // A slider, applied live while it moves and saved once on release.
+        const bool isInt = row.kind == RENODX_HOST_KIND_INTEGER;
+        const bool wide = row.maxValue - row.minValue > 10.0f;
+        const bool logarithmic = row.logarithmic && row.minValue > 0.0f && row.maxValue > row.minValue;
+        float v = cur;
+        auto r = NrSlider(label, &v, row.minValue, row.maxValue, isInt || wide ? "%.0f" : "%.2f", rowWidth, true,
+                          logarithmic);
+        if (isInt)
+            v = std::round(v);
+        if (r.changed && v != cur)
+            api->set_number(key, v);
+        if (r.released)
+        {
+            api->save();
+            DlssNrRenoDx::LogCommit("page", "set", key, v, true);
+        }
+        break;
+    }
+    case RENODX_HOST_KIND_BOOLEAN:
+    {
+        float cur = 0.0f;
+        if (!hasKey || row.label.empty() || !api->get_number(key, &cur))
+        {
+            drawnControl = false;
+            break;
+        }
+        // The mod's own two names, when it gives them, as a pair of boxes -- as its overlay draws them.
+        if (row.labelCount == 2)
+        {
+            const auto labels = RenoDxLabels(api, row);
+            if (labels.size() == 2)
+            {
+                const char* items[2] = { labels[0].c_str(), labels[1].c_str() };
+                int sel = cur != 0.0f ? 1 : 0;
+                if (NrCombo(label, &sel, items, 2, rowWidth))
+                {
+                    const bool ok = api->set_number(key, (float) sel);
+                    api->save();
+                    DlssNrRenoDx::LogCommit("page", "set", key, sel, ok);
+                }
+                break;
+            }
+        }
+        bool on = cur != 0.0f;
+        if (NrCheckbox(label, &on))
+        {
+            const bool ok = api->set_number(key, on ? 1.0f : 0.0f);
+            api->save();
+            DlssNrRenoDx::LogCommit("page", "set", key, on ? 1.0 : 0.0, ok);
+        }
+        break;
+    }
+    case RENODX_HOST_KIND_BUTTON:
+    {
+        // By index: buttons usually have no key. The add-on saves after its own click, as its overlay does.
+        if (v4 != nullptr && v4->press != nullptr && ImGui::Button(label))
+            DlssNrRenoDx::LogCommit("page", "press", label, row.index, v4->press(row.index));
+        break;
+    }
+    case RENODX_HOST_KIND_LABEL:
+    {
+        const char* text = row.labelCount > 0 ? api->label_at(row.index, 0) : nullptr;
+        ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, kValue);
+        ImGui::TextUnformatted(text != nullptr ? text : "");
+        ImGui::PopStyleColor();
+        break;
+    }
+    case RENODX_HOST_KIND_BULLET:
+        ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
+        ImGui::Bullet();
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", label);
+        ImGui::PopStyleColor();
+        break;
+    case RENODX_HOST_KIND_TEXT:
+        ImGui::PushStyleColor(ImGuiCol_Text, row.hasTint ? row.tint : kTextDim);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);
+        ImGui::TextWrapped("%s", label);
+        ImGui::PopTextWrapPos();
+        ImGui::PopStyleColor();
+        break;
+    case RENODX_HOST_KIND_TEXT_NOWRAP:
+        ImGui::PushStyleColor(ImGuiCol_Text, row.hasTint ? row.tint : kTextDim);
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+        break;
+    case RENODX_HOST_KIND_CUSTOM:
+        // Drawn by the mod with its own ImGui calls inside ReShade's overlay; there is nothing to drive from
+        // here, so say where it is.
+        ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+        ImGui::TextColored(kTextDim, "%s", Tr("-- set this in ReShade's overlay (Home)"));
+        break;
+    case RENODX_HOST_KIND_INPUT_TEXT:
+    {
+        if (!hasKey)
+        {
+            drawnControl = false;
+            break;
+        }
+        ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
+        ImGui::TextUnformatted(label);
+        ImGui::PopStyleColor();
+
+        ImGuiStorage* store = ImGui::GetStateStorage();
+        const ImGuiID wasActiveId = ImGui::GetID("textWasActive");
+        auto& edit = s_renodxTextEdits[row.key];
+        if (!store->GetBool(wasActiveId, false))
+        {
+            char current[1024] {};
+            if (api->get_text(key, current, sizeof(current)))
+                edit = current;
+        }
+
+        const size_t capacity = row.textMaxLength > 0 ? (size_t) row.textMaxLength + 1 : (size_t) 1024;
+        std::vector<char> buf(std::max(capacity, edit.size() + 1), '\0');
+        std::memcpy(buf.data(), edit.c_str(), std::min(edit.size(), buf.size() - 1));
+
+        ImGui::SetNextItemWidth(rowWidth);
+        // White box, green text: the same readable field as the typed numbers.
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(255, 255, 255, 255));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, IM_COL32(245, 250, 245, 255));
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, IM_COL32(255, 255, 255, 255));
+        ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(0, 140, 50, 255));
+        ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, IM_COL32(0, 140, 50, 70));
+        ImGui::InputTextWithHint("##text", row.placeholder.c_str(), buf.data(), capacity);
+        ImGui::PopStyleColor(5);
+        edit = buf.data();
+        store->SetBool(wasActiveId, ImGui::IsItemActive());
+        if (ImGui::IsItemDeactivatedAfterEdit())
+        {
+            const bool ok = api->set_text(key, edit.c_str());
+            api->save();
+            DlssNrRenoDx::LogCommit("page", "text", key, (double) edit.size(), ok);
+        }
+        break;
+    }
+    default:
+        drawnControl = false;
+        break;
+    }
+
+    // The overlay's per-setting reset: only when it would draw one, never while the preset is Off.
+    if (drawnControl && v4 != nullptr && v4->reset_setting != nullptr && row.canReset && !row.usingDefault &&
+        !presetOff && hasKey)
+    {
+        ImGui::SameLine();
+        if (ImGui::SmallButton(Tr("Reset")))
+            DlssNrRenoDx::LogCommit("page", "reset", key, row.index, v4->reset_setting(key));
+    }
+
+    ImGui::PopID();
+
+    if (disabled)
+        ImGui::EndDisabled();
+
+    g_labelTint = nullptr;
+
+    if (drawnControl && !row.tooltip.empty())
+        HelpMarker(row.tooltip.c_str());
+}
+
+// RenoDX's preset switcher: Off and its presets, as a row of boxes or a slider as the mod styles it.
+static void DrawRenoDxPresets(const RenoDxHostApi* v4, float rowWidth)
+{
+    if (v4 == nullptr || v4->preset_count == nullptr || v4->get_preset == nullptr || v4->set_preset == nullptr)
+        return;
+    const uint32_t count = v4->preset_count();
+    const int32_t current = v4->get_preset();
+    if (count == 0 || current < 0)
+        return;
+
+    std::vector<std::string> names;
+    for (uint32_t p = 0; p < count && p < 16; ++p)
+    {
+        const char* name = v4->preset_label != nullptr ? v4->preset_label(p) : nullptr;
+        names.emplace_back(name != nullptr ? name : std::to_string(p));
+    }
+
+    const uint32_t style = v4->preset_style != nullptr ? v4->preset_style() : RENODX_HOST_STYLE_SEGMENTED;
+    int sel = current;
+    if ((style & RENODX_HOST_STYLE_SEGMENTED) != 0)
+    {
+        std::vector<const char*> items;
+        for (const auto& n : names)
+            items.push_back(n.c_str());
+        if (NrCombo(Tr("Preset"), &sel, items.data(), (int) items.size(), rowWidth) && sel != current)
+            DlssNrRenoDx::LogCommit("page", "preset", nullptr, sel, v4->set_preset(sel));
+        return;
+    }
+
+    float v = (float) current;
+    auto r = NrSlider(Tr("Preset"), &v, 0.0f, (float) (names.size() - 1), "%.0f", rowWidth);
+    const int picked = (int) std::round(v);
+    if (r.changed && picked != current)
+        DlssNrRenoDx::LogCommit("page", "preset", nullptr, picked, v4->set_preset(picked));
+    if (current >= 0 && current < (int) names.size())
+        ImGui::TextColored(kTextDim, "%s", names[current].c_str());
+}
+
+// The HDR page: RenoDX's own overlay, option for option. With an add-on that speaks host API version 4 that
+// is its settings in its own order with the preset switcher where it draws it, every section as it draws them
+// (collapsible, opened as it opens them), each setting in its own kind of control with its reset button; with an older
+// add-on, the values it can describe, as before.
 static void DrawRenoDxPage(float rowWidth)
 {
     const RenoDxHostApi* api = DlssNrRenoDx::Api();
     if (api == nullptr)
-        return; // the tab is hidden in this case, so this is belt and braces
+    {
+        DrawAddonMissing(Tr("HDR and tone mapping"), HdrMissingText(DlssNrRenoDx::UnavailableReason()), rowWidth);
+        return;
+    }
+    const RenoDxHostApi* v4 = DlssNrRenoDx::V4();
 
     SectionCaption(Tr("HDR and tone mapping"), rowWidth);
 
@@ -1208,123 +1462,88 @@ static void DrawRenoDxPage(float rowWidth)
     // and the engine-wide build (renodx-unrealengine.addon64) looks identical in the folder to a
     // bespoke one. The module name is the only place that distinction is visible.
     const char* module = DlssNrRenoDx::ModuleName();
-    ImGui::TextDisabled("RenoDX -- %s", module ? module : "?");
+    const char* title = v4 != nullptr && v4->overlay_title != nullptr ? v4->overlay_title() : nullptr;
+    if (title != nullptr && *title != '\0')
+        ImGui::TextDisabled("%s -- %s", title, module ? module : "?");
+    else
+        ImGui::TextDisabled("RenoDX -- %s", module ? module : "?");
     HelpMarker(Tr("RenoDX replaces this game's tone mapping to give it real HDR, rather than expanding"
                   "\nan SDR picture afterwards. It is a separate add-on with its own overlay; these are"
                   "\nits settings, shown here so there is one panel to look at instead of two."
                   "\n\nIt is written against this game's own shaders, so what appears below is whatever"
                   "\nthis particular mod exposes -- it differs from game to game."));
 
-    const char* lastSection = nullptr;
-    const uint32_t settings = api->setting_count();
-
-    for (uint32_t i = 0; i < settings; ++i)
+    // Read every row first: several calls into the add-on happen per row, and its strings do not survive
+    // them.
+    std::vector<RenoDxRow> rows;
+    const uint32_t count = api->setting_count();
+    rows.reserve(count);
+    for (uint32_t i = 0; i < count; ++i)
     {
-        RenoDxHostSetting info {};
-        info.struct_size = sizeof(info);
-        if (!api->describe_setting(i, &info))
-            continue;
+        RenoDxRow row;
+        if (ReadRenoDxRow(api, v4 != nullptr, i, &row))
+            rows.push_back(std::move(row));
+    }
 
-        // Hidden by the add-on's own rule, so hidden here. Drawn but greyed would be a different
-        // claim -- that the setting exists and is merely unavailable -- and RenoDX means neither.
-        if (info.is_visible == 0)
-            continue;
+    const int32_t preset = v4 != nullptr && v4->get_preset != nullptr ? v4->get_preset() : -1;
+    const bool presetOff = preset == 0;
 
-        // A label is what makes a row readable; an unlabelled setting is internal state RenoDX draws
-        // nothing for either.
-        if (info.label == nullptr || *info.label == '\0')
-            continue;
-
-        if (info.section != nullptr && *info.section != '\0' &&
-            (lastSection == nullptr || std::strcmp(lastSection, info.section) != 0))
+    // RenoDX's overlay loop, step for step: the preset switcher goes in just before the first setting that is
+    // not sticky (so sticky ones above it stay above it), and a new section opens a collapsible node, opened
+    // or closed as the overlay opens it.
+    bool presetsDrawn = false;
+    std::string lastSection;
+    bool sectionOpen = true;
+    for (const auto& row : rows)
+    {
+        if (!row.sticky && !presetsDrawn)
         {
-            SectionCaption(info.section, rowWidth);
-            lastSection = info.section;
+            DrawRenoDxPresets(v4, rowWidth);
+            presetsDrawn = true;
         }
 
-        const bool disabled = info.is_enabled == 0;
-        if (disabled)
+        if (row.section != lastSection)
+        {
+            lastSection = row.section;
+            if (row.section.empty())
+            {
+                sectionOpen = true;
+            }
+            else if (v4 != nullptr)
+            {
+                const bool openByDefault =
+                    v4->section_open_by_default != nullptr && v4->section_open_by_default(row.section.c_str());
+                sectionOpen = ImGui::CollapsingHeader(
+                    row.section.c_str(), openByDefault ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+            }
+            else
+            {
+                SectionCaption(row.section.c_str(), rowWidth);
+                sectionOpen = true;
+            }
+        }
+        if (!sectionOpen)
+            continue;
+
+        DrawRenoDxRow(api, v4, row, presetOff, rowWidth);
+    }
+    if (!presetsDrawn)
+        DrawRenoDxPresets(v4, rowWidth);
+
+    // Only with an add-on that can do it itself (host API version 3), so what gets reset is exactly what
+    // RenoDX's own overlay would reset.
+    if (DlssNrRenoDx::CanReset())
+    {
+        ImGui::Spacing();
+        if (presetOff)
             ImGui::BeginDisabled();
-
-        switch (info.value_type)
+        if (ImGui::SmallButton((std::string(Tr("Reset all to defaults")) + "##renodxreset").c_str()))
         {
-        case RENODX_HOST_VALUE_BOOLEAN:
-        {
-            float cur = 0.0f;
-            if (api->get_number(info.key, &cur))
-            {
-                bool on = cur != 0.0f;
-                if (NrCheckbox(info.label, &on))
-                {
-                    api->set_number(info.key, on ? 1.0f : 0.0f);
-                    api->save();
-                }
-            }
-            break;
+            DlssNrRenoDx::ResetAll();
+            DlssNrRenoDx::LogCommit("page", "reset all", nullptr, 0.0, true);
         }
-        case RENODX_HOST_VALUE_COMBO:
-        {
-            // The value IS the index, which is why this reads as a number and writes back as one.
-            float cur = 0.0f;
-            if (info.label_count > 0 && api->get_number(info.key, &cur))
-            {
-                // Gathered per draw rather than cached: label_at hands back pointers into the
-                // add-on's own std::strings, and holding those across a call into it is the lifetime
-                // bug its own comment warns about.
-                const char* labels[32];
-                const uint32_t count = info.label_count < 32 ? info.label_count : 32;
-                bool complete = true;
-                for (uint32_t c = 0; c < count; ++c)
-                {
-                    labels[c] = api->label_at(i, c);
-                    complete = complete && labels[c] != nullptr;
-                }
-                int sel = (int) cur;
-                if (complete && sel >= 0 && sel < (int) count &&
-                    NrCombo(info.label, &sel, labels, (int) count, rowWidth))
-                {
-                    api->set_number(info.key, (float) sel);
-                    api->save();
-                }
-            }
-            break;
-        }
-        case RENODX_HOST_VALUE_INTEGER:
-        case RENODX_HOST_VALUE_FLOAT:
-        {
-            // No range, no box -- the same rule the pacing page follows. RenoDX leaves min and max at
-            // zero for a setting it does not clamp, and inventing ends would offer numbers it ignores.
-            if (info.min_value == info.max_value)
-                break;
-
-            float cur = 0.0f;
-            if (api->get_number(info.key, &cur))
-            {
-                double v = cur;
-                auto r = NrNumberBox(info.label, &v, info.min_value, info.max_value,
-                                     info.value_type == RENODX_HOST_VALUE_INTEGER, rowWidth);
-                // Compared as float because that is what the add-on stores: a double that differs
-                // from `cur` only below float precision is not a change RenoDX can hold.
-                if (r.committed && (float) v != cur)
-                {
-                    api->set_number(info.key, (float) v);
-                    api->save();
-                }
-            }
-            break;
-        }
-        default:
-            // TEXT, and anything a later RenoDX adds. Skipped rather than guessed at: this panel has
-            // no text field, and a path or a preset name typed on a controller is not a thing worth
-            // building badly when RenoDX's own overlay already has it.
-            break;
-        }
-
-        if (disabled)
+        if (presetOff)
             ImGui::EndDisabled();
-
-        if (info.tooltip != nullptr && *info.tooltip != '\0')
-            HelpMarker(info.tooltip);
     }
 }
 
@@ -1335,19 +1554,14 @@ static void PagePicker(float rowWidth)
     const char* names[kPageCount] = { Tr("Main"),    Tr("Model"), Tr("Cost"),   Tr("Image"),
                                       Tr("Inspect"), Tr("Setup"), Tr("Pacing"), Tr("HDR") };
 
-    // Pacing exists only while ReLimiter is in the process, so the strip is built from the pages that
-    // are actually there rather than divided by kPageCount. An empty page for an absent add-on is
-    // noise, and a tab that does nothing is worse than no tab at all.
+    // Every page is listed, Pacing and HDR included whether or not their add-on is in this game. They
+    // used to be hidden without it, which left a player who had heard of the feature with nowhere to
+    // find it and nothing to say why; the page now greys itself and says what to do instead
+    // (DrawAddonMissing). The strip is still built from a list so a page can be dropped again cheaply.
     int visible[kPageCount];
     int count = 0;
     for (int i = 0; i < kPageCount; ++i)
-    {
-        if (i == kPagePacing && !DlssNrReLimiter::Available())
-            continue;
-        if (i == kPageHdr && !DlssNrRenoDx::Available())
-            continue;
         visible[count++] = i;
-    }
 
     // If the page we were on has just gone away, land somewhere real instead of drawing nothing.
     bool onVisible = false;
@@ -1409,7 +1623,7 @@ void RenderMenu(Config* config, float menuResScale)
 
     ImGui::PushStyleColor(ImGuiCol_WindowBg, kPanelBg);
     ImGui::PushStyleColor(ImGuiCol_Border, g_pal->overlay(0.10f));
-    ImGui::PushStyleColor(ImGuiCol_Text, kText);
+    ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
     ImGui::PushStyleColor(ImGuiCol_CheckMark, kAccent);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, kTrack);
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, g_pal->overlay(0.18f));
@@ -2371,16 +2585,11 @@ void RenderMenu(Config* config, float menuResScale)
                 }
             }
 
-            // Model resolution, by hand or by itself. The automatic block below drives this same number,
-            // so the slider is shown disabled rather than hidden while it is on: the value moving is the
-            // clearest possible statement of what the controller is doing.
-            const bool autoScaleOn = config->DlssNrAutoScale.value_or_default();
-
+            // Model resolution: a fixed fraction of the frame, chosen here.
             static int pendingScale = -1;
             float scalePercent =
                 pendingScale >= 0 ? (float) pendingScale : config->DlssNrWorkingScale.value_or_default() * 100.0f;
 
-            ImGui::BeginDisabled(autoScaleOn);
             auto rScale = NrSlider(Tr("Model resolution"), &scalePercent, 25.0f, 200.0f, "%.0f%%", rowWidth);
             if (rScale.changed)
                 pendingScale = (int) std::lroundf(scalePercent);
@@ -2391,13 +2600,10 @@ void RenderMenu(Config* config, float menuResScale)
                 pendingScale = -1;
                 anyChanged = true;
             }
-            ImGui::EndDisabled();
             HelpMarker(Tr("What fraction of the frame the model works at. Cost falls with the square of"
                           "\nthis, so half resolution is roughly a quarter of the time. Below 100 the frame"
                           "\nitself is never reduced -- only the model's own contribution is computed small"
                           "\nand enlarged. Applied when the handle is let go, not while it is moving."));
-
-            DrawAutoScale(config, rowWidth, anyChanged);
 
             // Above native the model is run supersampled and filtered back down, so the filter is
             // the whole difference between supersampling meaning less noise and meaning more.
@@ -2594,74 +2800,263 @@ void RenderMenu(Config* config, float menuResScale)
             // strength above; both are read by the resolve every frame, so no rebuild and no hitch.
             // Auto sits beside each slider (2026-09-23). While it is on the slider shows what Auto is using
             // and cannot be dragged; the slider's own value is kept and comes back when Auto goes off.
-            const DlssNr::AutoToneReading autoTone = DlssNr::AutoTone();
-
-            const bool autoBrightness = config->DlssNrAutoBrightness.value_or_default();
-            float brightness = autoBrightness && autoTone.measuring ? autoTone.brightness
-                                                                    : config->DlssNrBrightness.value_or_default();
-            ImGui::BeginDisabled(autoBrightness);
-            auto rBrightness = NrSlider(Tr("Brightness"), &brightness, 0.5f, 2.0f, "%.2f", rowWidth);
-            if (rBrightness.changed)
-                config->DlssNrBrightness = brightness;
-            if (rBrightness.released)
-                anyChanged = true;
-
-            ImGui::SameLine();
-
-            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##brightness").c_str()))
+            // With RenoDX in the game it does the grading: the trim is hidden here and sent as identity
+            // (DlssNrRenoDx::ToneTrimSuppressed), the saved values kept for when RenoDX is gone.
+            if (DlssNrRenoDx::ToneTrimSuppressed())
             {
-                config->DlssNrBrightness = 1.0f;
+                ImGui::TextColored(kTextDim, "%s", Tr("Brightness and contrast are handled by RenoDX in this game."));
+            }
+            else
+            {
+                const DlssNr::AutoToneReading autoTone = DlssNr::AutoTone();
+
+                const bool autoBrightness = config->DlssNrAutoBrightness.value_or_default();
+                float brightness = autoBrightness && autoTone.measuring ? autoTone.brightness
+                                                                        : config->DlssNrBrightness.value_or_default();
+                ImGui::BeginDisabled(autoBrightness);
+                auto rBrightness = NrSlider(Tr("Brightness"), &brightness, 0.5f, 2.0f, "%.2f", rowWidth);
+                if (rBrightness.changed)
+                    config->DlssNrBrightness = brightness;
+                if (rBrightness.released)
+                    anyChanged = true;
+
+                ImGui::SameLine();
+
+                if (ImGui::SmallButton((std::string(Tr("Reset")) + "##brightness").c_str()))
+                {
+                    config->DlssNrBrightness = 1.0f;
+                    anyChanged = true;
+                }
+                ImGui::EndDisabled();
+
+                ImGui::SameLine();
+                bool autoB = autoBrightness;
+                if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autobrightness").c_str(), &autoB))
+                {
+                    config->DlssNrAutoBrightness = autoB;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("Lifts the shadows and midtones for a game that comes out too dark. Black stays"
+                              "\nblack and white stays white -- only what lies between is raised -- so the"
+                              "\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing."
+                              "\n\nAuto measures the picture and lifts it when it is darker than usual, easing"
+                              "\nover a moment rather than jumping. It only ever brightens, and only part of the"
+                              "\nway, so a scene meant to be dark stays darker than a lit one. DX12, DX11 and"
+                              "\nRE Engine games; on a Vulkan game the slider stays in charge."));
+
+                const bool autoContrast = config->DlssNrAutoContrast.value_or_default();
+                float contrast =
+                    autoContrast && autoTone.measuring ? autoTone.contrast : config->DlssNrContrast.value_or_default();
+                ImGui::BeginDisabled(autoContrast);
+                auto rContrast = NrSlider(Tr("Contrast"), &contrast, 0.5f, 2.0f, "%.2f", rowWidth);
+                if (rContrast.changed)
+                    config->DlssNrContrast = contrast;
+                if (rContrast.released)
+                    anyChanged = true;
+
+                ImGui::SameLine();
+
+                if (ImGui::SmallButton((std::string(Tr("Reset")) + "##contrast").c_str()))
+                {
+                    config->DlssNrContrast = 1.0f;
+                    anyChanged = true;
+                }
+                ImGui::EndDisabled();
+
+                ImGui::SameLine();
+                bool autoC = autoContrast;
+                if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autocontrast").c_str(), &autoC))
+                {
+                    config->DlssNrAutoContrast = autoC;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("How far apart the darks and the lights sit. Above 1 is punchier: darks go"
+                              "\ndeeper and lights brighter around the middle grey. Below 1 is flatter and"
+                              "\nshows more in the shadows. Black and white themselves never move. 1 changes"
+                              "\nnothing."
+                              "\n\nAuto adds a little contrast to a flat, washed-out picture and takes a little off"
+                              "\none that is already harsh, within 0.85 to 1.25. DX12, DX11 and RE Engine games."));
+            }
+
+            // Image Clean Up (2026-09-26): the glow the model leaves around characters. The main row is Off / Auto
+            // with a one-line read-out of what it is doing; Manual and every slider sit under a collapsed
+            // Advanced, which opens by itself while the game is on Manual (the app's pop-out has the same
+            // layout). In Auto the Manual rows are greyed (Auto uses its own), in Manual the cap is greyed.
+            // All read by the resolve every frame, so no rebuild.
+            SectionCaption(Tr("Image Clean Up"), rowWidth);
+
+            const char* cleanNames[] = { Tr("Off"), Tr("Auto") };
+            int cleanMode = (int) config->DlssNrCleanUpMode.value_or_default();
+            if (cleanMode < 0 || cleanMode > 2)
+                cleanMode = 1;
+            int cleanShown = cleanMode == 0 ? 0 : 1;
+            if (NrCombo(Tr("Mode"), &cleanShown, cleanNames, IM_ARRAYSIZE(cleanNames), rowWidth))
+            {
+                // Off / Auto from the main row; a game on Manual stays on Manual when switched back on.
+                cleanMode = cleanShown == 0 ? 0 : (cleanMode == 2 ? 2 : 1);
+                config->DlssNrCleanUpMode = (uint32_t) cleanMode;
                 anyChanged = true;
             }
-            ImGui::EndDisabled();
+            HelpMarker(Tr("Holds back the glow the model leaves around characters and other strong edges."
+                          "\nNear a silhouette -- where the depth jumps -- or a hard brightness edge, the"
+                          "\nfinished picture may not stray far from the game's own frame nor past what the"
+                          "\npixels around it hold, so light cannot bleed across the edge. The object's own"
+                          "\npixels and flat areas are left alone, and the model's detail elsewhere is untouched."
+                          "\n\nAuto measures the glow every frame and uses as much clean up as it needs, up to"
+                          "\nMax strength, easing rather than jumping. Manual uses the sliders below."
+                          "\n\nSee what it touches with Inspect > Debug view > Image Clean Up mask."));
 
-            ImGui::SameLine();
-            bool autoB = autoBrightness;
-            if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autobrightness").c_str(), &autoB))
+            const bool cleanVulkan = DlssNr::IsRunningVk();
+            if (cleanMode != 0)
             {
-                config->DlssNrAutoBrightness = autoB;
-                anyChanged = true;
+                const DlssNr::CleanUpReading clean = DlssNr::CleanUpState();
+                if (cleanVulkan)
+                    ImGui::TextColored(kTextDim, "%s",
+                                       Tr("Vulkan: edges from brightness only, and Auto uses the Strength below."));
+                else if (!clean.measuring || clean.haloBefore < 0.0f)
+                    ImGui::TextColored(kTextDim, "%s", Tr("Measuring the glow..."));
+                else
+                {
+                    ImGui::TextColored(kTextDim, Tr("%s -- strength %.2f, glow %.3f -> %.3f stops"),
+                                       cleanMode == 2 ? Tr("Manual") : Tr("Auto"), clean.strength,
+                                       std::max(clean.haloModel, 0.0f), std::max(clean.haloAfter, 0.0f));
+                    if (clean.composeMs.has_value())
+                    {
+                        ImGui::SameLine();
+                        ImGui::TextColored(kTextDim, "%.2f ms", clean.composeMs.value());
+                    }
+                }
             }
-            HelpMarker(Tr("Lifts the shadows and midtones for a game that comes out too dark. Black stays"
-                          "\nblack and white stays white -- only what lies between is raised -- so the"
-                          "\nhighlights do not blow out. Below 1 darkens the same way. 1 changes nothing."
-                          "\n\nAuto measures the picture and lifts it when it is darker than usual, easing"
-                          "\nover a moment rather than jumping. It only ever brightens, and only part of the"
-                          "\nway, so a scene meant to be dark stays darker than a lit one. DX12, DX11 and"
-                          "\nRE Engine games; on a Vulkan game the slider stays in charge."));
 
-            const bool autoContrast = config->DlssNrAutoContrast.value_or_default();
-            float contrast =
-                autoContrast && autoTone.measuring ? autoTone.contrast : config->DlssNrContrast.value_or_default();
-            ImGui::BeginDisabled(autoContrast);
-            auto rContrast = NrSlider(Tr("Contrast"), &contrast, 0.5f, 2.0f, "%.2f", rowWidth);
-            if (rContrast.changed)
-                config->DlssNrContrast = contrast;
-            if (rContrast.released)
-                anyChanged = true;
-
-            ImGui::SameLine();
-
-            if (ImGui::SmallButton((std::string(Tr("Reset")) + "##contrast").c_str()))
+            if (cleanMode == 2)
+                ImGui::SetNextItemOpen(true, ImGuiCond_Always);
+            if (ImGui::CollapsingHeader((std::string(Tr("Advanced")) + "##cleanup").c_str()))
             {
-                config->DlssNrContrast = 1.0f;
-                anyChanged = true;
-            }
-            ImGui::EndDisabled();
+                // Every row below is part of Image Clean Up and is driven by its one Auto. They take effect
+                // only in Manual; in Auto (and Off) they show what Auto is running with, read-only.
+                const bool cleanManualNow = cleanMode == 2;
+                const DlssNr::CleanUpReading cleanAutoNow = DlssNr::CleanUpState();
+                const auto shown = [&](float manualValue, float autoValue)
+                { return cleanManualNow ? manualValue : autoValue; };
+                bool cleanManual = cleanMode == 2;
+                if (NrCheckbox(Tr("Manual"), &cleanManual))
+                {
+                    cleanMode = cleanManual ? 2 : 1;
+                    config->DlssNrCleanUpMode = (uint32_t) cleanMode;
+                    anyChanged = true;
+                }
+                HelpMarker(Tr("Use the sliders below instead of Auto's own values."));
 
-            ImGui::SameLine();
-            bool autoC = autoContrast;
-            if (ImGui::Checkbox((std::string(Tr("Auto")) + "##autocontrast").c_str(), &autoC))
-            {
-                config->DlssNrAutoContrast = autoC;
-                anyChanged = true;
+                ImGui::BeginDisabled(cleanMode != 1);
+                float cleanCap = config->DlssNrCleanUpMaxStrength.value_or_default();
+                auto rCap = NrSlider(Tr("Max strength"), &cleanCap, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rCap.changed)
+                    config->DlssNrCleanUpMaxStrength = std::clamp(cleanCap, 0.0f, 1.0f);
+                if (rCap.released)
+                    anyChanged = true;
+                ImGui::EndDisabled();
+                HelpMarker(Tr("Auto only: the most clean up it may use. Lower it if Auto softens edges you want"
+                              "\nkept."));
+
+                ImGui::BeginDisabled(cleanMode != 2);
+                float cleanStrength = shown(config->DlssNrCleanUpStrength.value_or_default(), cleanAutoNow.strength);
+                auto rCleanStrength = NrSlider(Tr("Strength"), &cleanStrength, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rCleanStrength.changed)
+                    config->DlssNrCleanUpStrength = std::clamp(cleanStrength, 0.0f, 1.0f);
+                if (rCleanStrength.released)
+                    anyChanged = true;
+                HelpMarker(Tr("How much of the way a glowing pixel is taken back, and how tightly it is held to"
+                              "\nwhat the pixels around it look like. 0 does nothing."));
+
+                float cleanEdge = shown(config->DlssNrCleanUpEdge.value_or_default(), cleanAutoNow.edge);
+                auto rCleanEdge = NrSlider(Tr("Edge threshold"), &cleanEdge, 0.25f, 4.0f, "%.2f", rowWidth);
+                if (rCleanEdge.changed)
+                    config->DlssNrCleanUpEdge = std::clamp(cleanEdge, 0.25f, 4.0f);
+                if (rCleanEdge.released)
+                    anyChanged = true;
+                HelpMarker(Tr("How hard a brightness edge has to be before it counts, in stops: lower cleans"
+                              "\nmore of the picture. Silhouettes found from depth count whatever this is."));
+
+                float cleanBalance = shown(config->DlssNrCleanUpBalance.value_or_default(), cleanAutoNow.balance);
+                auto rCleanBalance = NrSlider(Tr("Fine / wide"), &cleanBalance, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rCleanBalance.changed)
+                    config->DlssNrCleanUpBalance = std::clamp(cleanBalance, 0.0f, 1.0f);
+                if (rCleanBalance.released)
+                    anyChanged = true;
+                HelpMarker(
+                    Tr("How far out it looks: 0 only the pixels right beside each one, for a thin rim; 0.5"
+                       "\nout to about 5 pixels; 1 out to about 12, for a glow that spreads well off the edge."));
+
+                float cleanMotion = shown(config->DlssNrCleanUpMotion.value_or_default(), cleanAutoNow.motion);
+                auto rCleanMotion = NrSlider(Tr("Motion protection"), &cleanMotion, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rCleanMotion.changed)
+                    config->DlssNrCleanUpMotion = std::clamp(cleanMotion, 0.0f, 1.0f);
+                if (rCleanMotion.released)
+                    anyChanged = true;
+                HelpMarker(Tr("How far fast motion and newly uncovered areas hold the clean up back, so real"
+                              "\nmotion blur stays soft. Needs the game's motion vectors (DX12); with none -- the"
+                              "\nPresent route without optical flow -- it has nothing to go on and does nothing."));
+
+                // The edge treatment along silhouettes. D3D12: the object's side and Burn need the depth guide.
+                float cleanBleed = shown(config->DlssNrCleanUpBleed.value_or_default(), 1.0f);
+                auto rBleed = NrSlider(Tr("Bleed"), &cleanBleed, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rBleed.changed)
+                    config->DlssNrCleanUpBleed = std::clamp(cleanBleed, 0.0f, 1.0f);
+                if (rBleed.released)
+                    anyChanged = true;
+                HelpMarker(Tr("How much of the light the model spills across a character's outline is taken back."
+                              "\n0 leaves the model's edges as they are."));
+
+                float cleanInner = shown(config->DlssNrCleanUpBleedInner.value_or_default(), cleanAutoNow.bleedInner);
+                auto rInner = NrSlider(Tr("Inner bleed"), &cleanInner, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rInner.changed)
+                    config->DlssNrCleanUpBleedInner = std::clamp(cleanInner, 0.0f, 1.0f);
+                if (rInner.released)
+                    anyChanged = true;
+                HelpMarker(Tr("The light band just inside a character's outline, on the character."));
+
+                float cleanOuter = shown(config->DlssNrCleanUpBleedOuter.value_or_default(), cleanAutoNow.bleedOuter);
+                auto rOuter = NrSlider(Tr("Outer bleed"), &cleanOuter, 0.0f, 1.0f, "%.2f", rowWidth);
+                if (rOuter.changed)
+                    config->DlssNrCleanUpBleedOuter = std::clamp(cleanOuter, 0.0f, 1.0f);
+                if (rOuter.released)
+                    anyChanged = true;
+                HelpMarker(Tr("The glow just outside a character's outline, on the background."));
+
+                float cleanDodge = shown(config->DlssNrCleanUpDodge.value_or_default(), cleanAutoNow.dodge);
+                auto rDodge = NrSlider(Tr("Dodge"), &cleanDodge, 0.0f, 0.5f, "%.2f", rowWidth);
+                if (rDodge.changed)
+                    config->DlssNrCleanUpDodge = std::clamp(cleanDodge, 0.0f, 0.5f);
+                if (rDodge.released)
+                    anyChanged = true;
+                HelpMarker(Tr("Limits how far the model may lighten an area the game's picture gives it no"
+                              "\ndetail to lighten, in stops. 0 allows none."));
+
+                float cleanBurn =
+                    std::max(shown(config->DlssNrCleanUpBurn.value_or_default(), cleanAutoNow.burn), 0.0f);
+                auto rBurn = NrSlider(Tr("Burn"), &cleanBurn, 0.0f, 0.5f, "%.2f", rowWidth);
+                if (rBurn.changed)
+                    config->DlssNrCleanUpBurn = std::clamp(cleanBurn, 0.0f, 0.5f);
+                if (rBurn.released)
+                    anyChanged = true;
+                ImGui::EndDisabled();
+                HelpMarker(Tr("Limits how far the model may darken an area beyond its surroundings, so no dark"
+                              "\nring is left behind, in stops."));
+
+                // One frame of everything the clean up sees, for tuning it offline (tools/cleanup-lab).
+                // D3D12 only: the Vulkan pass has no capture.
+                {
+                    const bool pendingCapture = DlssNr::CleanUpCapturePending();
+                    ImGui::BeginDisabled(pendingCapture || cleanVulkan);
+                    if (ImGui::Button(pendingCapture ? Tr("Capturing...") : Tr("Capture frame for Image Clean Up")))
+                        DlssNr::RequestCleanUpCapture();
+                    ImGui::EndDisabled();
+                    HelpMarker(Tr("Writes this frame's inputs and outputs -- the game's frame, the model's answer, the"
+                                  "\npicture before and after the clean up, depth, the mask and every setting -- to a"
+                                  "\nnew folder under dlssnr-cleanup-capture beside OptiScaler, so the clean up can be"
+                                  "\ntuned on this game's own frames. Ctrl+Shift+F12 does the same in game."));
+                }
             }
-            HelpMarker(Tr("How far apart the darks and the lights sit. Above 1 is punchier: darks go"
-                          "\ndeeper and lights brighter around the middle grey. Below 1 is flatter and"
-                          "\nshows more in the shadows. Black and white themselves never move. 1 changes"
-                          "\nnothing."
-                          "\n\nAuto adds a little contrast to a flat, washed-out picture and takes a little off"
-                          "\none that is already harsh, within 0.85 to 1.25. DX12, DX11 and RE Engine games."));
 
             SectionCaption(Tr("Colour"), rowWidth);
 
@@ -3155,7 +3550,7 @@ void RenderMenu(Config* config, float menuResScale)
             // the manager's panel offers the swap.
             {
                 const DlssNr::MotionReading motion = DlssNr::MotionState();
-                ImGui::PushStyleColor(ImGuiCol_Text, kText);
+                ImGui::PushStyleColor(ImGuiCol_Text, LabelColor());
                 ImGui::TextUnformatted(Tr("Motion"));
                 ImGui::PopStyleColor();
                 // The same split the rows below use (NrSlider/NrCombo), so this lines up with them.
@@ -3360,7 +3755,7 @@ void RenderMenu(Config* config, float menuResScale)
             }
 
             const char* debugNames[] = { Tr("Off"), Tr("Proxy (what the model sees)"), Tr("Model output (raw)"),
-                                         Tr("Difference (amplified)") };
+                                         Tr("Difference (amplified)"), Tr("Image Clean Up mask") };
             int debugView = (int) config->DlssNrDebugView.value_or_default();
             if (NrCombo(Tr("Debug view"), &debugView, debugNames, IM_ARRAYSIZE(debugNames), rowWidth))
             {
@@ -3368,7 +3763,10 @@ void RenderMenu(Config* config, float menuResScale)
                 anyChanged = true;
             }
             HelpMarker(Tr("Proxy is the picture handed to the model. Difference shows what the model"
-                          "\nactually changed, amplified twenty times and centred on grey."));
+                          "\nactually changed, amplified twenty times and centred on grey."
+                          "\n\nImage Clean Up mask shows the frame in grey with red where the clean up may act,"
+                          "\ngreen where it actually moved a pixel and blue where motion held it back. It"
+                          "\nworks with the clean up off too, so the edges can be checked before turning it on."));
 
             // Both of these are experiments toward dropping the forwarder entirely, which is why they
             // ship off. Config.h calls the probe "a diagnostic, not a feature", and the proxy path

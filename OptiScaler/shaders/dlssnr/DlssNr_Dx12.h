@@ -33,8 +33,10 @@
 //
 // The shader still records at most meter + encode + downsample + resolve per frame. Extra model layers
 // are NGX evaluates and do not consume this ring; their A/B resources and feature histories are
-// persistent. Forty-eight slots leave twelve fully populated frames before descriptor/constant reuse.
-#define DLSSNR_NUM_OF_HEAPS 48
+// persistent. Image Clean Up adds its two halo meters (2026-09-26) and its prep dispatch, up to nine a
+// frame with the tone meter and the calibration: sixty-four slots keep seven fully populated frames before
+// any reuse.
+#define DLSSNR_NUM_OF_HEAPS 64
 
 class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
 {
@@ -54,15 +56,25 @@ class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
     // The shader reads five inputs and writes two, and not every mode uses all of them. Unused slots
     // still need a view bound -- an unbound descriptor is not an empty read, it is a read from
     // nothing -- so a stand-in is written into whichever are spare.
-    static constexpr uint32_t kSrvCount = 5;
-    static constexpr uint32_t kUavCount = 2;
+    // t5 is the depth guide, t6 Image Clean Up's mask history and t7 its model reading; u2 is where the
+    // resolve writes that reading and the halo meter its third grid. Read and written only when the
+    // clean up's flags say so.
+    static constexpr uint32_t kSrvCount = 8;
+    static constexpr uint32_t kUavCount = 3;
 
     uint32_t _numThreadsX = 8;
     uint32_t _numThreadsY = 8;
 
+    // Image Clean Up's prep (DlssNrMode_CleanupPrep): an entry point of its own (CSPrep), so it does not
+    // run under the resolve's register and groupshared budget. Null when it could not be built; the resolve
+    // then works its tile out itself, as before.
+    ID3D12PipelineState* _prepPipelineState = nullptr;
+
   public:
     DlssNr_Dx12(std::string InName, ID3D12Device* InDevice);
     ~DlssNr_Dx12();
+
+    bool HasCleanupPrep() const { return _prepPipelineState != nullptr; }
 
     // The pass. Resources in, and nothing read from anywhere the caller cannot see.
     //
@@ -86,5 +98,7 @@ class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
                       // Vestigial. Fed to the slot the removed edit accumulator read its history from;
                       // nothing reads it now and every caller passes nullptr. Kept only so the binding
                       // table keeps its shape -- not evidence that temporal accumulation exists.
-                      ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget, ID3D12Resource* OutKeep);
+                      ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget, ID3D12Resource* OutKeep,
+                      ID3D12Resource* InDepth = nullptr, ID3D12Resource* InHistory = nullptr,
+                      ID3D12Resource* OutAux = nullptr, ID3D12Resource* InCleanModel = nullptr);
 };

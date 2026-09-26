@@ -427,6 +427,36 @@ class Config
     // light source, whatever the model returns.
     CustomOptional<float> DlssNrMaxRatio { 2.0f };
 
+    // Image Clean Up: the glow the model leaves around characters and other strong edges, held back by a
+    // local version of the guard above (see CleanUp in dlssnr.hlsl). Mode 0 off, 1 Auto (the default since
+    // 2026-09-26) -- the halo is measured every frame and the strength follows it, up to MaxStrength, with the
+    // edge, balance and motion settings at their defaults -- 2 Manual, the four values below as set.
+    // Strength 0..1; Edge is the local contrast, in stops, where an edge starts to count (fully at twice
+    // it); Balance is the reach -- 0 the 3x3 around a pixel, 0.5 out to about 5 pixels, 1 out to about 12;
+    // Motion is how
+    // far fast motion and motion-vector breaks hold it back (D3D12, where the resolve has the game's
+    // vectors). Auto measures on D3D12; on Vulkan, Auto uses the manual Strength capped by MaxStrength.
+    CustomOptional<uint32_t> DlssNrCleanUpMode { 1 };
+    CustomOptional<float> DlssNrCleanUpMaxStrength { 1.0f };
+    CustomOptional<float> DlssNrCleanUpStrength { 0.6f };
+    CustomOptional<float> DlssNrCleanUpEdge { 1.5f };
+    CustomOptional<float> DlssNrCleanUpBalance { 0.75f };
+    CustomOptional<float> DlssNrCleanUpMotion { 0.5f };
+    // Manual's edge treatment along silhouettes (Auto uses its own: kCleanAutoBleed* in DlssNr_Dx12.cpp).
+    // Bleed 0..1 scales both sides; BleedInner / BleedOuter 0..1 the object's own side and the background's;
+    // Dodge / Burn, in stops, how far the model may lighten / darken the strip along a silhouette beyond the
+    // same surface a little way off before it is taken back (Burn below 0 leaves darkening alone).
+    CustomOptional<float> DlssNrCleanUpBleed { 1.0f };
+    CustomOptional<float> DlssNrCleanUpBleedInner { 0.5f };
+    CustomOptional<float> DlssNrCleanUpBleedOuter { 1.0f };
+    CustomOptional<float> DlssNrCleanUpDodge { 0.0f };
+    CustomOptional<float> DlssNrCleanUpBurn { 0.1f };
+    // One-shot: true writes one frame of everything the clean up sees to dlssnr-cleanup-capture\ beside
+    // OptiScaler, for tools/cleanup-harness.js, and is set back to false (and saved) at once.
+    CustomOptional<bool> DlssNrCleanUpCapture { false };
+    // Timing aid, bits as in DlssNrConstants::CleanupProfile. 0 in normal use.
+    CustomOptional<uint32_t> DlssNrCleanUpProfile { 0 };
+
     // How a model that worked below the frame's size is brought back. 0 classic, 1 matched
     // residual. Only has an effect when Model resolution is under 100%.
     CustomOptional<uint32_t> DlssNrTransfer { 1 };
@@ -484,37 +514,6 @@ class Config
     // only the model's contribution is computed small and enlarged, so the picture underneath is
     // untouched whatever this is set to. 1.0 is full resolution and behaves exactly as before.
     CustomOptional<float> DlssNrWorkingScale { 1.0f };
-
-    // Adaptive model resolution: let the pass hold itself to a budget by moving WorkingScale above,
-    // instead of a number chosen once for a whole game. The controller and the reasoning behind its
-    // shape are in dlssnr/DlssNrBudget.h; these are only what the panel stores.
-    //
-    // Off by default. Every move rebuilds the NGX feature, so this is not a setting to turn on
-    // behind someone's back -- it is one they should choose, having read what it does.
-    CustomOptional<bool> DlssNrAutoScale { false };
-    // What the budget is measured in: 0 a share of the frame, 1 a millisecond ceiling on the pass,
-    // 2 a frame rate to aim at. The numbers are DlssNrBudget::Mode's own order, so the two cannot
-    // drift apart. 2 is the default because a frame rate is the one a player already has in mind.
-    CustomOptional<uint32_t> DlssNrAutoScaleMode { 2 };
-    // Mode 2: the frame rate to aim at.
-    CustomOptional<int> DlssNrAutoScaleFps { 60 };
-    // Mode 1: the flat ceiling on the pass, in milliseconds.
-    CustomOptional<float> DlssNrAutoScaleMs { 2.0f };
-    // Mode 0: the share of the frame the pass may take, as a percentage.
-    CustomOptional<int> DlssNrAutoScaleShare { 15 };
-    // The lowest the controller may take the model. Clamped to a real rung, and it cannot go below
-    // the bottom one -- which is where the trade stops being cost against quality and starts being
-    // cost against artefacts.
-    CustomOptional<float> DlssNrAutoScaleFloor { 0.55f };
-    // What AutoScale does with model sizes it is not using. Every size change used to destroy the NR
-    // feature and build a new one, holding Present ~250 ms (Resident Evil 2, 2026-09-18).
-    //   0  off: destroy and rebuild on every move, as before.
-    //   1  keep: a size the controller leaves stays built, so moving back to it is instant.
-    //   2  keep and prebuild (default): as 1, and the other rungs are also built ahead of time, at most
-    //      one per 5 s, only with DLSS 5 on and the create-time settings unchanged for 10 s, preferring
-    //      a natural pause (a frame that is already long, the panel open) over the timed slot.
-    // Both only while video memory allows; a fixed WorkingScale (AutoScale off) never builds extra models.
-    CustomOptional<uint32_t> DlssNrAutoScalePrebuild { 2 };
 
     // Filter used for NR supersampling (working scale > 1): the model runs above native, and this is
     // the downscaler that averages its answer back to native. Independent of OutputScalingDownscaler

@@ -12,6 +12,7 @@
 #include <shaders/dlssnr/DlssNr_Vk.h>
 #include <shaders/output_scaling/OS_Vk.h>
 #include <dlssnr/DlssNr_TimingTrust.h>
+#include <dlssnr/DlssNr_RenoDx.h>
 
 #include <algorithm>
 
@@ -1037,13 +1038,35 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     encode.ApplyModel = cfg.DlssNrApplyModel.value_or_default() ? 1u : 0u;
     encode.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
     encode.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
-    encode.Brightness = cfg.DlssNrBrightness.value_or_default();
-    encode.Contrast = cfg.DlssNrContrast.value_or_default();
+    // With RenoDX in the game, identity: RenoDX grades the picture (the ini values are kept).
+    const bool toneTrimOff = DlssNrRenoDx::ToneTrimSuppressed();
+    encode.Brightness = toneTrimOff ? 1.0f : cfg.DlssNrBrightness.value_or_default();
+    encode.Contrast = toneTrimOff ? 1.0f : cfg.DlssNrContrast.value_or_default();
     encode.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
     encode.Transfer = cfg.DlssNrTransfer.value_or_default();
     encode.DebugScale = cfg.DlssNrWhitePointScale.value_or_default();
     encode.GuideWidth = guideWidth;
     encode.GuideHeight = guideHeight;
+
+    // Image Clean Up, luminance edges only: this pass has no descriptors for the depth guide or the mask
+    // history, and no halo meter to steer Auto by -- so Auto here uses the manual Strength, capped by
+    // MaxStrength. The resolve inherits these from encode; the encode itself never reads them.
+    const uint32_t cleanMode = cfg.DlssNrCleanUpMode.value_or_default();
+    if (cleanMode == 1 || cleanMode == 2)
+    {
+        float strength = std::clamp(cfg.DlssNrCleanUpStrength.value_or_default(), 0.0f, 1.0f);
+        if (cleanMode == 1)
+            strength = std::min(strength, std::clamp(cfg.DlssNrCleanUpMaxStrength.value_or_default(), 0.0f, 1.0f));
+        encode.CleanupStrength = strength;
+    }
+    encode.CleanupEdge = cleanMode == 1 ? 1.5f : std::clamp(cfg.DlssNrCleanUpEdge.value_or_default(), 0.25f, 4.0f);
+    encode.CleanupBalance = cleanMode == 1 ? 1.0f : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
+    // Brightness edges only here: the background's side as on D3D12; the object's side and darkening need
+    // the depth guide this pass has not got.
+    encode.CleanupBleedOuter = 1.0f;
+    encode.CleanupBleedInner = 0.0f;
+    encode.CleanupDodge = 0.0f;
+    encode.CleanupBurn = -1.0f;
 
     const VkImageSubresourceRange colourRange = colour->Resource.ImageViewInfo.SubresourceRange;
 

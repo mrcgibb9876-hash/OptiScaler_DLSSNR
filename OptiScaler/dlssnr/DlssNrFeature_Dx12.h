@@ -116,6 +116,33 @@ struct AutoToneReading
 
 AutoToneReading AutoTone();
 
+// Image Clean Up (D3D12): the strength the resolve ran with last (Auto's own choice in Auto), and the
+// halo meter's two readings, in stops -- the model's glow before the clean up, and what is left of it in
+// the finished picture. -1 until a reading lands; measuring is false while the clean up is off.
+struct CleanUpReading
+{
+    bool measuring = false;
+    float strength = 0.0f;
+    float haloBefore = -1.0f;
+    float haloAfter = -1.0f;
+    float haloModel = -1.0f; // the model's own change laid on the frame, before the composition
+    float edge = 0.0f;       // the settings the last resolve ran with -- Auto's own in Auto
+    float balance = 0.0f;
+    float motion = 0.0f;
+    float bleedInner = 0.0f; // the edge treatment the last resolve ran with (Bleed, Dodge, Burn)
+    float bleedOuter = 0.0f;
+    float dodge = 0.0f;
+    float burn = 0.0f;
+    std::optional<double> composeMs; // the composition pass, which the clean up runs inside
+};
+
+CleanUpReading CleanUpState();
+
+// Image Clean Up: record the next frame of everything it sees for the offline harness (see
+// DlssNr_CleanCapture.h). Written to dlssnr-cleanup-capture\<time>\ beside OptiScaler, logged.
+void RequestCleanUpCapture();
+bool CleanUpCapturePending();
+
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 
@@ -176,21 +203,6 @@ ExposureStatus GameExposureStatus();
 // What the pass last cost on the GPU, in milliseconds, or nothing if it has not been measured yet.
 std::optional<double> LastGpuTime();
 
-// Where adaptive model resolution has got to. The panel needs all of this to say something a player
-// can act on rather than printing a scale and leaving them to work out why it moved.
-struct AutoScaleStatus
-{
-    bool enabled = false;     // the setting is on
-    bool running = false;     // and it is being fed real readings; off means it has nothing to steer on
-    float scale = 1.0f;       // the rung it is sitting on
-    bool atFloor = false;     // and that rung is as low as the floor allows
-    bool gameLimited = false; // frame rate target only: at the floor and still short, so the rest is the game's
-    double lastPassMs = 0.0;  // the median pass cost over the last window
-    double lastBudgetMs = 0.0;
-};
-
-AutoScaleStatus AutoScale();
-
 // The game process's video memory use and the budget Windows gives it on the GPU the pass runs on, in
 // bytes, as last read by the pass (DXGI QueryVideoMemoryInfo, local segment). False until the pass has
 // read it once. For the panel.
@@ -202,11 +214,6 @@ bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes);
 // The pair is a control: same frames, same run, one variable.
 void RequestCapture(unsigned int frames);
 bool CaptureInProgress();
-
-// Called by the entry points while DLSS 5 is switched off: drops the model sizes adaptive resolution kept
-// (they are parked, then released) and keeps the parked list draining, since the pass that normally ticks
-// it is not running. Without it a switched-off DLSS 5 would sit on every kept size's video memory.
-void IdleWhileOff();
 
 void Shutdown();
 } // namespace DlssNr

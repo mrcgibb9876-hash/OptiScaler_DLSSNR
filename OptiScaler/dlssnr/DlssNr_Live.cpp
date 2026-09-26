@@ -3,6 +3,8 @@
 #include "pch.h"
 #include "DlssNr_Live.h"
 #include "DlssNr.h"
+#include "DlssNr_Hosted.h"
+#include "DlssNr_RenoDx.h"
 #include "DlssNrFeature_Vk.h"
 #include <Config.h>
 #include <State.h>
@@ -129,6 +131,48 @@ std::string BuildJson()
         s += "},";
     }
 
+    // cleanup -- Image Clean Up: the mode ([DlssNr] CleanUpMode, 0 off, 1 auto, 2 manual), the strength
+    // the composition ran with last (Auto's own choice in Auto), the halo meter's readings in stops (the
+    // composed picture before the clean up, after it, and the model's own change) and the composition's GPU time,
+    // which the clean up runs inside. null where there is no reading.
+    {
+        const DlssNr::CleanUpReading clean = DlssNr::CleanUpState();
+        s += "\"cleanup\":{";
+        AppendNum(s, "mode", (double) config->DlssNrCleanUpMode.value_or_default(), 0);
+        s += ',';
+        AppendOptNum(s, "strength", clean.measuring, clean.strength, 2);
+        s += ',';
+        AppendOptNum(s, "haloBefore", clean.measuring && clean.haloBefore >= 0.0f, clean.haloBefore, 3);
+        s += ',';
+        AppendOptNum(s, "haloAfter", clean.measuring && clean.haloAfter >= 0.0f, clean.haloAfter, 3);
+        s += ',';
+        AppendOptNum(s, "haloModel", clean.measuring && clean.haloModel >= 0.0f, clean.haloModel, 3);
+        s += ',';
+        AppendOptNum(s, "composeMs", clean.composeMs.has_value(), clean.composeMs.value_or(0.0), 3);
+        s += ',';
+        // The edge treatment it ran with (Auto's own values in Auto): bleed inner/outer 0..1, dodge and burn in
+        // stops (burn below 0: darkening left alone).
+        AppendOptNum(s, "bleed", clean.measuring,
+                     config->DlssNrCleanUpMode.value_or_default() == 2
+                         ? std::clamp(config->DlssNrCleanUpBleed.value_or_default(), 0.0f, 1.0f)
+                         : 1.0f,
+                     2);
+        s += ',';
+        AppendOptNum(s, "bleedInner", clean.measuring, clean.bleedInner, 2);
+        s += ',';
+        AppendOptNum(s, "bleedOuter", clean.measuring, clean.bleedOuter, 2);
+        s += ',';
+        AppendOptNum(s, "dodge", clean.measuring, clean.dodge, 2);
+        s += ',';
+        AppendOptNum(s, "burn", clean.measuring, clean.burn, 2);
+        s += "},";
+    }
+
+    // renodxActive -- a RenoDX add-on with the host API is loaded: the in-game panel hides the tone trim
+    // (Brightness, Contrast, their Auto) and sends it as identity, and the pop-out hides the same rows.
+    AppendBool(s, "renodxActive", DlssNrRenoDx::ToneTrimSuppressed());
+    s += ',';
+
     // tone -- what Auto brightness / Auto contrast are applying right now, so the pop-out's sliders can
     // show it the way the in-game panel does. null until a first reading lands.
     {
@@ -159,28 +203,6 @@ std::string BuildJson()
         // On the Present route the vectors are this engine's own optical flow and no ReShade
         // provider is involved, so the manager must not offer to swap one.
         AppendBool(s, "usingFlow", motion.usingFlow);
-        s += "},";
-    }
-
-    // autoScale -- DrawAutoScale's status, with its three outcomes named.
-    {
-        const bool on = config->DlssNrAutoScale.value_or_default();
-        const AutoScaleStatus st = DlssNr::AutoScale();
-        const char* stateName = !on ? "off" : !st.running ? "settling" : st.gameLimited ? "short" : "holding";
-        s += "\"autoScale\":{";
-        AppendBool(s, "on", on);
-        s += ',';
-        AppendOptNum(s, "scale", on && st.running, st.scale, 3);
-        s += ",\"state\":\"";
-        s += stateName;
-        s += "\",";
-        AppendNum(s, "mode", (double) config->DlssNrAutoScaleMode.value_or_default(), 0);
-        s += ',';
-        AppendNum(s, "fps", (double) config->DlssNrAutoScaleFps.value_or_default(), 0);
-        s += ',';
-        AppendNum(s, "ms", (double) config->DlssNrAutoScaleMs.value_or_default(), 2);
-        s += ',';
-        AppendNum(s, "share", (double) config->DlssNrAutoScaleShare.value_or_default(), 0);
         s += "},";
     }
 
@@ -272,6 +294,10 @@ void Tick()
         if (g_requested != was)
             LOG_INFO("DLSS-NR live readings for the pop-out panel: {}", g_requested ? "on" : "off");
     }
+
+    // Pacing and HDR for the pop-out ride the same request, on this same thread -- the one both add-ons'
+    // host APIs ask to be called from. Before the early return below, which is about live.json only.
+    DlssNr::Hosted::Tick(g_dir, g_requested);
 
     if (!g_requested || now - g_lastWrite < kWriteEvery)
         return;

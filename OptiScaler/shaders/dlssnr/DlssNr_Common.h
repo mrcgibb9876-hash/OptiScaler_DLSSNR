@@ -22,7 +22,10 @@ enum DlssNrMode : uint32_t
     DlssNrMode_Resolve = 1,    // proxy + the model's answer + the untouched copy -> the edited frame
     DlssNrMode_Downsample = 2, // the proxy -> a smaller proxy, when the model works below full size
     DlssNrMode_Meter = 3,      // the exposure texture -> tile (0,0), for the white point
-    DlssNrMode_Calibrate = 4   // the untouched frame -> a grid of tile peak luminances
+    DlssNrMode_Calibrate = 4,  // the untouched frame -> a grid of tile peak luminances
+    DlssNrMode_HaloMeter = 5,  // Image Clean Up's per-pixel readings -> three grids of how far each glows
+    DlssNrMode_CleanupPrep = 6 // the untouched frame -> Image Clean Up's per-pixel log luminance, depth and
+                               // chroma, and each 8x8 block's range (D3D12)
 };
 
 // The meter's grid. 64 x 64 tiles over the whole frame, whatever its size.
@@ -210,6 +213,42 @@ struct alignas(256) DlssNrConstants
     // a caller that never heard of them keeps the picture it always had.
     float Brightness;
     float Contrast;
+
+    // Image Clean Up (Config DlssNrCleanUp*): near strong edges in the frame the model was shown, the
+    // composed picture's luminance may not move far from the frame's own, nor past the range of its
+    // neighbourhood -- which is what the glow around characters is. Zero strength (every dispatch that
+    // never set it, and the default) skips the whole block, so the pass is bit-identical without it.
+    // CleanupEdge is in stops of local contrast; CleanupBalance 0 fine (3x3) .. 1 wide (radius 4);
+    // CleanupMotion how far large motion and motion-vector discontinuities hold it back, used only
+    // when CleanupHaveMotion says the motion slot really holds the game's vectors (MvScale and
+    // GuideWidth/Height then describe them, in pixels of this dispatch). Trailing, like the rest.
+    float CleanupStrength;
+    float CleanupEdge;
+    float CleanupBalance;
+    float CleanupMotion;
+    uint32_t CleanupHaveMotion;
+    // CleanupHaveMotion: 0 none, 1 the game's vectors, 2 optical flow (the Present route), where only fast
+    // motion holds the clean up back. D3D12 only (the Vulkan pass has no descriptors for them): t5 holds
+    // the depth guide, which way it runs, and the mask history -- 0 none, 1 write u1 and u2 only (a first
+    // frame), 2 also read t6.
+    uint32_t CleanupHaveDepth;
+    uint32_t CleanupDepthInverted;
+    uint32_t CleanupHistory;
+    // [DlssNr] CleanUpProfile, for timing the clean up's pieces from the cost line: 1 no halo meter, 2 no
+    // mask history, 4 no colour clamp, 8 no quiet-tile skip, 16 the tile fill alone, 32 no prep dispatch
+    // (DlssNrMode_CleanupPrep). 0 in normal use.
+    uint32_t CleanupProfile;
+    // 1: t7 holds this frame's DlssNrMode_CleanupPrep surface, which the resolve's tile loads instead of
+    // working its values out per group (D3D12). 0 on Vulkan and whenever the clean up is not drawn.
+    uint32_t CleanupPrepared;
+    // Bleed: how much of the model's edge light is taken back on the object's own side of a silhouette
+    // (inner) and the background's (outer), 0..1; Dodge and Burn: the stops the model may lighten, or
+    // darken, a strip along a silhouette beyond what it did to the same surface a little way off, at full
+    // strength -- a negative Burn leaves darkening alone. Every dispatch that runs the clean up sets them.
+    float CleanupBleedInner;
+    float CleanupBleedOuter;
+    float CleanupDodge;
+    float CleanupBurn;
 };
 
 class DlssNr_Common

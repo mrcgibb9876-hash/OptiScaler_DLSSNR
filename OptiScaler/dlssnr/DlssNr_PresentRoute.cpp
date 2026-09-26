@@ -89,6 +89,10 @@ void STDMETHODCALLTYPE HookedExecuteCommandLists(ID3D12CommandQueue* queue, UINT
         }
     }
 
+    // What these lists did to the depth candidates counts from now, in submission order -- the depth
+    // tracker's pick at Present is then the buffer the submitted work wrote, not one merely recorded.
+    DlssNr::DepthTracker::OnExecute(count, lists);
+
     g_originalExecuteCommandLists(queue, count, lists);
 }
 

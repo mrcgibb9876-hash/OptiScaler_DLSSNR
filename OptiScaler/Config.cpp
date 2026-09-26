@@ -402,6 +402,19 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrAutoBrightness.set_from_config(readBool("DlssNr", "AutoBrightness"));
             DlssNrAutoContrast.set_from_config(readBool("DlssNr", "AutoContrast"));
             DlssNrMaxRatio.set_from_config(readFloat("DlssNr", "MaxRatio"));
+            DlssNrCleanUpMode.set_from_config(readUInt("DlssNr", "CleanUpMode"));
+            DlssNrCleanUpMaxStrength.set_from_config(readFloat("DlssNr", "CleanUpMaxStrength"));
+            DlssNrCleanUpStrength.set_from_config(readFloat("DlssNr", "CleanUpStrength"));
+            DlssNrCleanUpEdge.set_from_config(readFloat("DlssNr", "CleanUpEdge"));
+            DlssNrCleanUpBalance.set_from_config(readFloat("DlssNr", "CleanUpBalance"));
+            DlssNrCleanUpMotion.set_from_config(readFloat("DlssNr", "CleanUpMotion"));
+            DlssNrCleanUpBleed.set_from_config(readFloat("DlssNr", "CleanUpBleed"));
+            DlssNrCleanUpBleedInner.set_from_config(readFloat("DlssNr", "CleanUpBleedInner"));
+            DlssNrCleanUpBleedOuter.set_from_config(readFloat("DlssNr", "CleanUpBleedOuter"));
+            DlssNrCleanUpDodge.set_from_config(readFloat("DlssNr", "CleanUpDodge"));
+            DlssNrCleanUpBurn.set_from_config(readFloat("DlssNr", "CleanUpBurn"));
+            DlssNrCleanUpCapture.set_from_config(readBool("DlssNr", "CleanUpCapture"));
+            DlssNrCleanUpProfile.set_from_config(readUInt("DlssNr", "CleanUpProfile"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
 
             DlssNrWhitePointFromExposure.set_from_config(readBool("DlssNr", "WhitePointFromExposure"));
@@ -414,13 +427,6 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrCompareTags.set_from_config(readBool("DlssNr", "CompareTags"));
             DlssNrTagScale.set_from_config(readFloat("DlssNr", "TagScale"));
             DlssNrWorkingScale.set_from_config(readFloat("DlssNr", "WorkingScale"));
-            DlssNrAutoScale.set_from_config(readBool("DlssNr", "AutoScale"));
-            DlssNrAutoScaleMode.set_from_config(readUInt("DlssNr", "AutoScaleMode"));
-            DlssNrAutoScaleFps.set_from_config(readInt("DlssNr", "AutoScaleFps"));
-            DlssNrAutoScaleMs.set_from_config(readFloat("DlssNr", "AutoScaleMs"));
-            DlssNrAutoScaleShare.set_from_config(readInt("DlssNr", "AutoScaleShare"));
-            DlssNrAutoScaleFloor.set_from_config(readFloat("DlssNr", "AutoScaleFloor"));
-            DlssNrAutoScalePrebuild.set_from_config(readUInt("DlssNr", "AutoScalePrebuild"));
 
             if (auto v = readEnum<Scaler>("DlssNr", "ScalingDownscaler"))
                 DlssNrScalingDownscaler.set_from_config(*v);
@@ -1385,6 +1391,29 @@ bool Config::SaveIni()
                      GetBoolValue(Instance()->DlssNrAutoBrightness.value_for_config()).c_str());
         ini.SetValue("DlssNr", "AutoContrast", GetBoolValue(Instance()->DlssNrAutoContrast.value_for_config()).c_str());
         ini.SetValue("DlssNr", "MaxRatio", GetFloatValue(Instance()->DlssNrMaxRatio.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMode", GetIntValue(Instance()->DlssNrCleanUpMode.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMaxStrength",
+                     GetFloatValue(Instance()->DlssNrCleanUpMaxStrength.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpStrength",
+                     GetFloatValue(Instance()->DlssNrCleanUpStrength.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpEdge", GetFloatValue(Instance()->DlssNrCleanUpEdge.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBalance",
+                     GetFloatValue(Instance()->DlssNrCleanUpBalance.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpMotion",
+                     GetFloatValue(Instance()->DlssNrCleanUpMotion.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleed",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleed.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleedInner",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleedInner.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleedOuter",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleedOuter.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpDodge",
+                     GetFloatValue(Instance()->DlssNrCleanUpDodge.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBurn", GetFloatValue(Instance()->DlssNrCleanUpBurn.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpCapture",
+                     GetBoolValue(Instance()->DlssNrCleanUpCapture.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpProfile",
+                     GetIntValue(Instance()->DlssNrCleanUpProfile.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Transfer", GetIntValue(Instance()->DlssNrTransfer.value_for_config()).c_str());
 
         ini.SetValue("DlssNr", "ProbeD3D11", GetBoolValue(Instance()->DlssNrProbeD3D11.value_for_config()).c_str());
@@ -1400,17 +1429,6 @@ bool Config::SaveIni()
         ini.SetValue("DlssNr", "TagScale", GetFloatValue(Instance()->DlssNrTagScale.value_for_config()).c_str());
         ini.SetValue("DlssNr", "WorkingScale",
                      GetFloatValue(Instance()->DlssNrWorkingScale.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScale", GetBoolValue(Instance()->DlssNrAutoScale.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleMode",
-                     GetIntValue(Instance()->DlssNrAutoScaleMode.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleFps", GetIntValue(Instance()->DlssNrAutoScaleFps.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleMs", GetFloatValue(Instance()->DlssNrAutoScaleMs.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleShare",
-                     GetIntValue(Instance()->DlssNrAutoScaleShare.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScaleFloor",
-                     GetFloatValue(Instance()->DlssNrAutoScaleFloor.value_for_config()).c_str());
-        ini.SetValue("DlssNr", "AutoScalePrebuild",
-                     GetIntValue(Instance()->DlssNrAutoScalePrebuild.value_for_config()).c_str());
         ini.SetValue("DlssNr", "ScalingDownscaler", GetIntValue(Instance()->DlssNrScalingDownscaler).c_str());
         ini.SetValue("DlssNr", "ScalingUpscaler", GetIntValue(Instance()->DlssNrScalingUpscaler).c_str());
         ini.SetValue("DlssNr", "ScalingSharpness",
@@ -1941,6 +1959,12 @@ bool Config::SaveIni()
     {
         ini.Delete("FSR", "Fsr4ForceEnableInt8");
         ini.Delete("Nukems", "MakeDepthCopy", true);
+
+        // Adaptive model resolution (AutoScale) was removed; the model now always runs at the fixed
+        // WorkingScale. Its keys are dropped from ini files written before that.
+        for (const char* key : { "AutoScale", "AutoScaleMode", "AutoScaleFps", "AutoScaleMs", "AutoScaleShare",
+                                 "AutoScaleFloor", "AutoScalePrebuild" })
+            ini.Delete("DlssNr", key);
     }
 
     auto pathWStr = absoluteFileName.wstring();

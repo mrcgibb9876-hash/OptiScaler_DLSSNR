@@ -7,10 +7,12 @@
 #include <dlssnr/DlssNr.h>
 
 #include <dlssnr/DlssNr_Capture.h>
+#include <dlssnr/DlssNr_CleanCapture.h>
 #include <dlssnr/DlssNr_Proxy.h>
 #include <dlssnr/DlssNr_ExposureScan.h>
 #include <dlssnr/DlssNr_PresentRoute.h>
 #include <dlssnr/DlssNr_DepthTracker.h>
+#include <dlssnr/DlssNr_RenoDx.h>
 #include <menu/menu_dx12.h>
 #include <menu/menu_common.h>
 #include <dlssnr/DlssNrFeature_Dx12.h>
@@ -28,15 +30,17 @@
 #include <hooks/D3D12_Hooks.h>
 #include <gpu_time/GpuTime_Dx12.h>
 #include <dlssnr/DlssNr_TimingTrust.h>
-#include <dlssnr/DlssNrBudget.h>
 
 #include <mutex>
 #include <map>
 #include <chrono>
+#include <cmath>
+#include <vector>
 #include <format>
 #include <algorithm>
 #include <cstring>
 #include "precompile/DlssNr_Shader.h"
+#include "precompile/DlssNr_ShaderPrep.h"
 #include "../output_scaling/OS_Dx12.h"
 
 namespace
@@ -425,6 +429,49 @@ struct NrState
     bool builtUICorrection = true;
     unsigned long long settledAt = 0;
 
+    // Image Clean Up (see the block in dlssnr.hlsl). Three 64x64 halo grids, reduced from what the resolve
+    // itself measured per pixel against one band and one mask -- the composed picture before the clean up
+    // (0), after it (1), and the model's own change laid on the frame (2) -- each read back four frames
+    // later on its own ring, like the tone grid. Auto drives its strength from grid 0.
+    ID3D12Resource* haloGrid[3] = {};
+    ID3D12Resource* haloReadback[3][4] = {};
+    unsigned long long haloFrames = 0;
+    float haloBefore = -1.0f; // stops, -1 until a reading lands
+    float haloAfter = -1.0f;
+    float haloModel = -1.0f;
+    float haloSmoothed = -1.0f;
+    int haloJumpHeld = 0;
+    float cleanAutoStrength = 0.0f;
+    float cleanApplied = 0.0f; // the strength the last resolve ran with, 0 when off
+    float cleanEdge = 0.0f;    // and its settings (Auto's own in Auto), for the read-outs
+    float cleanBalance = 0.0f;
+    float cleanMotion = 0.0f;
+    float cleanBleedInner = 0.0f; // and its edge treatment (CleanupBleedInner and so on), for the read-outs
+    float cleanBleedOuter = 0.0f;
+    float cleanDodge = 0.0f;
+    float cleanBurn = 0.0f;
+    bool cleanAutoSettled = false;
+    std::chrono::steady_clock::time_point haloLastUpdate {};
+    unsigned long long cleanHoldUntil = 0; // Auto holds still until this frame after a cut
+
+    // The clean up's mask history: two full-size R16G16B16A16 surfaces (mask, log depth, and the mask-
+    // weighted excess before and after the clean up), one read and one written each frame, swapping; and
+    // one R16 surface for the model reading.
+    ID3D12Resource* cleanHistory[2] = {};
+    ID3D12Resource* cleanModel = nullptr;
+    // The prep surface (DlssNrMode_CleanupPrep): the frame's size plus a row of 8x8 blocks under it, RGBA16F.
+    ID3D12Resource* cleanPrep = nullptr;
+    D3D12_RESOURCE_STATES cleanPrepState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    unsigned int cleanPrepW = 0;
+    unsigned int cleanPrepH = 0;
+    D3D12_RESOURCE_STATES cleanModelState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    D3D12_RESOURCE_STATES cleanHistoryState[2] = { D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                                   D3D12_RESOURCE_STATE_UNORDERED_ACCESS };
+    unsigned int cleanHistoryW = 0;
+    unsigned int cleanHistoryH = 0;
+    unsigned int cleanHistoryIndex = 0;
+    bool cleanHistoryValid = false;
+
     // Once something fails there is no recovering it mid-session, and retrying every frame turns a
     // failure into a crash. It stays off and says why.
     bool failed = false;
@@ -450,20 +497,15 @@ std::unique_ptr<GpuTime_Dx12> g_gpuTime;
 // we can actually do something about.
 std::unique_ptr<GpuTime_Dx12> g_ngxTime;
 std::optional<double> g_lastNgxTime;
+
+// A third, around the resolve (the composition) alone, so what Image Clean Up adds to it can be read off
+// the cost line with it on and off: it runs inside the resolve rather than as a pass of its own.
+std::unique_ptr<GpuTime_Dx12> g_composeTime;
+std::optional<double> g_lastComposeTime;
 std::optional<double> g_lastGpuTime;
 
 // Whether g_lastGpuTime is fit for the panel at all; see DlssNr_TimingTrust.h.
 NrTimingTrust g_timingTrust;
-
-// Adaptive model resolution. The controller is in dlssnr/DlssNrBudget.h and knows nothing about the
-// engine; this is the join. It is fed once per dispatch from the two numbers that were already being
-// measured -- the pass's own GPU time and the frame time the overlay's graph draws from -- and what
-// it decides is written back to DlssNrWorkingScale, which the top of the NEXT dispatch reads as a
-// resolution change and rebuilds the feature for. That rebuild is the entire reason the controller
-// is quantised to four rungs and rate limited rather than moving every frame.
-DlssNrBudget::Controller g_budget;
-bool g_budgetOn = false;
-DlssNr::AutoScaleStatus g_autoScale;
 
 // Writes matched before/after frames on request, so comparisons stop depending on video.
 capture::FrameCapture g_capture;
@@ -504,6 +546,52 @@ unsigned long long g_captureWriteAtFrame = 0;
 
 // Dropping a file named dlssnr-capture.trigger beside OptiScaler requests a capture, so a session can
 // be asked for one from outside the game -- no alt-tab, no menu. Checked once a second, effectively.
+cleancapture::CleanCapture g_cleanCapture;
+ID3D12Resource* g_cleanCaptureBefore = nullptr;
+
+// Image Clean Up's one-frame capture, from any of four places: Alt+F1 or Ctrl+Shift+F12, the panel's button,
+// [DlssNr] CleanUpCapture=true (set back to false and saved at once, so a live reload fires it once), or a
+// file named dlssnr-cleanup-capture.trigger beside OptiScaler.
+void CheckCleanCaptureTrigger()
+{
+    static bool keyWasDown = false;
+    // Alt+F1 as well: one hand stays on the mouse while the other captures mid-movement (Ctrl alone opens
+    // menus in some games).
+    const bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    const bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    const bool f1Down = (GetAsyncKeyState(VK_F1) & 0x8000) != 0;
+    const bool f12Down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+    const bool keyDown = (altDown && f1Down) || (ctrlDown && shiftDown && f12Down);
+    if (keyDown && !keyWasDown)
+    {
+        g_cleanCapture.request();
+        LOG_INFO("DLSS-NR image clean up capture requested (Alt+F1 or Ctrl+Shift+F12)");
+    }
+    keyWasDown = keyDown;
+
+    auto* cfg = Config::Instance();
+    if (cfg->DlssNrCleanUpCapture.value_or_default())
+    {
+        cfg->DlssNrCleanUpCapture = false;
+        cfg->SaveIni();
+        g_cleanCapture.request();
+        LOG_INFO("DLSS-NR image clean up capture requested ([DlssNr] CleanUpCapture)");
+    }
+
+    if ((g_frames % 60) == 0)
+    {
+        std::error_code ec;
+        const auto trigger = Util::DllPath().remove_filename() / "dlssnr-cleanup-capture.trigger";
+        if (std::filesystem::exists(trigger, ec))
+        {
+            std::filesystem::remove(trigger, ec);
+            g_cleanCapture.request();
+            LOG_INFO("DLSS-NR image clean up capture requested by trigger file");
+        }
+    }
+}
+
 void CheckCaptureTrigger()
 {
     if ((g_frames % 60) != 0)
@@ -853,11 +941,6 @@ constexpr uint64_t kFeatureBytesPerPixel = 192;
 // stopped from running at all.
 uint64_t StandardReserve(uint64_t budget) { return std::max<uint64_t>(budget / 20, 384ull << 20); }
 
-// What model sizes kept or built ahead for adaptive resolution must leave free: at least 1.5 GB, and never
-// less than the standard reserve. They are an optimisation -- a switch without a hitch -- and must never
-// be what pushes a 12 GB laptop GPU back into the eviction that lost the device in Cyberpunk.
-uint64_t CacheReserve(uint64_t budget) { return std::max<uint64_t>(StandardReserve(budget), 1536ull << 20); }
-
 bool FitsInVideoMemory(ID3D12Device* device, uint64_t need, uint64_t* usageOut = nullptr, uint64_t* budgetOut = nullptr)
 {
     uint64_t usage = 0, budget = 0;
@@ -952,225 +1035,7 @@ void TickNrRetired()
     }
 }
 
-// ---------------------------------------------------------------------------------------------------
-// Adaptive resolution: the model-size cache.
-//
-// Resident Evil 2 (Present route, 2560x1440, RTX 5070 Ti Laptop, 2026-09-18): every AutoScale move
-// destroyed the NR feature (feature 18) and its surfaces and built new ones at the new size, holding
-// Present ~250 ms each time. The feature is created with one width/height that is both its input and
-// its output, so feeding a smaller picture to a bigger model is not an option. What is left is to stop
-// throwing built sizes away: a size the controller leaves is kept here with its own work-size surfaces,
-// and moving back to it is a pointer swap -- no CreateFeature, no hold.
-//
-// Only model-size changes are cached. Everything else a feature or its surfaces were built for (the
-// device, the frame size, the surface format, placement before/after SR, the HDR colour path, the
-// tuning the model reads at create time) is the cache's generation: any change drops every entry.
-// Entries are parked, never released on the spot, for the same reason ParkNrFeature exists.
-//
-// Only while AutoScale is on: a fixed WorkingScale never holds more than one model.
-struct NrSizeEntry
-{
-    unsigned int workWidth = 0;
-    unsigned int workHeight = 0;
-    float scale = 1.0f;
-
-    void* feature = nullptr;
-    bool pendingSubmission = false;
-    unsigned long long createEpoch = 0;
-
-    // Extra-pass features (index = pass, [0] unused), with the preset/style each was built with, so one
-    // built for an older per-pass profile is never handed back as current.
-    void* passFeature[DlssNr::MaxPassCount] = {};
-    unsigned int passPreset[DlssNr::MaxPassCount] = {};
-    unsigned int passStyle[DlssNr::MaxPassCount] = {};
-    bool passPendingSubmission[DlssNr::MaxPassCount] = {};
-    unsigned long long passCreateEpoch[DlssNr::MaxPassCount] = {};
-
-    // The surfaces sized to the model. The full-frame ones (colorCopy, hdrCopy, activeColor,
-    // outputNative) do not change with the model's size and stay with the live state.
-    ID3D12Resource* output = nullptr;
-    ID3D12Resource* passScratch = nullptr;
-    ID3D12Resource* colorSmall = nullptr;
-
-    uint64_t bytes = 0;              // measured video memory this size costs; 0 = not measured
-    unsigned long long lastUsed = 0; // g_frames when it was last live (or built), for LRU
-    bool prebuilt = false;
-};
-
-std::vector<NrSizeEntry> g_nrCache;
-
-// What the live feature and every cached one were built for. See above.
-struct NrCacheGeneration
-{
-    bool valid = false;
-    ID3D12Device* device = nullptr;
-    unsigned int width = 0;
-    unsigned int height = 0;
-    DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
-    bool beforeUpscale = false;
-    bool hdr = false;
-};
-
-NrCacheGeneration g_nrCacheGen;
-
-// Measured cost of the live size (primary feature, its extra passes and its work-size surfaces), and
-// the bytes per model pixel the last good measurement came to -- the prediction a prebuild is admitted on.
-uint64_t g_liveSizeBytes = 0;
-double g_measuredBytesPerPixel = 0.0;
-
-// Pacing for kept and prebuilt sizes. Resident Evil 2 (2026-09-18, second run): the first build was
-// followed by a burst of three prebuilds back to back (~140 ms held Present each), and in 15 s of panel
-// use every settings change and every off/on flushed all kept sizes, rebuilt the live one and prebuilt
-// three more -- four stalls per change, six "held Present" lines. It even prebuilt with DLSS 5 off.
-// Measured cost of one size there: CreateFeature 130-150 ms, surfaces ~1 ms, first evaluate ~2 ms.
-//
-// How long kept sizes survive DLSS 5 being switched off. Toggling it in the panel to compare is quick;
-// a real "off" lasts longer than this and gives the memory back.
-constexpr double kCacheOffGraceMs = 30000.0;
-// How long the create-time settings (and the on/off switch) must stay unchanged before a prebuild. A
-// slider drag rebuilds the live model several times in a few seconds; building other sizes for tuning
-// about to be thrown away is four stalls instead of one.
-constexpr double kPrebuildSettleMs = 10000.0;
-// At most one prebuild (or primary build followed by a prebuild) per this long: each is a ~140 ms hold,
-// and one every 5 s is a hitch now and then instead of a stutter.
-constexpr double kPrebuildSpacingMs = 5000.0;
-// Once the slot is open, how long to wait for a pause the player is already sitting through (a long
-// frame, the panel open) before taking the timed slot anyway.
-constexpr double kPrebuildNaturalWaitMs = 2000.0;
-// After kept sizes are dropped the driver reuses the freed memory for the next feature, so the process's
-// usage barely moves (RE2: "55%: 9 MB" against ~280 MB measured cleanly). Readings this soon after a
-// drop, or after DLSS 5 was off, do not feed the per-size prediction.
-constexpr double kReadingQuietMs = 3000.0;
-
-// Survives FlushNrCache (unlike g_prebuild): the settle and spacing clocks must not restart just because
-// a flush happened -- the flush is usually the thing that started them.
-struct NrPrebuildPacing
-{
-    double settleFromMs = 0.0;         // last create-time settings change / switch back on / first build
-    double lastStallMs = 0.0;          // last primary build or prebuild (each holds Present)
-    double offSinceMs = 0.0;           // when DLSS 5 was seen switched off; 0 = on
-    double readingsQuietUntilMs = 0.0; // VRAM readings before this do not feed the prediction
-    double lastOffMemoryCheckMs = 0.0; // the kept-size memory check while off
-};
-
-NrPrebuildPacing g_pacing;
-
-double NowMs()
-{
-    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
-}
-
-// Prebuild bookkeeping, reset with the cache.
-struct NrPrebuildState
-{
-    unsigned long long liveReadyFrame = 0; // g_frames when the live feature became evaluable
-    unsigned long long lastFrame = 0;      // g_frames of the last prebuild
-    double lastMs = 0.0;                   // and its wall clock
-    double pausedUntilMs = 0.0;            // after a size did not fit: do not ask again before this
-    double frameEma = 0.0;                 // smoothed frame time, for "this frame is already long"
-    std::set<uint64_t> failed;             // sizes whose create failed this generation
-    std::set<uint64_t> saidSkipped;        // sizes whose memory skip has been logged this generation
-};
-
-NrPrebuildState g_prebuild;
-
-uint64_t SizeKey(unsigned int w, unsigned int h) { return ((uint64_t) w << 32) | h; }
-
-std::string CachedSizesText()
-{
-    if (g_nrCache.empty())
-        return "none";
-
-    std::string s;
-    for (const NrSizeEntry& e : g_nrCache)
-        s += std::format("{}{:.0f}%{}", s.empty() ? "" : ", ", e.scale * 100.0f, e.prebuilt ? " (prebuilt)" : "");
-    return s;
-}
-
-void ParkSizeEntry(NrSizeEntry& e)
-{
-    ParkNrFeature(e.feature);
-    for (unsigned int i = 1; i < DlssNr::MaxPassCount; ++i)
-        ParkNrFeature(e.passFeature[i]);
-
-    ParkNrResource(e.output);
-    ParkNrResource(e.passScratch);
-    ParkNrResource(e.colorSmall);
-}
-
-// Drops every cached size (parked, released 32 evaluates later -- never evaluated again) and starts
-// prebuilding afresh, under the settle and spacing rules in MaybePrebuild.
-void FlushNrCache(const char* why)
-{
-    if (!g_nrCache.empty())
-    {
-        LOG_INFO("DLSS-NR model size cache: dropped {} kept size(s) ({}) -- {}", g_nrCache.size(), CachedSizesText(),
-                 why);
-
-        for (NrSizeEntry& e : g_nrCache)
-            ParkSizeEntry(e);
-
-        g_nrCache.clear();
-
-        // The next feature built lands in the memory these give back without moving the usage figure.
-        g_pacing.readingsQuietUntilMs = NowMs() + kReadingQuietMs;
-    }
-
-    const double ema = g_prebuild.frameEma;
-    g_prebuild = {};
-    g_prebuild.frameEma = ema;
-}
-
-int FindCachedSize(unsigned int w, unsigned int h)
-{
-    for (size_t i = 0; i < g_nrCache.size(); ++i)
-        if (g_nrCache[i].workWidth == w && g_nrCache[i].workHeight == h)
-            return (int) i;
-    return -1;
-}
-
-// What a size is expected to cost before it is built: the last measurement's bytes per model pixel when
-// there is one, otherwise the Cyberpunk-derived constant plus the work-size surfaces.
-uint64_t PredictSizeBytes(unsigned int w, unsigned int h, unsigned int features)
-{
-    const uint64_t pixels = (uint64_t) w * h;
-    if (g_measuredBytesPerPixel > 0.0)
-        return (uint64_t) (g_measuredBytesPerPixel * (double) pixels) * std::max(1u, features);
-
-    return pixels * kFeatureBytesPerPixel * std::max(1u, features) + pixels * 8ull * 2ull;
-}
-
-// Periodic, from the pass's twice-a-second video memory read: keep what the cache holds under the
-// cache reserve. Least recently used goes first, one per read, so each release is seen before the next
-// is decided. The last kept size is dropped only when even the standard reserve is no longer met --
-// "the live size plus at least one other, if it fits".
-void EnforceCacheBudget(uint64_t usage, uint64_t budget)
-{
-    if (g_nrCache.empty() || budget == 0)
-        return;
-
-    const uint64_t freeBytes = budget > usage ? budget - usage : 0;
-    if (freeBytes >= CacheReserve(budget))
-        return;
-
-    if (g_nrCache.size() == 1 && freeBytes >= StandardReserve(budget))
-        return;
-
-    size_t lru = 0;
-    for (size_t i = 1; i < g_nrCache.size(); ++i)
-        if (g_nrCache[i].lastUsed < g_nrCache[lru].lastUsed)
-            lru = i;
-
-    NrSizeEntry victim = g_nrCache[lru];
-    g_nrCache.erase(g_nrCache.begin() + lru);
-    ParkSizeEntry(victim);
-
-    LOG_INFO("DLSS-NR model size cache: evicted {:.0f}% ({}x{}, {} MB) -- only {} MB free of {} MB; kept now: {}",
-             victim.scale * 100.0f, victim.workWidth, victim.workHeight, victim.bytes >> 20, freeBytes >> 20,
-             budget >> 20, CachedSizesText());
-}
-
-// Size of a resource in video memory, for taking the full-frame surfaces out of a size's measured cost.
+// Size of a resource in video memory, for taking the full-frame surfaces out of a build's measured cost.
 uint64_t ResourceBytes(ID3D12Device* device, ID3D12Resource* res)
 {
     if (device == nullptr || res == nullptr)
@@ -1222,8 +1087,7 @@ void ReleaseSurfaces()
     ForgetCalibration();
 
     // Everything is being rebuilt from scratch (a format change, or a Present-route list that never ran --
-    // a feature created on it must never be evaluated, Devil May Cry 5), so no cached size survives it.
-    FlushNrCache("the surfaces are being rebuilt from scratch");
+    // a feature created on it must never be evaluated, Devil May Cry 5).
     g_nextBuildWhy = "surfaces rebuilt";
 
     ParkNrFeature(g_nr.feature);
@@ -1807,6 +1671,255 @@ void ConsumeToneReadback(float normScale, bool wantBrightness, bool wantContrast
     g_nr.toneLastUpdate = now;
 }
 
+// ---- Image Clean Up ------------------------------------------------------------------------------
+//
+// Auto's controller. The halo is the 75th percentile, across the tiles that have an edge in them, of how
+// far the model's answer strays past the band the clean up would allow it (grid 0, in stops). Strength
+// follows it in proportion -- none at none, the cap at kCleanHaloFull and above -- eased over
+// kCleanSeconds and never faster than kCleanRate per second, so it does not pump. It holds still after a
+// cut (the model's history reset), when too few tiles have an edge to say anything, and for a couple of
+// readings when the halo jumps several-fold at once, which is a new scene rather than a new halo.
+constexpr float kCleanHaloFull = 0.05f;
+constexpr float kCleanSeconds = 1.0f;
+constexpr float kCleanRate = 0.5f;
+constexpr unsigned int kCleanMinTiles = 24;
+// What Auto uses for the settings the Manual rows set.
+constexpr float kCleanAutoEdge = 1.5f;
+constexpr float kCleanAutoBalance = 1.0f;
+constexpr float kCleanAutoMotion = 0.5f;
+// ...and for the edge treatment along silhouettes (Bleed), measured on Resident Evil 2's captures
+// (2026-09-26): the background's side in full, the object's own side at half (its outer strip carries the
+// model's hair and cloth detail too), no lightening allowed past the surround, darkening past 0.1 stop
+// taken back.
+constexpr float kCleanAutoBleedInner = 0.5f;
+constexpr float kCleanAutoBleedOuter = 1.0f;
+constexpr float kCleanAutoDodge = 0.0f;
+constexpr float kCleanAutoBurn = 0.1f;
+
+void ResetCleanUp()
+{
+    g_nr.haloBefore = -1.0f;
+    g_nr.haloAfter = -1.0f;
+    g_nr.haloModel = -1.0f;
+    g_nr.haloSmoothed = -1.0f;
+    g_nr.haloJumpHeld = 0;
+    g_nr.haloFrames = 0;
+    g_nr.cleanAutoStrength = 0.0f;
+    g_nr.cleanAutoSettled = false;
+}
+
+bool EnsureHaloGrids(ID3D12Device* device)
+{
+    if (g_nr.haloGrid[0] != nullptr && g_nr.haloGrid[1] != nullptr && g_nr.haloGrid[2] != nullptr)
+        return true;
+
+    D3D12_HEAP_PROPERTIES readback {};
+    readback.Type = D3D12_HEAP_TYPE_READBACK;
+
+    D3D12_RESOURCE_DESC bufferDesc {};
+    bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+    bufferDesc.Width = kMeterBytes;
+    bufferDesc.Height = 1;
+    bufferDesc.DepthOrArraySize = 1;
+    bufferDesc.MipLevels = 1;
+    bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+    bufferDesc.SampleDesc.Count = 1;
+    bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+    for (int g = 0; g < 3; ++g)
+    {
+        if (g_nr.haloGrid[g] == nullptr)
+            g_nr.haloGrid[g] = CreateScratch(device, DXGI_FORMAT_R32_FLOAT, kDlssNrMeterGrid, kDlssNrMeterGrid);
+        if (g_nr.haloGrid[g] == nullptr)
+            return false;
+
+        for (auto& rb : g_nr.haloReadback[g])
+        {
+            if (rb == nullptr &&
+                FAILED(device->CreateCommittedResource(&readback, D3D12_HEAP_FLAG_NONE, &bufferDesc,
+                                                       D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&rb))))
+                rb = nullptr;
+        }
+    }
+
+    ResetCleanUp();
+    LOG_INFO("DLSS-NR: image clean up halo meter up, {}x{} tiles", kDlssNrMeterGrid, kDlssNrMeterGrid);
+    return true;
+}
+
+void CopyHaloToReadback(ID3D12GraphicsCommandList* cmdList, int grid)
+{
+    const unsigned int slot = (unsigned int) (g_nr.haloFrames % 4);
+
+    if (g_nr.haloReadback[grid][slot] == nullptr || g_nr.haloGrid[grid] == nullptr)
+        return;
+
+    D3D12_TEXTURE_COPY_LOCATION srcLoc {};
+    srcLoc.pResource = g_nr.haloGrid[grid];
+    srcLoc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+    srcLoc.SubresourceIndex = 0;
+
+    D3D12_TEXTURE_COPY_LOCATION dst {};
+    dst.pResource = g_nr.haloReadback[grid][slot];
+    dst.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+    dst.PlacedFootprint.Offset = 0;
+    dst.PlacedFootprint.Footprint.Format = DXGI_FORMAT_R32_FLOAT;
+    dst.PlacedFootprint.Footprint.Width = kDlssNrMeterGrid;
+    dst.PlacedFootprint.Footprint.Height = kDlssNrMeterGrid;
+    dst.PlacedFootprint.Footprint.Depth = 1;
+    dst.PlacedFootprint.Footprint.RowPitch = kMeterRowBytes;
+
+    Barrier(cmdList, g_nr.haloGrid[grid], D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    cmdList->CopyTextureRegion(&dst, 0, 0, 0, &srcLoc, nullptr);
+    Barrier(cmdList, g_nr.haloGrid[grid], D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+}
+
+// The grid this slot held four frames ago (the one about to be overwritten -- long retired, as the tone
+// grid's reasoning goes), reduced to the halo in stops; -1 when too few tiles have an edge in them.
+float ReadHalo(int grid, unsigned int* edgeTiles)
+{
+    *edgeTiles = 0;
+    if (g_nr.haloFrames < 4)
+        return -1.0f;
+
+    ID3D12Resource* buffer = g_nr.haloReadback[grid][g_nr.haloFrames % 4];
+    if (buffer == nullptr)
+        return -1.0f;
+
+    void* mapped = nullptr;
+    D3D12_RANGE range { 0, kMeterBytes };
+    if (FAILED(buffer->Map(0, &range, &mapped)) || mapped == nullptr)
+        return -1.0f;
+
+    const float* src = (const float*) mapped;
+    std::vector<float> tiles;
+    tiles.reserve(kDlssNrMeterGrid * kDlssNrMeterGrid);
+
+    for (unsigned int i = 0; i < kDlssNrMeterGrid * kDlssNrMeterGrid; ++i)
+    {
+        if (std::isfinite(src[i]) && src[i] >= 0.0f)
+            tiles.push_back(std::min(src[i], 8.0f));
+    }
+
+    D3D12_RANGE nothingWritten { 0, 0 };
+    buffer->Unmap(0, &nothingWritten);
+
+    *edgeTiles = (unsigned int) tiles.size();
+    if (tiles.size() < kCleanMinTiles)
+        return -1.0f;
+
+    const size_t at = (tiles.size() * 3) / 4;
+    std::nth_element(tiles.begin(), tiles.begin() + at, tiles.end());
+    return tiles[at];
+}
+
+void UpdateCleanAuto(float halo, float maxStrength)
+{
+    const auto now = std::chrono::steady_clock::now();
+    const float dt = g_nr.cleanAutoSettled
+                         ? std::clamp(std::chrono::duration<float>(now - g_nr.haloLastUpdate).count(), 0.0f, 0.25f)
+                         : 0.0f;
+    g_nr.haloLastUpdate = now;
+    g_nr.cleanAutoSettled = true;
+
+    // A cap lowered below where Auto sits takes effect at once; raising it lets Auto climb as usual.
+    g_nr.cleanAutoStrength = std::min(g_nr.cleanAutoStrength, maxStrength);
+
+    if (halo < 0.0f || g_frames < g_nr.cleanHoldUntil)
+        return;
+
+    if (g_nr.haloSmoothed > 0.01f && halo > 0.01f && std::fabs(std::log(halo / g_nr.haloSmoothed)) > std::log(4.0f) &&
+        g_nr.haloJumpHeld < 2)
+    {
+        ++g_nr.haloJumpHeld;
+        return;
+    }
+    g_nr.haloJumpHeld = 0;
+
+    const float k = 1.0f - std::exp(-dt / kCleanSeconds);
+    g_nr.haloSmoothed = g_nr.haloSmoothed < 0.0f ? halo : g_nr.haloSmoothed + (halo - g_nr.haloSmoothed) * k;
+
+    const float want = std::clamp(g_nr.haloSmoothed / kCleanHaloFull, 0.0f, 1.0f) * maxStrength;
+    const float step = std::clamp((want - g_nr.cleanAutoStrength) * k, -kCleanRate * dt, kCleanRate * dt);
+    g_nr.cleanAutoStrength = std::clamp(g_nr.cleanAutoStrength + step, 0.0f, maxStrength);
+}
+
+// The mask history at this size, created or rebuilt as needed. False leaves the clean up without it.
+bool EnsureCleanHistory(ID3D12Device* device, unsigned int width, unsigned int height)
+{
+    if (g_nr.cleanHistory[0] != nullptr && g_nr.cleanHistoryW == width && g_nr.cleanHistoryH == height)
+        return true;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        // Parked, not released: last frame's list may still read it.
+        if (g_nr.cleanHistory[i] != nullptr)
+            ParkNrResource(g_nr.cleanHistory[i]);
+        g_nr.cleanHistory[i] = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, width, height);
+        g_nr.cleanHistoryState[i] = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    }
+    if (g_nr.cleanModel != nullptr)
+        ParkNrResource(g_nr.cleanModel);
+    g_nr.cleanModel = CreateScratch(device, DXGI_FORMAT_R16_FLOAT, width, height);
+    g_nr.cleanModelState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+
+    g_nr.cleanHistoryValid = false;
+    g_nr.cleanHistoryIndex = 0;
+    g_nr.cleanHistoryW = width;
+    g_nr.cleanHistoryH = height;
+
+    if (g_nr.cleanHistory[0] == nullptr || g_nr.cleanHistory[1] == nullptr || g_nr.cleanModel == nullptr)
+    {
+        for (auto& h : g_nr.cleanHistory)
+        {
+            if (h != nullptr)
+                ParkNrResource(h);
+        }
+        if (g_nr.cleanModel != nullptr)
+            ParkNrResource(g_nr.cleanModel);
+        g_nr.cleanHistoryW = 0;
+        g_nr.cleanHistoryH = 0;
+        return false;
+    }
+
+    return true;
+}
+
+void MoveCleanHistory(ID3D12GraphicsCommandList* cmdList, int index, D3D12_RESOURCE_STATES to)
+{
+    Barrier(cmdList, g_nr.cleanHistory[index], g_nr.cleanHistoryState[index], to);
+    g_nr.cleanHistoryState[index] = to;
+}
+
+void MoveCleanModel(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES to)
+{
+    Barrier(cmdList, g_nr.cleanModel, g_nr.cleanModelState, to);
+    g_nr.cleanModelState = to;
+}
+
+// The clean up's prep surface for a frame of this size: the frame's own pixels, then one row per eight of
+// them holding the 8x8 blocks' ranges. False leaves the resolve working its tile out itself, as before.
+bool EnsureCleanPrep(ID3D12Device* device, unsigned int width, unsigned int height)
+{
+    if (g_nr.cleanPrep != nullptr && g_nr.cleanPrepW == width && g_nr.cleanPrepH == height)
+        return true;
+
+    // Parked, not released: last frame's list may still read it.
+    if (g_nr.cleanPrep != nullptr)
+        ParkNrResource(g_nr.cleanPrep);
+    g_nr.cleanPrep = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, width, height + (height + 7) / 8);
+    g_nr.cleanPrepState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    g_nr.cleanPrepW = g_nr.cleanPrep != nullptr ? width : 0;
+    g_nr.cleanPrepH = g_nr.cleanPrep != nullptr ? height : 0;
+    return g_nr.cleanPrep != nullptr;
+}
+
+void MoveCleanPrep(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES to)
+{
+    Barrier(cmdList, g_nr.cleanPrep, g_nr.cleanPrepState, to);
+    g_nr.cleanPrepState = to;
+}
+
 // Whether the DLSS call this pass attached to came from the DLSS5 Feeder rather than the game's
 // own DLSS. Asked once: a ReShade add-on cannot appear or leave mid-process, and this is consulted
 // every frame.
@@ -1845,6 +1958,31 @@ DXGI_FORMAT TypedGuideFormat(DXGI_FORMAT f)
 }
 
 bool IsTypeless(DXGI_FORMAT f) { return TypedGuideFormat(f) != f; }
+
+// Whether the depth guide can be bound as a shader input for the clean up's mask. A typeless guide has
+// already been cloned to its typed, readable member (ReadableGuide); one that arrives fully typed in a
+// depth format has no shader view at all, and one that denies shader access cannot be read -- either
+// way the clean up works from brightness alone rather than risk an invalid view.
+bool DepthReadable(ID3D12Resource* depth)
+{
+    if (depth == nullptr)
+        return false;
+
+    const D3D12_RESOURCE_DESC desc = depth->GetDesc();
+    if ((desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) != 0 || IsTypeless(desc.Format))
+        return false;
+
+    switch (desc.Format)
+    {
+    case DXGI_FORMAT_D32_FLOAT:
+    case DXGI_FORMAT_D16_UNORM:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+        return false;
+    default:
+        return desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    }
+}
 
 // Creates a typed twin of a guide buffer, matching everything but the format.
 ID3D12Resource* CreateGuideClone(ID3D12Device* device, ID3D12Resource* source)
@@ -2058,332 +2196,6 @@ void RecordBuiltPrimaryTuning(const Config& cfg)
     g_nr.builtUICorrection = cfg.DlssNrUICorrectionEffective();
 }
 
-// Whether model sizes may be kept and built ahead at all. AutoScale only -- a fixed WorkingScale must
-// never hold more than one model -- and not on the driver-proxy backend, which owns its own feature.
-bool SizeCacheAllowed(const Config& cfg, bool proxyBackend, float workScale)
-{
-    return cfg.DlssNrAutoScale.value_or_default() && cfg.DlssNrAutoScalePrebuild.value_or_default() >= 1 &&
-           !proxyBackend && workScale <= 1.0f;
-}
-
-// Moves the live size -- its features and work-size surfaces -- into the cache. The full-frame surfaces
-// stay live: the frame did not change size, only the model did.
-void StashLiveSize(unsigned int requestedPasses)
-{
-    NrSizeEntry e;
-    e.workWidth = g_nr.workWidth;
-    e.workHeight = g_nr.workHeight;
-    e.scale = g_nr.width != 0 ? (float) g_nr.workWidth / (float) g_nr.width : 1.0f;
-
-    e.feature = g_nr.feature;
-    e.pendingSubmission = g_nr.featurePendingSubmission;
-    e.createEpoch = g_nr.featureCreateEpoch;
-    g_nr.feature = nullptr;
-    g_nr.featurePendingSubmission = false;
-
-    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
-    {
-        if (pass < requestedPasses && g_nr.passFeature[pass] != nullptr)
-        {
-            e.passFeature[pass] = g_nr.passFeature[pass];
-            e.passPreset[pass] = g_nr.builtPreset[pass];
-            e.passStyle[pass] = g_nr.builtStyle[pass];
-            e.passPendingSubmission[pass] = g_nr.passPendingSubmission[pass];
-            e.passCreateEpoch[pass] = g_nr.passCreateEpoch[pass];
-            g_nr.passFeature[pass] = nullptr;
-        }
-        else
-        {
-            ParkNrFeature(g_nr.passFeature[pass]);
-        }
-
-        g_nr.passNeedsReset[pass] = false;
-        g_nr.passCreateFailed[pass] = false;
-        g_nr.passPendingSubmission[pass] = false;
-    }
-
-    e.output = g_nr.output;
-    e.passScratch = g_nr.passScratch;
-    e.colorSmall = g_nr.colorSmall;
-    g_nr.output = nullptr;
-    g_nr.passScratch = nullptr;
-    g_nr.colorSmall = nullptr;
-    g_nr.passScratchFailed = false;
-
-    e.bytes = g_liveSizeBytes;
-    g_liveSizeBytes = 0;
-    e.lastUsed = g_frames;
-    g_nrCache.push_back(e);
-}
-
-// Makes a cached size the live one. The model's history is from whenever it was last used, so every
-// layer is reset on its first evaluate.
-void TakeCachedSize(size_t index, const Config& cfg, unsigned int requestedPasses)
-{
-    NrSizeEntry e = g_nrCache[index];
-    g_nrCache.erase(g_nrCache.begin() + index);
-
-    g_nr.feature = e.feature;
-    g_nr.featurePendingSubmission = e.pendingSubmission;
-    g_nr.featureCreateEpoch = e.createEpoch;
-
-    for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
-    {
-        const bool usable = pass < requestedPasses && e.passFeature[pass] != nullptr &&
-                            e.passPreset[pass] == PassPreset(cfg, pass) && e.passStyle[pass] == PassStyle(cfg, pass);
-
-        if (usable)
-        {
-            g_nr.passFeature[pass] = e.passFeature[pass];
-            g_nr.builtPreset[pass] = e.passPreset[pass];
-            g_nr.builtStyle[pass] = e.passStyle[pass];
-            g_nr.passPendingSubmission[pass] = e.passPendingSubmission[pass];
-            g_nr.passCreateEpoch[pass] = e.passCreateEpoch[pass];
-            g_nr.passNeedsReset[pass] = true;
-        }
-        else
-        {
-            ParkNrFeature(e.passFeature[pass]);
-            g_nr.passPendingSubmission[pass] = false;
-            g_nr.passNeedsReset[pass] = false;
-        }
-
-        g_nr.passCreateFailed[pass] = false;
-    }
-
-    g_nr.output = e.output;
-    g_nr.passScratch = e.passScratch;
-    g_nr.colorSmall = e.colorSmall;
-    g_nr.passScratchFailed = false;
-    g_nr.workWidth = e.workWidth;
-    g_nr.workHeight = e.workHeight;
-    g_nr.reset = true;
-    g_liveSizeBytes = e.bytes;
-
-    if (!g_nr.featurePendingSubmission)
-        g_prebuild.liveReadyFrame = g_frames;
-}
-
-// Builds ONE other rung ahead of time, when this is a moment that already pauses. Returns true when it
-// built (or tried to build) something: the caller then evaluates nothing more on this command list, the
-// same discipline as the extra-pass features -- a feature created on a list is never evaluated, and
-// nothing else is, before that list has been submitted.
-//
-// Resident Evil 2 (2026-09-18): the first build holds the game ~3.2 s, usually in a menu or a loading
-// screen, and each later move held Present ~250 ms mid-play. Paying for the other sizes ahead, one at
-// a time and spaced out (see kPrebuildSpacingMs and kPrebuildSettleMs), instead of on the move in the
-// middle of a fight, is the point.
-bool MaybePrebuild(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const Config& cfg,
-                   const DlssNrFrameInfo& frame, unsigned int width, unsigned int height, DXGI_FORMAT format,
-                   unsigned int requestedPasses)
-{
-    // Never while DLSS 5 is off (Resident Evil 2, 2026-09-18: it prebuilt "at the panel is open" with the
-    // pass switched off, then dropped what it built). The pass does not run while off, so this is a guard
-    // against the switch flipping between the pass's own reads of the setting.
-    if (!cfg.DlssNrEnabled.value_or_default() || g_pacing.offSinceMs != 0.0 ||
-        cfg.DlssNrAutoScalePrebuild.value_or_default() < 2 || g_nr.feature == nullptr ||
-        g_nr.featurePendingSubmission || AnyFeatureParked() || g_nrCache.size() >= DlssNrBudget::RungCount - 1)
-        return false;
-
-    const double nowMs = NowMs();
-
-    double frameMs = 0.0;
-    {
-        auto& state = State::Instance();
-        std::lock_guard<std::mutex> lock(state.frameTimeMutex);
-        if (!state.frameTimes.empty())
-            frameMs = state.frameTimes.back();
-    }
-
-    // Judge "long" against the smoothing BEFORE this frame is folded in.
-    const double ema = g_prebuild.frameEma;
-    if (frameMs > 0.0)
-        g_prebuild.frameEma = ema > 0.0 ? ema * 0.95 + frameMs * 0.05 : frameMs;
-
-    // Let the live feature run a moment first: a settings slider being dragged rebuilds it again within
-    // frames, and building extra sizes for tuning about to be thrown away is waste.
-    if (g_frames < g_prebuild.liveReadyFrame + 60 || nowMs < g_prebuild.pausedUntilMs)
-        return false;
-
-    // Settings still moving (a slider being dragged, DLSS 5 just switched back on, the first build just
-    // done): wait until they have held still for the settle period. Then one prebuild per spacing slot,
-    // counted from the last hold of either kind -- a primary build is a stall too.
-    if (nowMs - g_pacing.settleFromMs < kPrebuildSettleMs || nowMs - g_pacing.lastStallMs < kPrebuildSpacingMs)
-        return false;
-
-    // Inside an open slot a pause the player already sees is preferred; after kPrebuildNaturalWaitMs
-    // without one, the timed slot is taken so the rungs still get built during steady play.
-    const double slotOpenMs =
-        std::max(g_pacing.settleFromMs + kPrebuildSettleMs, g_pacing.lastStallMs + kPrebuildSpacingMs);
-    const char* opportunity = nullptr;
-
-    if (ema > 0.0 && frameMs >= std::max(50.0, ema * 3.0))
-        opportunity = "a frame that was already long";
-    else if (MenuCommon::IsVisible())
-        opportunity = "the panel is open";
-    else if (nowMs - slotOpenMs >= kPrebuildNaturalWaitMs)
-        opportunity = "the timed slot";
-
-    if (opportunity == nullptr)
-        return false;
-
-    // The rungs the controller can actually choose: from the floor to 100%, nearest the live size first
-    // (the likeliest next move), downward first on a tie.
-    const float floor =
-        std::clamp(cfg.DlssNrAutoScaleFloor.value_or_default(), DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
-    const float liveScale = width != 0 ? (float) g_nr.workWidth / (float) width : 1.0f;
-
-    struct Candidate
-    {
-        float scale;
-        unsigned int w;
-        unsigned int h;
-    };
-
-    std::vector<Candidate> candidates;
-    for (float r : DlssNrBudget::Rungs)
-    {
-        if (r < floor - 1e-4f)
-            continue;
-
-        const unsigned int w = (unsigned int) (width * r + 0.5f);
-        const unsigned int h = (unsigned int) (height * r + 0.5f);
-
-        if ((w == g_nr.workWidth && h == g_nr.workHeight) || FindCachedSize(w, h) >= 0 ||
-            g_prebuild.failed.count(SizeKey(w, h)) != 0)
-            continue;
-
-        candidates.push_back({ r, w, h });
-    }
-
-    if (candidates.empty())
-        return false;
-
-    std::stable_sort(candidates.begin(), candidates.end(),
-                     [&](const Candidate& a, const Candidate& b)
-                     {
-                         const float da = std::fabs(a.scale - liveScale), db = std::fabs(b.scale - liveScale);
-                         if (std::fabs(da - db) > 1e-4f)
-                             return da < db;
-                         return a.scale < b.scale;
-                     });
-
-    const Candidate c = candidates.front();
-
-    uint64_t usage = 0, budget = 0;
-    if (!ReadVideoMemory(device, usage, budget))
-    {
-        // Unknown is not "fits" here: this is optional work, unlike the primary build.
-        static bool said = false;
-        if (!said)
-        {
-            said = true;
-            LOG_INFO("DLSS-NR prebuild: off -- video memory use cannot be read on this adapter");
-        }
-        g_prebuild.pausedUntilMs = nowMs + 30000.0;
-        return false;
-    }
-
-    const uint64_t predicted = PredictSizeBytes(c.w, c.h, 1);
-    const uint64_t reserve = CacheReserve(budget);
-
-    if (usage + predicted + reserve > budget)
-    {
-        if (g_prebuild.saidSkipped.insert(SizeKey(c.w, c.h)).second)
-        {
-            LOG_INFO("DLSS-NR prebuild: skipped {:.0f}% ({}x{}) for memory -- needs about {} MB, {} of {} MB in "
-                     "use, keeping {} MB free; kept now: {}",
-                     c.scale * 100.0f, c.w, c.h, predicted >> 20, usage >> 20, budget >> 20, reserve >> 20,
-                     CachedSizesText());
-        }
-
-        // Nearest-first order means the others are no smaller a risk worth taking right now; wait.
-        g_prebuild.pausedUntilMs = nowMs + 30000.0;
-        return false;
-    }
-
-    auto snippet = Util::FindFilePath(g_dllDir, "nvngx_dlssnr.dll");
-    if (!snippet.has_value())
-        snippet = Util::FindFilePath(Util::ExePath().remove_filename(), "nvngx_dlssnr.dll");
-    if (!snippet.has_value())
-        return false;
-
-    g_prebuild.lastFrame = g_frames;
-    g_prebuild.lastMs = nowMs;
-    g_pacing.lastStallMs = nowMs;
-
-    const auto t0 = std::chrono::steady_clock::now();
-
-    NrSizeEntry e;
-    e.workWidth = c.w;
-    e.workHeight = c.h;
-    e.scale = c.scale;
-    e.prebuilt = true;
-    e.lastUsed = g_frames;
-    e.output = CreateScratch(device, format, c.w, c.h);
-    if (c.w != width || c.h != height)
-        e.colorSmall = CreateScratch(device, format, c.w, c.h);
-    if (requestedPasses > 1)
-        e.passScratch = CreateScratch(device, format, c.w, c.h);
-
-    const auto t1 = std::chrono::steady_clock::now();
-
-    if (e.output == nullptr || ((c.w != width || c.h != height) && e.colorSmall == nullptr))
-    {
-        g_prebuild.failed.insert(SizeKey(c.w, c.h));
-        ParkSizeEntry(e);
-        LOG_WARN("DLSS-NR prebuild: {:.0f}% ({}x{}) not built -- its surfaces could not be allocated", c.scale * 100.0f,
-                 c.w, c.h);
-        return false;
-    }
-
-    SetExtras(cfg, nullptr, nullptr, 0, 0, 0, 0);
-    e.feature =
-        g_nr.create(snippet->wstring().c_str(), State::Instance().NVNGX_ApplicationDataPath.c_str(), device, cmdList,
-                    g_nr.capabilityParams, c.w, c.h, (int) PassPreset(cfg, 0), cfg.DlssNrIntensity.value_or_default(),
-                    (int) PassStyle(cfg, 0), cfg.DlssNrLocalStructure.value_or_default(),
-                    cfg.DlssNrLocalTone.value_or_default(), cfg.DlssNrSkinStructure.value_or_default(),
-                    cfg.DlssNrAutoMask.value_or_default() ? 1 : 0, cfg.DlssNrUICorrectionEffective() ? 1 : 0);
-
-    const auto t2 = std::chrono::steady_clock::now();
-    const double surfacesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    const double createMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
-
-    if (e.feature == nullptr)
-    {
-        g_prebuild.failed.insert(SizeKey(c.w, c.h));
-        ParkSizeEntry(e);
-        const auto createResult = (unsigned int) (g_nr.lastCreate != nullptr ? *g_nr.lastCreate : 0);
-        LOG_WARN("DLSS-NR prebuild: {:.0f}% ({}x{}) CreateFeature failed after {:.1f} ms, 0x{:X} ({}) -- not retried "
-                 "until the model is rebuilt; switches to it will build it then",
-                 c.scale * 100.0f, c.w, c.h, createMs, createResult, NgxResultName(createResult));
-        return true;
-    }
-
-    e.pendingSubmission = true;
-    e.createEpoch = frame.SubmissionEpoch;
-
-    // A reading far under the prediction is the driver reusing memory something else just gave back, not
-    // this size's cost (RE2 2026-09-18: "9 MB" for a size measured at ~280 MB). Such a size is booked at
-    // its prediction instead, so the cache's memory figures stay honest.
-    uint64_t usageAfter = 0, budgetAfter = 0;
-    const uint64_t measured =
-        ReadVideoMemory(device, usageAfter, budgetAfter) && usageAfter > usage ? usageAfter - usage : 0;
-    const bool plausible = nowMs >= g_pacing.readingsQuietUntilMs && measured >= predicted / 4;
-    e.bytes = plausible ? measured : predicted;
-
-    g_nrCache.push_back(e);
-
-    LOG_INFO("DLSS-NR prebuild: built {:.0f}% ({}x{}) ahead at {} -- surfaces {:.1f} ms, CreateFeature {:.1f} ms; "
-             "kept now: {}",
-             c.scale * 100.0f, c.w, c.h, opportunity, surfacesMs, createMs, CachedSizesText());
-    LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}, prebuilt; VRAM {} -> {} MB of {} MB, predicted {} MB{})",
-             c.scale * 100.0f, e.bytes >> 20, c.w, c.h, usage >> 20, usageAfter >> 20, budget >> 20, predicted >> 20,
-             plausible ? "" : std::format("; reading of {} MB not trusted, predicted used", measured >> 20));
-
-    return true;
-}
-
 // Guards the module's state. Every caller is now on the game's render thread, so this is no longer
 // holding two threads apart -- but the D3D11-on-D3D12 bridge enters from its own call site, and the
 // cost is a CPU-side lock on a path that already records command lists.
@@ -2430,127 +2242,6 @@ void ReportSkipOnce(const char* reason)
 
     if (seen.insert(reason).second)
         LOG_INFO("DLSS-NR did not run: {}", reason);
-}
-
-// Adaptive model resolution, once per dispatch.
-//
-// Everything that can go wrong here is a reading that is not worth steering on, and each of those is
-// a return rather than a guess: a timer the panel itself will not print, a frame time no route has
-// supplied, a scale nobody has enabled. Steering on a number that is not there would move the
-// picture for no reason and rebuild the feature to do it.
-void UpdateAutoScale()
-{
-    auto* cfg = Config::Instance();
-    const bool on = cfg->DlssNrAutoScale.value_or_default();
-
-    if (!on)
-    {
-        // Turning it off leaves the scale wherever it had got to, deliberately: the player can see
-        // the number the controller settled on, and keep it if they like it.
-        if (g_budgetOn)
-        {
-            g_budgetOn = false;
-            g_autoScale = {};
-
-            // Hand the number back. The controller drives WorkingScale as a volatile value (below),
-            // which keeps its choice out of SaveIni and stops the manager's live reload fighting it
-            // for the same number -- but volatile is sticky, so without this a scale the controller
-            // happened to leave behind would be frozen for the rest of the session and the manager's
-            // own slider would silently stop working. A plain assignment clears the flag.
-            if (cfg->DlssNrWorkingScale.is_volatile())
-                cfg->DlssNrWorkingScale = cfg->DlssNrWorkingScale.value_or_default();
-        }
-
-        return;
-    }
-
-    if (!g_budgetOn)
-    {
-        // Seed from whatever the scale already is, so switching this on does not jump the picture.
-        g_budgetOn = true;
-        g_budget.Reset(cfg->DlssNrWorkingScale.value_or_default());
-        g_autoScale = {};
-        g_autoScale.scale = g_budget.Scale();
-    }
-
-    g_autoScale.enabled = true;
-
-    // An untrusted timer is the one case where doing nothing is clearly right: the panel refuses to
-    // print these readings, so the controller has no business steering on them either.
-    if (g_timingTrust.Untrusted() || !g_lastGpuTime.has_value())
-        return;
-
-    double frameMs = 0.0;
-    {
-        auto& state = State::Instance();
-        std::lock_guard<std::mutex> lock(state.frameTimeMutex);
-
-        if (!state.frameTimes.empty())
-            frameMs = state.frameTimes.back();
-    }
-
-    // No frame time on this route. The overlay's own graph is empty here too, so this is not a
-    // failure to report -- it is a mode the controller cannot run in, and the panel says so.
-    if (!(frameMs > 0.0))
-        return;
-
-    DlssNrBudget::Tuning tuning;
-
-    switch (cfg->DlssNrAutoScaleMode.value_or_default())
-    {
-    case 0:
-        tuning.mode = DlssNrBudget::Mode::Share;
-        break;
-    case 1:
-        tuning.mode = DlssNrBudget::Mode::FixedMs;
-        break;
-    default:
-        tuning.mode = DlssNrBudget::Mode::TargetFps;
-        break;
-    }
-
-    tuning.sharePercent = std::clamp(cfg->DlssNrAutoScaleShare.value_or_default(), 1, 100);
-    tuning.fixedMs = std::clamp((double) cfg->DlssNrAutoScaleMs.value_or_default(), 0.1, 50.0);
-    tuning.targetFps = std::clamp(cfg->DlssNrAutoScaleFps.value_or_default(), 20, 360);
-    tuning.floorScale = std::clamp(cfg->DlssNrAutoScaleFloor.value_or_default(),
-                                   DlssNrBudget::Rungs[DlssNrBudget::RungCount - 1], 1.0f);
-
-    const double nowMs =
-        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count();
-
-    // A feature this controller has not seen before means a rebuild happened since the last tick: the
-    // model was off for the parked frames, then held Present ~250 ms while it was created (Resident
-    // Evil 2, 2026-09-18). None of that is the scene's cost, so the controller is told to drop it
-    // rather than left to judge a window that contains it.
-    static const void* seenFeature = nullptr;
-    const bool rebuilt = g_nr.feature != seenFeature;
-    seenFeature = g_nr.feature;
-
-    const DlssNrBudget::Decision d = g_budget.Update(g_lastGpuTime.value(), frameMs, nowMs, tuning, rebuilt);
-
-    g_autoScale.running = true;
-    g_autoScale.scale = DlssNrBudget::Rungs[d.rung];
-    g_autoScale.atFloor = DlssNrBudget::Rungs[d.rung] <= tuning.floorScale + 1e-4f;
-    g_autoScale.gameLimited = d.gameLimited;
-
-    // A tick that did not close a window carries no medians. Keeping the last real pair means the
-    // panel shows the figures the last decision was actually made on rather than blinking to zero.
-    if (d.lastPassMs > 0.0)
-    {
-        g_autoScale.lastPassMs = d.lastPassMs;
-        g_autoScale.lastBudgetMs = d.lastBudgetMs;
-    }
-
-    if (d.scale.has_value())
-    {
-        // Volatile: what the controller picked is a reading of this scene, not a setting the player
-        // made, so SaveIni must not write it over the number they chose. It also outranks the ini,
-        // which is what keeps a live reload from the manager out of the controller's way while it is
-        // driving. Turning the feature off hands the number back, above.
-        cfg->DlssNrWorkingScale.set_volatile_value(d.scale.value());
-        LOG_INFO("DLSS-NR auto resolution: model to {:.0f}% (pass {:.2f} ms over the last window, budget {:.2f} ms)",
-                 d.scale.value() * 100.0f, d.lastPassMs, d.lastBudgetMs);
-    }
 }
 
 } // namespace
@@ -2613,15 +2304,26 @@ DlssNr_Dx12::DlssNr_Dx12(std::string InName, ID3D12Device* InDevice) : Shader_Dx
         return;
     }
 
+    // Image Clean Up's prep, same root signature. Optional: without it the resolve does the work itself.
+    if (!CreateComputePipeline(InDevice, &_prepPipelineState, DlssNr_prep_cso, sizeof(DlssNr_prep_cso), nullptr))
+    {
+        LOG_WARN("[{0}] Image Clean Up's prep pipeline could not be created -- the resolve works it out itself", _name);
+        _prepPipelineState = nullptr;
+    }
+
     _init = InitHeaps(InDevice, _frameHeaps, DLSSNR_NUM_OF_HEAPS);
 }
 
 bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssNrConstants& InConstants,
                                ID3D12Resource* InSource, ID3D12Resource* InModel, ID3D12Resource* InOriginal,
                                ID3D12Resource* InMotion, ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget,
-                               ID3D12Resource* OutKeep)
+                               ID3D12Resource* OutKeep, ID3D12Resource* InDepth, ID3D12Resource* InHistory,
+                               ID3D12Resource* OutAux, ID3D12Resource* InCleanModel)
 {
     if (!_init || InCmdList == nullptr || _device == nullptr || InSource == nullptr || OutTarget == nullptr)
+        return false;
+
+    if (InConstants.Mode == DlssNrMode_CleanupPrep && _prepPipelineState == nullptr)
         return false;
 
     const uint32_t slot = _heapIndex;
@@ -2638,14 +2340,22 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
         InOriginal != nullptr ? InOriginal : InSource,
         InMotion != nullptr ? InMotion : InSource,
         InPrevEdit != nullptr ? InPrevEdit : InSource,
+        InDepth != nullptr ? InDepth : InSource,
+        InHistory != nullptr ? InHistory : InSource,
+        InCleanModel != nullptr ? InCleanModel : InSource,
     };
 
+    // The depth guide keeps its own format: its clone is already the readable member of its family
+    // (R32_FLOAT_X8X24_TYPELESS, R24_UNORM_X8_TYPELESS...), which the shared typeless translation would
+    // turn back into a depth format no shader view accepts.
     for (uint32_t i = 0; i < kSrvCount; ++i)
-        CreateShaderResourceView(_device, srvs[i], currentHeap.GetSrvCPU(i));
+        CreateShaderResourceView(_device, srvs[i], currentHeap.GetSrvCPU(i), DXGI_FORMAT_UNKNOWN,
+                                 !(i == 5 && InDepth != nullptr));
 
     ID3D12Resource* const uavs[kUavCount] = {
         OutTarget,
         OutKeep != nullptr ? OutKeep : OutTarget,
+        OutAux != nullptr ? OutAux : OutTarget,
     };
 
     for (uint32_t i = 0; i < kUavCount; ++i)
@@ -2660,7 +2370,7 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
     ID3D12DescriptorHeap* heaps[] = { currentHeap.GetHeapCSU() };
     InCmdList->SetDescriptorHeaps(_countof(heaps), heaps);
     InCmdList->SetComputeRootSignature(_rootSignature);
-    InCmdList->SetPipelineState(_pipelineState);
+    InCmdList->SetPipelineState(InConstants.Mode == DlssNrMode_CleanupPrep ? _prepPipelineState : _pipelineState);
     InCmdList->SetComputeRootDescriptorTable(0, currentHeap.GetTableGPUStart());
 
     // Sized from the constants rather than from a resource, because the pass that shrinks the proxy
@@ -2674,6 +2384,12 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
 
 DlssNr_Dx12::~DlssNr_Dx12()
 {
+    if (_prepPipelineState != nullptr)
+    {
+        _prepPipelineState->Release();
+        _prepPipelineState = nullptr;
+    }
+
     for (auto& buffer : _constantBuffers)
     {
         if (buffer != nullptr)
@@ -2692,6 +2408,9 @@ static std::map<int, unsigned long long> g_dispatchBails;
 // Set only while DlssNr::RunAtPresent calls into the pass: the target is then the swapchain's back buffer,
 // in PRESENT state, and the command list is this app's own -- no game state on it to restore.
 static bool g_presentRouteDispatch = false;
+// Set by the Present route beside g_presentRouteDispatch: its vectors this frame are the zero field (no
+// optical flow). Image Clean Up then neither rejects on motion nor reprojects its mask by it.
+static bool g_presentMotionBlind = false;
 
 // Keys on the Present route's private parameter block: the letterboxed picture's rectangle in the frame.
 static constexpr const char* kPresentActiveX = "OptiDlssNr.Present.Active.X";
@@ -3040,52 +2759,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     ReleaseSurfacesIfFormatChanged(desc.Format);
 
-    // Adaptive resolution's model-size cache (Resident Evil 2, 2026-09-18). Anything a cached size was
-    // built for other than its own dimensions changing makes every cached size stale: a new device (the
-    // game recreated it), a new frame size (swapchain resize / output resolution), a surface format change
-    // (Devil May Cry 5's R8G8B8A8 -> R10G10B10A2 is caught just above by ReleaseSurfaces too), placement
-    // before/after SR, the HDR colour path. Tuning changes are handled with the rebuild below.
-    const bool sizeCacheAllowed = SizeCacheAllowed(cfg, proxyBackend, workScale);
-
-    // Back on within IdleWhileOff's grace period: the kept sizes are still here and are reused as they are
-    // (the generation check just below still drops them if anything they were built for changed). The
-    // settle clock restarts -- someone flipping the switch in the panel is not done yet (Resident Evil 2,
-    // 2026-09-18).
-    if (g_pacing.offSinceMs != 0.0)
-    {
-        const double nowMs = NowMs();
-        if (!g_nrCache.empty())
-            LOG_INFO("DLSS-NR model size cache: DLSS 5 back on after {:.1f} s -- {} kept size(s) reused ({})",
-                     (nowMs - g_pacing.offSinceMs) / 1000.0, g_nrCache.size(), CachedSizesText());
-        g_pacing.offSinceMs = 0.0;
-        g_pacing.settleFromMs = nowMs;
-        g_pacing.readingsQuietUntilMs = std::max(g_pacing.readingsQuietUntilMs, nowMs + kReadingQuietMs);
-    }
-
-    {
-        const NrCacheGeneration gen {
-            true, device, width, height, desc.Format, frame.BeforeUpscale, frame.ColourIsLinearHdr
-        };
-        const NrCacheGeneration& was = g_nrCacheGen;
-
-        if (was.valid)
-        {
-            const char* why = was.device != gen.device                             ? "the device was recreated"
-                              : was.width != gen.width || was.height != gen.height ? "the frame size changed"
-                              : was.format != gen.format                           ? "the surface format changed"
-                              : was.beforeUpscale != gen.beforeUpscale             ? "the placement changed"
-                              : was.hdr != gen.hdr                                 ? "the HDR colour path changed"
-                                                                                   : nullptr;
-            if (why != nullptr)
-                FlushNrCache(why);
-        }
-
-        g_nrCacheGen = gen;
-
-        if (!sizeCacheAllowed && !g_nrCache.empty())
-            FlushNrCache("AutoScale or AutoScalePrebuild is off");
-    }
-
     const bool resolutionChanged =
         g_nr.width != width || g_nr.height != height || g_nr.workWidth != workWidth || g_nr.workHeight != workHeight;
     const bool placementChanged = g_nr.feature != nullptr && g_nr.beforeUpscale != frame.BeforeUpscale;
@@ -3096,58 +2769,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // else -- a resolution change -- happened to force a rebuild by accident.
     const bool tuningChanged = !TuningMatchesFeature(cfg, requestedPasses);
 
-    // Only the model's size moved: the one change the cache can absorb.
+    // Only the model's size moved (WorkingScale), not the frame's.
     const bool sizeOnlyChange =
         resolutionChanged && !tuningChanged && !placementChanged && g_nr.width == width && g_nr.height == height;
 
-    // Keep the live size rather than destroy it -- when the size being switched to is already built (a
-    // swap costs no memory), or when building it next to the one kept still fits under the standard
-    // reserve. Memory tight: today's destroy-and-rebuild, with every cached size dropped too.
-    bool stashed = false;
-    if (g_nr.feature != nullptr && sizeOnlyChange && sizeCacheAllowed && g_nr.colorCopy != nullptr &&
-        g_nr.hdrCopy != nullptr)
+    if (g_nr.feature != nullptr && (resolutionChanged || tuningChanged || placementChanged))
     {
-        const bool haveTarget = FindCachedSize(workWidth, workHeight) >= 0;
-        uint64_t usage = 0, budget = 0;
-        const bool room =
-            haveTarget ||
-            FitsInVideoMemory(device, PredictSizeBytes(workWidth, workHeight, requestedPasses), &usage, &budget);
-
-        if (room)
-        {
-            const float leftScale = (float) g_nr.workWidth / (float) width;
-            StashLiveSize(requestedPasses);
-            stashed = true;
-            g_nextBuildWhy = "size change, not cached";
-            LOG_INFO("DLSS-NR model size cache: kept {:.0f}% ({}x{}) on the move to {:.0f}% ({}x{}); kept now: {}",
-                     leftScale * 100.0f, g_nrCache.back().workWidth, g_nrCache.back().workHeight, workScale * 100.0f,
-                     workWidth, workHeight, CachedSizesText());
-        }
-        else
-        {
-            LOG_INFO("DLSS-NR model size cache: not keeping {}x{} -- video memory {} of {} MB in use is too tight; "
-                     "rebuilding in place",
-                     g_nr.workWidth, g_nr.workHeight, usage >> 20, budget >> 20);
-        }
-    }
-
-    if (!stashed && g_nr.feature != nullptr && (resolutionChanged || tuningChanged || placementChanged))
-    {
-        // A create-time settings change rebuilds only the live size now. Every kept size was built with the
-        // old settings, so it is dropped (parked, released later, never evaluated); the other sizes come
-        // back one at a time through MaybePrebuild once the settings have held still for kPrebuildSettleMs.
-        // Resident Evil 2 (2026-09-18): rebuilding all four on every slider step was four stalls per step.
-        if (tuningChanged)
-            g_pacing.settleFromMs = NowMs();
-
-        FlushNrCache(tuningChanged      ? "the model's settings changed (they are read at create time); rebuilding "
-                                          "the live size only, the others once the settings settle"
-                     : placementChanged ? "the placement changed"
-                     : sizeOnlyChange   ? "the size change is rebuilding in place"
-                                        : "the frame size changed");
         g_nextBuildWhy = tuningChanged      ? "settings changed"
                          : placementChanged ? "placement changed"
-                         : sizeOnlyChange   ? "size change, rebuilt in place"
+                         : sizeOnlyChange   ? "model size changed"
                                             : "frame size changed";
 
         // Parked rather than released: with frame generation the GPU can still be several frames
@@ -3187,28 +2817,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Building the new set while the old one was still parked is what put the Cyberpunk run over the
     // edge. The parked features are released TickNrRetired's 32 evaluates later, so the model is off for
     // about that long after a rebuild -- ticked here, since this return skips the tick further down.
-    //
-    // A size already in the cache is simply made live: no CreateFeature, nothing parked, no hold
-    // (Resident Evil 2, 2026-09-18). A feature prebuilt on a list that has not been submitted yet keeps its
-    // pending flag and waits for the next epoch exactly as a freshly created one does.
-    if (g_nr.feature == nullptr && sizeCacheAllowed && g_nr.colorCopy != nullptr && g_nr.hdrCopy != nullptr &&
-        g_nr.width == width && g_nr.height == height && g_nr.beforeUpscale == frame.BeforeUpscale)
-    {
-        if (const int hit = FindCachedSize(workWidth, workHeight); hit >= 0)
-        {
-            const auto started = std::chrono::steady_clock::now();
-            const bool wasPrebuilt = g_nrCache[hit].prebuilt;
-            TakeCachedSize((size_t) hit, cfg, requestedPasses);
-            const double ms =
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count();
-
-            LOG_INFO("DLSS-NR model size cache hit: switched to {:.0f}% ({}x{}, {}) in {:.2f} ms -- no CreateFeature, "
-                     "no rebuild; kept now: {}",
-                     workScale * 100.0f, workWidth, workHeight, wasPrebuilt ? "prebuilt" : "kept from earlier", ms,
-                     CachedSizesText());
-        }
-    }
-
     if (g_nr.feature == nullptr)
     {
         if (AnyFeatureParked())
@@ -3223,15 +2831,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         uint64_t usage = 0, budget = 0;
         if (!FitsInVideoMemory(device, need, &usage, &budget))
         {
-            // Kept sizes are the first thing to give back: the live model matters more than a fast switch.
-            // One at a time, least recently used first; the wait for parked features above then applies.
-            if (!g_nrCache.empty())
-            {
-                EnforceCacheBudget(/* usage as if full: always evicts one */ budget, budget);
-                device->Release();
-                DLSSNR_BAIL();
-            }
-
             static uint64_t warnedAtBudget = 0;
             if (warnedAtBudget != budget)
             {
@@ -3265,8 +2864,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     if (g_nr.output == nullptr)
     {
         g_nr.output = CreateScratch(device, desc.Format, workWidth, workHeight);
-        // The full-frame surfaces survive a cached size change (the frame did not change size), so they
-        // are only made when missing -- overwriting live ones would leak them mid-flight.
+        // The full-frame surfaces may still be live, so they are only made when missing -- overwriting
+        // live ones would leak them mid-flight.
         if (g_nr.colorCopy == nullptr)
             g_nr.colorCopy = CreateScratch(device, desc.Format, width, height);
         if (g_nr.hdrCopy == nullptr)
@@ -3432,16 +3031,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             g_teardownMs = 0.0;
             g_teardownFeatures = 0;
             g_nextBuildWhy = "rebuild";
-
-            // A primary build is a hold like a prebuild, so it opens the spacing slot. After the first build
-            // of a generation (nothing kept) the other rungs wait for the settle period, then come one per
-            // slot -- no longer a burst of three right after it (Resident Evil 2, 2026-09-18).
-            {
-                const double nowMs = NowMs();
-                g_pacing.lastStallMs = nowMs;
-                if (g_nrCache.empty())
-                    g_pacing.settleFromMs = nowMs;
-            }
         }
 
         if (g_nr.feature == nullptr)
@@ -3498,7 +3087,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         }
 
         g_nr.featurePendingSubmission = false;
-        g_prebuild.liveReadyFrame = g_frames;
         LOG_INFO("DLSS-NR: primary feature ready after submitted epoch {}", g_nr.featureCreateEpoch);
     }
 
@@ -3603,9 +3191,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                         passVramAfter > passVramBefore)
                         passBytes = passVramAfter - passVramBefore;
 
-                    if (g_nr.passFeature[pass] != nullptr)
-                        g_liveSizeBytes += passBytes;
-
                     LOG_INFO("DLSS-NR build: pass {} feature {}x{} -- CreateFeature {:.1f} ms, +{} MB video memory",
                              pass + 1, workWidth, workHeight, passCreateMs, passBytes >> 20);
                 }
@@ -3632,14 +3217,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             device->Release();
             DLSSNR_BAIL();
         }
-    }
-
-    // Every requested layer is built and ready: the moment to build one other rung ahead, if this frame is
-    // one of the pauses that allow it. Like a pass build, a prebuild frame evaluates nothing afterwards.
-    if (sizeCacheAllowed && MaybePrebuild(device, cmdList, cfg, frame, width, height, desc.Format, requestedPasses))
-    {
-        device->Release();
-        DLSSNR_BAIL();
     }
 
     // The upscaler has just written this, so it is a UAV. The model needs it readable.
@@ -3684,13 +3261,22 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     ++g_frames;
     TickNrRetired();
     CheckCaptureTrigger();
+    CheckCleanCaptureTrigger();
+
+    if (g_cleanCapture.due(g_frames))
+    {
+        const auto written = g_cleanCapture.write(Util::DllPath().remove_filename() / "dlssnr-cleanup-capture");
+        if (g_cleanCaptureBefore != nullptr)
+            ParkNrResource(g_cleanCaptureBefore);
+        if (!written.empty())
+            LOG_INFO("DLSS-NR image clean up capture written to {}", written);
+    }
 
     // Twice a second or so, for the panel's readout.
     if ((g_frames % 30) == 0)
     {
         uint64_t usage = 0, budget = 0;
-        if (ReadVideoMemory(device, usage, budget))
-            EnforceCacheBudget(usage, budget);
+        ReadVideoMemory(device, usage, budget);
     }
 
     if (g_captureWriteAtFrame != 0 && g_frames >= g_captureWriteAtFrame)
@@ -3775,6 +3361,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     if (g_ngxTime == nullptr)
         g_ngxTime = std::make_unique<GpuTime_Dx12>(device);
+
+    if (g_composeTime == nullptr)
+        g_composeTime = std::make_unique<GpuTime_Dx12>(device);
 
     if (g_gpuTime != nullptr)
         g_gpuTime->Start(cmdList);
@@ -3881,8 +3470,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     // Auto brightness / Auto contrast: the frame measured as it arrives, before anything below writes to
     // it. The meter's tile-mean branch over the whole grid, onto its own surface; tile 0 is the exposure
     // courier and ConsumeToneReadback skips it. Nothing is created or dispatched while both are off.
-    const bool autoBrightnessOn = cfg.DlssNrAutoBrightness.value_or_default();
-    const bool autoContrastOn = cfg.DlssNrAutoContrast.value_or_default();
+    // With RenoDX in the game the trim is identity and Auto is off (DlssNrRenoDx::ToneTrimSuppressed).
+    const bool toneTrimOff = DlssNrRenoDx::ToneTrimSuppressed();
+    const bool autoBrightnessOn = !toneTrimOff && cfg.DlssNrAutoBrightness.value_or_default();
+    const bool autoContrastOn = !toneTrimOff && cfg.DlssNrAutoContrast.value_or_default();
     if (autoBrightnessOn || autoContrastOn)
     {
         if (EnsureToneGrid(device))
@@ -4262,24 +3853,15 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 const uint64_t bytes = delta > m.fullFrameBytes ? delta - m.fullFrameBytes : 0;
                 const uint64_t pixels = (uint64_t) m.workWidth * m.workHeight;
 
-                g_liveSizeBytes = bytes;
-
                 // Extra-pass features are built between the create and this first evaluate, so they are in
-                // the reading too; the prediction is per feature.
+                // the reading too; the per-pixel figure is per feature.
                 unsigned int features = 1;
                 for (unsigned int p = 1; p < DlssNr::MaxPassCount; ++p)
                     features += g_nr.passFeature[p] != nullptr ? 1u : 0u;
 
-                // Plausible readings only feed the prediction: the game allocates in the same window, and a
-                // reading of nothing (or a texture streamer's gigabyte) must not steer the prebuild.
-                // Also not a reading taken just after kept sizes were dropped or DLSS 5 came back on: the
-                // driver refills memory it just got back and the usage barely moves (RE2 2026-09-18,
-                // "9 MB" sizes). And never one under a quarter of the estimate it would replace.
+                // For the log only. The game allocates in the same window, so this is a reading, not a
+                // measurement anything steers on.
                 const double bpp = pixels != 0 ? (double) bytes / (double) pixels / (double) features : 0.0;
-                const double estimate =
-                    g_measuredBytesPerPixel > 0.0 ? g_measuredBytesPerPixel : (double) kFeatureBytesPerPixel;
-                if (bpp >= 32.0 && bpp <= 2048.0 && bpp >= estimate * 0.25 && NowMs() >= g_pacing.readingsQuietUntilMs)
-                    g_measuredBytesPerPixel = bpp;
 
                 LOG_INFO("DLSS-NR size {:.0f}%: {} MB ({}x{}; VRAM {} -> {} MB of {} MB, {} MB of it full-frame "
                          "surfaces not counted; {} feature(s), {:.0f} bytes per model pixel each)",
@@ -4306,6 +3888,12 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
     if (g_ngxTime != nullptr)
         g_ngxTime->End(cmdList);
+
+    // A reset is a cut, or a new feature: Auto clean up holds still for a moment rather than chasing the
+    // new scene's first frames. Not on the Present route while its vectors are zero, where every frame
+    // resets and nothing would ever move.
+    if (g_nr.reset && !(g_presentRouteDispatch && g_presentMotionBlind))
+        g_nr.cleanHoldUntil = g_frames + 10;
 
     g_nr.reset = false;
 
@@ -4377,15 +3965,108 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.TransferStrength = cfg.DlssNrTransferStrength.value_or_default();
         resolveParams.ColourStrength = cfg.DlssNrColourStrength.value_or_default();
         // Auto, where it is on, in place of the slider; the slider's own value is kept for when it is off.
-        const bool autoB = cfg.DlssNrAutoBrightness.value_or_default();
-        const bool autoC = cfg.DlssNrAutoContrast.value_or_default();
-        resolveParams.Brightness = autoB ? g_nr.autoBrightness : cfg.DlssNrBrightness.value_or_default();
-        resolveParams.Contrast = autoC ? g_nr.autoContrast : cfg.DlssNrContrast.value_or_default();
+        // With RenoDX in the game, identity: RenoDX grades the picture (the ini values are kept).
+        const bool trimOff = DlssNrRenoDx::ToneTrimSuppressed();
+        const bool autoB = !trimOff && cfg.DlssNrAutoBrightness.value_or_default();
+        const bool autoC = !trimOff && cfg.DlssNrAutoContrast.value_or_default();
+        resolveParams.Brightness =
+            trimOff ? 1.0f : (autoB ? g_nr.autoBrightness : cfg.DlssNrBrightness.value_or_default());
+        resolveParams.Contrast = trimOff ? 1.0f : (autoC ? g_nr.autoContrast : cfg.DlssNrContrast.value_or_default());
         resolveParams.DebugView = cfg.DlssNrDebugView.value_or_default();
         resolveParams.MaxRatio = cfg.DlssNrMaxRatio.value_or_default();
         resolveParams.Transfer = cfg.DlssNrTransfer.value_or_default();
         resolveParams.DebugScale = cfg.DlssNrWhitePointScale.value_or_default();
         resolveParams.Passthrough = isHdrBuffer ? 0u : 1u;
+
+        // Image Clean Up. Strength 0 when it is off, which the shader reads as "skip it all". The motion
+        // slot holds the game's vectors here (motionIn), in the guide's pixels once scaled by the game's
+        // own MV scale; the extra factor takes them to pixels of this dispatch. On the Present route with
+        // no optical flow they are a field of zeros, and are then treated as absent.
+        const uint32_t cleanMode = cfg.DlssNrCleanUpMode.value_or_default();
+        const bool cleanOn = cleanMode == 1 || cleanMode == 2;
+        const bool cleanAuto = cleanMode == 1;
+        const bool cleanShown = cleanOn || resolveParams.DebugView == 4;
+        const bool cleanBlind = g_presentRouteDispatch && g_presentMotionBlind;
+        const bool haloMeter = cleanOn && EnsureHaloGrids(device);
+        const float cleanCap = std::clamp(cfg.DlssNrCleanUpMaxStrength.value_or_default(), 0.0f, 1.0f);
+
+        if (haloMeter)
+        {
+            unsigned int tiles = 0;
+            const float before = ReadHalo(0, &tiles);
+            const float after = ReadHalo(1, &tiles);
+            const float model = ReadHalo(2, &tiles);
+            if (before >= 0.0f)
+                g_nr.haloBefore = before;
+            if (after >= 0.0f)
+                g_nr.haloAfter = after;
+            if (model >= 0.0f)
+                g_nr.haloModel = model;
+            if (cleanAuto)
+                UpdateCleanAuto(before, cleanCap);
+        }
+        else if (!cleanOn && g_nr.cleanAutoSettled)
+        {
+            ResetCleanUp();
+        }
+
+        float cleanStrength = 0.0f;
+        if (cleanOn)
+        {
+            cleanStrength = cleanAuto ? g_nr.cleanAutoStrength
+                                      : std::clamp(cfg.DlssNrCleanUpStrength.value_or_default(), 0.0f, 1.0f);
+            // Never exactly zero while on, so the mask history keeps being written; a strength this small
+            // moves nothing (the shader applies only a real move).
+            resolveParams.CleanupStrength = std::max(cleanStrength, 1e-6f);
+            resolveParams.CleanupHaveMotion =
+                motionIn == nullptr || cleanBlind ? 0u : (g_presentRouteDispatch ? 2u : 1u);
+        }
+        g_nr.cleanApplied = cleanStrength;
+        resolveParams.CleanupEdge =
+            cleanAuto ? kCleanAutoEdge : std::clamp(cfg.DlssNrCleanUpEdge.value_or_default(), 0.25f, 4.0f);
+        resolveParams.CleanupBalance =
+            cleanAuto ? kCleanAutoBalance : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
+        resolveParams.CleanupMotion =
+            cleanAuto ? kCleanAutoMotion : std::clamp(cfg.DlssNrCleanUpMotion.value_or_default(), 0.0f, 1.0f);
+        resolveParams.CleanupHaveDepth = cleanShown && DepthReadable(depthIn) ? 1u : 0u;
+        resolveParams.CleanupDepthInverted = g_nr.guideDepthInverted ? 1u : 0u;
+        resolveParams.CleanupProfile = cfg.DlssNrCleanUpProfile.value_or_default();
+        {
+            const float bleed = std::clamp(cfg.DlssNrCleanUpBleed.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupBleedInner =
+                cleanAuto ? kCleanAutoBleedInner
+                          : bleed * std::clamp(cfg.DlssNrCleanUpBleedInner.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupBleedOuter =
+                cleanAuto ? kCleanAutoBleedOuter
+                          : bleed * std::clamp(cfg.DlssNrCleanUpBleedOuter.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupDodge =
+                cleanAuto ? kCleanAutoDodge : std::clamp(cfg.DlssNrCleanUpDodge.value_or_default(), 0.0f, 1.0f);
+            const float burn = cfg.DlssNrCleanUpBurn.value_or_default();
+            resolveParams.CleanupBurn = cleanAuto ? kCleanAutoBurn : (burn < 0.0f ? -1.0f : std::min(burn, 1.0f));
+            g_nr.cleanBleedInner = cleanOn ? resolveParams.CleanupBleedInner : 0.0f;
+            g_nr.cleanBleedOuter = cleanOn ? resolveParams.CleanupBleedOuter : 0.0f;
+            g_nr.cleanDodge = resolveParams.CleanupDodge;
+            g_nr.cleanBurn = resolveParams.CleanupBurn;
+            g_nr.cleanEdge = resolveParams.CleanupEdge;
+            g_nr.cleanBalance = resolveParams.CleanupBalance;
+            g_nr.cleanMotion = resolveParams.CleanupMotion;
+        }
+
+        // The mask history: written from the first frame, read from the second, dropped with the clean up.
+        bool cleanHistory = false;
+        if (cleanShown && EnsureCleanHistory(device, width, height))
+        {
+            cleanHistory = true;
+            resolveParams.CleanupHistory = g_nr.cleanHistoryValid ? 2u : 1u;
+        }
+        else if (!cleanShown)
+        {
+            g_nr.cleanHistoryValid = false;
+        }
+        resolveParams.GuideWidth = guideWidth;
+        resolveParams.GuideHeight = guideHeight;
+        resolveParams.MvScaleX = guideWidth > 0 ? g_nr.guideMvScaleX * (float) width / (float) guideWidth : 0.0f;
+        resolveParams.MvScaleY = guideHeight > 0 ? g_nr.guideMvScaleY * (float) height / (float) guideHeight : 0.0f;
         resolveParams.ReversibleMode = cfg.DlssNrReversibleMode.value_or_default();
         resolveParams.ApplyModel = cfg.DlssNrApplyModel.value_or_default() ? 1u : 0u;
         resolveParams.CompareMode = cfg.DlssNrCompare.value_or_default();
@@ -4449,6 +4130,80 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      composeNow.passthrough != 0 ? "off (frame already tone mapped)" : "on (linear HDR)",
                      composeNow.residual == 1 ? "matched residual" : "classic", composeNow.workW, composeNow.workH,
                      composeNow.passes, composeNow.debugView, composeNow.compareMode);
+        }
+
+        // Image Clean Up's settings, on their own line and at most once a second: a slider being dragged
+        // changes them every frame, and one line per frame is noise. The last value is always written
+        // once the second is up, so the log still ends on what was actually set.
+        {
+            struct CleanReport
+            {
+                uint32_t mode;
+                float value; // the cap in Auto, the strength in Manual
+                float edge;
+                float balance;
+                float motion;
+                uint32_t depth;
+                uint32_t vectors;
+                bool history;
+                bool present;
+                float bleedInner;
+                float bleedOuter;
+                float dodge;
+                float burn;
+
+                bool operator==(const CleanReport&) const = default;
+            };
+
+            static CleanReport loggedClean { ~0u };
+            static CleanReport pendingClean {};
+            static bool cleanPending = false;
+            static auto cleanLoggedAt = std::chrono::steady_clock::time_point {};
+
+            const CleanReport cleanNow { cleanOn ? cleanMode : 0u,
+                                         cleanOn ? std::round((cleanAuto ? cleanCap : cleanStrength) * 100.0f) / 100.0f
+                                                 : 0.0f,
+                                         cleanOn ? resolveParams.CleanupEdge : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBalance : 0.0f,
+                                         cleanOn ? resolveParams.CleanupMotion : 0.0f,
+                                         cleanOn ? resolveParams.CleanupHaveDepth : 0u,
+                                         cleanOn ? resolveParams.CleanupHaveMotion + (cleanBlind ? 10u : 0u) : 0u,
+                                         cleanOn && cleanHistory,
+                                         cleanOn && g_presentRouteDispatch,
+                                         cleanOn ? resolveParams.CleanupBleedInner : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBleedOuter : 0.0f,
+                                         cleanOn ? resolveParams.CleanupDodge : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBurn : 0.0f };
+
+            if (!(cleanNow == loggedClean))
+            {
+                pendingClean = cleanNow;
+                cleanPending = true;
+            }
+
+            const auto nowClean = std::chrono::steady_clock::now();
+            if (cleanPending && nowClean - cleanLoggedAt >= std::chrono::seconds(1))
+            {
+                const CleanReport& c = pendingClean;
+                if (c.mode == 0)
+                    LOG_INFO("DLSS-NR image clean up: off");
+                else
+                    LOG_INFO("DLSS-NR image clean up: {} ({} {:.2f}), edge {:.2f} stops, reach {:.2f}, motion {:.2f}, "
+                             "bleed inner {:.2f} outer {:.2f}, dodge {:.2f}, burn {}; "
+                             "depth {}, motion vectors {}, mask history {}{}",
+                             c.mode == 1 ? "auto" : "manual", c.mode == 1 ? "cap" : "strength", c.value, c.edge,
+                             c.balance, c.motion, c.bleedInner, c.bleedOuter, c.dodge,
+                             c.burn < 0.0f ? std::string("off") : std::format("{:.2f}", c.burn),
+                             c.depth != 0 ? "read" : "absent",
+                             c.vectors == 1    ? "read (game)"
+                             : c.vectors == 2  ? "read (optical flow: only fast motion counts)"
+                             : c.vectors >= 10 ? "zero (ignored)"
+                                               : "absent",
+                             c.history ? "on" : "off", c.present ? ", Present route" : "");
+                loggedClean = pendingClean;
+                cleanPending = false;
+                cleanLoggedAt = nowClean;
+            }
         }
 
         // Supersampling down-leg. Average the Nx model answer back to native with the chosen filter, so
@@ -4530,8 +4285,155 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
 
+        if (g_composeTime != nullptr)
+            g_composeTime->Start(cmdList);
+
+        ID3D12Resource* historyRead = nullptr;
+        ID3D12Resource* historyWrite = nullptr;
+        if (cleanHistory)
+        {
+            const int write = (int) g_nr.cleanHistoryIndex;
+            const int read = write ^ 1;
+            MoveCleanHistory(cmdList, write, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            MoveCleanHistory(cmdList, read, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            historyWrite = g_nr.cleanHistory[write];
+            historyRead = g_nr.cleanHistory[read];
+            MoveCleanModel(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        }
+
+        // Image Clean Up's prep, when the resolve will run the clean up (the shader's CleanupWanted): the
+        // frame's log luminance, log depth and chroma worked out once per pixel, and each 8x8 block's range,
+        // so the resolve's groups load their tile instead of computing it sixteen times over, and a group
+        // with no edge near it skips its tile altogether. Nothing is dispatched or allocated with the clean
+        // up off.
+        ID3D12Resource* cleanPrepIn = nullptr;
+        const bool cleanWanted = (resolveParams.CleanupStrength > 0.0f || resolveParams.DebugView == 4) &&
+                                 resolveParams.CompareMode != 1 && resolveParams.ApplyModel != 0;
+        if (cleanWanted && HasCleanupPrep() && (resolveParams.CleanupProfile & 32u) == 0u)
+        {
+            const D3D12_RESOURCE_DESC originalDesc = resolveOriginal->GetDesc();
+            const unsigned int ow = (unsigned int) originalDesc.Width;
+            const unsigned int oh = originalDesc.Height;
+
+            if (EnsureCleanPrep(device, ow, oh))
+            {
+                DlssNrConstants prepParams = resolveParams;
+                prepParams.Mode = DlssNrMode_CleanupPrep;
+                prepParams.Width = ow;
+                prepParams.Height = oh;
+                MoveCleanPrep(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                if (DispatchPass(cmdList, prepParams, resolveProxy, nullptr, resolveOriginal, nullptr, nullptr,
+                                 g_nr.cleanPrep, nullptr, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr))
+                {
+                    MoveCleanPrep(cmdList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    resolveParams.CleanupPrepared = 1;
+                    cleanPrepIn = g_nr.cleanPrep;
+                }
+            }
+        }
+
         DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
-                     resolveTarget, nullptr);
+                     resolveTarget, historyWrite, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, historyRead,
+                     cleanHistory ? g_nr.cleanModel : nullptr, cleanPrepIn);
+
+        // Image Clean Up capture: this frame's inputs and outputs, copied for the offline harness. The
+        // composed picture before the clean up is a second resolve with the clean up off, into a scratch
+        // surface of its own. Depth and motion are copied only when they are this pass's own copies, whose
+        // state is known; the game's own resources are not touched.
+        if (g_cleanCapture.wanted() && !g_cleanCapture.pending())
+        {
+            const D3D12_RESOURCE_DESC targetDesc = resolveTarget->GetDesc();
+            if (g_cleanCaptureBefore != nullptr)
+                ParkNrResource(g_cleanCaptureBefore);
+            g_cleanCaptureBefore = CreateScratch(device, g_nr.hdrCopy->GetDesc().Format,
+                                                 (unsigned int) targetDesc.Width, targetDesc.Height);
+
+            if (g_cleanCaptureBefore != nullptr)
+            {
+                DlssNrConstants beforeParams = resolveParams;
+                beforeParams.CleanupStrength = 0.0f;
+                beforeParams.CleanupHistory = 0;
+                beforeParams.DebugView = 0;
+                DispatchPass(cmdList, beforeParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
+                             g_cleanCaptureBefore, nullptr);
+            }
+
+            const D3D12_RESOURCE_STATES originalState =
+                targetSupportsUav ? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE : targetState;
+            g_cleanCapture.copy(cmdList, device, "input", resolveOriginal, originalState);
+            g_cleanCapture.copy(cmdList, device, "proxy", resolveProxy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "model", resolveAnswer,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "composed_before", g_cleanCaptureBefore,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            g_cleanCapture.copy(cmdList, device, "composed_after", resolveTarget,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            const bool ownDepth = depthIn != nullptr && (depthIn == g_nr.depthClone || g_presentRouteDispatch);
+            g_cleanCapture.copy(cmdList, device, "depth", ownDepth ? depthIn : nullptr,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            const bool ownMotion = motionIn != nullptr && (motionIn == g_nr.motionClone || g_presentRouteDispatch);
+            g_cleanCapture.copy(cmdList, device, "motion", ownMotion ? motionIn : nullptr,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "mask", historyWrite, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            g_cleanCapture.copy(cmdList, device, "model_reading", cleanHistory ? g_nr.cleanModel : nullptr,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+            const auto& c = resolveParams;
+            const std::string settings = std::format(
+                "{{\"frame\":{},\"presentRoute\":{},\"passthrough\":{},\"whitePoint\":{},\"useGameExposure\":{},"
+                "\"exposurePreMul\":{},\"transferStrength\":{},\"colourStrength\":{},\"maxRatio\":{},"
+                "\"transfer\":{},\"reversibleMode\":{},\"brightness\":{},\"contrast\":{},\"debugView\":{},"
+                "\"compareMode\":{},\"width\":{},\"height\":{},\"guideWidth\":{},\"guideHeight\":{},"
+                "\"mvScaleX\":{},\"mvScaleY\":{},\"cleanupMode\":{},\"cleanupStrength\":{},\"cleanupEdge\":{},"
+                "\"cleanupBalance\":{},\"cleanupMotion\":{},\"cleanupHaveMotion\":{},\"cleanupHaveDepth\":{},"
+                "\"cleanupDepthInverted\":{},\"cleanupHistory\":{},\"cleanupProfile\":{},\"passes\":{},"
+                "\"workWidth\":{},\"workHeight\":{},\"haloBefore\":{},\"haloAfter\":{},\"haloModel\":{}}}",
+                g_frames, g_presentRouteDispatch, c.Passthrough, c.WhitePoint, c.UseGameExposure, c.ExposurePreMul,
+                c.TransferStrength, c.ColourStrength, c.MaxRatio, c.Transfer, c.ReversibleMode, c.Brightness,
+                c.Contrast, c.DebugView, c.CompareMode, c.Width, c.Height, c.GuideWidth, c.GuideHeight, c.MvScaleX,
+                c.MvScaleY, cleanMode, c.CleanupStrength, c.CleanupEdge, c.CleanupBalance, c.CleanupMotion,
+                c.CleanupHaveMotion, c.CleanupHaveDepth, c.CleanupDepthInverted, c.CleanupHistory, c.CleanupProfile,
+                effectivePasses, g_nr.workWidth, g_nr.workHeight, g_nr.haloBefore, g_nr.haloAfter, g_nr.haloModel);
+            g_cleanCapture.finish(settings, g_frames, 8);
+            LOG_INFO("DLSS-NR image clean up capture recorded at frame {}; writing in 8 frames", g_frames);
+        }
+
+        // The halo meter: the per-pixel readings the resolve just wrote, reduced to three 64x64 grids.
+        // Only when the resolve really ran the clean up -- not while a debug view other than the mask, the
+        // side by side comparison or "Apply model" off made it leave before it, which would leave last
+        // frame's readings in place. Timed with the composition, since it is the clean up's cost.
+        const bool meterNow = haloMeter && cleanHistory && (resolveParams.CleanupProfile & 1u) == 0u &&
+                              resolveParams.ApplyModel != 0 && resolveParams.CompareMode != 1 &&
+                              (resolveParams.DebugView == 0 || resolveParams.DebugView == 4);
+        if (meterNow)
+        {
+            MoveCleanHistory(cmdList, (int) g_nr.cleanHistoryIndex, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            MoveCleanModel(cmdList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+            DlssNrConstants haloParams = resolveParams;
+            haloParams.Mode = DlssNrMode_HaloMeter;
+            haloParams.Width = kDlssNrMeterGrid;
+            haloParams.Height = kDlssNrMeterGrid;
+            DispatchPass(cmdList, haloParams, historyWrite, nullptr, nullptr, nullptr, nullptr, g_nr.haloGrid[0],
+                         g_nr.haloGrid[1], nullptr, historyWrite, g_nr.haloGrid[2], g_nr.cleanModel);
+        }
+
+        if (cleanHistory)
+        {
+            g_nr.cleanHistoryIndex ^= 1u;
+            g_nr.cleanHistoryValid = true;
+        }
+
+        if (g_composeTime != nullptr)
+            g_composeTime->End(cmdList);
+
+        if (meterNow)
+        {
+            CopyHaloToReadback(cmdList, 0);
+            CopyHaloToReadback(cmdList, 1);
+            CopyHaloToReadback(cmdList, 2);
+            g_nr.haloFrames++;
+        }
 
         if (!targetSupportsUav)
         {
@@ -4666,6 +4568,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                     g_lastNgxTime = ngx;
             }
 
+            if (g_composeTime != nullptr)
+            {
+                if (auto compose = g_composeTime->ReadGpuTime(queue);
+                    compose.has_value() && NrTimingTrust::Plausible(compose.value()))
+                    g_lastComposeTime = compose;
+            }
+
             // The split, once every few hundred frames. What is worth reading is not the total but the
             // remainder: the model's cost is NVIDIA's to set, and everything else is ours.
             static unsigned long long lastSplitLog = 0;
@@ -4676,13 +4585,16 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 lastSplitLog = g_frames;
                 const double total = g_lastGpuTime.value();
                 const double ngx = g_lastNgxTime.value();
-                LOG_INFO("DLSS-NR cost: {:.2f} ms total = {:.2f} ms model + {:.2f} ms ours ({:.0f}% ours)", total, ngx,
-                         total - ngx, total > 0.0 ? 100.0 * (total - ngx) / total : 0.0);
+                const uint32_t cleanMode = Config::Instance()->DlssNrCleanUpMode.value_or_default();
+                LOG_INFO("DLSS-NR cost: {:.2f} ms total = {:.2f} ms model + {:.2f} ms ours ({:.0f}% ours); "
+                         "composition {} (image clean up {})",
+                         total, ngx, total - ngx, total > 0.0 ? 100.0 * (total - ngx) / total : 0.0,
+                         g_lastComposeTime.has_value() ? std::format("{:.3f} ms", g_lastComposeTime.value())
+                                                       : std::string("n/a"),
+                         cleanMode == 1 ? "auto" : (cleanMode == 2 ? "manual" : "off"));
             }
         }
     }
-
-    UpdateAutoScale();
 
     // Heartbeat, every 600 frames the pass ran, whatever else is or is not available. The lines above
     // only ever say that a pass started (and the cost split needs a queue this app knows about, which
@@ -4729,6 +4641,20 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      cfg->DlssNrPreset.value_or_default(), cfg->DlssNrStyle.value_or_default(),
                      cfg->DlssNrPasses.value_or_default(), effectivePasses,
                      reduced ? "reduced resolution" : "full resolution");
+
+            // Image Clean Up's measurement, beside the heartbeat so it reads against the same frames: the
+            // model's glow, what is left of it after the clean up, and the strength that did it.
+            const uint32_t cleanMode = cfg->DlssNrCleanUpMode.value_or_default();
+            if (cleanMode == 1 || cleanMode == 2)
+            {
+                const auto stops = [](float v)
+                { return v >= 0.0f ? std::format("{:.3f} stops", v) : std::string("not measured yet"); };
+                LOG_INFO("DLSS-NR image clean up: {}, strength {:.2f}, halo {} in the composed picture, {} after "
+                         "the clean up, {} in the model's own change{}",
+                         cleanMode == 1 ? "auto" : "manual", g_nr.cleanApplied, stops(g_nr.haloBefore),
+                         stops(g_nr.haloAfter), stops(g_nr.haloModel),
+                         g_presentRouteDispatch ? " (Present route)" : "");
+            }
         }
     }
 
@@ -4822,6 +4748,588 @@ struct TrackedGuides
 
 TrackedGuides g_tracked;
 std::unique_ptr<Menu_Dx12> g_presentMenu;
+
+// The depth guide against the picture, from the log alone. Every five seconds a few strips of the tracked
+// depth's copy and of the back buffer (eight rows and eight columns, three texels thick, the picture's band
+// only) are copied to a readback buffer, and read eight Presents later: at every depth jump across a strip
+// (over 0.7 stops of reciprocal depth) the strongest luminance step within 16 px is found, and the median
+// offset along the strip is logged -- "colour edges sit X px across and Y px down from the depth edges".
+// On a scene that moves, a depth guide from another frame shows here as a steady offset of several pixels
+// (Resident Evil 2's captures, 2026-09-26: 5-11 px). Two checks running with an offset over 2 px move the
+// depth tracker to its next pick rule (DepthTracker::NextPolicy), logged; after trying every rule without a
+// good check the tracker goes back to the first and stops switching.
+struct AlignStrip
+{
+    UINT64 depthOffset = 0;
+    UINT64 colourOffset = 0;
+    UINT depthPitch = 0;
+    UINT colourPitch = 0;
+    UINT width = 0;
+    UINT height = 0;
+    bool vertical = false;
+};
+
+struct AlignCheck
+{
+    ID3D12Resource* readback = nullptr;
+    UINT64 size = 0;
+    std::vector<AlignStrip> strips;
+    DXGI_FORMAT depthFormat = DXGI_FORMAT_UNKNOWN;
+    DXGI_FORMAT colourFormat = DXGI_FORMAT_UNKNOWN;
+    bool reversed = true;
+    bool pending = false;
+    unsigned long long due = 0;
+    std::chrono::steady_clock::time_point last {};
+    int offBy = 0;        // checks running with the depth off the picture
+    int switches = 0;     // rules tried since the last good check
+    bool settled = false; // every rule tried without a good check: stop switching
+    unsigned long long quietSaid = 0;
+};
+
+AlignCheck g_align;
+
+// Optical flow's health, from the log alone: every five seconds sixteen rows of the motion field go to a
+// readback buffer and are read eight Presents later -- the share of texels with any motion at all and the
+// median length of those that have some -- with how many of the frames since the last line the estimator
+// flagged as a scene cut (each resets the model's history). A field of zeros used to go unnoticed: the flow
+// module's downsample read past its descriptor table, so the estimator was handed a black picture and every
+// game on the Present route ran with zero motion (2026-09-26).
+struct FlowHealth
+{
+    ID3D12Resource* readback = nullptr;
+    UINT64 size = 0;
+    UINT pitch = 0;
+    UINT width = 0;
+    bool pending = false;
+    unsigned long long due = 0;
+    std::chrono::steady_clock::time_point last {};
+    unsigned int frames = 0;
+    unsigned int cuts = 0;
+};
+
+FlowHealth g_flowHealth;
+constexpr unsigned int kFlowHealthRows = 16;
+
+void FlowHealthRecord(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Resource* motion, bool cut,
+                      unsigned long long presentIndex)
+{
+    ++g_flowHealth.frames;
+    if (cut)
+        ++g_flowHealth.cuts;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (motion == nullptr || g_flowHealth.pending ||
+        (g_flowHealth.last != std::chrono::steady_clock::time_point {} &&
+         now - g_flowHealth.last < std::chrono::seconds(5)))
+        return;
+
+    g_flowHealth.last = now;
+    const D3D12_RESOURCE_DESC desc = motion->GetDesc();
+    if (desc.Format != DXGI_FORMAT_R16G16_FLOAT || desc.Height < kFlowHealthRows)
+        return;
+
+    const UINT pitch =
+        ((UINT) desc.Width * 4 + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1);
+    const UINT64 size = (UINT64) pitch * kFlowHealthRows;
+
+    if (g_flowHealth.readback == nullptr || g_flowHealth.size < size)
+    {
+        if (g_flowHealth.readback != nullptr)
+            ParkNrResource(g_flowHealth.readback);
+
+        D3D12_HEAP_PROPERTIES heap {};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC buffer {};
+        buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buffer.Width = size;
+        buffer.Height = 1;
+        buffer.DepthOrArraySize = 1;
+        buffer.MipLevels = 1;
+        buffer.SampleDesc.Count = 1;
+        buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+        if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g_flowHealth.readback))))
+        {
+            g_flowHealth.readback = nullptr;
+            g_flowHealth.size = 0;
+            return;
+        }
+        g_flowHealth.size = size;
+    }
+
+    // The field rests in NON_PIXEL_SHADER_RESOURCE (the flow module's contract, and the zero field's).
+    Barrier(list, motion, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    for (UINT r = 0; r < kFlowHealthRows; ++r)
+    {
+        const UINT y = (UINT) (((2 * r + 1) * desc.Height) / (2 * kFlowHealthRows));
+        D3D12_TEXTURE_COPY_LOCATION from {};
+        from.pResource = motion;
+        from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        D3D12_TEXTURE_COPY_LOCATION to {};
+        to.pResource = g_flowHealth.readback;
+        to.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        to.PlacedFootprint.Offset = (UINT64) r * pitch;
+        to.PlacedFootprint.Footprint = { DXGI_FORMAT_R16G16_FLOAT, (UINT) desc.Width, 1, 1, pitch };
+        const D3D12_BOX box { 0, y, 0, (UINT) desc.Width, y + 1, 1 };
+        list->CopyTextureRegion(&to, 0, 0, 0, &from, &box);
+    }
+    Barrier(list, motion, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    g_flowHealth.pitch = pitch;
+    g_flowHealth.width = (UINT) desc.Width;
+    g_flowHealth.pending = true;
+    g_flowHealth.due = presentIndex + 8;
+}
+
+void FlowHealthRead(unsigned long long presentIndex)
+{
+    if (!g_flowHealth.pending || presentIndex < g_flowHealth.due || g_flowHealth.readback == nullptr)
+        return;
+
+    g_flowHealth.pending = false;
+
+    void* mapped = nullptr;
+    const D3D12_RANGE range { 0, (SIZE_T) g_flowHealth.size };
+    if (FAILED(g_flowHealth.readback->Map(0, &range, &mapped)) || mapped == nullptr)
+        return;
+
+    auto half = [](uint16_t v)
+    {
+        const int e = (v >> 10) & 31, m = v & 1023;
+        const float mag = e == 0 ? m * 5.9604645e-8f : e == 31 ? 0.0f : std::ldexp(1.0f + m / 1024.0f, e - 15);
+        return (v & 0x8000) ? -mag : mag;
+    };
+
+    size_t total = 0, moving = 0;
+    std::vector<float> lengths;
+    for (UINT r = 0; r < kFlowHealthRows; ++r)
+    {
+        const auto* row =
+            reinterpret_cast<const uint16_t*>(static_cast<const char*>(mapped) + (size_t) r * g_flowHealth.pitch);
+        for (UINT x = 0; x < g_flowHealth.width; x += 2)
+        {
+            const float mx = half(row[x * 2]), my = half(row[x * 2 + 1]);
+            ++total;
+            if (mx != 0.0f || my != 0.0f)
+            {
+                ++moving;
+                lengths.push_back(std::sqrt(mx * mx + my * my));
+            }
+        }
+    }
+
+    const D3D12_RANGE none { 0, 0 };
+    g_flowHealth.readback->Unmap(0, &none);
+
+    float median = 0.0f;
+    if (!lengths.empty())
+    {
+        std::nth_element(lengths.begin(), lengths.begin() + lengths.size() / 2, lengths.end());
+        median = lengths[lengths.size() / 2];
+    }
+
+    LOG_INFO("DLSS-NR optical flow: {:.1f}% of the sampled motion field moving, median {:.2f} px; {} scene cuts in "
+             "the last {} frames",
+             total > 0 ? 100.0 * (double) moving / (double) total : 0.0, median, g_flowHealth.cuts,
+             g_flowHealth.frames);
+    g_flowHealth.cuts = 0;
+    g_flowHealth.frames = 0;
+}
+
+// Bytes of one texel in the formats the strips can hold; 0 for a format this check does not read.
+unsigned int AlignTexelBytes(DXGI_FORMAT f)
+{
+    switch (f)
+    {
+    case DXGI_FORMAT_R32_FLOAT:
+    case DXGI_FORMAT_R32_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT:
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    case DXGI_FORMAT_R8G8B8A8_UNORM:
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+    case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+    case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+    case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+        return 4;
+    case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+        return 8;
+    case DXGI_FORMAT_R16_UNORM:
+    case DXGI_FORMAT_R16_TYPELESS:
+    case DXGI_FORMAT_D16_UNORM:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+float AlignDepthAt(const unsigned char* p, DXGI_FORMAT f, bool reversed)
+{
+    float d = 0.0f;
+    switch (f)
+    {
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    {
+        uint32_t v;
+        std::memcpy(&v, p, 4);
+        d = (float) (v & 0xFFFFFFu) / 16777215.0f;
+        break;
+    }
+    case DXGI_FORMAT_R16_UNORM:
+    case DXGI_FORMAT_R16_TYPELESS:
+    case DXGI_FORMAT_D16_UNORM:
+    {
+        uint16_t v;
+        std::memcpy(&v, p, 2);
+        d = (float) v / 65535.0f;
+        break;
+    }
+    default:
+        std::memcpy(&d, p, 4);
+        break;
+    }
+    if (!std::isfinite(d))
+        d = 0.0f;
+    return std::log2(std::max(reversed ? d : 1.0f - d, 1e-7f));
+}
+
+float AlignLumaAt(const unsigned char* p, DXGI_FORMAT f)
+{
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    switch (f)
+    {
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+    case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+        b = p[0] / 255.0f;
+        g = p[1] / 255.0f;
+        r = p[2] / 255.0f;
+        break;
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+    case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+    {
+        uint32_t v;
+        std::memcpy(&v, p, 4);
+        r = (v & 1023u) / 1023.0f;
+        g = ((v >> 10) & 1023u) / 1023.0f;
+        b = ((v >> 20) & 1023u) / 1023.0f;
+        break;
+    }
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+    {
+        uint16_t h[3];
+        std::memcpy(h, p, 6);
+        // Linear HDR: brought to a display-like scale so one threshold serves both.
+        auto half = [](uint16_t v)
+        {
+            const int e = (v >> 10) & 31, m = v & 1023;
+            const float mag = e == 0 ? m * 5.9604645e-8f : e == 31 ? 0.0f : std::ldexp(1.0f + m / 1024.0f, e - 15);
+            return (v & 0x8000) ? 0.0f : mag;
+        };
+        r = std::pow(std::min(half(h[0]), 64.0f), 1.0f / 2.2f);
+        g = std::pow(std::min(half(h[1]), 64.0f), 1.0f / 2.2f);
+        b = std::pow(std::min(half(h[2]), 64.0f), 1.0f / 2.2f);
+        break;
+    }
+    default:
+        r = p[0] / 255.0f;
+        g = p[1] / 255.0f;
+        b = p[2] / 255.0f;
+        break;
+    }
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+// Records the strips on the Present route's list. depth rests in NON_PIXEL_SHADER_RESOURCE and the back
+// buffer in PRESENT; both are left as they were.
+void AlignRecord(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Resource* depth, bool reversed,
+                 ID3D12Resource* backBuffer, unsigned int pictureY, unsigned int width, unsigned int height,
+                 unsigned long long presentIndex)
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (g_align.pending || width < 64 || height < 64 ||
+        (g_align.last != std::chrono::steady_clock::time_point {} && now - g_align.last < std::chrono::seconds(5)))
+        return;
+
+    const D3D12_RESOURCE_DESC depthDesc = depth->GetDesc();
+    const D3D12_RESOURCE_DESC colourDesc = backBuffer->GetDesc();
+    if (AlignTexelBytes(depthDesc.Format) == 0 || AlignTexelBytes(colourDesc.Format) == 0 || depthDesc.Width < width ||
+        depthDesc.Height < height)
+        return;
+
+    // Once per five seconds whether or not the strips can be laid out, so a format this cannot read costs
+    // nothing per frame.
+    g_align.last = now;
+
+    // The strips' footprints, depth then colour, laid end to end.
+    // Sixteen of each: a standing character's silhouette is mostly upright, so the columns (which measure
+    // the vertical offset) cross it far less often than the rows do, and with eight the "down" figure never
+    // had enough crossings to report (Resident Evil 2, 8fc46f3d: "? px down" every time).
+    constexpr unsigned int kStrips = 16;
+    constexpr unsigned int kThick = 3;
+    std::vector<AlignStrip> strips;
+    UINT64 offset = 0;
+    // The footprint of a strip as the runtime lays it out for this format (GetCopyableFootprints on a
+    // texture of the strip's size), so the copy's footprint is always one the format accepts.
+    DXGI_FORMAT depthFootprint = DXGI_FORMAT_UNKNOWN;
+    DXGI_FORMAT colourFootprint = DXGI_FORMAT_UNKNOWN;
+    auto place = [&](const D3D12_RESOURCE_DESC& source, UINT w, UINT h, UINT& pitch, DXGI_FORMAT& format)
+    {
+        D3D12_RESOURCE_DESC desc = source;
+        desc.Width = w;
+        desc.Height = h;
+        desc.MipLevels = 1;
+        desc.DepthOrArraySize = 1;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint {};
+        UINT rows = 0;
+        UINT64 rowBytes = 0, total = 0;
+        device->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &rows, &rowBytes, &total);
+        pitch = footprint.Footprint.RowPitch;
+        format = footprint.Footprint.Format;
+        offset = (offset + D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - 1) &
+                 ~(UINT64) (D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - 1);
+        const UINT64 at = offset;
+        offset += total == UINT64_MAX ? 0 : total;
+        return total == UINT64_MAX || total == 0 ? UINT64_MAX : at;
+    };
+
+    for (unsigned int k = 0; k < 2 * kStrips; ++k)
+    {
+        AlignStrip s;
+        s.vertical = k >= kStrips;
+        s.width = s.vertical ? kThick : width;
+        s.height = s.vertical ? height : kThick;
+        s.depthOffset = place(depthDesc, s.width, s.height, s.depthPitch, depthFootprint);
+        s.colourOffset = place(colourDesc, s.width, s.height, s.colourPitch, colourFootprint);
+        if (s.depthOffset == UINT64_MAX || s.colourOffset == UINT64_MAX)
+            return;
+        strips.push_back(s);
+    }
+
+    if (AlignTexelBytes(depthFootprint) == 0 || AlignTexelBytes(colourFootprint) == 0)
+        return;
+
+    if (g_align.readback == nullptr || g_align.size < offset)
+    {
+        if (g_align.readback != nullptr)
+            ParkNrResource(g_align.readback);
+
+        D3D12_HEAP_PROPERTIES heap {};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC buffer {};
+        buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buffer.Width = offset;
+        buffer.Height = 1;
+        buffer.DepthOrArraySize = 1;
+        buffer.MipLevels = 1;
+        buffer.SampleDesc.Count = 1;
+        buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+        if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g_align.readback))))
+        {
+            g_align.readback = nullptr;
+            g_align.size = 0;
+            return;
+        }
+        g_align.size = offset;
+    }
+
+    Barrier(list, depth, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+    for (unsigned int k = 0; k < 2 * kStrips; ++k)
+    {
+        const AlignStrip& s = strips[k];
+        const unsigned int i = k % kStrips;
+        const UINT x0 = s.vertical ? (UINT) (((2 * i + 1) * width) / (2 * kStrips)) - 1 : 0;
+        const UINT y0 = s.vertical ? 0 : (UINT) (((2 * i + 1) * height) / (2 * kStrips)) - 1;
+
+        for (int which = 0; which < 2; ++which)
+        {
+            D3D12_TEXTURE_COPY_LOCATION from {};
+            from.pResource = which == 0 ? depth : backBuffer;
+            from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            D3D12_TEXTURE_COPY_LOCATION to {};
+            to.pResource = g_align.readback;
+            to.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            to.PlacedFootprint.Offset = which == 0 ? s.depthOffset : s.colourOffset;
+            to.PlacedFootprint.Footprint = { which == 0 ? depthFootprint : colourFootprint, s.width, s.height, 1,
+                                             which == 0 ? s.depthPitch : s.colourPitch };
+            const UINT yBase = which == 0 ? 0u : pictureY;
+            const D3D12_BOX box { x0, y0 + yBase, 0, x0 + s.width, y0 + yBase + s.height, 1 };
+            list->CopyTextureRegion(&to, 0, 0, 0, &from, &box);
+        }
+    }
+
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+    Barrier(list, depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    g_align.strips = std::move(strips);
+    g_align.depthFormat = depthFootprint;
+    g_align.colourFormat = colourFootprint;
+    g_align.reversed = reversed;
+    g_align.pending = true;
+    g_align.due = presentIndex + 8;
+    g_align.last = now;
+}
+
+// Reads the strips recorded eight Presents ago -- the same no-fence pattern as the captures.
+void AlignRead(unsigned long long presentIndex)
+{
+    if (!g_align.pending || presentIndex < g_align.due || g_align.readback == nullptr)
+        return;
+
+    g_align.pending = false;
+
+    void* mapped = nullptr;
+    const D3D12_RANGE range { 0, (SIZE_T) g_align.size };
+    if (FAILED(g_align.readback->Map(0, &range, &mapped)) || mapped == nullptr)
+        return;
+
+    const auto* base = static_cast<const unsigned char*>(mapped);
+    const unsigned int dBytes = AlignTexelBytes(g_align.depthFormat);
+    const unsigned int cBytes = AlignTexelBytes(g_align.colourFormat);
+    std::vector<int> across, down;
+
+    for (const AlignStrip& s : g_align.strips)
+    {
+        const unsigned int n = s.vertical ? s.height : s.width;
+        std::vector<float> d(n), y(n);
+
+        for (unsigned int t = 0; t < n; ++t)
+        {
+            // The middle texel across the strip for depth; the three averaged for luminance, against dither.
+            const unsigned int row = s.vertical ? t : 1;
+            const unsigned int col = s.vertical ? 1 : t;
+            d[t] = AlignDepthAt(base + s.depthOffset + (UINT64) row * s.depthPitch + (UINT64) col * dBytes,
+                                g_align.depthFormat, g_align.reversed);
+            float sum = 0.0f;
+            for (unsigned int a = 0; a < 3; ++a)
+            {
+                const unsigned int r = s.vertical ? t : a;
+                const unsigned int c = s.vertical ? a : t;
+                sum += AlignLumaAt(base + s.colourOffset + (UINT64) r * s.colourPitch + (UINT64) c * cBytes,
+                                   g_align.colourFormat);
+            }
+            y[t] = sum / 3.0f;
+        }
+
+        for (unsigned int t = 17; t + 17 < n; ++t)
+        {
+            if (std::abs(d[t] - d[t - 1]) <= 0.7f)
+                continue;
+
+            // The NEAREST luminance step at least half as strong as the strongest within 16 px, not the
+            // strongest: a lit face or a shading band a few pixels inside an object is often a stronger step
+            // than its silhouette, and read as an offset where there is none (the pillar in capture
+            // 20260926-184409 read 7 px off while its silhouette was on the depth edge).
+            float best = 0.0f;
+            for (int k = -16; k <= 16; ++k)
+                best = std::max(best, std::abs(y[t + k] - y[t + k - 1]));
+
+            if (best <= 0.03f)
+                continue;
+
+            int nearest = 0;
+            for (int r = 0; r <= 16; ++r)
+            {
+                if (std::abs(y[t + r] - y[t + r - 1]) >= 0.5f * best)
+                {
+                    nearest = r;
+                    break;
+                }
+                if (std::abs(y[t - r] - y[t - r - 1]) >= 0.5f * best)
+                {
+                    nearest = -r;
+                    break;
+                }
+            }
+
+            (s.vertical ? down : across).push_back(nearest);
+        }
+    }
+
+    const D3D12_RANGE none { 0, 0 };
+    g_align.readback->Unmap(0, &none);
+
+    auto median = [](std::vector<int>& v)
+    {
+        std::sort(v.begin(), v.end());
+        return v.empty() ? 0 : v[v.size() / 2];
+    };
+
+    constexpr size_t kEnough = 12;
+    const bool haveX = across.size() >= kEnough;
+    const bool haveY = down.size() >= kEnough;
+
+    if (!haveX && !haveY)
+    {
+        if (presentIndex - g_align.quietSaid > 3600 || g_align.quietSaid == 0)
+        {
+            g_align.quietSaid = presentIndex;
+            LOG_INFO("DLSS-NR depth/colour alignment: too few silhouettes to judge ({} across, {} down)", across.size(),
+                     down.size());
+        }
+        return;
+    }
+
+    const size_t nx = across.size();
+    const size_t ny = down.size();
+    const int mx = haveX ? median(across) : 0;
+    const int my = haveY ? median(down) : 0;
+    const int policy = DepthTracker::Policy();
+
+    LOG_INFO("DLSS-NR depth/colour alignment: colour edges sit {} px across and {} px down from the depth edges "
+             "(median of {} and {} silhouette crossings; depth picked by {}; {} frames so far took the newest "
+             "buffer of an earlier frame)",
+             haveX ? std::to_string(mx) : std::string("?"), haveY ? std::to_string(my) : std::string("?"), nx, ny,
+             DepthTracker::PolicyName(policy), DepthTracker::HeldFrames());
+
+    const bool off = (haveX && std::abs(mx) > 2) || (haveY && std::abs(my) > 2);
+
+    if (!off)
+    {
+        g_align.offBy = 0;
+        g_align.switches = 0;
+        return;
+    }
+
+    if (g_align.settled || ++g_align.offBy < 2)
+        return;
+
+    g_align.offBy = 0;
+
+    if (g_align.switches + 1 >= 3)
+    {
+        // Every rule tried without a good check: back to the first, and no more switching.
+        while (DepthTracker::Policy() != 0)
+            DepthTracker::NextPolicy();
+        g_align.settled = true;
+        LOG_WARN("DLSS-NR depth tracker: the depth sits off the picture whichever rule picks it -- back to {}, "
+                 "and no more switching this session",
+                 DepthTracker::PolicyName(0));
+        return;
+    }
+
+    ++g_align.switches;
+    const int next = DepthTracker::NextPolicy();
+    LOG_WARN("DLSS-NR depth tracker: the depth sat {} px across and {} px down off the picture on two checks "
+             "running -- trying the next pick: {}",
+             mx, my, DepthTracker::PolicyName(next));
+}
 
 // Optical-flow motion vectors (dlssnr/opticalflow): a DLL beside OptiScaler, estimated from the finished
 // frames on the Present route's own list. Anything missing or refused falls back to zero motion.
@@ -5219,10 +5727,6 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
 
     const bool nrOn = Config::Instance()->DlssNrEnabled.value_or_default();
 
-    // Taken and released before the capture lock, so the two locks are never nested in a new order.
-    if (!nrOn)
-        IdleWhileOff();
-
     std::lock_guard<std::mutex> lock(g_presentCaptureMutex);
     auto& c = g_presentCapture;
 
@@ -5452,6 +5956,12 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             const bool letterboxed = tracked.width == frameDesc.Width && tracked.height < frameDesc.Height;
             const unsigned int pictureY = letterboxed ? (unsigned int) ((frameDesc.Height - tracked.height) / 2) : 0u;
 
+            // The depth guide against the picture, every few seconds, into the log (AlignCheck).
+            AlignRead(presentIndex);
+            if (tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height)
+                AlignRecord(device, list, copy, tracked.reversed, backBuffer, pictureY, tracked.width, tracked.height,
+                            presentIndex);
+
             // Motion: estimated from the frames when the picture and the depth are the same size, zero otherwise.
             bool flowCut = false;
             const bool guidesLineUp = tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height;
@@ -5459,6 +5969,11 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
                 guidesLineUp ? PresentOpticalFlow(device, list, backBuffer, frameDesc, pictureY, tracked.width,
                                                   tracked.height, !g_tracked.wasActive, flowCut)
                              : nullptr;
+
+            // What the flow is actually delivering, every few seconds, into the log (FlowHealth).
+            FlowHealthRead(presentIndex);
+            if (motion != nullptr)
+                FlowHealthRecord(device, list, motion, flowCut, presentIndex);
 
             // The flow module logs when it cannot start. This is the other way to end up blind and it
             // was silent, which made the commonest cause of the artefact below invisible in a log.
@@ -5499,6 +6014,7 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             // risk, and the same trade is written up under ChainedHistory -- which is why it is a
             // key and not a silent change. It costs nothing: a reset is a flag, not a rebuild.
             const bool blind = motion == nullptr;
+            g_presentMotionBlind = blind;
             const bool resetWhileBlind = blind && Config::Instance()->DlssNrResetWhenBlind.value_or_default();
 
             // Kept for MotionState(), below. Free: the value is already in hand.
@@ -5607,7 +6123,6 @@ void EvaluateInternal(ID3D12GraphicsCommandList* cmdList, NVSDK_NGX_Parameter* p
     if (!cfg.DlssNrEnabled.value_or_default())
     {
         ReportSkipOnce("it is switched off");
-        IdleWhileOff();
         return;
     }
 
@@ -6078,6 +6593,30 @@ void ProbeD3D11(void* d3d11Device)
                  result, NgxResultName((unsigned int) result));
 }
 
+void RequestCleanUpCapture() { g_cleanCapture.request(); }
+bool CleanUpCapturePending() { return g_cleanCapture.wanted() || g_cleanCapture.pending(); }
+
+CleanUpReading CleanUpState()
+{
+    CleanUpReading r {};
+    const uint32_t mode = Config::Instance()->DlssNrCleanUpMode.value_or_default();
+    r.measuring = (mode == 1 || mode == 2) && g_nr.haloGrid[0] != nullptr;
+    r.strength = g_nr.cleanApplied;
+    r.haloBefore = g_nr.haloBefore;
+    r.haloAfter = g_nr.haloAfter;
+    r.haloModel = g_nr.haloModel;
+    r.edge = g_nr.cleanEdge;
+    r.balance = g_nr.cleanBalance;
+    r.motion = g_nr.cleanMotion;
+    r.bleedInner = g_nr.cleanBleedInner;
+    r.bleedOuter = g_nr.cleanBleedOuter;
+    r.dodge = g_nr.cleanDodge;
+    r.burn = g_nr.cleanBurn;
+    if (!g_timingTrust.Untrusted())
+        r.composeMs = g_lastComposeTime;
+    return r;
+}
+
 AutoToneReading AutoTone()
 {
     AutoToneReading r {};
@@ -6133,8 +6672,6 @@ ExposureStatus GameExposureStatus()
 
 std::optional<double> LastGpuTime() { return g_timingTrust.Untrusted() ? std::nullopt : g_lastGpuTime; }
 
-AutoScaleStatus AutoScale() { return g_autoScale; }
-
 bool VideoMemory(uint64_t* usedBytes, uint64_t* budgetBytes)
 {
     const uint64_t budget = g_vramBudget.load();
@@ -6157,75 +6694,6 @@ void RequestCapture(unsigned int frames)
 
 bool CaptureInProgress() { return g_capture.isActive(); }
 
-void IdleWhileOff()
-{
-    std::lock_guard<std::mutex> nrLock(g_nrMutex);
-
-    // Only drains what this dropped, so with AutoScale off (nothing ever kept) switching DLSS 5 off
-    // behaves exactly as before.
-    static bool draining = false;
-
-    // Kept sizes are not dropped the moment DLSS 5 goes off. Resident Evil 2 (2026-09-18): toggling it in
-    // the panel to compare flushed three kept sizes each time, and switching back on paid for all of them
-    // again -- ~140 ms held Present each. They are held for kCacheOffGraceMs; back on within that, the pass
-    // reuses them untouched. Only a real "off" gives the memory back.
-    const double nowMs = NowMs();
-    if (g_pacing.offSinceMs == 0.0)
-    {
-        g_pacing.offSinceMs = nowMs;
-        if (!g_nrCache.empty())
-            LOG_INFO("DLSS-NR model size cache: DLSS 5 switched off -- keeping {} size(s) ({}) for {:.0f} s in case "
-                     "it comes back on",
-                     g_nrCache.size(), CachedSizesText(), kCacheOffGraceMs / 1000.0);
-    }
-
-    // What the pass would do. The memory rule still stands while off: if the game needs the room, kept
-    // sizes are evicted (least recently used first, one per check) without waiting out the grace period.
-    // No device here, so the adapter the pass last read is asked directly.
-    if (!g_nrCache.empty() && g_vramAdapter != nullptr && nowMs - g_pacing.lastOffMemoryCheckMs >= 500.0)
-    {
-        g_pacing.lastOffMemoryCheckMs = nowMs;
-        DXGI_QUERY_VIDEO_MEMORY_INFO info {};
-        if (SUCCEEDED(g_vramAdapter->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info)) &&
-            info.Budget != 0)
-        {
-            g_vramUsage = info.CurrentUsage;
-            g_vramBudget = info.Budget;
-            const size_t before = g_nrCache.size();
-            EnforceCacheBudget(info.CurrentUsage, info.Budget);
-            if (g_nrCache.size() != before)
-                draining = true;
-        }
-    }
-
-    if (!g_nrCache.empty() && nowMs - g_pacing.offSinceMs >= kCacheOffGraceMs)
-    {
-        static const std::string why =
-            std::format("DLSS 5 stayed switched off for {:.0f} s", kCacheOffGraceMs / 1000.0);
-        FlushNrCache(why.c_str());
-        draining = true;
-    }
-
-    if (!draining)
-        return;
-
-    if (g_nrRetired.empty())
-    {
-        draining = false;
-        return;
-    }
-
-    // The pass is not running, so nothing else ticks the parked list. Rate limited to one tick per 10 ms
-    // so two entry points in one frame cannot halve the 32-evaluate safety margin.
-    static auto lastTick = std::chrono::steady_clock::time_point {};
-    const auto now = std::chrono::steady_clock::now();
-    if (now - lastTick >= std::chrono::milliseconds(10))
-    {
-        lastTick = now;
-        TickNrRetired();
-    }
-}
-
 void Shutdown()
 {
     std::lock_guard<std::mutex> nrLock(g_nrMutex);
@@ -6241,27 +6709,6 @@ void Shutdown()
 
     g_nrRetired.clear();
 
-    // Kept model sizes go with everything else on unload.
-    for (NrSizeEntry& e : g_nrCache)
-    {
-        if (g_nr.release != nullptr)
-        {
-            if (e.feature != nullptr)
-                g_nr.release(e.feature);
-            for (unsigned int pass = 1; pass < DlssNr::MaxPassCount; ++pass)
-                if (e.passFeature[pass] != nullptr)
-                    g_nr.release(e.passFeature[pass]);
-        }
-
-        for (ID3D12Resource* r : { e.output, e.passScratch, e.colorSmall })
-            if (r != nullptr)
-                r->Release();
-    }
-
-    g_nrCache.clear();
-    g_nrCacheGen = {};
-    g_prebuild = {};
-    g_pacing = {};
     g_buildMeasure = {};
 
     if (g_nr.feature != nullptr && g_nr.release != nullptr)
@@ -6414,6 +6861,48 @@ void Shutdown()
 
     ResetAutoTone();
 
+    for (int g = 0; g < 3; ++g)
+    {
+        if (g_nr.haloGrid[g] != nullptr)
+        {
+            g_nr.haloGrid[g]->Release();
+            g_nr.haloGrid[g] = nullptr;
+        }
+        for (auto& rb : g_nr.haloReadback[g])
+        {
+            if (rb != nullptr)
+            {
+                rb->Release();
+                rb = nullptr;
+            }
+        }
+    }
+    for (auto& h : g_nr.cleanHistory)
+    {
+        if (h != nullptr)
+        {
+            h->Release();
+            h = nullptr;
+        }
+    }
+    if (g_nr.cleanModel != nullptr)
+    {
+        g_nr.cleanModel->Release();
+        g_nr.cleanModel = nullptr;
+    }
+    if (g_nr.cleanPrep != nullptr)
+    {
+        g_nr.cleanPrep->Release();
+        g_nr.cleanPrep = nullptr;
+    }
+    g_nr.cleanPrepW = 0;
+    g_nr.cleanPrepH = 0;
+    g_nr.cleanHistoryW = 0;
+    g_nr.cleanHistoryH = 0;
+    g_nr.cleanHistoryValid = false;
+    g_nr.cleanApplied = 0.0f;
+    ResetCleanUp();
+
     for (auto& rb : g_nr.meterReadback)
     {
         if (rb != nullptr)
@@ -6448,17 +6937,9 @@ void Shutdown()
     g_capture.release();
     g_gpuTime.reset();
     g_ngxTime.reset();
+    g_composeTime.reset();
     g_lastNgxTime.reset();
     g_lastGpuTime.reset();
-
-    // The controller's window and its dwell timer are both wall-clock, and a new session starts with
-    // a different feature at a different cost. Carrying either across would let the first decision of
-    // the next run be made on the last one's measurements.
-    g_budgetOn = false;
-    g_autoScale = {};
-
-    if (auto* cfg = Config::Instance(); cfg != nullptr && cfg->DlssNrWorkingScale.is_volatile())
-        cfg->DlssNrWorkingScale = cfg->DlssNrWorkingScale.value_or_default();
 
     g_compose.reset();
 }

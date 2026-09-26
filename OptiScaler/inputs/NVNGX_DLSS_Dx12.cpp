@@ -230,7 +230,10 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_Ext(unsigned long long InApp
             LOG_INFO("calling NVNGXProxy::D3D12_Init_Ext result: {0:X}", (UINT) result);
 
             if (result == NVSDK_NGX_Result_Success)
+            {
                 NVNGXProxy::SetDx12Inited(true);
+                NVNGXProxy::HoldDx12SessionDevice(InDevice);
+            }
         }
         else
         {
@@ -312,7 +315,10 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init(unsigned long long InApplica
             LOG_INFO("calling NVNGXProxy::D3D12_Init result: {0:X}", (UINT) result);
 
             if (result == NVSDK_NGX_Result_Success)
+            {
                 NVNGXProxy::SetDx12Inited(true);
+                NVNGXProxy::HoldDx12SessionDevice(InDevice);
+            }
         }
     }
 
@@ -375,7 +381,10 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Init_ProjectID(const char* InProj
             LOG_INFO("calling NVNGXProxy::D3D12_Init_ProjectID result: {0:X}", (UINT) result);
 
             if (result == NVSDK_NGX_Result_Success)
+            {
                 NVNGXProxy::SetDx12Inited(true);
+                NVNGXProxy::HoldDx12SessionDevice(InDevice);
+            }
         }
     }
 
@@ -478,6 +487,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown(void)
     {
         auto result = NVNGXProxy::D3D12_Shutdown()();
         NVNGXProxy::SetDx12Inited(false);
+        NVNGXProxy::HoldDx12SessionDevice(nullptr);
     }
 
     // Unhooking and cleaning stuff causing issues during shutdown.
@@ -544,6 +554,7 @@ NVSDK_NGX_API NVSDK_NGX_Result NVSDK_NGX_D3D12_Shutdown1(ID3D12Device* InDevice)
     {
         CallRealD3D12Shutdown1Safe(NVNGXProxy::D3D12_Shutdown1(), InDevice);
         NVNGXProxy::SetDx12Inited(false);
+        NVNGXProxy::HoldDx12SessionDevice(nullptr);
     }
 
     return NVSDK_NGX_D3D12_Shutdown();
