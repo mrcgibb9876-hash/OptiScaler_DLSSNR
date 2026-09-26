@@ -604,6 +604,7 @@ static const float kCleanupToleranceTight = 0.0;  // ... and at strength 1: the 
 groupshared uint gsCleanLD[CLEAN_TILE * CLEAN_TILE];
 groupshared uint gsCleanChroma[CLEAN_TILE * CLEAN_TILE];
 groupshared float gsCleanShift[4];
+groupshared float2 gsCleanShiftChroma[4];
 groupshared float gsCleanShiftDepth[4];
 // The tile's range of log luminance and log depth (order-preserving uints), for skipping a tile with no
 // edge in it at all -- most of any frame.
@@ -691,6 +692,26 @@ float2 CleanupChroma(float3 c)
         return float2(0.0, 0.0);
     return SanitizeFinite3(float3((0.5 * c.r - 0.5 * c.b) / y, (-0.25 * c.r + 0.5 * c.g - 0.25 * c.b) / y, 0.0),
                            float3(0.0, 0.0, 0.0)).xy;
+}
+
+// A surface the model and the proxy share (gModel, gSource) in the frame's own space -- raw on a frame the
+// game already tone mapped, linear otherwise -- so its chroma compares with the frame's.
+float3 CleanupFrameSpace(float3 c) { return gPassthrough != 0 ? c : SrgbToLinear(c); }
+
+// The model's regional colour change at a position: its chroma minus the proxy's, each averaged over five
+// bilinear taps two pixels apart, so a dithered proxy (Resident Evil 2) does not decide it one texel at a
+// time.
+float2 CleanupShiftChromaTap(float2 at, float2 texel)
+{
+    float2 sum = float2(0.0, 0.0);
+    [unroll] for (int t = 0; t < 5; ++t)
+    {
+        const float2 o = t == 0 ? float2(0.0, 0.0) : float2(t == 1 ? 2.0 : t == 2 ? -2.0 : 0.0, t == 3 ? 2.0 : t == 4 ? -2.0 : 0.0);
+        const float2 p = at + o * texel;
+        sum += CleanupChroma(max(CleanupFrameSpace(gModel.SampleLevel(gLinear, p, 0).rgb), 0.0)) -
+               CleanupChroma(max(CleanupFrameSpace(gSource.SampleLevel(gLinear, p, 0).rgb), 0.0));
+    }
+    return SanitizeFinite3(float3(sum / 5.0, 0.0), float3(0.0, 0.0, 0.0)).xy;
 }
 
 uint CleanupOrdered(float f)
@@ -805,6 +826,7 @@ bool CleanupFill(uint2 group, uint index)
         const float2 at = middle + kCleanupFar[index] * texel;
         gsCleanShift[index] = CleanupShiftTap(at);
         gsCleanShiftDepth[index] = CleanupDepthLog(at);
+        gsCleanShiftChroma[index] = CleanupShiftChromaTap(at, texel);
     }
 
     GroupMemoryBarrierWithGroupSync();
@@ -1095,8 +1117,8 @@ float2 CleanupBand(CleanupStats s, float strength)
 }
 
 // The model's regional tone change for this pixel: of the group's four taps (48 pixels out, well past a
-// glow) that sit at the pixel's own depth, within a stop, the lower median -- a glow only ever adds, so a
-// tap that still caught some of it is the one to outvote. The plain median of all four when none does.
+// glow) that sit at the pixel's own depth, within a stop, the mean. The plain median of all four when none
+// does.
 float CleanupShift(float centreDepth)
 {
     float v[4];
@@ -1116,14 +1138,33 @@ float CleanupShift(float centreDepth)
         return 0.5 * (lo + hi);
     }
 
-    // Sort the four (the excluded ones, at 1e30, sink to the end) and take the lower median of the n kept.
-    const float a0 = min(v[0], v[1]), a1 = max(v[0], v[1]);
-    const float b0 = min(v[2], v[3]), b1 = max(v[2], v[3]);
-    const float s0 = min(a0, b0), s3 = max(a1, b1);
-    const float m0 = max(a0, b0), m1 = min(a1, b1);
-    const float s1 = min(m0, m1), s2 = max(m0, m1);
-    const uint pick = (n - 1u) / 2u;
-    return pick == 0u ? s0 : s1;
+    // The mean of the n kept. It was the lower median, on the reasoning that a glow only ever adds, so a
+    // tap that still caught some is the one to outvote -- but taken 48 px out a tap rarely catches any, and
+    // the lower median then sat below the region's real tone change: at full strength the pixels beside a
+    // silhouette ended 0.13-0.14 stop darker than the background further out, a dark rim of the clean up's
+    // own (Resident Evil 2 captures 191653/191710, 2026-09-26). The mean leaves 0.07.
+    float sum = 0.0;
+    [unroll] for (int g = 0; g < 4; ++g)
+        sum += v[g] < 1e29 ? v[g] : 0.0;
+    return sum / float(n);
+}
+
+// The model's regional colour change for this pixel: the mean of the group's same-side taps (within a
+// stop of depth), or of all four when none is. Chroma has no one-sided bias the way a glow's brightness
+// has, so no median.
+float2 CleanupShiftChroma(float centreDepth)
+{
+    float2 sum = float2(0.0, 0.0);
+    float n = 0.0;
+    [unroll] for (int f = 0; f < 4; ++f)
+    {
+        const bool same = gCleanupHaveDepth == 0 || abs(gsCleanShiftDepth[f] - centreDepth) < 1.0;
+        sum += same ? gsCleanShiftChroma[f] : float2(0.0, 0.0);
+        n += same ? 1.0 : 0.0;
+    }
+    if (n == 0.0)
+        return 0.25 * (gsCleanShiftChroma[0] + gsCleanShiftChroma[1] + gsCleanShiftChroma[2] + gsCleanShiftChroma[3]);
+    return sum / n;
 }
 
 // The motion vector under a normalised position, in pixels of this dispatch; zero when there are none.
@@ -1805,10 +1846,10 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
         }
 
         // The colour of a glow, on the far side of a silhouette: its chroma (YCoCg over Y) held to the
-        // range the same-side neighbourhood has, plus a tolerance that narrows with strength. The one
-        // place the clean up changes hue on purpose -- a fringe the character's colour bled into the
-        // background is a hue the background never had. Before the luminance step, which then sees the
-        // colour it will scale.
+        // model's regional colour change, plus a tolerance that narrows with strength. The one place the
+        // clean up changes hue on purpose -- a fringe the character's colour bled into the background, or
+        // the model's own tinted rim, is a hue the background never had. Before the luminance step, which
+        // then sees the colour it will scale.
         if (amount > 1e-4 && gCleanupHaveDepth != 0 && depthMask.x > 0.0 && (gCleanupProfile & 4u) == 0u)
         {
             const float yc = dot(max(result, 0.0), float3(0.25, 0.5, 0.25));
@@ -1818,8 +1859,23 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
                 const float farAmount = amount * smoothstep(0.25, 0.75, depthMask.y);
                 const float co = (0.5 * result.r - 0.5 * result.b) / yc;
                 const float cg = (-0.25 * result.r + 0.5 * result.g - 0.25 * result.b) / yc;
-                const float coT = lerp(co, clamp(co, stats.coLo - tolerance, stats.coHi + tolerance), farAmount);
-                const float cgT = lerp(cg, clamp(cg, stats.cgLo - tolerance, stats.cgHi + tolerance), farAmount);
+                // The model's colour change at this pixel against its colour change across the region (48 px
+                // out, on the frame's own side of the silhouette): what exceeds it by more than the tolerance
+                // is the fringe, and is taken back out of the composed pixel. Both changes are the model's
+                // picture against the proxy through the same five-tap average, so the proxy's dither (Resident
+                // Evil 2) cancels rather than deciding it. It used to be a clamp to the same-side neighbourhood's
+                // range of the frame's chroma, which dither made so wide it never bound: the light blue-grey
+                // rim the model leaves round a character came through untouched. The global Colour boost is not
+                // undone -- only the rim's departure from its surroundings. Not scaled up by that boost: the
+                // composed picture carries less of the model's chroma change than the boost factor would say,
+                // and scaling by it overshot into a rim less blue than its surroundings.
+                uint cw, ch;
+                gSource.GetDimensions(cw, ch);
+                const float2 excess =
+                    CleanupShiftChromaTap(uv, 1.0 / float2(cw, ch)) - CleanupShiftChroma(depthMask.z);
+                const float2 over = sign(excess) * max(abs(excess) - max(tolerance, 0.01), 0.0);
+                const float coT = co - farAmount * over.x;
+                const float cgT = cg - farAmount * over.y;
                 if (coT != co || cgT != cg)
                 {
                     const float base = yc - cgT * yc;

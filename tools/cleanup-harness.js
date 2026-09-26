@@ -53,7 +53,8 @@ const V = {
   depthTol: opt('depth-tol', 0.35),
   shiftR: opt('shift-r', 48),
   noShift: flag('no-shift'),
-  shiftMedian: flag('shift-median'), // the plain median of the same-side taps instead of the lower one
+  shiftMedian: flag('shift-median'), // the plain median of the same-side taps instead of their mean
+  shiftLower: flag('shift-lower'), // the lower median, as the shader had it before 2026-09-26
   noSeg: flag('no-seg'),
 };
 
@@ -248,7 +249,8 @@ function shiftFor(x, y, dc, p) {
   const same = taps.filter((t) => !haveDepth || Math.abs(t.d - dc) < 1).map((t) => t.s).sort((a, b) => a - b);
   if (same.length === 0) { const all = taps.map((t) => t.s).sort((a, b) => a - b); return 0.5 * (all[1] + all[2]); }
   if (p.shiftMedian) return same.length % 2 ? same[(same.length - 1) / 2] : 0.5 * (same[same.length / 2 - 1] + same[same.length / 2]);
-  return same[Math.floor((same.length - 1) / 2)];
+  if (p.shiftLower) return same[Math.floor((same.length - 1) / 2)];
+  return same.reduce((x, y) => x + y, 0) / same.length; // the mean, as the shader (was the lower median)
 }
 
 // ---- run -------------------------------------------------------------------------------------------------
