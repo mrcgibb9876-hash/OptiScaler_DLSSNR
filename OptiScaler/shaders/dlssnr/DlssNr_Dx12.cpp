@@ -34,6 +34,8 @@
 #include <mutex>
 #include <map>
 #include <chrono>
+#include <cmath>
+#include <vector>
 #include <format>
 #include <algorithm>
 #include <cstring>
@@ -4695,6 +4697,422 @@ struct TrackedGuides
 TrackedGuides g_tracked;
 std::unique_ptr<Menu_Dx12> g_presentMenu;
 
+// The depth guide against the picture, from the log alone. Every five seconds a few strips of the tracked
+// depth's copy and of the back buffer (eight rows and eight columns, three texels thick, the picture's band
+// only) are copied to a readback buffer, and read eight Presents later: at every depth jump across a strip
+// (over 0.7 stops of reciprocal depth) the strongest luminance step within 16 px is found, and the median
+// offset along the strip is logged -- "colour edges sit X px across and Y px down from the depth edges".
+// On a scene that moves, a depth guide from another frame shows here as a steady offset of several pixels
+// (Resident Evil 2's captures, 2026-09-26: 5-11 px). Two checks running with an offset over 2 px move the
+// depth tracker to its next pick rule (DepthTracker::NextPolicy), logged; after trying every rule without a
+// good check the tracker goes back to the first and stops switching.
+struct AlignStrip
+{
+    UINT64 depthOffset = 0;
+    UINT64 colourOffset = 0;
+    UINT depthPitch = 0;
+    UINT colourPitch = 0;
+    UINT width = 0;
+    UINT height = 0;
+    bool vertical = false;
+};
+
+struct AlignCheck
+{
+    ID3D12Resource* readback = nullptr;
+    UINT64 size = 0;
+    std::vector<AlignStrip> strips;
+    DXGI_FORMAT depthFormat = DXGI_FORMAT_UNKNOWN;
+    DXGI_FORMAT colourFormat = DXGI_FORMAT_UNKNOWN;
+    bool reversed = true;
+    bool pending = false;
+    unsigned long long due = 0;
+    std::chrono::steady_clock::time_point last {};
+    int offBy = 0;        // checks running with the depth off the picture
+    int switches = 0;     // rules tried since the last good check
+    bool settled = false; // every rule tried without a good check: stop switching
+    unsigned long long quietSaid = 0;
+};
+
+AlignCheck g_align;
+
+// Bytes of one texel in the formats the strips can hold; 0 for a format this check does not read.
+unsigned int AlignTexelBytes(DXGI_FORMAT f)
+{
+    switch (f)
+    {
+    case DXGI_FORMAT_R32_FLOAT:
+    case DXGI_FORMAT_R32_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT:
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    case DXGI_FORMAT_R8G8B8A8_UNORM:
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+    case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+    case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+    case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+        return 4;
+    case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+        return 8;
+    case DXGI_FORMAT_R16_UNORM:
+    case DXGI_FORMAT_R16_TYPELESS:
+    case DXGI_FORMAT_D16_UNORM:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+float AlignDepthAt(const unsigned char* p, DXGI_FORMAT f, bool reversed)
+{
+    float d = 0.0f;
+    switch (f)
+    {
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    {
+        uint32_t v;
+        std::memcpy(&v, p, 4);
+        d = (float) (v & 0xFFFFFFu) / 16777215.0f;
+        break;
+    }
+    case DXGI_FORMAT_R16_UNORM:
+    case DXGI_FORMAT_R16_TYPELESS:
+    case DXGI_FORMAT_D16_UNORM:
+    {
+        uint16_t v;
+        std::memcpy(&v, p, 2);
+        d = (float) v / 65535.0f;
+        break;
+    }
+    default:
+        std::memcpy(&d, p, 4);
+        break;
+    }
+    if (!std::isfinite(d))
+        d = 0.0f;
+    return std::log2(std::max(reversed ? d : 1.0f - d, 1e-7f));
+}
+
+float AlignLumaAt(const unsigned char* p, DXGI_FORMAT f)
+{
+    float r = 0.0f, g = 0.0f, b = 0.0f;
+    switch (f)
+    {
+    case DXGI_FORMAT_B8G8R8A8_UNORM:
+    case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+    case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+        b = p[0] / 255.0f;
+        g = p[1] / 255.0f;
+        r = p[2] / 255.0f;
+        break;
+    case DXGI_FORMAT_R10G10B10A2_UNORM:
+    case DXGI_FORMAT_R10G10B10A2_TYPELESS:
+    {
+        uint32_t v;
+        std::memcpy(&v, p, 4);
+        r = (v & 1023u) / 1023.0f;
+        g = ((v >> 10) & 1023u) / 1023.0f;
+        b = ((v >> 20) & 1023u) / 1023.0f;
+        break;
+    }
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+    {
+        uint16_t h[3];
+        std::memcpy(h, p, 6);
+        // Linear HDR: brought to a display-like scale so one threshold serves both.
+        auto half = [](uint16_t v)
+        {
+            const int e = (v >> 10) & 31, m = v & 1023;
+            const float mag = e == 0 ? m * 5.9604645e-8f : e == 31 ? 0.0f : std::ldexp(1.0f + m / 1024.0f, e - 15);
+            return (v & 0x8000) ? 0.0f : mag;
+        };
+        r = std::pow(std::min(half(h[0]), 64.0f), 1.0f / 2.2f);
+        g = std::pow(std::min(half(h[1]), 64.0f), 1.0f / 2.2f);
+        b = std::pow(std::min(half(h[2]), 64.0f), 1.0f / 2.2f);
+        break;
+    }
+    default:
+        r = p[0] / 255.0f;
+        g = p[1] / 255.0f;
+        b = p[2] / 255.0f;
+        break;
+    }
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+}
+
+// Records the strips on the Present route's list. depth rests in NON_PIXEL_SHADER_RESOURCE and the back
+// buffer in PRESENT; both are left as they were.
+void AlignRecord(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Resource* depth, bool reversed,
+                 ID3D12Resource* backBuffer, unsigned int pictureY, unsigned int width, unsigned int height,
+                 unsigned long long presentIndex)
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (g_align.pending || width < 64 || height < 64 ||
+        (g_align.last != std::chrono::steady_clock::time_point {} && now - g_align.last < std::chrono::seconds(5)))
+        return;
+
+    const D3D12_RESOURCE_DESC depthDesc = depth->GetDesc();
+    const D3D12_RESOURCE_DESC colourDesc = backBuffer->GetDesc();
+    if (AlignTexelBytes(depthDesc.Format) == 0 || AlignTexelBytes(colourDesc.Format) == 0 || depthDesc.Width < width ||
+        depthDesc.Height < height)
+        return;
+
+    // Once per five seconds whether or not the strips can be laid out, so a format this cannot read costs
+    // nothing per frame.
+    g_align.last = now;
+
+    // The strips' footprints, depth then colour, laid end to end.
+    constexpr unsigned int kStrips = 8;
+    constexpr unsigned int kThick = 3;
+    std::vector<AlignStrip> strips;
+    UINT64 offset = 0;
+    // The footprint of a strip as the runtime lays it out for this format (GetCopyableFootprints on a
+    // texture of the strip's size), so the copy's footprint is always one the format accepts.
+    DXGI_FORMAT depthFootprint = DXGI_FORMAT_UNKNOWN;
+    DXGI_FORMAT colourFootprint = DXGI_FORMAT_UNKNOWN;
+    auto place = [&](const D3D12_RESOURCE_DESC& source, UINT w, UINT h, UINT& pitch, DXGI_FORMAT& format)
+    {
+        D3D12_RESOURCE_DESC desc = source;
+        desc.Width = w;
+        desc.Height = h;
+        desc.MipLevels = 1;
+        desc.DepthOrArraySize = 1;
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint {};
+        UINT rows = 0;
+        UINT64 rowBytes = 0, total = 0;
+        device->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &rows, &rowBytes, &total);
+        pitch = footprint.Footprint.RowPitch;
+        format = footprint.Footprint.Format;
+        offset = (offset + D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - 1) &
+                 ~(UINT64) (D3D12_TEXTURE_DATA_PLACEMENT_ALIGNMENT - 1);
+        const UINT64 at = offset;
+        offset += total == UINT64_MAX ? 0 : total;
+        return total == UINT64_MAX || total == 0 ? UINT64_MAX : at;
+    };
+
+    for (unsigned int k = 0; k < 2 * kStrips; ++k)
+    {
+        AlignStrip s;
+        s.vertical = k >= kStrips;
+        s.width = s.vertical ? kThick : width;
+        s.height = s.vertical ? height : kThick;
+        s.depthOffset = place(depthDesc, s.width, s.height, s.depthPitch, depthFootprint);
+        s.colourOffset = place(colourDesc, s.width, s.height, s.colourPitch, colourFootprint);
+        if (s.depthOffset == UINT64_MAX || s.colourOffset == UINT64_MAX)
+            return;
+        strips.push_back(s);
+    }
+
+    if (AlignTexelBytes(depthFootprint) == 0 || AlignTexelBytes(colourFootprint) == 0)
+        return;
+
+    if (g_align.readback == nullptr || g_align.size < offset)
+    {
+        if (g_align.readback != nullptr)
+            ParkNrResource(g_align.readback);
+
+        D3D12_HEAP_PROPERTIES heap {};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC buffer {};
+        buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buffer.Width = offset;
+        buffer.Height = 1;
+        buffer.DepthOrArraySize = 1;
+        buffer.MipLevels = 1;
+        buffer.SampleDesc.Count = 1;
+        buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+        if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g_align.readback))))
+        {
+            g_align.readback = nullptr;
+            g_align.size = 0;
+            return;
+        }
+        g_align.size = offset;
+    }
+
+    Barrier(list, depth, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+    for (unsigned int k = 0; k < 2 * kStrips; ++k)
+    {
+        const AlignStrip& s = strips[k];
+        const unsigned int i = k % kStrips;
+        const UINT x0 = s.vertical ? (UINT) (((2 * i + 1) * width) / (2 * kStrips)) - 1 : 0;
+        const UINT y0 = s.vertical ? 0 : (UINT) (((2 * i + 1) * height) / (2 * kStrips)) - 1;
+
+        for (int which = 0; which < 2; ++which)
+        {
+            D3D12_TEXTURE_COPY_LOCATION from {};
+            from.pResource = which == 0 ? depth : backBuffer;
+            from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+            D3D12_TEXTURE_COPY_LOCATION to {};
+            to.pResource = g_align.readback;
+            to.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+            to.PlacedFootprint.Offset = which == 0 ? s.depthOffset : s.colourOffset;
+            to.PlacedFootprint.Footprint = { which == 0 ? depthFootprint : colourFootprint, s.width, s.height, 1,
+                                             which == 0 ? s.depthPitch : s.colourPitch };
+            const UINT yBase = which == 0 ? 0u : pictureY;
+            const D3D12_BOX box { x0, y0 + yBase, 0, x0 + s.width, y0 + yBase + s.height, 1 };
+            list->CopyTextureRegion(&to, 0, 0, 0, &from, &box);
+        }
+    }
+
+    Barrier(list, backBuffer, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PRESENT);
+    Barrier(list, depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    g_align.strips = std::move(strips);
+    g_align.depthFormat = depthFootprint;
+    g_align.colourFormat = colourFootprint;
+    g_align.reversed = reversed;
+    g_align.pending = true;
+    g_align.due = presentIndex + 8;
+    g_align.last = now;
+}
+
+// Reads the strips recorded eight Presents ago -- the same no-fence pattern as the captures.
+void AlignRead(unsigned long long presentIndex)
+{
+    if (!g_align.pending || presentIndex < g_align.due || g_align.readback == nullptr)
+        return;
+
+    g_align.pending = false;
+
+    void* mapped = nullptr;
+    const D3D12_RANGE range { 0, (SIZE_T) g_align.size };
+    if (FAILED(g_align.readback->Map(0, &range, &mapped)) || mapped == nullptr)
+        return;
+
+    const auto* base = static_cast<const unsigned char*>(mapped);
+    const unsigned int dBytes = AlignTexelBytes(g_align.depthFormat);
+    const unsigned int cBytes = AlignTexelBytes(g_align.colourFormat);
+    std::vector<int> across, down;
+
+    for (const AlignStrip& s : g_align.strips)
+    {
+        const unsigned int n = s.vertical ? s.height : s.width;
+        std::vector<float> d(n), y(n);
+
+        for (unsigned int t = 0; t < n; ++t)
+        {
+            // The middle texel across the strip for depth; the three averaged for luminance, against dither.
+            const unsigned int row = s.vertical ? t : 1;
+            const unsigned int col = s.vertical ? 1 : t;
+            d[t] = AlignDepthAt(base + s.depthOffset + (UINT64) row * s.depthPitch + (UINT64) col * dBytes,
+                                g_align.depthFormat, g_align.reversed);
+            float sum = 0.0f;
+            for (unsigned int a = 0; a < 3; ++a)
+            {
+                const unsigned int r = s.vertical ? t : a;
+                const unsigned int c = s.vertical ? a : t;
+                sum += AlignLumaAt(base + s.colourOffset + (UINT64) r * s.colourPitch + (UINT64) c * cBytes,
+                                   g_align.colourFormat);
+            }
+            y[t] = sum / 3.0f;
+        }
+
+        for (unsigned int t = 17; t + 17 < n; ++t)
+        {
+            if (std::abs(d[t] - d[t - 1]) <= 0.7f)
+                continue;
+
+            float best = 0.0f;
+            int bestK = 0;
+            for (int k = -16; k <= 16; ++k)
+            {
+                const float step = std::abs(y[t + k] - y[t + k - 1]);
+                if (step > best)
+                {
+                    best = step;
+                    bestK = k;
+                }
+            }
+
+            if (best > 0.03f)
+                (s.vertical ? down : across).push_back(bestK);
+        }
+    }
+
+    const D3D12_RANGE none { 0, 0 };
+    g_align.readback->Unmap(0, &none);
+
+    auto median = [](std::vector<int>& v)
+    {
+        std::sort(v.begin(), v.end());
+        return v.empty() ? 0 : v[v.size() / 2];
+    };
+
+    constexpr size_t kEnough = 24;
+    const bool haveX = across.size() >= kEnough;
+    const bool haveY = down.size() >= kEnough;
+
+    if (!haveX && !haveY)
+    {
+        if (presentIndex - g_align.quietSaid > 3600 || g_align.quietSaid == 0)
+        {
+            g_align.quietSaid = presentIndex;
+            LOG_INFO("DLSS-NR depth/colour alignment: too few silhouettes to judge ({} across, {} down)", across.size(),
+                     down.size());
+        }
+        return;
+    }
+
+    const size_t nx = across.size();
+    const size_t ny = down.size();
+    const int mx = haveX ? median(across) : 0;
+    const int my = haveY ? median(down) : 0;
+    const int policy = DepthTracker::Policy();
+
+    LOG_INFO("DLSS-NR depth/colour alignment: colour edges sit {} px across and {} px down from the depth edges "
+             "(median of {} and {} silhouette crossings; depth picked by {})",
+             haveX ? std::to_string(mx) : std::string("?"), haveY ? std::to_string(my) : std::string("?"), nx, ny,
+             DepthTracker::PolicyName(policy));
+
+    const bool off = (haveX && std::abs(mx) > 2) || (haveY && std::abs(my) > 2);
+
+    if (!off)
+    {
+        g_align.offBy = 0;
+        g_align.switches = 0;
+        return;
+    }
+
+    if (g_align.settled || ++g_align.offBy < 2)
+        return;
+
+    g_align.offBy = 0;
+
+    if (g_align.switches + 1 >= 3)
+    {
+        // Every rule tried without a good check: back to the first, and no more switching.
+        while (DepthTracker::Policy() != 0)
+            DepthTracker::NextPolicy();
+        g_align.settled = true;
+        LOG_WARN("DLSS-NR depth tracker: the depth sits off the picture whichever rule picks it -- back to {}, "
+                 "and no more switching this session",
+                 DepthTracker::PolicyName(0));
+        return;
+    }
+
+    ++g_align.switches;
+    const int next = DepthTracker::NextPolicy();
+    LOG_WARN("DLSS-NR depth tracker: the depth sat {} px across and {} px down off the picture on two checks "
+             "running -- trying the next pick: {}",
+             mx, my, DepthTracker::PolicyName(next));
+}
+
 // Optical-flow motion vectors (dlssnr/opticalflow): a DLL beside OptiScaler, estimated from the finished
 // frames on the Present route's own list. Anything missing or refused falls back to zero motion.
 struct OpticalFlowModule
@@ -5319,6 +5737,12 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
             const D3D12_RESOURCE_DESC frameDesc = backBuffer->GetDesc();
             const bool letterboxed = tracked.width == frameDesc.Width && tracked.height < frameDesc.Height;
             const unsigned int pictureY = letterboxed ? (unsigned int) ((frameDesc.Height - tracked.height) / 2) : 0u;
+
+            // The depth guide against the picture, every few seconds, into the log (AlignCheck).
+            AlignRead(presentIndex);
+            if (tracked.width == frameDesc.Width && tracked.height <= frameDesc.Height)
+                AlignRecord(device, list, copy, tracked.reversed, backBuffer, pictureY, tracked.width, tracked.height,
+                            presentIndex);
 
             // Motion: estimated from the frames when the picture and the depth are the same size, zero otherwise.
             bool flowCut = false;
