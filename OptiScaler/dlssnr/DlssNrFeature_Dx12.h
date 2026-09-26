@@ -131,6 +131,11 @@ struct CleanUpReading
 
 CleanUpReading CleanUpState();
 
+// Image Clean Up: record the next frame of everything it sees for the offline harness (see
+// DlssNr_CleanCapture.h). Written to dlssnr-cleanup-capture\<time>\ beside OptiScaler, logged.
+void RequestCleanUpCapture();
+bool CleanUpCapturePending();
+
 // Whether the model is loaded and running, for the overlay.
 bool IsRunning();
 

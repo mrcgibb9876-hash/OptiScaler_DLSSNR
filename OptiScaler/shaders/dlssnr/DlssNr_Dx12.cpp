@@ -7,6 +7,7 @@
 #include <dlssnr/DlssNr.h>
 
 #include <dlssnr/DlssNr_Capture.h>
+#include <dlssnr/DlssNr_CleanCapture.h>
 #include <dlssnr/DlssNr_Proxy.h>
 #include <dlssnr/DlssNr_ExposureScan.h>
 #include <dlssnr/DlssNr_PresentRoute.h>
@@ -530,6 +531,46 @@ unsigned long long g_captureWriteAtFrame = 0;
 
 // Dropping a file named dlssnr-capture.trigger beside OptiScaler requests a capture, so a session can
 // be asked for one from outside the game -- no alt-tab, no menu. Checked once a second, effectively.
+cleancapture::CleanCapture g_cleanCapture;
+ID3D12Resource* g_cleanCaptureBefore = nullptr;
+
+// Image Clean Up's one-frame capture, from any of four places: Ctrl+Shift+F12, the panel's button,
+// [DlssNr] CleanUpCapture=true (set back to false and saved at once, so a live reload fires it once), or a
+// file named dlssnr-cleanup-capture.trigger beside OptiScaler.
+void CheckCleanCaptureTrigger()
+{
+    static bool keyWasDown = false;
+    const bool keyDown = (GetAsyncKeyState(VK_F12) & 0x8000) != 0 && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
+                         (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    if (keyDown && !keyWasDown)
+    {
+        g_cleanCapture.request();
+        LOG_INFO("DLSS-NR image clean up capture requested (Ctrl+Shift+F12)");
+    }
+    keyWasDown = keyDown;
+
+    auto* cfg = Config::Instance();
+    if (cfg->DlssNrCleanUpCapture.value_or_default())
+    {
+        cfg->DlssNrCleanUpCapture = false;
+        cfg->SaveIni();
+        g_cleanCapture.request();
+        LOG_INFO("DLSS-NR image clean up capture requested ([DlssNr] CleanUpCapture)");
+    }
+
+    if ((g_frames % 60) == 0)
+    {
+        std::error_code ec;
+        const auto trigger = Util::DllPath().remove_filename() / "dlssnr-cleanup-capture.trigger";
+        if (std::filesystem::exists(trigger, ec))
+        {
+            std::filesystem::remove(trigger, ec);
+            g_cleanCapture.request();
+            LOG_INFO("DLSS-NR image clean up capture requested by trigger file");
+        }
+    }
+}
+
 void CheckCaptureTrigger()
 {
     if ((g_frames % 60) != 0)
@@ -3152,6 +3193,16 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
     ++g_frames;
     TickNrRetired();
     CheckCaptureTrigger();
+    CheckCleanCaptureTrigger();
+
+    if (g_cleanCapture.due(g_frames))
+    {
+        const auto written = g_cleanCapture.write(Util::DllPath().remove_filename() / "dlssnr-cleanup-capture");
+        if (g_cleanCaptureBefore != nullptr)
+            ParkNrResource(g_cleanCaptureBefore);
+        if (!written.empty())
+            LOG_INFO("DLSS-NR image clean up capture written to {}", written);
+    }
 
     // Twice a second or so, for the panel's readout.
     if ((g_frames % 30) == 0)
@@ -3911,6 +3962,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             cleanAuto ? kCleanAutoMotion : std::clamp(cfg.DlssNrCleanUpMotion.value_or_default(), 0.0f, 1.0f);
         resolveParams.CleanupHaveDepth = cleanShown && DepthReadable(depthIn) ? 1u : 0u;
         resolveParams.CleanupDepthInverted = g_nr.guideDepthInverted ? 1u : 0u;
+        resolveParams.CleanupProfile = cfg.DlssNrCleanUpProfile.value_or_default();
 
         // The mask history: written from the first frame, read from the second, dropped with the clean up.
         bool cleanHistory = false;
@@ -4154,12 +4206,74 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      resolveTarget, historyWrite, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, historyRead,
                      cleanHistory ? g_nr.cleanModel : nullptr, nullptr);
 
+        // Image Clean Up capture: this frame's inputs and outputs, copied for the offline harness. The
+        // composed picture before the clean up is a second resolve with the clean up off, into a scratch
+        // surface of its own. Depth and motion are copied only when they are this pass's own copies, whose
+        // state is known; the game's own resources are not touched.
+        if (g_cleanCapture.wanted() && !g_cleanCapture.pending())
+        {
+            const D3D12_RESOURCE_DESC targetDesc = resolveTarget->GetDesc();
+            if (g_cleanCaptureBefore != nullptr)
+                ParkNrResource(g_cleanCaptureBefore);
+            g_cleanCaptureBefore = CreateScratch(device, g_nr.hdrCopy->GetDesc().Format,
+                                                 (unsigned int) targetDesc.Width, targetDesc.Height);
+
+            if (g_cleanCaptureBefore != nullptr)
+            {
+                DlssNrConstants beforeParams = resolveParams;
+                beforeParams.CleanupStrength = 0.0f;
+                beforeParams.CleanupHistory = 0;
+                beforeParams.DebugView = 0;
+                DispatchPass(cmdList, beforeParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
+                             g_cleanCaptureBefore, nullptr);
+            }
+
+            const D3D12_RESOURCE_STATES originalState =
+                targetSupportsUav ? D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE : targetState;
+            g_cleanCapture.copy(cmdList, device, "input", resolveOriginal, originalState);
+            g_cleanCapture.copy(cmdList, device, "proxy", resolveProxy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "model", resolveAnswer,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "composed_before", g_cleanCaptureBefore,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            g_cleanCapture.copy(cmdList, device, "composed_after", resolveTarget,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            const bool ownDepth = depthIn != nullptr && (depthIn == g_nr.depthClone || g_presentRouteDispatch);
+            g_cleanCapture.copy(cmdList, device, "depth", ownDepth ? depthIn : nullptr,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            const bool ownMotion = motionIn != nullptr && motionIn == g_nr.motionClone;
+            g_cleanCapture.copy(cmdList, device, "motion", ownMotion ? motionIn : nullptr,
+                                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            g_cleanCapture.copy(cmdList, device, "mask", historyWrite, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            g_cleanCapture.copy(cmdList, device, "model_reading", cleanHistory ? g_nr.cleanModel : nullptr,
+                                D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+            const auto& c = resolveParams;
+            const std::string settings = std::format(
+                "{{\"frame\":{},\"presentRoute\":{},\"passthrough\":{},\"whitePoint\":{},\"useGameExposure\":{},"
+                "\"exposurePreMul\":{},\"transferStrength\":{},\"colourStrength\":{},\"maxRatio\":{},"
+                "\"transfer\":{},\"reversibleMode\":{},\"brightness\":{},\"contrast\":{},\"debugView\":{},"
+                "\"compareMode\":{},\"width\":{},\"height\":{},\"guideWidth\":{},\"guideHeight\":{},"
+                "\"mvScaleX\":{},\"mvScaleY\":{},\"cleanupMode\":{},\"cleanupStrength\":{},\"cleanupEdge\":{},"
+                "\"cleanupBalance\":{},\"cleanupMotion\":{},\"cleanupHaveMotion\":{},\"cleanupHaveDepth\":{},"
+                "\"cleanupDepthInverted\":{},\"cleanupHistory\":{},\"cleanupProfile\":{},\"passes\":{},"
+                "\"workWidth\":{},\"workHeight\":{},\"haloBefore\":{},\"haloAfter\":{},\"haloModel\":{}}}",
+                g_frames, g_presentRouteDispatch, c.Passthrough, c.WhitePoint, c.UseGameExposure, c.ExposurePreMul,
+                c.TransferStrength, c.ColourStrength, c.MaxRatio, c.Transfer, c.ReversibleMode, c.Brightness,
+                c.Contrast, c.DebugView, c.CompareMode, c.Width, c.Height, c.GuideWidth, c.GuideHeight, c.MvScaleX,
+                c.MvScaleY, cleanMode, c.CleanupStrength, c.CleanupEdge, c.CleanupBalance, c.CleanupMotion,
+                c.CleanupHaveMotion, c.CleanupHaveDepth, c.CleanupDepthInverted, c.CleanupHistory, c.CleanupProfile,
+                effectivePasses, g_nr.workWidth, g_nr.workHeight, g_nr.haloBefore, g_nr.haloAfter, g_nr.haloModel);
+            g_cleanCapture.finish(settings, g_frames, 8);
+            LOG_INFO("DLSS-NR image clean up capture recorded at frame {}; writing in 8 frames", g_frames);
+        }
+
         // The halo meter: the per-pixel readings the resolve just wrote, reduced to three 64x64 grids.
         // Only when the resolve really ran the clean up -- not while a debug view other than the mask, the
         // side by side comparison or "Apply model" off made it leave before it, which would leave last
         // frame's readings in place. Timed with the composition, since it is the clean up's cost.
-        const bool meterNow = haloMeter && cleanHistory && resolveParams.ApplyModel != 0 &&
-                              resolveParams.CompareMode != 1 &&
+        const bool meterNow = haloMeter && cleanHistory && (resolveParams.CleanupProfile & 1u) == 0u &&
+                              resolveParams.ApplyModel != 0 && resolveParams.CompareMode != 1 &&
                               (resolveParams.DebugView == 0 || resolveParams.DebugView == 4);
         if (meterNow)
         {
@@ -5755,6 +5869,9 @@ void ProbeD3D11(void* d3d11Device)
                  "reports this platform as supported, so the obstacle is in how it is being called",
                  result, NgxResultName((unsigned int) result));
 }
+
+void RequestCleanUpCapture() { g_cleanCapture.request(); }
+bool CleanUpCapturePending() { return g_cleanCapture.wanted() || g_cleanCapture.pending(); }
 
 CleanUpReading CleanUpState()
 {
