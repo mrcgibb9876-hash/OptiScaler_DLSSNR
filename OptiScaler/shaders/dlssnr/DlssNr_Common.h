@@ -23,7 +23,9 @@ enum DlssNrMode : uint32_t
     DlssNrMode_Downsample = 2, // the proxy -> a smaller proxy, when the model works below full size
     DlssNrMode_Meter = 3,      // the exposure texture -> tile (0,0), for the white point
     DlssNrMode_Calibrate = 4,  // the untouched frame -> a grid of tile peak luminances
-    DlssNrMode_HaloMeter = 5   // Image Clean Up's per-pixel readings -> three grids of how far each glows
+    DlssNrMode_HaloMeter = 5,  // Image Clean Up's per-pixel readings -> three grids of how far each glows
+    DlssNrMode_CleanupPrep = 6 // the untouched frame -> Image Clean Up's per-pixel log luminance, depth and
+                               // chroma, and each 8x8 block's range (D3D12)
 };
 
 // The meter's grid. 64 x 64 tiles over the whole frame, whatever its size.
@@ -233,8 +235,12 @@ struct alignas(256) DlssNrConstants
     uint32_t CleanupDepthInverted;
     uint32_t CleanupHistory;
     // [DlssNr] CleanUpProfile, for timing the clean up's pieces from the cost line: 1 no halo meter, 2 no
-    // mask history, 4 no colour clamp, 8 no quiet-tile skip, 16 the tile fill alone. 0 in normal use.
+    // mask history, 4 no colour clamp, 8 no quiet-tile skip, 16 the tile fill alone, 32 no prep dispatch
+    // (DlssNrMode_CleanupPrep). 0 in normal use.
     uint32_t CleanupProfile;
+    // 1: t7 holds this frame's DlssNrMode_CleanupPrep surface, which the resolve's tile loads instead of
+    // working its values out per group (D3D12). 0 on Vulkan and whenever the clean up is not drawn.
+    uint32_t CleanupPrepared;
 };
 
 class DlssNr_Common

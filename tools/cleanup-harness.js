@@ -53,6 +53,7 @@ const V = {
   depthTol: opt('depth-tol', 0.35),
   shiftR: opt('shift-r', 48),
   noShift: flag('no-shift'),
+  shiftMedian: flag('shift-median'), // the plain median of the same-side taps instead of the lower one
   noSeg: flag('no-seg'),
 };
 
@@ -94,6 +95,9 @@ function load(name) {
         case 'R8G8B8A8_UNORM': case 'R8G8B8A8_UNORM_SRGB': { const p = row + x * 4; r = buf[p] / 255; g = buf[p + 1] / 255; b = buf[p + 2] / 255; a = buf[p + 3] / 255; if (f.format.endsWith('SRGB')) { r = srgb(r); g = srgb(g); b = srgb(b); } break; }
         case 'B8G8R8A8_UNORM': case 'B8G8R8A8_UNORM_SRGB': { const p = row + x * 4; b = buf[p] / 255; g = buf[p + 1] / 255; r = buf[p + 2] / 255; a = buf[p + 3] / 255; if (f.format.endsWith('SRGB')) { r = srgb(r); g = srgb(g); b = srgb(b); } break; }
         case 'R32_FLOAT': r = dv.getFloat32(row + x * 4, true); break;
+        // Depth-stencil families (the depth guide): the depth in the first 4 bytes of 8, or the low 24 bits of 4.
+        case 'R32_FLOAT_X8X24': r = dv.getFloat32(row + x * 8, true); break;
+        case 'R24_UNORM_X8': r = (dv.getUint32(row + x * 4, true) & 0xffffff) / 16777215; break;
         case 'R16_FLOAT': r = half(dv.getUint16(row + x * 2, true)); break;
         case 'R16_UNORM': r = dv.getUint16(row + x * 2, true) / 65535; break;
         case 'R32G32_FLOAT': r = dv.getFloat32(row + x * 8, true); g = dv.getFloat32(row + x * 8 + 4, true); break;
@@ -115,7 +119,11 @@ for (const n of ['input', 'proxy', 'model', 'composed_before']) if (!img[n]) { c
 const W = S.width, H = S.height;
 const passthrough = S.passthrough !== 0;
 const normScale = passthrough ? 1 : Math.max(S.whitePoint, 1e-4);
-const haveDepth = !!img.depth && S.cleanupHaveDepth !== 0;
+// Depth: the captured depth guide, or -- for a capture made before depth was written (format 21, the
+// D32S8 SRV) -- the log reciprocal depth the resolve itself stored in the mask's green channel, which is
+// exactly what the shader's tile holds (as a half).
+const depthFromMask = !img.depth && !!img.mask && S.cleanupHaveDepth !== 0;
+const haveDepth = (!!img.depth || depthFromMask) && S.cleanupHaveDepth !== 0;
 
 // ---- the shader's functions -----------------------------------------------------------------------------
 const kLuma = [0.2126, 0.7152, 0.0722];
@@ -145,7 +153,9 @@ const Lin = new Float32Array(W * H), Din = new Float32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const ix = Math.min(x, iw - 1), iy = Math.min(y, img.input.h - 1);
     Lin[y * W + x] = clog(lumaOf(img.input, iy * iw + ix) / normScale);
-    if (haveDepth) {
+    if (depthFromMask) {
+      Din[y * W + x] = img.mask.data[(y * img.mask.w + x) * 4 + 1];
+    } else if (haveDepth) {
       const gx = clampi(Math.floor(((x + 0.5) / W) * gW), 0, gW - 1), gy = clampi(Math.floor(((y + 0.5) / H) * gH), 0, gH - 1);
       const d = img.depth.data[(Math.min(gy, img.depth.h - 1) * img.depth.w + Math.min(gx, img.depth.w - 1)) * 4];
       Din[y * W + x] = Math.log2(Math.max(S.cleanupDepthInverted ? d : 1 - d, 1e-7));
@@ -237,6 +247,7 @@ function shiftFor(x, y, dc, p) {
   }
   const same = taps.filter((t) => !haveDepth || Math.abs(t.d - dc) < 1).map((t) => t.s).sort((a, b) => a - b);
   if (same.length === 0) { const all = taps.map((t) => t.s).sort((a, b) => a - b); return 0.5 * (all[1] + all[2]); }
+  if (p.shiftMedian) return same.length % 2 ? same[(same.length - 1) / 2] : 0.5 * (same[same.length / 2 - 1] + same[same.length / 2]);
   return same[Math.floor((same.length - 1) / 2)];
 }
 
@@ -363,6 +374,22 @@ function bmp(file, w, h, px) { // px(x, y) -> [r,g,b] 0..1
   }
   fs.writeFileSync(file, b);
 }
+// --dump-after <file>: the variant's after picture as raw float32 RGBA, the capture's size and encoding (the
+// composed-before colour scaled by the luminance move), for an independent metric to read.
+{
+  const i = argv.indexOf('--dump-after');
+  if (i >= 0) {
+    const out = new Float32Array(N * 4), cb = img.composed_before.data;
+    for (let k = 0; k < N; k++) {
+      const y = lumaOf(img.composed_before, k) / normScale;
+      const ratio = outLog[k] !== beforeLog[k] && y > 1e-6 ? cunlog(outLog[k]) / y : 1;
+      out[k * 4] = cb[k * 4] * ratio; out[k * 4 + 1] = cb[k * 4 + 1] * ratio; out[k * 4 + 2] = cb[k * 4 + 2] * ratio; out[k * 4 + 3] = 1;
+    }
+    fs.writeFileSync(argv[i + 1], Buffer.from(out.buffer));
+    console.log('  after picture written to ' + argv[i + 1]);
+  }
+}
+
 if (flag('images')) {
   fs.mkdirSync(outDir, { recursive: true });
   const disp = (l) => { const y = cunlog(l); return Math.pow(sat(passthrough ? y : y / (1 + y)), passthrough ? 1 : 1 / 2.2); };
