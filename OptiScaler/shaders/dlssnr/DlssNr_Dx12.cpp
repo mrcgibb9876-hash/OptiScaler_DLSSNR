@@ -4742,6 +4742,155 @@ struct AlignCheck
 
 AlignCheck g_align;
 
+// Optical flow's health, from the log alone: every five seconds sixteen rows of the motion field go to a
+// readback buffer and are read eight Presents later -- the share of texels with any motion at all and the
+// median length of those that have some -- with how many of the frames since the last line the estimator
+// flagged as a scene cut (each resets the model's history). A field of zeros used to go unnoticed: the flow
+// module's downsample read past its descriptor table, so the estimator was handed a black picture and every
+// game on the Present route ran with zero motion (2026-09-26).
+struct FlowHealth
+{
+    ID3D12Resource* readback = nullptr;
+    UINT64 size = 0;
+    UINT pitch = 0;
+    UINT width = 0;
+    bool pending = false;
+    unsigned long long due = 0;
+    std::chrono::steady_clock::time_point last {};
+    unsigned int frames = 0;
+    unsigned int cuts = 0;
+};
+
+FlowHealth g_flowHealth;
+constexpr unsigned int kFlowHealthRows = 16;
+
+void FlowHealthRecord(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Resource* motion, bool cut,
+                      unsigned long long presentIndex)
+{
+    ++g_flowHealth.frames;
+    if (cut)
+        ++g_flowHealth.cuts;
+
+    const auto now = std::chrono::steady_clock::now();
+    if (motion == nullptr || g_flowHealth.pending ||
+        (g_flowHealth.last != std::chrono::steady_clock::time_point {} &&
+         now - g_flowHealth.last < std::chrono::seconds(5)))
+        return;
+
+    g_flowHealth.last = now;
+    const D3D12_RESOURCE_DESC desc = motion->GetDesc();
+    if (desc.Format != DXGI_FORMAT_R16G16_FLOAT || desc.Height < kFlowHealthRows)
+        return;
+
+    const UINT pitch =
+        ((UINT) desc.Width * 4 + D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1) & ~(D3D12_TEXTURE_DATA_PITCH_ALIGNMENT - 1);
+    const UINT64 size = (UINT64) pitch * kFlowHealthRows;
+
+    if (g_flowHealth.readback == nullptr || g_flowHealth.size < size)
+    {
+        if (g_flowHealth.readback != nullptr)
+            ParkNrResource(g_flowHealth.readback);
+
+        D3D12_HEAP_PROPERTIES heap {};
+        heap.Type = D3D12_HEAP_TYPE_READBACK;
+        D3D12_RESOURCE_DESC buffer {};
+        buffer.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        buffer.Width = size;
+        buffer.Height = 1;
+        buffer.DepthOrArraySize = 1;
+        buffer.MipLevels = 1;
+        buffer.SampleDesc.Count = 1;
+        buffer.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+
+        if (FAILED(device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &buffer, D3D12_RESOURCE_STATE_COPY_DEST,
+                                                   nullptr, IID_PPV_ARGS(&g_flowHealth.readback))))
+        {
+            g_flowHealth.readback = nullptr;
+            g_flowHealth.size = 0;
+            return;
+        }
+        g_flowHealth.size = size;
+    }
+
+    // The field rests in NON_PIXEL_SHADER_RESOURCE (the flow module's contract, and the zero field's).
+    Barrier(list, motion, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    for (UINT r = 0; r < kFlowHealthRows; ++r)
+    {
+        const UINT y = (UINT) (((2 * r + 1) * desc.Height) / (2 * kFlowHealthRows));
+        D3D12_TEXTURE_COPY_LOCATION from {};
+        from.pResource = motion;
+        from.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        D3D12_TEXTURE_COPY_LOCATION to {};
+        to.pResource = g_flowHealth.readback;
+        to.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        to.PlacedFootprint.Offset = (UINT64) r * pitch;
+        to.PlacedFootprint.Footprint = { DXGI_FORMAT_R16G16_FLOAT, (UINT) desc.Width, 1, 1, pitch };
+        const D3D12_BOX box { 0, y, 0, (UINT) desc.Width, y + 1, 1 };
+        list->CopyTextureRegion(&to, 0, 0, 0, &from, &box);
+    }
+    Barrier(list, motion, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    g_flowHealth.pitch = pitch;
+    g_flowHealth.width = (UINT) desc.Width;
+    g_flowHealth.pending = true;
+    g_flowHealth.due = presentIndex + 8;
+}
+
+void FlowHealthRead(unsigned long long presentIndex)
+{
+    if (!g_flowHealth.pending || presentIndex < g_flowHealth.due || g_flowHealth.readback == nullptr)
+        return;
+
+    g_flowHealth.pending = false;
+
+    void* mapped = nullptr;
+    const D3D12_RANGE range { 0, (SIZE_T) g_flowHealth.size };
+    if (FAILED(g_flowHealth.readback->Map(0, &range, &mapped)) || mapped == nullptr)
+        return;
+
+    auto half = [](uint16_t v)
+    {
+        const int e = (v >> 10) & 31, m = v & 1023;
+        const float mag = e == 0 ? m * 5.9604645e-8f : e == 31 ? 0.0f : std::ldexp(1.0f + m / 1024.0f, e - 15);
+        return (v & 0x8000) ? -mag : mag;
+    };
+
+    size_t total = 0, moving = 0;
+    std::vector<float> lengths;
+    for (UINT r = 0; r < kFlowHealthRows; ++r)
+    {
+        const auto* row =
+            reinterpret_cast<const uint16_t*>(static_cast<const char*>(mapped) + (size_t) r * g_flowHealth.pitch);
+        for (UINT x = 0; x < g_flowHealth.width; x += 2)
+        {
+            const float mx = half(row[x * 2]), my = half(row[x * 2 + 1]);
+            ++total;
+            if (mx != 0.0f || my != 0.0f)
+            {
+                ++moving;
+                lengths.push_back(std::sqrt(mx * mx + my * my));
+            }
+        }
+    }
+
+    const D3D12_RANGE none { 0, 0 };
+    g_flowHealth.readback->Unmap(0, &none);
+
+    float median = 0.0f;
+    if (!lengths.empty())
+    {
+        std::nth_element(lengths.begin(), lengths.begin() + lengths.size() / 2, lengths.end());
+        median = lengths[lengths.size() / 2];
+    }
+
+    LOG_INFO("DLSS-NR optical flow: {:.1f}% of the sampled motion field moving, median {:.2f} px; {} scene cuts in "
+             "the last {} frames",
+             total > 0 ? 100.0 * (double) moving / (double) total : 0.0, median, g_flowHealth.cuts,
+             g_flowHealth.frames);
+    g_flowHealth.cuts = 0;
+    g_flowHealth.frames = 0;
+}
+
 // Bytes of one texel in the formats the strips can hold; 0 for a format this check does not read.
 unsigned int AlignTexelBytes(DXGI_FORMAT f)
 {
@@ -5774,6 +5923,11 @@ void RunAtPresent(IDXGISwapChain3* swapChain, ID3D12CommandQueue* queue, unsigne
                 guidesLineUp ? PresentOpticalFlow(device, list, backBuffer, frameDesc, pictureY, tracked.width,
                                                   tracked.height, !g_tracked.wasActive, flowCut)
                              : nullptr;
+
+            // What the flow is actually delivering, every few seconds, into the log (FlowHealth).
+            FlowHealthRead(presentIndex);
+            if (motion != nullptr)
+                FlowHealthRecord(device, list, motion, flowCut, presentIndex);
 
             // The flow module logs when it cannot start. This is the other way to end up blind and it
             // was silent, which made the commonest cause of the artefact below invisible in a log.

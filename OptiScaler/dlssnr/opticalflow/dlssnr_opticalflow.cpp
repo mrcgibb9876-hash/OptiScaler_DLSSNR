@@ -411,7 +411,13 @@ struct Flow
         list->SetDescriptorHeaps(1, heaps);
         list->SetComputeRootSignature(downsampleRoot);
         list->SetPipelineState(downsamplePso);
-        list->SetComputeRootDescriptorTable(0, { gpu.ptr + 3 * step });
+        // The table starts at the heap's first slot: the downsample's root signature already places its source
+        // at slot 3 and its target at slot 4 (the ranges' offsets). Starting the table at slot 3 as well read
+        // slots 6 and 7, past the five-descriptor heap -- no source, no target -- so the estimator was handed a
+        // black picture, found no motion, and every game on the Present route ran with zero motion vectors
+        // (found on Resident Evil 2's captures, 2026-09-26: every texel of the field exactly zero; reproduced
+        // offline by panning a captured frame 4 px a frame -- zero before, -4 px after).
+        list->SetComputeRootDescriptorTable(0, gpu);
         list->SetComputeRoot32BitConstants(1, 6, constants, 0);
         list->Dispatch((flowWidth + 7) / 8, (flowHeight + 7) / 8, 1);
 
