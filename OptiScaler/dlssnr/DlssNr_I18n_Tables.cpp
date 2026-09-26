@@ -394,6 +394,19 @@ const char* const kKeys[] = {
     "Motion protection",
     "Image Clean Up mask",
     "Measuring the glow...",
+    "%s -- strength %.2f, glow %.3f -> %.3f stops",
+    "Advanced",
+    "Use the sliders below instead of Auto's own values.",
+    "Bleed",
+    "How much of the light the model spills across a character's outline is taken back.\n0 leaves the model's edges as they are.",
+    "Inner bleed",
+    "The light band just inside a character's outline, on the character.",
+    "Outer bleed",
+    "The glow just outside a character's outline, on the background.",
+    "Dodge",
+    "Limits how far the model may lighten an area the game's picture gives it no\ndetail to lighten, in stops. 0 allows none.",
+    "Burn",
+    "Limits how far the model may darken an area beyond its surroundings, so no dark\nring is left behind, in stops.",
 };
 
 const int kKeyCount = (int) (sizeof(kKeys) / sizeof(kKeys[0]));
@@ -819,6 +832,19 @@ static const char* const kTable_pt_BR[] = {
     "Prote\303\247\303\243o de movimento",
     "M\303\241scara da limpeza da imagem",
     "Medindo o brilho...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_ru[] = {
@@ -2221,6 +2247,19 @@ static const char* const kTable_ru[] = {
     "\320\227\320\260\321\211\320\270\321\202\320\260 \320\264\320\262\320\270\320\266\320\265\320\275\320\270\321\217",
     "\320\234\320\260\321\201\320\272\320\260 \320\276\321\207\320\270\321\201\321\202\320\272\320\270 \320\270\320\267\320\276\320\261\321\200\320\260\320\266\320\265\320\275\320\270\321\217",
     "\320\230\320\267\320\274\320\265\321\200\321\217\320\265\321\202\321\201\321\217 \321\201\320\262\320\265\321\207\320\265\320\275\320\270\320\265...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_ko[] = {
@@ -3168,6 +3207,19 @@ static const char* const kTable_ko[] = {
     "\354\233\200\354\247\201\354\236\204 \353\263\264\355\230\270",
     "\354\235\264\353\257\270\354\247\200 \354\240\225\353\246\254 \353\247\210\354\212\244\355\201\254",
     "\353\262\210\354\247\220 \354\270\241\354\240\225 \354\244\221...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_zh_CN[] = {
@@ -3968,6 +4020,19 @@ static const char* const kTable_zh_CN[] = {
     "\350\277\220\345\212\250\344\277\235\346\212\244",
     "\345\233\276\345\203\217\346\270\205\347\220\206\351\201\256\347\275\251",
     "\346\255\243\345\234\250\346\265\213\351\207\217\345\205\211\346\231\225...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_es[] = {
@@ -4394,6 +4459,19 @@ static const char* const kTable_es[] = {
     "Protecci\303\263n de movimiento",
     "M\303\241scara de limpieza de imagen",
     "Midiendo el halo...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_de[] = {
@@ -4820,6 +4898,19 @@ static const char* const kTable_de[] = {
     "Bewegungsschutz",
     "Maske der Bildbereinigung",
     "Gl\303\274hen wird gemessen...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 static const char* const kTable_fr[] = {
@@ -5266,6 +5357,19 @@ static const char* const kTable_fr[] = {
     "Protection du mouvement",
     "Masque du nettoyage de l\342\200\231image",
     "Mesure du halo...",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
 };
 
 // One entry per key in every table: the lookup indexes them without a bounds check.

@@ -1061,6 +1061,12 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
     }
     encode.CleanupEdge = cleanMode == 1 ? 1.5f : std::clamp(cfg.DlssNrCleanUpEdge.value_or_default(), 0.25f, 4.0f);
     encode.CleanupBalance = cleanMode == 1 ? 1.0f : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
+    // Brightness edges only here: the background's side as on D3D12; the object's side and darkening need
+    // the depth guide this pass has not got.
+    encode.CleanupBleedOuter = 1.0f;
+    encode.CleanupBleedInner = 0.0f;
+    encode.CleanupDodge = 0.0f;
+    encode.CleanupBurn = -1.0f;
 
     const VkImageSubresourceRange colourRange = colour->Resource.ImageViewInfo.SubresourceRange;
 

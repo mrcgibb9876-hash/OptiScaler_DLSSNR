@@ -408,6 +408,11 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrCleanUpEdge.set_from_config(readFloat("DlssNr", "CleanUpEdge"));
             DlssNrCleanUpBalance.set_from_config(readFloat("DlssNr", "CleanUpBalance"));
             DlssNrCleanUpMotion.set_from_config(readFloat("DlssNr", "CleanUpMotion"));
+            DlssNrCleanUpBleed.set_from_config(readFloat("DlssNr", "CleanUpBleed"));
+            DlssNrCleanUpBleedInner.set_from_config(readFloat("DlssNr", "CleanUpBleedInner"));
+            DlssNrCleanUpBleedOuter.set_from_config(readFloat("DlssNr", "CleanUpBleedOuter"));
+            DlssNrCleanUpDodge.set_from_config(readFloat("DlssNr", "CleanUpDodge"));
+            DlssNrCleanUpBurn.set_from_config(readFloat("DlssNr", "CleanUpBurn"));
             DlssNrCleanUpCapture.set_from_config(readBool("DlssNr", "CleanUpCapture"));
             DlssNrCleanUpProfile.set_from_config(readUInt("DlssNr", "CleanUpProfile"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
@@ -1396,6 +1401,15 @@ bool Config::SaveIni()
                      GetFloatValue(Instance()->DlssNrCleanUpBalance.value_for_config()).c_str());
         ini.SetValue("DlssNr", "CleanUpMotion",
                      GetFloatValue(Instance()->DlssNrCleanUpMotion.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleed",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleed.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleedInner",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleedInner.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBleedOuter",
+                     GetFloatValue(Instance()->DlssNrCleanUpBleedOuter.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpDodge",
+                     GetFloatValue(Instance()->DlssNrCleanUpDodge.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpBurn", GetFloatValue(Instance()->DlssNrCleanUpBurn.value_for_config()).c_str());
         ini.SetValue("DlssNr", "CleanUpCapture",
                      GetBoolValue(Instance()->DlssNrCleanUpCapture.value_for_config()).c_str());
         ini.SetValue("DlssNr", "CleanUpProfile",

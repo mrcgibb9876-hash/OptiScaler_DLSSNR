@@ -125,7 +125,11 @@ struct CleanUpReading
     float strength = 0.0f;
     float haloBefore = -1.0f;
     float haloAfter = -1.0f;
-    float haloModel = -1.0f;         // the model's own change laid on the frame, before the composition
+    float haloModel = -1.0f; // the model's own change laid on the frame, before the composition
+    float bleedInner = 0.0f; // the edge treatment the last resolve ran with (Bleed, Dodge, Burn)
+    float bleedOuter = 0.0f;
+    float dodge = 0.0f;
+    float burn = 0.0f;
     std::optional<double> composeMs; // the composition pass, which the clean up runs inside
 };
 

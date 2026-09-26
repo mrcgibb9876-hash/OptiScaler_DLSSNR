@@ -442,7 +442,11 @@ struct NrState
     float haloSmoothed = -1.0f;
     int haloJumpHeld = 0;
     float cleanAutoStrength = 0.0f;
-    float cleanApplied = 0.0f; // the strength the last resolve ran with, 0 when off
+    float cleanApplied = 0.0f;    // the strength the last resolve ran with, 0 when off
+    float cleanBleedInner = 0.0f; // and its edge treatment (CleanupBleedInner and so on), for the read-outs
+    float cleanBleedOuter = 0.0f;
+    float cleanDodge = 0.0f;
+    float cleanBurn = 0.0f;
     bool cleanAutoSettled = false;
     std::chrono::steady_clock::time_point haloLastUpdate {};
     unsigned long long cleanHoldUntil = 0; // Auto holds still until this frame after a cut
@@ -1680,6 +1684,14 @@ constexpr unsigned int kCleanMinTiles = 24;
 constexpr float kCleanAutoEdge = 1.5f;
 constexpr float kCleanAutoBalance = 1.0f;
 constexpr float kCleanAutoMotion = 0.5f;
+// ...and for the edge treatment along silhouettes (Bleed), measured on Resident Evil 2's captures
+// (2026-09-26): the background's side in full, the object's own side at half (its outer strip carries the
+// model's hair and cloth detail too), no lightening allowed past the surround, darkening past 0.1 stop
+// taken back.
+constexpr float kCleanAutoBleedInner = 0.5f;
+constexpr float kCleanAutoBleedOuter = 1.0f;
+constexpr float kCleanAutoDodge = 0.0f;
+constexpr float kCleanAutoBurn = 0.1f;
 
 void ResetCleanUp()
 {
@@ -4016,6 +4028,23 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         resolveParams.CleanupHaveDepth = cleanShown && DepthReadable(depthIn) ? 1u : 0u;
         resolveParams.CleanupDepthInverted = g_nr.guideDepthInverted ? 1u : 0u;
         resolveParams.CleanupProfile = cfg.DlssNrCleanUpProfile.value_or_default();
+        {
+            const float bleed = std::clamp(cfg.DlssNrCleanUpBleed.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupBleedInner =
+                cleanAuto ? kCleanAutoBleedInner
+                          : bleed * std::clamp(cfg.DlssNrCleanUpBleedInner.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupBleedOuter =
+                cleanAuto ? kCleanAutoBleedOuter
+                          : bleed * std::clamp(cfg.DlssNrCleanUpBleedOuter.value_or_default(), 0.0f, 1.0f);
+            resolveParams.CleanupDodge =
+                cleanAuto ? kCleanAutoDodge : std::clamp(cfg.DlssNrCleanUpDodge.value_or_default(), 0.0f, 1.0f);
+            const float burn = cfg.DlssNrCleanUpBurn.value_or_default();
+            resolveParams.CleanupBurn = cleanAuto ? kCleanAutoBurn : (burn < 0.0f ? -1.0f : std::min(burn, 1.0f));
+            g_nr.cleanBleedInner = cleanOn ? resolveParams.CleanupBleedInner : 0.0f;
+            g_nr.cleanBleedOuter = cleanOn ? resolveParams.CleanupBleedOuter : 0.0f;
+            g_nr.cleanDodge = resolveParams.CleanupDodge;
+            g_nr.cleanBurn = resolveParams.CleanupBurn;
+        }
 
         // The mask history: written from the first frame, read from the second, dropped with the clean up.
         bool cleanHistory = false;
@@ -4112,6 +4141,10 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 uint32_t vectors;
                 bool history;
                 bool present;
+                float bleedInner;
+                float bleedOuter;
+                float dodge;
+                float burn;
 
                 bool operator==(const CleanReport&) const = default;
             };
@@ -4130,7 +4163,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                                          cleanOn ? resolveParams.CleanupHaveDepth : 0u,
                                          cleanOn ? resolveParams.CleanupHaveMotion + (cleanBlind ? 10u : 0u) : 0u,
                                          cleanOn && cleanHistory,
-                                         cleanOn && g_presentRouteDispatch };
+                                         cleanOn && g_presentRouteDispatch,
+                                         cleanOn ? resolveParams.CleanupBleedInner : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBleedOuter : 0.0f,
+                                         cleanOn ? resolveParams.CleanupDodge : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBurn : 0.0f };
 
             if (!(cleanNow == loggedClean))
             {
@@ -4145,10 +4182,13 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                 if (c.mode == 0)
                     LOG_INFO("DLSS-NR image clean up: off");
                 else
-                    LOG_INFO("DLSS-NR image clean up: {} ({} {:.2f}), edge {:.2f} stops, reach {:.2f}, motion {:.2f}; "
+                    LOG_INFO("DLSS-NR image clean up: {} ({} {:.2f}), edge {:.2f} stops, reach {:.2f}, motion {:.2f}, "
+                             "bleed inner {:.2f} outer {:.2f}, dodge {:.2f}, burn {}; "
                              "depth {}, motion vectors {}, mask history {}{}",
                              c.mode == 1 ? "auto" : "manual", c.mode == 1 ? "cap" : "strength", c.value, c.edge,
-                             c.balance, c.motion, c.depth != 0 ? "read" : "absent",
+                             c.balance, c.motion, c.bleedInner, c.bleedOuter, c.dodge,
+                             c.burn < 0.0f ? std::string("off") : std::format("{:.2f}", c.burn),
+                             c.depth != 0 ? "read" : "absent",
                              c.vectors == 1    ? "read (game)"
                              : c.vectors == 2  ? "read (optical flow: only fast motion counts)"
                              : c.vectors >= 10 ? "zero (ignored)"
@@ -6559,6 +6599,10 @@ CleanUpReading CleanUpState()
     r.haloBefore = g_nr.haloBefore;
     r.haloAfter = g_nr.haloAfter;
     r.haloModel = g_nr.haloModel;
+    r.bleedInner = g_nr.cleanBleedInner;
+    r.bleedOuter = g_nr.cleanBleedOuter;
+    r.dodge = g_nr.cleanDodge;
+    r.burn = g_nr.cleanBurn;
     if (!g_timingTrust.Untrusted())
         r.composeMs = g_lastComposeTime;
     return r;
