@@ -7,7 +7,7 @@
 //   set BENCH_PREP=OptiScaler/shaders/dlssnr/precompile/DlssNr_ShaderPrep.cso
 //   bench.exe OptiScaler/shaders/dlssnr/precompile/DlssNr_Shader.cso <capture dir> 100 off:strength=0 on:prep=1
 //
-// config: name:key=value,...  keys: strength edge balance motion history profile depth meter contrast prep
+// config: name:key=value,...  keys: strength edge balance motion history profile depth meter contrast colour detail brightness prep
 // (prep=1 runs the prep dispatch first and binds it, as the engine does).
 #define NOMINMAX
 #include <d3d12.h>
@@ -96,7 +96,9 @@ int main(int argc, char** argv) {
   const UINT W = U(sj, "width"), H = U(sj, "height");
   auto rgba8 = [&](const char* n) { auto b = ReadAll(dir + "/" + n + ".raw"); return Upload(DXGI_FORMAT_R8G8B8A8_UNORM, W, H, 4, b.data(), W * 4, false); };
   ID3D12Resource* proxy = rgba8("proxy"); ID3D12Resource* model = rgba8("model"); ID3D12Resource* input = rgba8("input");
-  auto maskRaw = ReadAll(dir + "/mask.raw");
+  const bool haveMask = std::ifstream(dir + "/mask.raw").good();
+  const bool haveDepthFile = std::ifstream(dir + "/depth.raw").good();
+  std::vector<char> maskRaw = haveMask ? ReadAll(dir + "/mask.raw") : std::vector<char>((size_t) W * H * 8, 0);
   ID3D12Resource* history = Upload(DXGI_FORMAT_R16G16B16A16_FLOAT, W, H, 8, maskRaw.data(), W * 8, true);
   // depth: inverted depth from the mask's log (green, half) -> R32_FLOAT
   std::vector<float> depth((size_t) W * H);
@@ -105,6 +107,10 @@ int main(int argc, char** argv) {
     int e = (h >> 10) & 31, m = h & 1023; float s = (h & 0x8000) ? -1.f : 1.f;
     float v = e == 0 ? s * m * powf(2, -24) : s * (1 + m / 1024.f) * powf(2, (float) e - 15);
     depth[i] = powf(2.0f, v);
+  }
+  if (haveDepthFile) { // the captured depth guide (R32_FLOAT rows, pitch W*4)
+    auto dr = ReadAll(dir + "/depth.raw");
+    if (dr.size() >= depth.size() * 4) memcpy(depth.data(), dr.data(), depth.size() * 4);
   }
   ID3D12Resource* depthTex = Upload(DXGI_FORMAT_R32_FLOAT, W, H, 4, depth.data(), W * 4, false);
   ID3D12Resource* target = Tex(DXGI_FORMAT_R8G8B8A8_UNORM, W, H, true);
@@ -186,7 +192,7 @@ int main(int argc, char** argv) {
       auto eq = kv.find('='); std::string key = kv.substr(0, eq); float v = (float) atof(kv.substr(eq + 1).c_str());
       if (key == "strength") k.CleanupStrength = v; else if (key == "edge") k.CleanupEdge = v; else if (key == "balance") k.CleanupBalance = v;
       else if (key == "motion") k.CleanupMotion = v; else if (key == "history") k.CleanupHistory = (uint32_t) v; else if (key == "profile") k.CleanupProfile = (uint32_t) v;
-      else if (key == "depth") k.CleanupHaveDepth = (uint32_t) v; else if (key == "meter") meter = v != 0; else if (key == "contrast") k.Contrast = v; else if (key == "prep") usePrep = v != 0; else if (key == "quietpass") quietPass = v != 0;
+      else if (key == "depth") k.CleanupHaveDepth = (uint32_t) v; else if (key == "meter") meter = v != 0; else if (key == "contrast") k.Contrast = v; else if (key == "colour") k.ColourStrength = v; else if (key == "detail") k.TransferStrength = v; else if (key == "brightness") k.Brightness = v; else if (key == "prep") usePrep = v != 0; else if (key == "quietpass") quietPass = v != 0;
     }
     if (k.CleanupStrength <= 0) meter = false;
     Constants m = k; m.Mode = 5; m.Width = 64; m.Height = 64;
