@@ -542,24 +542,24 @@ unsigned long long g_captureWriteAtFrame = 0;
 cleancapture::CleanCapture g_cleanCapture;
 ID3D12Resource* g_cleanCaptureBefore = nullptr;
 
-// Image Clean Up's one-frame capture, from any of four places: Alt+F1 or Ctrl+Shift+F12, the panel's button,
+// Image Clean Up's one-frame capture, from any of four places: CleanUpCaptureKey (F10), the panel's button,
 // [DlssNr] CleanUpCapture=true (set back to false and saved at once, so a live reload fires it once), or a
 // file named dlssnr-cleanup-capture.trigger beside OptiScaler.
 void CheckCleanCaptureTrigger()
 {
     static bool keyWasDown = false;
-    // Alt+F1 as well: one hand stays on the mouse while the other captures mid-movement (Ctrl alone opens
-    // menus in some games).
-    const bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-    const bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
-    const bool altDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-    const bool f1Down = (GetAsyncKeyState(VK_F1) & 0x8000) != 0;
-    const bool f12Down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
-    const bool keyDown = (altDown && f1Down) || (ctrlDown && shiftDown && f12Down);
+    // [DlssNr] CleanUpCaptureKey, F10 alone by default: games grab Alt and Ctrl combinations, and one hand
+    // stays on the mouse while the other captures mid-movement. Modifiers are packed as for PanelKey.
+    const int bound = Config::Instance()->DlssNrCleanUpCaptureKey.value_or_default();
+    const int vk = bound & 0xFF;
+    const bool altOk = (bound & 256) == 0 || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    const bool ctrlOk = (bound & 512) == 0 || (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    const bool shiftOk = (bound & 1024) == 0 || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const bool keyDown = vk > 0 && (GetAsyncKeyState(vk) & 0x8000) != 0 && altOk && ctrlOk && shiftOk;
     if (keyDown && !keyWasDown)
     {
         g_cleanCapture.request();
-        LOG_INFO("DLSS-NR image clean up capture requested (Alt+F1 or Ctrl+Shift+F12)");
+        LOG_INFO("DLSS-NR image clean up capture requested (key {})", bound);
     }
     keyWasDown = keyDown;
 

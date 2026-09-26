@@ -445,6 +445,9 @@ class Config
     // One-shot: true writes one frame of everything the clean up sees to dlssnr-cleanup-capture\ beside
     // OptiScaler, for tools/cleanup-harness.js, and is set back to false (and saved) at once.
     CustomOptional<bool> DlssNrCleanUpCapture { false };
+    // The in-game key for that capture: a virtual-key code plus modifiers packed above it, as PanelKey
+    // (256 Alt, 512 Ctrl, 1024 Shift). F10 alone by default -- games grab Alt/Ctrl combinations.
+    CustomOptional<int> DlssNrCleanUpCaptureKey { VK_F10 };
     // Timing aid, bits as in DlssNrConstants::CleanupProfile. 0 in normal use.
     CustomOptional<uint32_t> DlssNrCleanUpProfile { 0 };
 
