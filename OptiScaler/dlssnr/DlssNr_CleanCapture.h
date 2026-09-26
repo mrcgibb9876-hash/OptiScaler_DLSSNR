@@ -10,11 +10,12 @@
 //
 // Recorded as copies into readback buffers on the frame's own command list, and written some frames
 // later, once the GPU is certainly past them -- the same pattern as DlssNr_Capture.h, which has no fence
-// either. Only plain single-plane colour and depth formats are copied; anything else is listed in the
-// manifest as skipped rather than risked.
+// either. Only plain colour formats and depth (the depth plane of a depth-stencil family, subresource 0) are
+// copied; anything else is listed in the manifest as skipped rather than risked.
 
 #include <windows.h>
 #include <d3d12.h>
+#include <cstdint>
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -68,6 +69,67 @@ inline const char* FormatName(DXGI_FORMAT f)
     }
 }
 
+// Depth in the families the depth guide comes in, named by what its copy holds -- the copy of subresource 0
+// takes the depth plane of a planar depth-stencil resource, and a typed twin of R32G8X24 keeps its 8-byte
+// texel. R32_FLOAT_X8X24: the depth is the first 4 bytes of 8. R24_UNORM_X8: the low 24 bits of 4, unorm.
+// Null when the format is not depth.
+inline const char* DepthFormatName(DXGI_FORMAT resource, DXGI_FORMAT footprint)
+{
+    switch (footprint)
+    {
+    case DXGI_FORMAT_R32_TYPELESS:
+    case DXGI_FORMAT_R32_FLOAT:
+    case DXGI_FORMAT_D32_FLOAT:
+        return "R32_FLOAT";
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+    case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+    case DXGI_FORMAT_X32_TYPELESS_G8X24_UINT:
+        return "R32_FLOAT_X8X24";
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_X24_TYPELESS_G8_UINT:
+        return "R24_UNORM_X8";
+    case DXGI_FORMAT_D16_UNORM:
+    case DXGI_FORMAT_R16_TYPELESS:
+    case DXGI_FORMAT_R16_UNORM:
+        return "R16_UNORM";
+    default:
+        break;
+    }
+
+    switch (resource)
+    {
+    case DXGI_FORMAT_D32_FLOAT:
+        return "R32_FLOAT";
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+    case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+        return footprint == DXGI_FORMAT_UNKNOWN ? nullptr : "R32_FLOAT_X8X24";
+    default:
+        return nullptr;
+    }
+}
+
+inline bool IsDepthFamily(DXGI_FORMAT f)
+{
+    switch (f)
+    {
+    case DXGI_FORMAT_R32G8X24_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
+    case DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+    case DXGI_FORMAT_R24G8_TYPELESS:
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+    case DXGI_FORMAT_D32_FLOAT:
+    case DXGI_FORMAT_D16_UNORM:
+        return true;
+    default:
+        return false;
+    }
+}
+
 struct Item
 {
     std::string name;
@@ -78,6 +140,7 @@ struct Item
     UINT width = 0;
     UINT height = 0;
     DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+    const char* formatName = nullptr;
 };
 
 class CleanCapture
@@ -99,8 +162,9 @@ class CleanCapture
         }
 
         const D3D12_RESOURCE_DESC desc = res->GetDesc();
+        const bool depth = IsDepthFamily(desc.Format);
         if (desc.Dimension != D3D12_RESOURCE_DIMENSION_TEXTURE2D || desc.SampleDesc.Count != 1 ||
-            FormatName(desc.Format) == nullptr)
+            (FormatName(desc.Format) == nullptr && !depth))
         {
             skipped_ += std::string(skipped_.empty() ? "" : ",") + "\"" + name + " (format " +
                         std::to_string((int) desc.Format) + ")\"";
@@ -114,6 +178,15 @@ class CleanCapture
         item.format = desc.Format;
         UINT64 rowBytes = 0;
         device->GetCopyableFootprints(&desc, 0, 1, 0, &item.footprint, &item.rows, &rowBytes, &item.total);
+        item.formatName =
+            depth ? DepthFormatName(desc.Format, item.footprint.Footprint.Format) : FormatName(desc.Format);
+
+        if (item.formatName == nullptr || item.total == 0 || item.total == UINT64_MAX)
+        {
+            skipped_ += std::string(skipped_.empty() ? "" : ",") + "\"" + name + " (format " +
+                        std::to_string((int) desc.Format) + ", no copyable footprint)\"";
+            return;
+        }
 
         D3D12_HEAP_PROPERTIES heap = {};
         heap.Type = D3D12_HEAP_TYPE_READBACK;
@@ -199,7 +272,7 @@ class CleanCapture
                           "%s\n    {\"name\":\"%s\",\"file\":\"%s.raw\",\"width\":%u,\"height\":%u,\"format\":\"%s\","
                           "\"dxgiFormat\":%d,\"rowPitch\":%u,\"offset\":%llu}",
                           files.empty() ? "" : ",", item.name.c_str(), item.name.c_str(), item.width, item.height,
-                          FormatName(item.format), (int) item.format, item.footprint.Footprint.RowPitch,
+                          item.formatName, (int) item.format, item.footprint.Footprint.RowPitch,
                           (unsigned long long) item.footprint.Offset);
             files += line;
         }

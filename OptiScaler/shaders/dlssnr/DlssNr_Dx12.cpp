@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <cstring>
 #include "precompile/DlssNr_Shader.h"
+#include "precompile/DlssNr_ShaderPrep.h"
 #include "../output_scaling/OS_Dx12.h"
 
 namespace
@@ -449,6 +450,11 @@ struct NrState
     // one R16 surface for the model reading.
     ID3D12Resource* cleanHistory[2] = {};
     ID3D12Resource* cleanModel = nullptr;
+    // The prep surface (DlssNrMode_CleanupPrep): the frame's size plus a row of 8x8 blocks under it, RGBA16F.
+    ID3D12Resource* cleanPrep = nullptr;
+    D3D12_RESOURCE_STATES cleanPrepState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    unsigned int cleanPrepW = 0;
+    unsigned int cleanPrepH = 0;
     D3D12_RESOURCE_STATES cleanModelState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     D3D12_RESOURCE_STATES cleanHistoryState[2] = { D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS };
@@ -1868,6 +1874,29 @@ void MoveCleanModel(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES to
     g_nr.cleanModelState = to;
 }
 
+// The clean up's prep surface for a frame of this size: the frame's own pixels, then one row per eight of
+// them holding the 8x8 blocks' ranges. False leaves the resolve working its tile out itself, as before.
+bool EnsureCleanPrep(ID3D12Device* device, unsigned int width, unsigned int height)
+{
+    if (g_nr.cleanPrep != nullptr && g_nr.cleanPrepW == width && g_nr.cleanPrepH == height)
+        return true;
+
+    // Parked, not released: last frame's list may still read it.
+    if (g_nr.cleanPrep != nullptr)
+        ParkNrResource(g_nr.cleanPrep);
+    g_nr.cleanPrep = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, width, height + (height + 7) / 8);
+    g_nr.cleanPrepState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
+    g_nr.cleanPrepW = g_nr.cleanPrep != nullptr ? width : 0;
+    g_nr.cleanPrepH = g_nr.cleanPrep != nullptr ? height : 0;
+    return g_nr.cleanPrep != nullptr;
+}
+
+void MoveCleanPrep(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES to)
+{
+    Barrier(cmdList, g_nr.cleanPrep, g_nr.cleanPrepState, to);
+    g_nr.cleanPrepState = to;
+}
+
 // Whether the DLSS call this pass attached to came from the DLSS5 Feeder rather than the game's
 // own DLSS. Asked once: a ReShade add-on cannot appear or leave mid-process, and this is consulted
 // every frame.
@@ -2252,6 +2281,13 @@ DlssNr_Dx12::DlssNr_Dx12(std::string InName, ID3D12Device* InDevice) : Shader_Dx
         return;
     }
 
+    // Image Clean Up's prep, same root signature. Optional: without it the resolve does the work itself.
+    if (!CreateComputePipeline(InDevice, &_prepPipelineState, DlssNr_prep_cso, sizeof(DlssNr_prep_cso), nullptr))
+    {
+        LOG_WARN("[{0}] Image Clean Up's prep pipeline could not be created -- the resolve works it out itself", _name);
+        _prepPipelineState = nullptr;
+    }
+
     _init = InitHeaps(InDevice, _frameHeaps, DLSSNR_NUM_OF_HEAPS);
 }
 
@@ -2262,6 +2298,9 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
                                ID3D12Resource* OutAux, ID3D12Resource* InCleanModel)
 {
     if (!_init || InCmdList == nullptr || _device == nullptr || InSource == nullptr || OutTarget == nullptr)
+        return false;
+
+    if (InConstants.Mode == DlssNrMode_CleanupPrep && _prepPipelineState == nullptr)
         return false;
 
     const uint32_t slot = _heapIndex;
@@ -2308,7 +2347,7 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
     ID3D12DescriptorHeap* heaps[] = { currentHeap.GetHeapCSU() };
     InCmdList->SetDescriptorHeaps(_countof(heaps), heaps);
     InCmdList->SetComputeRootSignature(_rootSignature);
-    InCmdList->SetPipelineState(_pipelineState);
+    InCmdList->SetPipelineState(InConstants.Mode == DlssNrMode_CleanupPrep ? _prepPipelineState : _pipelineState);
     InCmdList->SetComputeRootDescriptorTable(0, currentHeap.GetTableGPUStart());
 
     // Sized from the constants rather than from a resource, because the pass that shrinks the proxy
@@ -2322,6 +2361,12 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
 
 DlssNr_Dx12::~DlssNr_Dx12()
 {
+    if (_prepPipelineState != nullptr)
+    {
+        _prepPipelineState->Release();
+        _prepPipelineState = nullptr;
+    }
+
     for (auto& buffer : _constantBuffers)
     {
         if (buffer != nullptr)
@@ -4202,9 +4247,40 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             MoveCleanModel(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
 
+        // Image Clean Up's prep, when the resolve will run the clean up (the shader's CleanupWanted): the
+        // frame's log luminance, log depth and chroma worked out once per pixel, and each 8x8 block's range,
+        // so the resolve's groups load their tile instead of computing it sixteen times over, and a group
+        // with no edge near it skips its tile altogether. Nothing is dispatched or allocated with the clean
+        // up off.
+        ID3D12Resource* cleanPrepIn = nullptr;
+        const bool cleanWanted = (resolveParams.CleanupStrength > 0.0f || resolveParams.DebugView == 4) &&
+                                 resolveParams.CompareMode != 1 && resolveParams.ApplyModel != 0;
+        if (cleanWanted && HasCleanupPrep() && (resolveParams.CleanupProfile & 32u) == 0u)
+        {
+            const D3D12_RESOURCE_DESC originalDesc = resolveOriginal->GetDesc();
+            const unsigned int ow = (unsigned int) originalDesc.Width;
+            const unsigned int oh = originalDesc.Height;
+
+            if (EnsureCleanPrep(device, ow, oh))
+            {
+                DlssNrConstants prepParams = resolveParams;
+                prepParams.Mode = DlssNrMode_CleanupPrep;
+                prepParams.Width = ow;
+                prepParams.Height = oh;
+                MoveCleanPrep(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+                if (DispatchPass(cmdList, prepParams, resolveProxy, nullptr, resolveOriginal, nullptr, nullptr,
+                                 g_nr.cleanPrep, nullptr, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr))
+                {
+                    MoveCleanPrep(cmdList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+                    resolveParams.CleanupPrepared = 1;
+                    cleanPrepIn = g_nr.cleanPrep;
+                }
+            }
+        }
+
         DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
                      resolveTarget, historyWrite, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, historyRead,
-                     cleanHistory ? g_nr.cleanModel : nullptr, nullptr);
+                     cleanHistory ? g_nr.cleanModel : nullptr, cleanPrepIn);
 
         // Image Clean Up capture: this frame's inputs and outputs, copied for the offline harness. The
         // composed picture before the clean up is a second resolve with the clean up off, into a scratch
@@ -4241,7 +4317,7 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             const bool ownDepth = depthIn != nullptr && (depthIn == g_nr.depthClone || g_presentRouteDispatch);
             g_cleanCapture.copy(cmdList, device, "depth", ownDepth ? depthIn : nullptr,
                                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            const bool ownMotion = motionIn != nullptr && motionIn == g_nr.motionClone;
+            const bool ownMotion = motionIn != nullptr && (motionIn == g_nr.motionClone || g_presentRouteDispatch);
             g_cleanCapture.copy(cmdList, device, "motion", ownMotion ? motionIn : nullptr,
                                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             g_cleanCapture.copy(cmdList, device, "mask", historyWrite, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -6160,6 +6236,13 @@ void Shutdown()
         g_nr.cleanModel->Release();
         g_nr.cleanModel = nullptr;
     }
+    if (g_nr.cleanPrep != nullptr)
+    {
+        g_nr.cleanPrep->Release();
+        g_nr.cleanPrep = nullptr;
+    }
+    g_nr.cleanPrepW = 0;
+    g_nr.cleanPrepH = 0;
     g_nr.cleanHistoryW = 0;
     g_nr.cleanHistoryH = 0;
     g_nr.cleanHistoryValid = false;

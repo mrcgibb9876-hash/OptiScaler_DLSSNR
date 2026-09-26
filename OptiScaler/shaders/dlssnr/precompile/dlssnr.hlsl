@@ -47,7 +47,8 @@ cbuffer Params : register(b0)
     uint  gCleanupDepthInverted;
     uint  gCleanupHistory;    // 0 none, 1 write u1/u2 only (first frame), 2 also read t6
     uint  gCleanupProfile;    // [DlssNr] CleanUpProfile bits, for timing pieces: 2 no history, 4 no chroma,
-                              // 8 no quiet-tile skip, 16 fill only (no per-pixel work)
+                              // 8 no quiet-tile skip, 16 fill only (no per-pixel work), 32 no prep (host)
+    uint  gCleanupPrepared;   // t7 holds this frame's log luminance, log depth and chroma (DlssNrMode_CleanupPrep)
 };
 
 // The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
@@ -700,9 +701,25 @@ uint CleanupOrdered(float f)
 
 float CleanupUnordered(uint u) { return asfloat((u & 0x80000000u) != 0u ? (u & 0x7FFFFFFFu) : ~u); }
 
-// Fills the tile. Returns true when the tile has no edge of any kind in it -- its whole range of depth
-// and of luminance under the thresholds -- so every pixel of the group can skip the clean up. Uniform
-// across the group by construction.
+// The tile's range of log luminance and log depth against the thresholds: true when it has no edge of any
+// kind in it, so every pixel of the group can skip the clean up (most of any frame). Uniform across the
+// group: every thread reads the same shared words after the barrier.
+bool CleanupRangeQuiet()
+{
+    const float lumaRange = CleanupUnordered(gsCleanRange[1]) - CleanupUnordered(gsCleanRange[0]);
+    const float depthRange = CleanupUnordered(gsCleanRange[3]) - CleanupUnordered(gsCleanRange[2]);
+    const bool quiet = lumaRange < max(gCleanupEdge, 0.05) && (gCleanupHaveDepth == 0 || depthRange < 0.35);
+    return quiet && (gCleanupProfile & 8u) == 0u;
+}
+
+// Fills the tile. Returns true when the tile has no edge of any kind in it (CleanupRangeQuiet), and may then
+// leave the tile unfilled: nothing reads it.
+//
+// With the prep dispatch's surface (gCleanupPrepared, t7: the per-pixel values the tile holds, and each 8x8
+// block's range in the rows under the picture) the group first reads the ranges of the 5x5 blocks around
+// it -- a superset of its 32x32 tile, so a tile is never called quiet that is not -- and only a group with
+// an edge near it loads its tile. Without it (Vulkan) every group works its whole tile out, sixteen texels
+// a thread.
 bool CleanupFill(uint2 group, uint index)
 {
     uint ow, oh;
@@ -720,21 +737,63 @@ bool CleanupFill(uint2 group, uint index)
         gsCleanRange[3] = 0u;
     }
 
-    float lumaLo = 1e30, lumaHi = -1e30, depthLo = 1e30, depthHi = -1e30;
-
-    for (uint k = index; k < CLEAN_TILE * CLEAN_TILE; k += 64u)
+#ifndef VK_MODE
+    if (gCleanupPrepared != 0)
     {
-        const int2 p = clamp(origin + int2(k % CLEAN_TILE, k / CLEAN_TILE), int2(0, 0), size - 1);
-        const float3 c = max(gOriginal.Load(int3(p, 0)).rgb, 0.0);
-        const float l = CleanupLog(dot(c, kLuma) / normScale);
-        const float d = CleanupDepthLog((float2(p) + 0.5) / float2(size));
-        gsCleanLD[k] = f32tof16(l) | (f32tof16(d) << 16);
-        const float2 cc = chroma ? CleanupChroma(c) : float2(0.0, 0.0);
-        gsCleanChroma[k] = f32tof16(cc.x) | (f32tof16(cc.y) << 16);
-        lumaLo = min(lumaLo, l);
-        lumaHi = max(lumaHi, l);
-        depthLo = min(depthLo, d);
-        depthHi = max(depthHi, d);
+        GroupMemoryBarrierWithGroupSync();
+
+        if (index < 25u)
+        {
+            const int2 blocks = (size + 7) / 8;
+            const int2 b = clamp(int2(group) + int2(int(index % 5u) - 2, int(index / 5u) - 2), int2(0, 0), blocks - 1);
+            const float4 r = gCleanModel.Load(int3(b.x, size.y + b.y, 0));
+            InterlockedMin(gsCleanRange[0], CleanupOrdered(r.x));
+            InterlockedMax(gsCleanRange[1], CleanupOrdered(r.y));
+            InterlockedMin(gsCleanRange[2], CleanupOrdered(r.z));
+            InterlockedMax(gsCleanRange[3], CleanupOrdered(r.w));
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+
+        if (CleanupRangeQuiet())
+            return true;
+
+        // Worked out once per pixel by the prep dispatch instead of once per group that reads it -- the
+        // 32x32 tile of an 8x8 group reads every texel sixteen times over.
+        for (uint k = index; k < CLEAN_TILE * CLEAN_TILE; k += 64u)
+        {
+            const int2 p = clamp(origin + int2(k % CLEAN_TILE, k / CLEAN_TILE), int2(0, 0), size - 1);
+            const float4 v = gCleanModel.Load(int3(p, 0));
+            gsCleanLD[k] = f32tof16(v.x) | (f32tof16(v.y) << 16);
+            gsCleanChroma[k] = chroma ? (f32tof16(v.z) | (f32tof16(v.w) << 16)) : 0u;
+        }
+    }
+    else
+#endif
+    {
+        float lumaLo = 1e30, lumaHi = -1e30, depthLo = 1e30, depthHi = -1e30;
+
+        for (uint k = index; k < CLEAN_TILE * CLEAN_TILE; k += 64u)
+        {
+            const int2 p = clamp(origin + int2(k % CLEAN_TILE, k / CLEAN_TILE), int2(0, 0), size - 1);
+            const float3 c = max(gOriginal.Load(int3(p, 0)).rgb, 0.0);
+            const float l = CleanupLog(dot(c, kLuma) / normScale);
+            const float d = CleanupDepthLog((float2(p) + 0.5) / float2(size));
+            gsCleanLD[k] = f32tof16(l) | (f32tof16(d) << 16);
+            const float2 cc = chroma ? CleanupChroma(c) : float2(0.0, 0.0);
+            gsCleanChroma[k] = f32tof16(cc.x) | (f32tof16(cc.y) << 16);
+            lumaLo = min(lumaLo, l);
+            lumaHi = max(lumaHi, l);
+            depthLo = min(depthLo, d);
+            depthHi = max(depthHi, d);
+        }
+
+        GroupMemoryBarrierWithGroupSync();
+
+        InterlockedMin(gsCleanRange[0], CleanupOrdered(lumaLo));
+        InterlockedMax(gsCleanRange[1], CleanupOrdered(lumaHi));
+        InterlockedMin(gsCleanRange[2], CleanupOrdered(depthLo));
+        InterlockedMax(gsCleanRange[3], CleanupOrdered(depthHi));
     }
 
     // The model's regional tone change, 48 pixels out from the group's middle each way -- well outside
@@ -750,17 +809,7 @@ bool CleanupFill(uint2 group, uint index)
 
     GroupMemoryBarrierWithGroupSync();
 
-    InterlockedMin(gsCleanRange[0], CleanupOrdered(lumaLo));
-    InterlockedMax(gsCleanRange[1], CleanupOrdered(lumaHi));
-    InterlockedMin(gsCleanRange[2], CleanupOrdered(depthLo));
-    InterlockedMax(gsCleanRange[3], CleanupOrdered(depthHi));
-
-    GroupMemoryBarrierWithGroupSync();
-
-    const float lumaRange = CleanupUnordered(gsCleanRange[1]) - CleanupUnordered(gsCleanRange[0]);
-    const float depthRange = CleanupUnordered(gsCleanRange[3]) - CleanupUnordered(gsCleanRange[2]);
-    const bool quiet = lumaRange < max(gCleanupEdge, 0.05) && (gCleanupHaveDepth == 0 || depthRange < 0.35);
-    return quiet && (gCleanupProfile & 8u) == 0u;
+    return CleanupRangeQuiet();
 }
 
 float CleanupL(int2 local, int2 d)
@@ -1840,3 +1889,48 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
 
     gTarget[id.xy] = float4(max(result, float3(0.0, 0.0, 0.0)), originalSample.a);
 }
+
+#ifndef VK_MODE
+// Image Clean Up's prep (DlssNrMode_CleanupPrep, D3D12), an entry point of its own so it runs with its
+// own small register and groupshared budget instead of CSMain's: per pixel of the untouched frame, what
+// the resolve's tile holds -- log luminance, log reciprocal depth and chroma, a half each -- so the
+// resolve's groups load them instead of working each out sixteen times over; and, in the rows under the
+// picture, each 8x8 block's range of log luminance and log depth, so a group with no edge near it can tell
+// without loading its tile. The same arithmetic as the tile fill's own path (CleanupFill).
+groupshared uint gsPrepRange[4];
+
+[numthreads(8, 8, 1)]
+void CSPrep(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV_GroupIndex)
+{
+    const int2 p = min(int2(id.xy), int2(gWidth, gHeight) - 1);
+    const float normScale = gPassthrough != 0 ? 1.0 : WhitePoint();
+    const float3 c = max(gOriginal.Load(int3(p, 0)).rgb, 0.0);
+    const bool chroma = gCleanupHaveDepth != 0 && (gCleanupProfile & 4u) == 0u;
+    const float l = CleanupLog(dot(c, kLuma) / normScale);
+    const float d = CleanupDepthLog((float2(p) + 0.5) / float2(gWidth, gHeight));
+
+    if (gi == 0u)
+    {
+        gsPrepRange[0] = 0xFFFFFFFFu;
+        gsPrepRange[1] = 0u;
+        gsPrepRange[2] = 0xFFFFFFFFu;
+        gsPrepRange[3] = 0u;
+    }
+
+    GroupMemoryBarrierWithGroupSync();
+    // Widened past the half each is stored as, so a block's range never reads narrower than its pixels'.
+    InterlockedMin(gsPrepRange[0], CleanupOrdered(l - 0.01));
+    InterlockedMax(gsPrepRange[1], CleanupOrdered(l + 0.01));
+    InterlockedMin(gsPrepRange[2], CleanupOrdered(d - 0.01));
+    InterlockedMax(gsPrepRange[3], CleanupOrdered(d + 0.01));
+    GroupMemoryBarrierWithGroupSync();
+
+    if (id.x < gWidth && id.y < gHeight)
+        gTarget[id.xy] = float4(l, d, chroma ? CleanupChroma(c) : float2(0.0, 0.0));
+
+    if (gi == 0u)
+        gTarget[uint2(gid.x, gHeight + gid.y)] =
+            float4(CleanupUnordered(gsPrepRange[0]), CleanupUnordered(gsPrepRange[1]),
+                   CleanupUnordered(gsPrepRange[2]), CleanupUnordered(gsPrepRange[3]));
+}
+#endif

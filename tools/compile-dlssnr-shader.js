@@ -1,6 +1,8 @@
 // Rebuilds the DLSS-NR pass shader (OptiScaler/shaders/dlssnr/precompile/dlssnr.hlsl) for both APIs:
 //
 //   DlssNr_Shader.cso / DlssNr_Shader.h        D3D12, DXIL (symbol DlssNr_cso)
+//   DlssNr_ShaderPrep.cso / DlssNr_ShaderPrep.h D3D12, DXIL, entry CSPrep: Image Clean Up's prep (symbol
+//                                              DlssNr_prep_cso)
 //   DlssNr_Shader_Vk.spv / DlssNr_Shader_Vk.h  Vulkan, SPIR-V with VK_MODE defined (symbol dlssnr_spv)
 //
 //   node tools/compile-dlssnr-shader.js [vulkan-dxc.exe] [d3d12-dxc.exe]
@@ -34,12 +36,13 @@ const header = (bytes, symbol) => {
 
 const builds = [
   { out: 'DlssNr_Shader', symbol: 'DlssNr_cso', ext: '.cso', dxc: DXC_DX12, args: [] },
+  { out: 'DlssNr_ShaderPrep', symbol: 'DlssNr_prep_cso', ext: '.cso', dxc: DXC_DX12, args: [], entry: 'CSPrep' },
   { out: 'DlssNr_Shader_Vk', symbol: 'dlssnr_spv', ext: '.spv', dxc: DXC_VK, args: ['-spirv', '-DVK_MODE=1'] },
 ];
 
 for (const b of builds) {
   const bin = path.join(DIR, b.out + b.ext);
-  execFileSync(b.dxc, ['-T', 'cs_6_0', '-E', 'CSMain', ...b.args, '-Fo', bin, SRC], { stdio: 'pipe' });
+  execFileSync(b.dxc, ['-T', 'cs_6_0', '-E', b.entry || 'CSMain', ...b.args, '-Fo', bin, SRC], { stdio: 'pipe' });
   const bytes = fs.readFileSync(bin);
   fs.writeFileSync(path.join(DIR, `${b.out}.h`), header(bytes, b.symbol));
   console.log(`${b.out}${b.ext}: ${bytes.length} bytes`);

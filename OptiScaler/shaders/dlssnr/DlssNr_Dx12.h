@@ -33,8 +33,9 @@
 //
 // The shader still records at most meter + encode + downsample + resolve per frame. Extra model layers
 // are NGX evaluates and do not consume this ring; their A/B resources and feature histories are
-// persistent. Image Clean Up adds its two halo meters (2026-09-26), up to eight a frame with the tone
-// meter and the calibration: sixty-four slots keep eight fully populated frames before any reuse.
+// persistent. Image Clean Up adds its two halo meters (2026-09-26) and its prep dispatch, up to nine a
+// frame with the tone meter and the calibration: sixty-four slots keep seven fully populated frames before
+// any reuse.
 #define DLSSNR_NUM_OF_HEAPS 64
 
 class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
@@ -64,9 +65,16 @@ class DlssNr_Dx12 : public Shader_Dx12, public DlssNr_Common
     uint32_t _numThreadsX = 8;
     uint32_t _numThreadsY = 8;
 
+    // Image Clean Up's prep (DlssNrMode_CleanupPrep): an entry point of its own (CSPrep), so it does not
+    // run under the resolve's register and groupshared budget. Null when it could not be built; the resolve
+    // then works its tile out itself, as before.
+    ID3D12PipelineState* _prepPipelineState = nullptr;
+
   public:
     DlssNr_Dx12(std::string InName, ID3D12Device* InDevice);
     ~DlssNr_Dx12();
+
+    bool HasCleanupPrep() const { return _prepPipelineState != nullptr; }
 
     // The pass. Resources in, and nothing read from anywhere the caller cannot see.
     //
