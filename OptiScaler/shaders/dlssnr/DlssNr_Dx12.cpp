@@ -550,8 +550,10 @@ void CheckCleanCaptureTrigger()
     static bool keyWasDown = false;
     // Ctrl+F1 as well: one hand stays on the mouse while the other captures mid-movement.
     const bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
-    const bool keyDown = ctrlDown && (((GetAsyncKeyState(VK_F12) & 0x8000) != 0 && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) ||
-                                      (GetAsyncKeyState(VK_F1) & 0x8000) != 0);
+    const bool shiftDown = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    const bool f1Down = (GetAsyncKeyState(VK_F1) & 0x8000) != 0;
+    const bool f12Down = (GetAsyncKeyState(VK_F12) & 0x8000) != 0;
+    const bool keyDown = ctrlDown && (f1Down || (shiftDown && f12Down));
     if (keyDown && !keyWasDown)
     {
         g_cleanCapture.request();
