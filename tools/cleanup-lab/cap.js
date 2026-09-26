@@ -31,6 +31,14 @@ function loadCapture(dir) {
           out[o + 2] = half(buf.readUInt16LE(p + 4)); out[o + 3] = half(buf.readUInt16LE(p + 6));
         } else if (f.format === 'R16_FLOAT') {
           out[o] = half(buf.readUInt16LE(row + x * 2));
+        } else if (f.format === 'R32_FLOAT') {
+          out[o] = buf.readFloatLE(row + x * 4);
+        } else if (f.format === 'R32_FLOAT_X8X24') {
+          out[o] = buf.readFloatLE(row + x * 8);
+        } else if (f.format === 'R24_UNORM_X8') {
+          out[o] = (buf.readUInt32LE(row + x * 4) & 0xffffff) / 16777215;
+        } else if (f.format === 'R16G16_FLOAT') {
+          out[o] = half(buf.readUInt16LE(row + x * 4)); out[o + 1] = half(buf.readUInt16LE(row + x * 4 + 2));
         } else throw new Error(f.format);
       }
     }
@@ -65,4 +73,13 @@ function writePng(file, w, h, rgb) {
   fs.writeFileSync(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 6 })), chunk('IEND', Buffer.alloc(0))]));
 }
 
-module.exports = { loadCapture, luma, logl, writePng };
+// Log reciprocal depth per pixel, as the pass computes it: the captured depth guide when present, else the
+// mask's green channel (captures made before depth was written).
+function logDepth(cap) {
+  const S = cap.S, n = S.width * S.height, D = new Float32Array(n);
+  if (cap.img.depth) { const d = cap.img.depth.data; for (let i = 0; i < n; i++) { const v = d[i * 4]; D[i] = Math.log2(Math.max(S.cleanupDepthInverted !== 0 ? v : 1 - v, 1e-7)); } }
+  else if (cap.img.mask) { for (let i = 0; i < n; i++) D[i] = cap.img.mask.data[i * 4 + 1]; }
+  return D;
+}
+
+module.exports = { logDepth, loadCapture, luma, logl, writePng };

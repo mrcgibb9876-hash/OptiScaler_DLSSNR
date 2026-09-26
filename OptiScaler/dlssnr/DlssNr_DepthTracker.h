@@ -47,6 +47,10 @@ int Policy();
 int NextPolicy();
 const char* PolicyName(int policy);
 
+// Frames so far whose pick was the current kind's newest buffer from an earlier frame, because that frame's
+// submitted work did not write one (the hysteresis in EndFrame).
+unsigned long long HeldFrames();
+
 struct Selection
 {
     ID3D12Resource* resource = nullptr; // not owned

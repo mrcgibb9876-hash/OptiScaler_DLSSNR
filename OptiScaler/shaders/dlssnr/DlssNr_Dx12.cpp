@@ -4873,7 +4873,10 @@ void AlignRecord(ID3D12Device* device, ID3D12GraphicsCommandList* list, ID3D12Re
     g_align.last = now;
 
     // The strips' footprints, depth then colour, laid end to end.
-    constexpr unsigned int kStrips = 8;
+    // Sixteen of each: a standing character's silhouette is mostly upright, so the columns (which measure
+    // the vertical offset) cross it far less often than the rows do, and with eight the "down" figure never
+    // had enough crossings to report (Resident Evil 2, 8fc46f3d: "? px down" every time).
+    constexpr unsigned int kStrips = 16;
     constexpr unsigned int kThick = 3;
     std::vector<AlignStrip> strips;
     UINT64 offset = 0;
@@ -5028,20 +5031,33 @@ void AlignRead(unsigned long long presentIndex)
             if (std::abs(d[t] - d[t - 1]) <= 0.7f)
                 continue;
 
+            // The NEAREST luminance step at least half as strong as the strongest within 16 px, not the
+            // strongest: a lit face or a shading band a few pixels inside an object is often a stronger step
+            // than its silhouette, and read as an offset where there is none (the pillar in capture
+            // 20260926-184409 read 7 px off while its silhouette was on the depth edge).
             float best = 0.0f;
-            int bestK = 0;
             for (int k = -16; k <= 16; ++k)
+                best = std::max(best, std::abs(y[t + k] - y[t + k - 1]));
+
+            if (best <= 0.03f)
+                continue;
+
+            int nearest = 0;
+            for (int r = 0; r <= 16; ++r)
             {
-                const float step = std::abs(y[t + k] - y[t + k - 1]);
-                if (step > best)
+                if (std::abs(y[t + r] - y[t + r - 1]) >= 0.5f * best)
                 {
-                    best = step;
-                    bestK = k;
+                    nearest = r;
+                    break;
+                }
+                if (std::abs(y[t - r] - y[t - r - 1]) >= 0.5f * best)
+                {
+                    nearest = -r;
+                    break;
                 }
             }
 
-            if (best > 0.03f)
-                (s.vertical ? down : across).push_back(bestK);
+            (s.vertical ? down : across).push_back(nearest);
         }
     }
 
@@ -5054,7 +5070,7 @@ void AlignRead(unsigned long long presentIndex)
         return v.empty() ? 0 : v[v.size() / 2];
     };
 
-    constexpr size_t kEnough = 24;
+    constexpr size_t kEnough = 12;
     const bool haveX = across.size() >= kEnough;
     const bool haveY = down.size() >= kEnough;
 
@@ -5076,9 +5092,10 @@ void AlignRead(unsigned long long presentIndex)
     const int policy = DepthTracker::Policy();
 
     LOG_INFO("DLSS-NR depth/colour alignment: colour edges sit {} px across and {} px down from the depth edges "
-             "(median of {} and {} silhouette crossings; depth picked by {})",
+             "(median of {} and {} silhouette crossings; depth picked by {}; {} frames so far took the newest "
+             "buffer of an earlier frame)",
              haveX ? std::to_string(mx) : std::string("?"), haveY ? std::to_string(my) : std::string("?"), nx, ny,
-             DepthTracker::PolicyName(policy));
+             DepthTracker::PolicyName(policy), DepthTracker::HeldFrames());
 
     const bool off = (haveX && std::abs(mx) > 2) || (haveY && std::abs(my) > 2);
 
