@@ -71,6 +71,7 @@ constexpr Entry<bool> kBools[] = {
     { "AutoCapture", &Config::DlssNrAutoCapture },
     { "AutoMask", &Config::DlssNrAutoMask },
     { "ChainedHistory", &Config::DlssNrChainedHistory },
+    { "CleanUpCapture", &Config::DlssNrCleanUpCapture },
     { "CompareSwap", &Config::DlssNrCompareSwap },
     { "CompareTags", &Config::DlssNrCompareTags },
     { "Enabled", &Config::DlssNrEnabled },
@@ -99,6 +100,7 @@ constexpr Entry<int> kInts[] = {
 // a huge unsigned mode nobody asked for.
 constexpr Entry<uint32_t> kUInts[] = {
     { "CleanUpMode", &Config::DlssNrCleanUpMode },
+    { "CleanUpProfile", &Config::DlssNrCleanUpProfile },
     { "Compare", &Config::DlssNrCompare },
     { "DebugView", &Config::DlssNrDebugView },
     { "DepthConvention", &Config::DlssNrDepthConvention },

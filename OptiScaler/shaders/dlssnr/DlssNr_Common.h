@@ -232,6 +232,9 @@ struct alignas(256) DlssNrConstants
     uint32_t CleanupHaveDepth;
     uint32_t CleanupDepthInverted;
     uint32_t CleanupHistory;
+    // [DlssNr] CleanUpProfile, for timing the clean up's pieces from the cost line: 1 no halo meter, 2 no
+    // mask history, 4 no colour clamp, 8 no quiet-tile skip, 16 the tile fill alone. 0 in normal use.
+    uint32_t CleanupProfile;
 };
 
 class DlssNr_Common

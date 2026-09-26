@@ -408,6 +408,8 @@ bool Config::Reload(std::filesystem::path iniPath)
             DlssNrCleanUpEdge.set_from_config(readFloat("DlssNr", "CleanUpEdge"));
             DlssNrCleanUpBalance.set_from_config(readFloat("DlssNr", "CleanUpBalance"));
             DlssNrCleanUpMotion.set_from_config(readFloat("DlssNr", "CleanUpMotion"));
+            DlssNrCleanUpCapture.set_from_config(readBool("DlssNr", "CleanUpCapture"));
+            DlssNrCleanUpProfile.set_from_config(readUInt("DlssNr", "CleanUpProfile"));
             DlssNrTransfer.set_from_config(readUInt("DlssNr", "Transfer"));
 
             DlssNrWhitePointFromExposure.set_from_config(readBool("DlssNr", "WhitePointFromExposure"));
@@ -1394,6 +1396,10 @@ bool Config::SaveIni()
                      GetFloatValue(Instance()->DlssNrCleanUpBalance.value_for_config()).c_str());
         ini.SetValue("DlssNr", "CleanUpMotion",
                      GetFloatValue(Instance()->DlssNrCleanUpMotion.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpCapture",
+                     GetBoolValue(Instance()->DlssNrCleanUpCapture.value_for_config()).c_str());
+        ini.SetValue("DlssNr", "CleanUpProfile",
+                     GetIntValue(Instance()->DlssNrCleanUpProfile.value_for_config()).c_str());
         ini.SetValue("DlssNr", "Transfer", GetIntValue(Instance()->DlssNrTransfer.value_for_config()).c_str());
 
         ini.SetValue("DlssNr", "ProbeD3D11", GetBoolValue(Instance()->DlssNrProbeD3D11.value_for_config()).c_str());

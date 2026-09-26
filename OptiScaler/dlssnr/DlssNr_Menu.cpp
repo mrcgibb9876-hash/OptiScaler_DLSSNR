@@ -2967,6 +2967,20 @@ void RenderMenu(Config* config, float menuResScale)
                           "\nmotion blur stays soft. Needs the game's motion vectors (DX12); with none -- the"
                           "\nPresent route without optical flow -- it has nothing to go on and does nothing."));
 
+            // One frame of everything the clean up sees, for tuning it offline (tools/cleanup-harness.js).
+            // D3D12 only: the Vulkan pass has no capture.
+            {
+                const bool pendingCapture = DlssNr::CleanUpCapturePending();
+                ImGui::BeginDisabled(pendingCapture || cleanVulkan);
+                if (ImGui::Button(pendingCapture ? Tr("Capturing...") : Tr("Capture frame for Image Clean Up")))
+                    DlssNr::RequestCleanUpCapture();
+                ImGui::EndDisabled();
+                HelpMarker(Tr("Writes this frame's inputs and outputs -- the game's frame, the model's answer, the"
+                              "\npicture before and after the clean up, depth, the mask and every setting -- to a"
+                              "\nnew folder under dlssnr-cleanup-capture beside OptiScaler, so the clean up can be"
+                              "\ntuned on this game's own frames. Ctrl+Shift+F12 does the same in game."));
+            }
+
             SectionCaption(Tr("Colour"), rowWidth);
 
             ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rowWidth);

@@ -46,6 +46,8 @@ cbuffer Params : register(b0)
     uint  gCleanupHaveDepth;  // t5 holds the depth guide (D3D12)
     uint  gCleanupDepthInverted;
     uint  gCleanupHistory;    // 0 none, 1 write u1/u2 only (first frame), 2 also read t6
+    uint  gCleanupProfile;    // [DlssNr] CleanUpProfile bits, for timing pieces: 2 no history, 4 no chroma,
+                              // 8 no quiet-tile skip, 16 fill only (no per-pixel work)
 };
 
 // The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
@@ -592,20 +594,24 @@ static const float kCleanupTolerance = 0.15;      // stops a pixel may always mo
 static const float kCleanupToleranceTight = 0.0;  // ... and at strength 1: the far side held to the frame
 
 // The neighbourhood lives in groupshared memory: each 8x8 group loads its tile plus twelve pixels all
-// round once -- the frame's log luminance and the depth under each pixel -- and every pixel then reads
-// its rings from there instead of from the textures. 32x32 values of each, two loads per thread of 16.
+// round once -- the frame's log luminance, the depth under each pixel and its chroma, packed two halves
+// to a word (8 KB a group, so the group count per SM is not held down) -- and every pixel then reads its
+// rings from there instead of from the textures. Log luminance and log depth fit a half comfortably: the
+// thresholds they meet are tenths of a stop on values within +-25.
 #define CLEAN_APRON 12
 #define CLEAN_TILE 32
-groupshared float gsCleanLuma[CLEAN_TILE * CLEAN_TILE];
-groupshared float gsCleanDepth[CLEAN_TILE * CLEAN_TILE];
-groupshared float2 gsCleanChroma[CLEAN_TILE * CLEAN_TILE];
+groupshared uint gsCleanLD[CLEAN_TILE * CLEAN_TILE];
+groupshared uint gsCleanChroma[CLEAN_TILE * CLEAN_TILE];
 groupshared float gsCleanShift[4];
 groupshared float gsCleanShiftDepth[4];
+// The tile's range of log luminance and log depth (order-preserving uints), for skipping a tile with no
+// edge in it at all -- most of any frame.
+groupshared uint gsCleanRange[4];
 
-static const int2 kCleanupMeso[8] = { int2(4, 0), int2(-5, 0), int2(0, 4), int2(0, -5),
-                                      int2(3, 3), int2(-4, 3), int2(3, -4), int2(-4, -4) };
-static const int2 kCleanupWide[8] = { int2(9, 0), int2(-10, 0), int2(0, 9), int2(0, -10),
-                                      int2(6, 6), int2(-7, 6), int2(6, -7), int2(-7, -7) };
+static const int2 kCleanupMeso[8] = { int2(4, 0), int2(-4, 0), int2(0, 4), int2(0, -4),
+                                      int2(3, 3), int2(-3, 3), int2(3, -3), int2(-3, -3) };
+static const int2 kCleanupWide[8] = { int2(9, 0), int2(-9, 0), int2(0, 9), int2(0, -9),
+                                      int2(6, 6), int2(-6, 6), int2(6, -6), int2(-6, -6) };
 static const int2 kCleanupDepthNear[8] = { int2(3, 0), int2(-3, 0), int2(0, 3), int2(0, -3),
                                            int2(6, 0), int2(-6, 0), int2(0, 6), int2(0, -6) };
 static const int2 kCleanupDepthDiag[4] = { int2(4, 4), int2(-4, 4), int2(4, -4), int2(-4, -4) };
@@ -686,25 +692,53 @@ float2 CleanupChroma(float3 c)
                            float3(0.0, 0.0, 0.0)).xy;
 }
 
-void CleanupFill(uint2 group, uint index)
+uint CleanupOrdered(float f)
+{
+    const uint u = asuint(f);
+    return (u & 0x80000000u) != 0u ? ~u : (u | 0x80000000u);
+}
+
+float CleanupUnordered(uint u) { return asfloat((u & 0x80000000u) != 0u ? (u & 0x7FFFFFFFu) : ~u); }
+
+// Fills the tile. Returns true when the tile has no edge of any kind in it -- its whole range of depth
+// and of luminance under the thresholds -- so every pixel of the group can skip the clean up. Uniform
+// across the group by construction.
+bool CleanupFill(uint2 group, uint index)
 {
     uint ow, oh;
     gOriginal.GetDimensions(ow, oh);
     const int2 size = int2(max(ow, 1u), max(oh, 1u));
     const float normScale = gPassthrough != 0 ? 1.0 : WhitePoint();
     const int2 origin = int2(group) * 8 - CLEAN_APRON;
+    const bool chroma = gCleanupHaveDepth != 0 && (gCleanupProfile & 4u) == 0u;
+
+    if (index == 0u)
+    {
+        gsCleanRange[0] = 0xFFFFFFFFu;
+        gsCleanRange[1] = 0u;
+        gsCleanRange[2] = 0xFFFFFFFFu;
+        gsCleanRange[3] = 0u;
+    }
+
+    float lumaLo = 1e30, lumaHi = -1e30, depthLo = 1e30, depthHi = -1e30;
 
     for (uint k = index; k < CLEAN_TILE * CLEAN_TILE; k += 64u)
     {
         const int2 p = clamp(origin + int2(k % CLEAN_TILE, k / CLEAN_TILE), int2(0, 0), size - 1);
         const float3 c = max(gOriginal.Load(int3(p, 0)).rgb, 0.0);
-        gsCleanLuma[k] = CleanupLog(dot(c, kLuma) / normScale);
-        gsCleanDepth[k] = CleanupDepthLog((float2(p) + 0.5) / float2(size));
-        gsCleanChroma[k] = CleanupChroma(c);
+        const float l = CleanupLog(dot(c, kLuma) / normScale);
+        const float d = CleanupDepthLog((float2(p) + 0.5) / float2(size));
+        gsCleanLD[k] = f32tof16(l) | (f32tof16(d) << 16);
+        const float2 cc = chroma ? CleanupChroma(c) : float2(0.0, 0.0);
+        gsCleanChroma[k] = f32tof16(cc.x) | (f32tof16(cc.y) << 16);
+        lumaLo = min(lumaLo, l);
+        lumaHi = max(lumaHi, l);
+        depthLo = min(depthLo, d);
+        depthHi = max(depthHi, d);
     }
 
-    // The model's regional tone change, 24 pixels out from the group's middle each way -- well outside
-    // any halo -- one tap per thread; the median of the four is taken per pixel below.
+    // The model's regional tone change, 48 pixels out from the group's middle each way -- well outside
+    // any glow -- one tap per thread; the lower median of the same-side ones is taken per pixel below.
     if (index < 4u)
     {
         const float2 texel = 1.0 / float2(size);
@@ -715,32 +749,37 @@ void CleanupFill(uint2 group, uint index)
     }
 
     GroupMemoryBarrierWithGroupSync();
+
+    InterlockedMin(gsCleanRange[0], CleanupOrdered(lumaLo));
+    InterlockedMax(gsCleanRange[1], CleanupOrdered(lumaHi));
+    InterlockedMin(gsCleanRange[2], CleanupOrdered(depthLo));
+    InterlockedMax(gsCleanRange[3], CleanupOrdered(depthHi));
+
+    GroupMemoryBarrierWithGroupSync();
+
+    const float lumaRange = CleanupUnordered(gsCleanRange[1]) - CleanupUnordered(gsCleanRange[0]);
+    const float depthRange = CleanupUnordered(gsCleanRange[3]) - CleanupUnordered(gsCleanRange[2]);
+    const bool quiet = lumaRange < max(gCleanupEdge, 0.05) && (gCleanupHaveDepth == 0 || depthRange < 0.35);
+    return quiet && (gCleanupProfile & 8u) == 0u;
 }
 
 float CleanupL(int2 local, int2 d)
 {
     const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
-    return gsCleanLuma[at.y * CLEAN_TILE + at.x];
-}
-
-// A 2x2 average from d: a half-resolution sample, so a ring of eight covers the ring rather than eight
-// single pixels of it.
-float CleanupL2(int2 local, int2 d)
-{
-    return 0.25 * (CleanupL(local, d) + CleanupL(local, d + int2(1, 0)) + CleanupL(local, d + int2(0, 1)) +
-                   CleanupL(local, d + int2(1, 1)));
-}
-
-float2 CleanupC(int2 local, int2 d)
-{
-    const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
-    return gsCleanChroma[at.y * CLEAN_TILE + at.x];
+    return f16tof32(gsCleanLD[at.y * CLEAN_TILE + at.x] & 0xFFFFu);
 }
 
 float CleanupD(int2 local, int2 d)
 {
     const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
-    return gsCleanDepth[at.y * CLEAN_TILE + at.x];
+    return f16tof32(gsCleanLD[at.y * CLEAN_TILE + at.x] >> 16);
+}
+
+float2 CleanupC(int2 local, int2 d)
+{
+    const int2 at = clamp(local + d + CLEAN_APRON, int2(0, 0), int2(CLEAN_TILE - 1, CLEAN_TILE - 1));
+    const uint v = gsCleanChroma[at.y * CLEAN_TILE + at.x];
+    return float2(f16tof32(v & 0xFFFFu), f16tof32(v >> 16));
 }
 
 struct CleanupStats
@@ -831,10 +870,10 @@ CleanupStats CleanupStatsLocal(int2 local)
 
     [unroll] for (int k = 0; k < 8; ++k)
     {
-        const float m = CleanupL2(local, kCleanupMeso[k]);
+        const float m = CleanupL(local, kCleanupMeso[k]);
         mesoMin = min(mesoMin, m);
         mesoMax = max(mesoMax, m);
-        const float w = CleanupL2(local, kCleanupWide[k]);
+        const float w = CleanupL(local, kCleanupWide[k]);
         wideMin = min(wideMin, w);
         wideMax = max(wideMax, w);
         allSum += m + w;
@@ -1081,8 +1120,9 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
     // Image Clean Up's groupshared tile, filled by every thread of the group -- those past the edge of the
     // frame too -- before any of them may leave, since the fill ends in a barrier.
     const int2 cleanLocal = int2(id.xy) - int2(gid.xy) * 8;
+    bool cleanQuiet = true;
     if (CleanupWanted())
-        CleanupFill(gid.xy, gi);
+        cleanQuiet = CleanupFill(gid.xy, gi);
 
     if (id.x >= gWidth || id.y >= gHeight)
         return;
@@ -1656,7 +1696,24 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
     // the same -- and before the tone trim, so it compares like with like: the frame and the picture
     // made from it, in the same normalised space. The neighbourhood was loaded into groupshared memory at
     // the top of the shader (CleanupFill).
-    if (CleanupWanted())
+    if (CleanupWanted() && (cleanQuiet || (gCleanupProfile & 16u) != 0u))
+    {
+        // A tile with no edge in it: nothing to clean, and the history and the meter are told so.
+#ifndef VK_MODE
+        if (gCleanupHistory != 0)
+        {
+            gKeep[id.xy] = float4(0.0, CleanupD(cleanLocal, int2(0, 0)), 0.0, 0.0);
+            gAux[id.xy] = float4(0.0, 0.0, 0.0, 0.0);
+        }
+#endif
+        if (gDebugView == 4)
+        {
+            const float grey = 0.35 * saturate(pow(saturate(originalLuma), 1.0 / 2.2));
+            gTarget[id.xy] = float4(SrgbToLinear(float3(grey, grey, grey)) * gDebugScale, originalSample.a);
+            return;
+        }
+    }
+    else if (CleanupWanted())
     {
         const CleanupStats stats = CleanupStatsLocal(cleanLocal);
         const float3 depthMask = CleanupDepthMaskLocal(cleanLocal);
@@ -1669,7 +1726,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
         // where the motion vectors say this pixel was (the same place when there are none), and averaged
         // in only if the depth there is the depth here: a surface that was not there last frame (a
         // disocclusion, a cut) takes this frame's mask alone.
-        if (gCleanupHistory == 2)
+        if (gCleanupHistory == 2 && (gCleanupProfile & 2u) == 0u)
         {
             const float2 prevUv = uv + mv / float2(gWidth, gHeight);
 
@@ -1703,7 +1760,7 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
         // place the clean up changes hue on purpose -- a fringe the character's colour bled into the
         // background is a hue the background never had. Before the luminance step, which then sees the
         // colour it will scale.
-        if (amount > 1e-4 && gCleanupHaveDepth != 0 && depthMask.x > 0.0)
+        if (amount > 1e-4 && gCleanupHaveDepth != 0 && depthMask.x > 0.0 && (gCleanupProfile & 4u) == 0u)
         {
             const float yc = dot(max(result, 0.0), float3(0.25, 0.5, 0.25));
             if (yc > 1e-6)
