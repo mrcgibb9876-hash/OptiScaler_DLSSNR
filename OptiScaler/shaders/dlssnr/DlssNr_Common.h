@@ -23,8 +23,7 @@ enum DlssNrMode : uint32_t
     DlssNrMode_Downsample = 2, // the proxy -> a smaller proxy, when the model works below full size
     DlssNrMode_Meter = 3,      // the exposure texture -> tile (0,0), for the white point
     DlssNrMode_Calibrate = 4,  // the untouched frame -> a grid of tile peak luminances
-    DlssNrMode_HaloMeter = 5,  // proxy + the model's answer -> a grid of how far the answer glows past edges
-    DlssNrMode_HaloAfter = 6   // the untouched frame + the finished one -> the same grid, after Image Clean Up
+    DlssNrMode_HaloMeter = 5   // Image Clean Up's per-pixel readings -> three grids of how far each glows
 };
 
 // The meter's grid. 64 x 64 tiles over the whole frame, whatever its size.
@@ -226,8 +225,10 @@ struct alignas(256) DlssNrConstants
     float CleanupBalance;
     float CleanupMotion;
     uint32_t CleanupHaveMotion;
-    // D3D12 only (the Vulkan pass has no descriptors for them): t5 holds the depth guide, which way it
-    // runs, and the mask history -- 0 none, 1 write u1 only (a first frame), 2 read t6 and write u1.
+    // CleanupHaveMotion: 0 none, 1 the game's vectors, 2 optical flow (the Present route), where only fast
+    // motion holds the clean up back. D3D12 only (the Vulkan pass has no descriptors for them): t5 holds
+    // the depth guide, which way it runs, and the mask history -- 0 none, 1 write u1 and u2 only (a first
+    // frame), 2 also read t6.
     uint32_t CleanupHaveDepth;
     uint32_t CleanupDepthInverted;
     uint32_t CleanupHistory;

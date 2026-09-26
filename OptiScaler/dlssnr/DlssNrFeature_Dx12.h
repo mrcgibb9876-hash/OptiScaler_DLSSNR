@@ -125,6 +125,7 @@ struct CleanUpReading
     float strength = 0.0f;
     float haloBefore = -1.0f;
     float haloAfter = -1.0f;
+    float haloModel = -1.0f;         // the model's own change laid on the frame, before the composition
     std::optional<double> composeMs; // the composition pass, which the clean up runs inside
 };
 

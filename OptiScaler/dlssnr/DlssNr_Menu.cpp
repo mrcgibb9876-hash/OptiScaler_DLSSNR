@@ -2912,8 +2912,9 @@ void RenderMenu(Config* config, float menuResScale)
                 else if (!clean.measuring || clean.haloBefore < 0.0f)
                     ImGui::TextColored(kTextDim, "%s", Tr("Measuring the glow..."));
                 else
-                    ImGui::TextColored(kTextDim, Tr("Strength %.2f -- glow %.3f stops from the model, %.3f after"),
-                                       clean.strength, clean.haloBefore, std::max(clean.haloAfter, 0.0f));
+                    ImGui::TextColored(kTextDim, Tr("Strength %.2f -- glow %.3f stops, %.3f after (model alone %.3f)"),
+                                       clean.strength, clean.haloBefore, std::max(clean.haloAfter, 0.0f),
+                                       std::max(clean.haloModel, 0.0f));
             }
 
             ImGui::BeginDisabled(cleanMode != 1);
@@ -2952,8 +2953,8 @@ void RenderMenu(Config* config, float menuResScale)
                 config->DlssNrCleanUpBalance = std::clamp(cleanBalance, 0.0f, 1.0f);
             if (rCleanBalance.released)
                 anyChanged = true;
-            HelpMarker(Tr("Where it looks: 0 only at the pixels right beside each one, for a thin rim; 1 about"
-                          "\nfour pixels out, for a glow that sits a little off the edge; 0.5 both."));
+            HelpMarker(Tr("How far out it looks: 0 only the pixels right beside each one, for a thin rim; 0.5"
+                          "\nout to about 5 pixels; 1 out to about 12, for a glow that spreads well off the edge."));
 
             float cleanMotion = config->DlssNrCleanUpMotion.value_or_default();
             auto rCleanMotion = NrSlider(Tr("Motion protection"), &cleanMotion, 0.0f, 1.0f, "%.2f", rowWidth);

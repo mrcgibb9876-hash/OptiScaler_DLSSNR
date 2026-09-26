@@ -425,15 +425,16 @@ struct NrState
     bool builtUICorrection = true;
     unsigned long long settledAt = 0;
 
-    // Image Clean Up (see CleanUp in dlssnr.hlsl). Two 64x64 halo grids -- how far the model's answer
-    // strays past the band the clean up allows, measured on what the model was shown against what it
-    // returned (0), and on the untouched frame against the finished one (1) -- each read back four frames
+    // Image Clean Up (see the block in dlssnr.hlsl). Three 64x64 halo grids, reduced from what the resolve
+    // itself measured per pixel against one band and one mask -- the composed picture before the clean up
+    // (0), after it (1), and the model's own change laid on the frame (2) -- each read back four frames
     // later on its own ring, like the tone grid. Auto drives its strength from grid 0.
-    ID3D12Resource* haloGrid[2] = {};
-    ID3D12Resource* haloReadback[2][4] = {};
+    ID3D12Resource* haloGrid[3] = {};
+    ID3D12Resource* haloReadback[3][4] = {};
     unsigned long long haloFrames = 0;
     float haloBefore = -1.0f; // stops, -1 until a reading lands
     float haloAfter = -1.0f;
+    float haloModel = -1.0f;
     float haloSmoothed = -1.0f;
     int haloJumpHeld = 0;
     float cleanAutoStrength = 0.0f;
@@ -442,9 +443,12 @@ struct NrState
     std::chrono::steady_clock::time_point haloLastUpdate {};
     unsigned long long cleanHoldUntil = 0; // Auto holds still until this frame after a cut
 
-    // The clean up's mask history: two full-size R16G16 surfaces (mask, log depth), one read and one
-    // written each frame, swapping.
+    // The clean up's mask history: two full-size R16G16B16A16 surfaces (mask, log depth, and the mask-
+    // weighted excess before and after the clean up), one read and one written each frame, swapping; and
+    // one R16 surface for the model reading.
     ID3D12Resource* cleanHistory[2] = {};
+    ID3D12Resource* cleanModel = nullptr;
+    D3D12_RESOURCE_STATES cleanModelState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     D3D12_RESOURCE_STATES cleanHistoryState[2] = { D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                                                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS };
     unsigned int cleanHistoryW = 0;
@@ -1613,19 +1617,20 @@ void ConsumeToneReadback(float normScale, bool wantBrightness, bool wantContrast
 // kCleanSeconds and never faster than kCleanRate per second, so it does not pump. It holds still after a
 // cut (the model's history reset), when too few tiles have an edge to say anything, and for a couple of
 // readings when the halo jumps several-fold at once, which is a new scene rather than a new halo.
-constexpr float kCleanHaloFull = 0.10f;
+constexpr float kCleanHaloFull = 0.05f;
 constexpr float kCleanSeconds = 1.0f;
 constexpr float kCleanRate = 0.5f;
 constexpr unsigned int kCleanMinTiles = 24;
 // What Auto uses for the settings the Manual rows set.
 constexpr float kCleanAutoEdge = 1.5f;
-constexpr float kCleanAutoBalance = 0.5f;
+constexpr float kCleanAutoBalance = 1.0f;
 constexpr float kCleanAutoMotion = 0.5f;
 
 void ResetCleanUp()
 {
     g_nr.haloBefore = -1.0f;
     g_nr.haloAfter = -1.0f;
+    g_nr.haloModel = -1.0f;
     g_nr.haloSmoothed = -1.0f;
     g_nr.haloJumpHeld = 0;
     g_nr.haloFrames = 0;
@@ -1635,7 +1640,7 @@ void ResetCleanUp()
 
 bool EnsureHaloGrids(ID3D12Device* device)
 {
-    if (g_nr.haloGrid[0] != nullptr && g_nr.haloGrid[1] != nullptr)
+    if (g_nr.haloGrid[0] != nullptr && g_nr.haloGrid[1] != nullptr && g_nr.haloGrid[2] != nullptr)
         return true;
 
     D3D12_HEAP_PROPERTIES readback {};
@@ -1651,7 +1656,7 @@ bool EnsureHaloGrids(ID3D12Device* device)
     bufferDesc.SampleDesc.Count = 1;
     bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 
-    for (int g = 0; g < 2; ++g)
+    for (int g = 0; g < 3; ++g)
     {
         if (g_nr.haloGrid[g] == nullptr)
             g_nr.haloGrid[g] = CreateScratch(device, DXGI_FORMAT_R32_FLOAT, kDlssNrMeterGrid, kDlssNrMeterGrid);
@@ -1780,22 +1785,28 @@ bool EnsureCleanHistory(ID3D12Device* device, unsigned int width, unsigned int h
         // Parked, not released: last frame's list may still read it.
         if (g_nr.cleanHistory[i] != nullptr)
             ParkNrResource(g_nr.cleanHistory[i]);
-        g_nr.cleanHistory[i] = CreateScratch(device, DXGI_FORMAT_R16G16_FLOAT, width, height);
+        g_nr.cleanHistory[i] = CreateScratch(device, DXGI_FORMAT_R16G16B16A16_FLOAT, width, height);
         g_nr.cleanHistoryState[i] = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
     }
+    if (g_nr.cleanModel != nullptr)
+        ParkNrResource(g_nr.cleanModel);
+    g_nr.cleanModel = CreateScratch(device, DXGI_FORMAT_R16_FLOAT, width, height);
+    g_nr.cleanModelState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
     g_nr.cleanHistoryValid = false;
     g_nr.cleanHistoryIndex = 0;
     g_nr.cleanHistoryW = width;
     g_nr.cleanHistoryH = height;
 
-    if (g_nr.cleanHistory[0] == nullptr || g_nr.cleanHistory[1] == nullptr)
+    if (g_nr.cleanHistory[0] == nullptr || g_nr.cleanHistory[1] == nullptr || g_nr.cleanModel == nullptr)
     {
         for (auto& h : g_nr.cleanHistory)
         {
             if (h != nullptr)
                 ParkNrResource(h);
         }
+        if (g_nr.cleanModel != nullptr)
+            ParkNrResource(g_nr.cleanModel);
         g_nr.cleanHistoryW = 0;
         g_nr.cleanHistoryH = 0;
         return false;
@@ -1808,6 +1819,12 @@ void MoveCleanHistory(ID3D12GraphicsCommandList* cmdList, int index, D3D12_RESOU
 {
     Barrier(cmdList, g_nr.cleanHistory[index], g_nr.cleanHistoryState[index], to);
     g_nr.cleanHistoryState[index] = to;
+}
+
+void MoveCleanModel(ID3D12GraphicsCommandList* cmdList, D3D12_RESOURCE_STATES to)
+{
+    Barrier(cmdList, g_nr.cleanModel, g_nr.cleanModelState, to);
+    g_nr.cleanModelState = to;
 }
 
 // Whether the DLSS call this pass attached to came from the DLSS5 Feeder rather than the game's
@@ -2200,7 +2217,8 @@ DlssNr_Dx12::DlssNr_Dx12(std::string InName, ID3D12Device* InDevice) : Shader_Dx
 bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssNrConstants& InConstants,
                                ID3D12Resource* InSource, ID3D12Resource* InModel, ID3D12Resource* InOriginal,
                                ID3D12Resource* InMotion, ID3D12Resource* InPrevEdit, ID3D12Resource* OutTarget,
-                               ID3D12Resource* OutKeep, ID3D12Resource* InDepth, ID3D12Resource* InHistory)
+                               ID3D12Resource* OutKeep, ID3D12Resource* InDepth, ID3D12Resource* InHistory,
+                               ID3D12Resource* OutAux, ID3D12Resource* InCleanModel)
 {
     if (!_init || InCmdList == nullptr || _device == nullptr || InSource == nullptr || OutTarget == nullptr)
         return false;
@@ -2221,6 +2239,7 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
         InPrevEdit != nullptr ? InPrevEdit : InSource,
         InDepth != nullptr ? InDepth : InSource,
         InHistory != nullptr ? InHistory : InSource,
+        InCleanModel != nullptr ? InCleanModel : InSource,
     };
 
     // The depth guide keeps its own format: its clone is already the readable member of its family
@@ -2233,6 +2252,7 @@ bool DlssNr_Dx12::DispatchPass(ID3D12GraphicsCommandList* InCmdList, const DlssN
     ID3D12Resource* const uavs[kUavCount] = {
         OutTarget,
         OutKeep != nullptr ? OutKeep : OutTarget,
+        OutAux != nullptr ? OutAux : OutTarget,
     };
 
     for (uint32_t i = 0; i < kUavCount; ++i)
@@ -3853,14 +3873,16 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
 
         if (haloMeter)
         {
-            unsigned int tilesBefore = 0;
-            unsigned int tilesAfter = 0;
-            const float before = ReadHalo(0, &tilesBefore);
-            const float after = ReadHalo(1, &tilesAfter);
+            unsigned int tiles = 0;
+            const float before = ReadHalo(0, &tiles);
+            const float after = ReadHalo(1, &tiles);
+            const float model = ReadHalo(2, &tiles);
             if (before >= 0.0f)
                 g_nr.haloBefore = before;
             if (after >= 0.0f)
                 g_nr.haloAfter = after;
+            if (model >= 0.0f)
+                g_nr.haloModel = model;
             if (cleanAuto)
                 UpdateCleanAuto(before, cleanCap);
         }
@@ -3877,7 +3899,8 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             // Never exactly zero while on, so the mask history keeps being written; a strength this small
             // moves nothing (the shader applies only a real move).
             resolveParams.CleanupStrength = std::max(cleanStrength, 1e-6f);
-            resolveParams.CleanupHaveMotion = motionIn != nullptr && !cleanBlind ? 1u : 0u;
+            resolveParams.CleanupHaveMotion =
+                motionIn == nullptr || cleanBlind ? 0u : (g_presentRouteDispatch ? 2u : 1u);
         }
         g_nr.cleanApplied = cleanStrength;
         resolveParams.CleanupEdge =
@@ -3933,10 +3956,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             unsigned int workW;
             unsigned int workH;
             unsigned int passes;
-            float cleanup;
-            float cleanupEdge;
-            float cleanupBalance;
-            float cleanupMotion;
         };
 
         static ComposeReport loggedCompose {};
@@ -3955,21 +3974,14 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                                          resolveParams.Transfer,
                                          g_nr.workWidth,
                                          g_nr.workHeight,
-                                         effectivePasses,
-                                         (float) cleanMode + (cleanAuto ? cleanCap : cleanStrength) * 0.001f,
-                                         resolveParams.CleanupEdge,
-                                         resolveParams.CleanupBalance,
-                                         resolveParams.CleanupMotion };
+                                         effectivePasses };
 
         if (!loggedCompose.valid || loggedCompose.whitePoint != composeNow.whitePoint ||
             loggedCompose.transfer != composeNow.transfer || loggedCompose.colour != composeNow.colour ||
             loggedCompose.maxRatio != composeNow.maxRatio || loggedCompose.passthrough != composeNow.passthrough ||
             loggedCompose.debugView != composeNow.debugView || loggedCompose.compareMode != composeNow.compareMode ||
             loggedCompose.residual != composeNow.residual || loggedCompose.workW != composeNow.workW ||
-            loggedCompose.workH != composeNow.workH || loggedCompose.passes != composeNow.passes ||
-            loggedCompose.cleanup != composeNow.cleanup || loggedCompose.cleanupEdge != composeNow.cleanupEdge ||
-            loggedCompose.cleanupBalance != composeNow.cleanupBalance ||
-            loggedCompose.cleanupMotion != composeNow.cleanupMotion)
+            loggedCompose.workH != composeNow.workH || loggedCompose.passes != composeNow.passes)
         {
             loggedCompose = composeNow;
             LOG_INFO("DLSS-NR composition: paper white {:.2f}x, detail {:.2f}, colour {:.2f}, guard "
@@ -3978,16 +3990,69 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
                      composeNow.passthrough != 0 ? "off (frame already tone mapped)" : "on (linear HDR)",
                      composeNow.residual == 1 ? "matched residual" : "classic", composeNow.workW, composeNow.workH,
                      composeNow.passes, composeNow.debugView, composeNow.compareMode);
-            if (cleanOn)
-                LOG_INFO("DLSS-NR image clean up: {} ({} {:.2f}), edge {:.2f} stops, balance {:.2f}, motion {:.2f}; "
-                         "depth {}, motion vectors {}, mask history {}{}",
-                         cleanAuto ? "auto" : "manual", cleanAuto ? "cap" : "strength",
-                         cleanAuto ? cleanCap : cleanStrength, composeNow.cleanupEdge, composeNow.cleanupBalance,
-                         composeNow.cleanupMotion, resolveParams.CleanupHaveDepth != 0 ? "read" : "absent",
-                         resolveParams.CleanupHaveMotion != 0 ? "read" : (cleanBlind ? "zero (ignored)" : "absent"),
-                         cleanHistory ? "on" : "off", g_presentRouteDispatch ? ", Present route" : "");
-            else
-                LOG_INFO("DLSS-NR image clean up: off");
+        }
+
+        // Image Clean Up's settings, on their own line and at most once a second: a slider being dragged
+        // changes them every frame, and one line per frame is noise. The last value is always written
+        // once the second is up, so the log still ends on what was actually set.
+        {
+            struct CleanReport
+            {
+                uint32_t mode;
+                float value; // the cap in Auto, the strength in Manual
+                float edge;
+                float balance;
+                float motion;
+                uint32_t depth;
+                uint32_t vectors;
+                bool history;
+                bool present;
+
+                bool operator==(const CleanReport&) const = default;
+            };
+
+            static CleanReport loggedClean { ~0u };
+            static CleanReport pendingClean {};
+            static bool cleanPending = false;
+            static auto cleanLoggedAt = std::chrono::steady_clock::time_point {};
+
+            const CleanReport cleanNow { cleanOn ? cleanMode : 0u,
+                                         cleanOn ? std::round((cleanAuto ? cleanCap : cleanStrength) * 100.0f) / 100.0f
+                                                 : 0.0f,
+                                         cleanOn ? resolveParams.CleanupEdge : 0.0f,
+                                         cleanOn ? resolveParams.CleanupBalance : 0.0f,
+                                         cleanOn ? resolveParams.CleanupMotion : 0.0f,
+                                         cleanOn ? resolveParams.CleanupHaveDepth : 0u,
+                                         cleanOn ? resolveParams.CleanupHaveMotion + (cleanBlind ? 10u : 0u) : 0u,
+                                         cleanOn && cleanHistory,
+                                         cleanOn && g_presentRouteDispatch };
+
+            if (!(cleanNow == loggedClean))
+            {
+                pendingClean = cleanNow;
+                cleanPending = true;
+            }
+
+            const auto nowClean = std::chrono::steady_clock::now();
+            if (cleanPending && nowClean - cleanLoggedAt >= std::chrono::seconds(1))
+            {
+                const CleanReport& c = pendingClean;
+                if (c.mode == 0)
+                    LOG_INFO("DLSS-NR image clean up: off");
+                else
+                    LOG_INFO("DLSS-NR image clean up: {} ({} {:.2f}), edge {:.2f} stops, reach {:.2f}, motion {:.2f}; "
+                             "depth {}, motion vectors {}, mask history {}{}",
+                             c.mode == 1 ? "auto" : "manual", c.mode == 1 ? "cap" : "strength", c.value, c.edge,
+                             c.balance, c.motion, c.depth != 0 ? "read" : "absent",
+                             c.vectors == 1    ? "read (game)"
+                             : c.vectors == 2  ? "read (optical flow: only fast motion counts)"
+                             : c.vectors >= 10 ? "zero (ignored)"
+                                               : "absent",
+                             c.history ? "on" : "off", c.present ? ", Present route" : "");
+                loggedClean = pendingClean;
+                cleanPending = false;
+                cleanLoggedAt = nowClean;
+            }
         }
 
         // Supersampling down-leg. Average the Nx model answer back to native with the chosen filter, so
@@ -4072,18 +4137,6 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
         if (g_composeTime != nullptr)
             g_composeTime->Start(cmdList);
 
-        // The model's glow, measured before the clean up touches anything: the proxy it was shown against
-        // the answer it returned, onto grid 0. Timed with the composition, since it is the clean up's cost.
-        DlssNrConstants haloParams = resolveParams;
-        haloParams.Width = kDlssNrMeterGrid;
-        haloParams.Height = kDlssNrMeterGrid;
-        if (haloMeter)
-        {
-            haloParams.Mode = DlssNrMode_HaloMeter;
-            DispatchPass(cmdList, haloParams, resolveProxy, resolveAnswer, nullptr, nullptr, nullptr, g_nr.haloGrid[0],
-                         nullptr, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, nullptr);
-        }
-
         ID3D12Resource* historyRead = nullptr;
         ID3D12Resource* historyWrite = nullptr;
         if (cleanHistory)
@@ -4094,10 +4147,32 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             MoveCleanHistory(cmdList, read, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             historyWrite = g_nr.cleanHistory[write];
             historyRead = g_nr.cleanHistory[read];
+            MoveCleanModel(cmdList, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
 
         DispatchPass(cmdList, resolveParams, resolveProxy, resolveAnswer, resolveOriginal, motionIn, exposureTex,
-                     resolveTarget, historyWrite, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, historyRead);
+                     resolveTarget, historyWrite, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, historyRead,
+                     cleanHistory ? g_nr.cleanModel : nullptr, nullptr);
+
+        // The halo meter: the per-pixel readings the resolve just wrote, reduced to three 64x64 grids.
+        // Only when the resolve really ran the clean up -- not while a debug view other than the mask, the
+        // side by side comparison or "Apply model" off made it leave before it, which would leave last
+        // frame's readings in place. Timed with the composition, since it is the clean up's cost.
+        const bool meterNow = haloMeter && cleanHistory && resolveParams.ApplyModel != 0 &&
+                              resolveParams.CompareMode != 1 &&
+                              (resolveParams.DebugView == 0 || resolveParams.DebugView == 4);
+        if (meterNow)
+        {
+            MoveCleanHistory(cmdList, (int) g_nr.cleanHistoryIndex, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            MoveCleanModel(cmdList, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+            DlssNrConstants haloParams = resolveParams;
+            haloParams.Mode = DlssNrMode_HaloMeter;
+            haloParams.Width = kDlssNrMeterGrid;
+            haloParams.Height = kDlssNrMeterGrid;
+            DispatchPass(cmdList, haloParams, historyWrite, nullptr, nullptr, nullptr, nullptr, g_nr.haloGrid[0],
+                         g_nr.haloGrid[1], nullptr, historyWrite, g_nr.haloGrid[2], g_nr.cleanModel);
+        }
 
         if (cleanHistory)
         {
@@ -4105,27 +4180,14 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             g_nr.cleanHistoryValid = true;
         }
 
-        // What is left of it after: the untouched frame against the finished one, onto grid 1. Skipped
-        // while a debug view or a comparison is on screen, which is not the finished picture.
-        if (haloMeter && resolveParams.DebugView == 0 && resolveParams.CompareMode == 0 &&
-            (resolveTarget->GetDesc().Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0)
-        {
-            haloParams.Mode = DlssNrMode_HaloAfter;
-            Barrier(cmdList, resolveTarget, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            DispatchPass(cmdList, haloParams, resolveOriginal, resolveTarget, resolveOriginal, nullptr, exposureTex,
-                         g_nr.haloGrid[1], nullptr, resolveParams.CleanupHaveDepth != 0 ? depthIn : nullptr, nullptr);
-            Barrier(cmdList, resolveTarget, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-                    D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        }
-
         if (g_composeTime != nullptr)
             g_composeTime->End(cmdList);
 
-        if (haloMeter)
+        if (meterNow)
         {
             CopyHaloToReadback(cmdList, 0);
             CopyHaloToReadback(cmdList, 1);
+            CopyHaloToReadback(cmdList, 2);
             g_nr.haloFrames++;
         }
 
@@ -4343,10 +4405,11 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             {
                 const auto stops = [](float v)
                 { return v >= 0.0f ? std::format("{:.3f} stops", v) : std::string("not measured yet"); };
-                LOG_INFO("DLSS-NR image clean up: {}, strength {:.2f}, halo {} from the model, {} after the "
-                         "clean up{}",
+                LOG_INFO("DLSS-NR image clean up: {}, strength {:.2f}, halo {} in the composed picture, {} after "
+                         "the clean up, {} in the model's own change{}",
                          cleanMode == 1 ? "auto" : "manual", g_nr.cleanApplied, stops(g_nr.haloBefore),
-                         stops(g_nr.haloAfter), g_presentRouteDispatch ? " (Present route)" : "");
+                         stops(g_nr.haloAfter), stops(g_nr.haloModel),
+                         g_presentRouteDispatch ? " (Present route)" : "");
             }
         }
     }
@@ -5701,6 +5764,7 @@ CleanUpReading CleanUpState()
     r.strength = g_nr.cleanApplied;
     r.haloBefore = g_nr.haloBefore;
     r.haloAfter = g_nr.haloAfter;
+    r.haloModel = g_nr.haloModel;
     if (!g_timingTrust.Untrusted())
         r.composeMs = g_lastComposeTime;
     return r;
@@ -5950,7 +6014,7 @@ void Shutdown()
 
     ResetAutoTone();
 
-    for (int g = 0; g < 2; ++g)
+    for (int g = 0; g < 3; ++g)
     {
         if (g_nr.haloGrid[g] != nullptr)
         {
@@ -5973,6 +6037,11 @@ void Shutdown()
             h->Release();
             h = nullptr;
         }
+    }
+    if (g_nr.cleanModel != nullptr)
+    {
+        g_nr.cleanModel->Release();
+        g_nr.cleanModel = nullptr;
     }
     g_nr.cleanHistoryW = 0;
     g_nr.cleanHistoryH = 0;

@@ -1060,7 +1060,7 @@ void EvaluateAfterUpscaleVk(VkCommandBuffer cmdBuffer, NVSDK_NGX_Parameter* para
         encode.CleanupStrength = strength;
     }
     encode.CleanupEdge = cleanMode == 1 ? 1.5f : std::clamp(cfg.DlssNrCleanUpEdge.value_or_default(), 0.25f, 4.0f);
-    encode.CleanupBalance = cleanMode == 1 ? 0.5f : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
+    encode.CleanupBalance = cleanMode == 1 ? 1.0f : std::clamp(cfg.DlssNrCleanUpBalance.value_or_default(), 0.0f, 1.0f);
 
     const VkImageSubresourceRange colourRange = colour->Resource.ImageViewInfo.SubresourceRange;
 
