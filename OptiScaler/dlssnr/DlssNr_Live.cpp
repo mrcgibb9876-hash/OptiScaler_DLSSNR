@@ -149,6 +149,22 @@ std::string BuildJson()
         AppendOptNum(s, "haloModel", clean.measuring && clean.haloModel >= 0.0f, clean.haloModel, 3);
         s += ',';
         AppendOptNum(s, "composeMs", clean.composeMs.has_value(), clean.composeMs.value_or(0.0), 3);
+        s += ',';
+        // The edge treatment it ran with (Auto's own values in Auto): bleed inner/outer 0..1, dodge and burn in
+        // stops (burn below 0: darkening left alone).
+        AppendOptNum(s, "bleed", clean.measuring,
+                     config->DlssNrCleanUpMode.value_or_default() == 2
+                         ? std::clamp(config->DlssNrCleanUpBleed.value_or_default(), 0.0f, 1.0f)
+                         : 1.0f,
+                     2);
+        s += ',';
+        AppendOptNum(s, "bleedInner", clean.measuring, clean.bleedInner, 2);
+        s += ',';
+        AppendOptNum(s, "bleedOuter", clean.measuring, clean.bleedOuter, 2);
+        s += ',';
+        AppendOptNum(s, "dodge", clean.measuring, clean.dodge, 2);
+        s += ',';
+        AppendOptNum(s, "burn", clean.measuring, clean.burn, 2);
         s += "},";
     }
 

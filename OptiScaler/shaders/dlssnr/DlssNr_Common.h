@@ -241,6 +241,14 @@ struct alignas(256) DlssNrConstants
     // 1: t7 holds this frame's DlssNrMode_CleanupPrep surface, which the resolve's tile loads instead of
     // working its values out per group (D3D12). 0 on Vulkan and whenever the clean up is not drawn.
     uint32_t CleanupPrepared;
+    // Bleed: how much of the model's edge light is taken back on the object's own side of a silhouette
+    // (inner) and the background's (outer), 0..1; Dodge and Burn: the stops the model may lighten, or
+    // darken, a strip along a silhouette beyond what it did to the same surface a little way off, at full
+    // strength -- a negative Burn leaves darkening alone. Every dispatch that runs the clean up sets them.
+    float CleanupBleedInner;
+    float CleanupBleedOuter;
+    float CleanupDodge;
+    float CleanupBurn;
 };
 
 class DlssNr_Common

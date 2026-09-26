@@ -49,6 +49,14 @@ cbuffer Params : register(b0)
     uint  gCleanupProfile;    // [DlssNr] CleanUpProfile bits, for timing pieces: 2 no history, 4 no chroma,
                               // 8 no quiet-tile skip, 16 fill only (no per-pixel work), 32 no prep (host)
     uint  gCleanupPrepared;   // t7 holds this frame's log luminance, log depth and chroma (DlssNrMode_CleanupPrep)
+    // Bleed: how much of the model's edge light is taken back on the object's own side of a silhouette
+    // (inner) and on the background's (outer), 0..1 each; Dodge and Burn: how many stops the model may
+    // lighten, or darken, a strip along a silhouette beyond what it did to the same surface a little way
+    // off, at full strength. Negative Burn leaves darkening alone.
+    float gCleanupBleedInner;
+    float gCleanupBleedOuter;
+    float gCleanupDodge;
+    float gCleanupBurn;
 };
 
 // The tone trim: Brightness and Contrast, on luminance, in the normalised space where 1 is paper white.
@@ -1208,6 +1216,53 @@ float CleanupFalloff(int2 local, float centreDepth)
 #endif
 }
 
+// The same for the object's own side: how much of the neighbourhood is the FARTHER surface -- about a half
+// just inside a silhouette, nothing 12 px in.
+float CleanupFalloffInner(int2 local, float centreDepth)
+{
+#ifndef VK_MODE
+    if (gCleanupHaveDepth == 0)
+        return 0.0;
+
+    float farther = 0.0;
+    [unroll] for (int k = 0; k < 8; ++k)
+    {
+        farther += centreDepth - CleanupD(local, kCleanupDepthNear[k]) > 0.35 ? 1.0 : 0.0;
+        farther += centreDepth - CleanupD(local, kCleanupDepthFar[k]) > 0.35 ? 1.0 : 0.0;
+    }
+    [unroll] for (int g = 0; g < 4; ++g)
+    {
+        farther += centreDepth - CleanupD(local, kCleanupDepthDiag[g]) > 0.35 ? 1.0 : 0.0;
+        farther += centreDepth - CleanupD(local, kCleanupDepthFarDiag[g]) > 0.35 ? 1.0 : 0.0;
+    }
+    return saturate(farther / 12.0);
+#else
+    return 0.0;
+#endif
+}
+
+// The model's change in log luminance at a position, averaged over five taps two pixels apart: the smooth
+// part of what it did here, without the pixel's own fine detail -- so taking it back does not take the
+// detail with it (a character's hair along the silhouette keeps every strand the model drew).
+// Taps on the other side of the silhouette (more than 0.35 stops of depth away) are left out, so beside the
+// edge the average is not the other surface's change.
+float CleanupLocalChange(float2 at, float2 texel, float centreDepth)
+{
+    float sum = 0.0, n = 0.0;
+    [unroll] for (int t = 0; t < 5; ++t)
+    {
+        const float2 o = t == 0 ? float2(0.0, 0.0) : float2(t == 1 ? 2.0 : t == 2 ? -2.0 : 0.0, t == 3 ? 2.0 : t == 4 ? -2.0 : 0.0);
+        const float2 p = at + o * texel;
+        if (t == 0 || gCleanupHaveDepth == 0 || abs(CleanupDepthLog(p) - centreDepth) < 0.35)
+        {
+            sum += CleanupLog(CleanupDisplayLuma(gModel.SampleLevel(gLinear, p, 0).rgb)) -
+                   CleanupLog(CleanupDisplayLuma(gSource.SampleLevel(gLinear, p, 0).rgb));
+            n += 1.0;
+        }
+    }
+    return SanitizeFinite(sum / n, 0.0);
+}
+
 // The motion vector under a normalised position, in pixels of this dispatch; zero when there are none.
 float2 CleanupMotionAt(float2 uvq)
 {
@@ -1951,13 +2006,45 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
         // one level and then stopped -- a second line further out. Measured on the same captures at full
         // strength: dark-rim share 2.6-6.8% -> 0.2-2.6%, detail kept beside silhouettes 72-95% -> 91-97%.
         float moved = resultLog;
-        if (amount > 1e-4 && surround.w > 0.0)
+        const float dodge = lerp(kCleanupTolerance, max(gCleanupDodge, 0.0), saturate(gCleanupStrength));
+        const bool burning = gCleanupBurn >= 0.0;
+        const float burn = lerp(2.0 * kCleanupTolerance, max(gCleanupBurn, 0.0), saturate(gCleanupStrength));
+        uint bw, bh;
+        gSource.GetDimensions(bw, bh);
+        const float2 btexel = 1.0 / float2(bw, bh);
+
+        // Outer bleed: on the background's side, the light the model added beyond the same surface a little
+        // way off is taken back (per pixel: a glow is what it is here), and with Burn the dark it added too
+        // (the smooth part only, so no edge of the game's own comes back with it).
+        if (amount > 1e-4 && surround.w > 0.0 && gCleanupBleedOuter > 0.0)
         {
             const float modelChange = CleanupLog(CleanupDisplayLuma(modelSample.rgb)) -
                                       CleanupLog(CleanupDisplayLuma(proxySample.rgb));
-            const float tolerance = lerp(kCleanupTolerance, kCleanupToleranceTight, saturate(gCleanupStrength));
-            const float over = max(SanitizeFinite(modelChange, 0.0) - surround.x - tolerance, 0.0);
-            moved = resultLog - amount * falloff * over;
+            const float lighter = max(SanitizeFinite(modelChange, 0.0) - surround.x - dodge, 0.0);
+            const float darker = burning ? max(surround.x - CleanupLocalChange(uv, btexel, depthMask.z) - burn, 0.0) : 0.0;
+            moved += amount * falloff * saturate(gCleanupBleedOuter) * (darker - lighter);
+        }
+
+        // Inner bleed: the same on the object's own side of a silhouette, against the object's own surface
+        // further in -- the lighter band the model leaves along a character's outline. The smooth part
+        // only, so the object's detail is kept.
+        if (gCleanupHaveDepth != 0 && gCleanupBleedInner > 0.0 && depthMask.x > 0.0 && gCleanupStrength > 0.0)
+        {
+            const float amountInner = saturate(1.5 * gCleanupStrength) * saturate(1.5 * depthMask.x) *
+                                      smoothstep(0.25, 0.75, 1.0 - depthMask.y) * (1.0 - reject) *
+                                      saturate(gCleanupBleedInner);
+            const float fallInner = amountInner > 1e-4 ? CleanupFalloffInner(cleanLocal, depthMask.z) : 0.0;
+            if (fallInner > 0.0)
+            {
+                const float4 surroundInner = CleanupSurround(uv, btexel, depthMask.z);
+                if (surroundInner.w > 0.0)
+                {
+                    const float change = CleanupLocalChange(uv, btexel, depthMask.z);
+                    const float lighter = max(change - surroundInner.x - dodge, 0.0);
+                    const float darker = burning ? max(surroundInner.x - change - burn, 0.0) : 0.0;
+                    moved += amountInner * fallInner * (darker - lighter);
+                }
+            }
         }
 
 #ifndef VK_MODE

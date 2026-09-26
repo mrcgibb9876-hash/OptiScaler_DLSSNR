@@ -428,20 +428,29 @@ class Config
     CustomOptional<float> DlssNrMaxRatio { 2.0f };
 
     // Image Clean Up: the glow the model leaves around characters and other strong edges, held back by a
-    // local version of the guard above (see CleanUp in dlssnr.hlsl). Mode 0 off (the default until tested),
-    // 1 Auto -- the halo is measured every frame and the strength follows it, up to MaxStrength, with the
+    // local version of the guard above (see CleanUp in dlssnr.hlsl). Mode 0 off, 1 Auto (the default since
+    // 2026-09-26) -- the halo is measured every frame and the strength follows it, up to MaxStrength, with the
     // edge, balance and motion settings at their defaults -- 2 Manual, the four values below as set.
     // Strength 0..1; Edge is the local contrast, in stops, where an edge starts to count (fully at twice
     // it); Balance is the reach -- 0 the 3x3 around a pixel, 0.5 out to about 5 pixels, 1 out to about 12;
     // Motion is how
     // far fast motion and motion-vector breaks hold it back (D3D12, where the resolve has the game's
     // vectors). Auto measures on D3D12; on Vulkan, Auto uses the manual Strength capped by MaxStrength.
-    CustomOptional<uint32_t> DlssNrCleanUpMode { 0 };
+    CustomOptional<uint32_t> DlssNrCleanUpMode { 1 };
     CustomOptional<float> DlssNrCleanUpMaxStrength { 1.0f };
     CustomOptional<float> DlssNrCleanUpStrength { 0.6f };
     CustomOptional<float> DlssNrCleanUpEdge { 1.5f };
     CustomOptional<float> DlssNrCleanUpBalance { 0.75f };
     CustomOptional<float> DlssNrCleanUpMotion { 0.5f };
+    // Manual's edge treatment along silhouettes (Auto uses its own: kCleanAutoBleed* in DlssNr_Dx12.cpp).
+    // Bleed 0..1 scales both sides; BleedInner / BleedOuter 0..1 the object's own side and the background's;
+    // Dodge / Burn, in stops, how far the model may lighten / darken the strip along a silhouette beyond the
+    // same surface a little way off before it is taken back (Burn below 0 leaves darkening alone).
+    CustomOptional<float> DlssNrCleanUpBleed { 1.0f };
+    CustomOptional<float> DlssNrCleanUpBleedInner { 0.5f };
+    CustomOptional<float> DlssNrCleanUpBleedOuter { 1.0f };
+    CustomOptional<float> DlssNrCleanUpDodge { 0.0f };
+    CustomOptional<float> DlssNrCleanUpBurn { 0.1f };
     // One-shot: true writes one frame of everything the clean up sees to dlssnr-cleanup-capture\ beside
     // OptiScaler, for tools/cleanup-harness.js, and is set back to false (and saved) at once.
     CustomOptional<bool> DlssNrCleanUpCapture { false };
