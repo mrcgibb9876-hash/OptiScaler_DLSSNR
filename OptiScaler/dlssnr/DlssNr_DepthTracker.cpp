@@ -90,6 +90,8 @@ struct Entry
     // Present. Written under g_listMutex.
     unsigned int writesSubmitted = 0; // DSV binds for writing and depth clears, since the last Present
     unsigned int writesLastFrame = 0;
+    unsigned int writeBindsSubmitted = 0; // of them, the binds for writing -- a draw target, not just a clear
+    unsigned int writeBindsLastFrame = 0;
     unsigned long long lastWriteSeq = 0; // submission order of the last of them
     unsigned int submittedState = D3D12_RESOURCE_STATE_COMMON;
     bool submittedStateKnown = false;
@@ -147,6 +149,15 @@ void Note(const void* list, int candidate, unsigned char kind, unsigned int stat
 constexpr int kPolicyCount = 3;
 std::atomic<int> g_policy { 0 };
 bool g_lastPickSubmitted = false; // the current pick came from submitted work (Present thread only)
+
+// The kind (size and format) of buffer the submitted rule settled on, and its hysteresis counters.
+bool g_kindSet = false;
+unsigned int g_kindWidth = 0;
+unsigned int g_kindHeight = 0;
+DXGI_FORMAT g_kindFormat = DXGI_FORMAT_UNKNOWN;
+unsigned int g_kindChallenge = 0;   // frames running another kind scored higher
+unsigned int g_kindMissing = 0;     // frames running the submitted work did not write this kind
+unsigned long long g_kindHolds = 0; // frames that took the kind's newest buffer from an earlier frame
 
 size_t DsvHash(SIZE_T handle)
 {
@@ -656,6 +667,8 @@ void OnExecute(unsigned int count, ID3D12CommandList* const* lists)
             if (event.kind != 2)
             {
                 ++entry.writesSubmitted;
+                if (event.kind == 0)
+                    ++entry.writeBindsSubmitted;
                 entry.lastWriteSeq = g_submitSeq;
             }
 
@@ -671,6 +684,8 @@ void OnExecute(unsigned int count, ID3D12CommandList* const* lists)
 }
 
 int Policy() { return g_policy.load(std::memory_order_relaxed); }
+
+unsigned long long HeldFrames() { return g_kindHolds; }
 
 const char* PolicyName(int policy)
 {
@@ -706,6 +721,8 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
         {
             g_entries[i].writesLastFrame = g_entries[i].writesSubmitted;
             g_entries[i].writesSubmitted = 0;
+            g_entries[i].writeBindsLastFrame = g_entries[i].writeBindsSubmitted;
+            g_entries[i].writeBindsSubmitted = 0;
         }
 
         // A list left open across many frames (never submitted, never reset) is dropped rather than kept.
@@ -768,6 +785,13 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
     int best = -1;
     long long bestScore = -1;
     unsigned long long bestSeq = 0;
+    // The submitted rule's own candidates: the best of all, the best of the kind (size and format) picked
+    // before, and that kind's most recently written buffer from any frame.
+    int bestInKind = -1;
+    long long bestInKindScore = -1;
+    unsigned long long bestInKindSeq = 0;
+    int heldInKind = -1;
+    unsigned long long heldSeq = 0;
 
     for (unsigned int i = 0; i < count; ++i)
     {
@@ -776,10 +800,19 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
         if (entry.resource.load(std::memory_order_relaxed) == nullptr)
             continue;
 
-        if (anySubmitted ? entry.writesLastFrame == 0 : (entry.bindsLastFrame == 0 && entry.clearsLastFrame == 0))
+        if (renderWidth != 0 && entry.width != renderWidth)
             continue;
 
-        if (renderWidth != 0 && entry.width != renderWidth)
+        const bool ofKind =
+            g_kindSet && entry.width == g_kindWidth && entry.height == g_kindHeight && entry.format == g_kindFormat;
+
+        if (anySubmitted && ofKind && entry.lastWriteSeq > heldSeq)
+        {
+            heldSeq = entry.lastWriteSeq;
+            heldInKind = static_cast<int>(i);
+        }
+
+        if (anySubmitted ? entry.writesLastFrame == 0 : (entry.bindsLastFrame == 0 && entry.clearsLastFrame == 0))
             continue;
 
         long long score = 0;
@@ -799,15 +832,30 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
 
         if (anySubmitted)
         {
-            // Writes decide (Policy 0), or only break ties (Policy 1, where the last written wins).
+            // Binds for writing are what a scene depth is drawn through; a clear alone says little -- Resident
+            // Evil 2 clears a second 1920x1080 depth (format 39) once a frame and never draws into it, and it
+            // won every frame the scene depth's own work happened to land after the Present (8fc46f3d). So a
+            // bind for writing counts ten times a clear (Policy 0), or a buffer with any at all beats one with
+            // none (Policy 1, where the last written then wins).
+            const long long binds = static_cast<long long>(std::min(entry.writeBindsLastFrame, 5000u));
+            const long long clears = static_cast<long long>(std::min(entry.writesLastFrame, 5000u)) - binds;
             if (policy == 0)
-                score += static_cast<long long>(std::min(entry.writesLastFrame, 5000u)) * 10;
+                score += binds * 100 + clears * 10;
+            else
+                score += binds > 0 ? 100000 : 0;
 
             if (score > bestScore || (score == bestScore && entry.lastWriteSeq > bestSeq))
             {
                 bestScore = score;
                 bestSeq = entry.lastWriteSeq;
                 best = static_cast<int>(i);
+            }
+
+            if (ofKind && (score > bestInKindScore || (score == bestInKindScore && entry.lastWriteSeq > bestInKindSeq)))
+            {
+                bestInKindScore = score;
+                bestInKindSeq = entry.lastWriteSeq;
+                bestInKind = static_cast<int>(i);
             }
             continue;
         }
@@ -824,6 +872,53 @@ void EndFrame(unsigned int renderWidth, unsigned int renderHeight)
         {
             bestScore = score;
             best = static_cast<int>(i);
+        }
+    }
+
+    // Hysteresis on the kind of buffer (size and format), so the pick does not flip between two kinds from
+    // one frame to the next -- which is what the flips between format 19 and format 39 were. Another kind
+    // takes over only after winning 30 frames running; a frame whose submitted work did not touch the
+    // current kind at all takes that kind's most recently written buffer instead (still the newest scene
+    // depth the GPU has), for up to 30 frames running before the kind is given up.
+    if (anySubmitted && best >= 0)
+    {
+        const Entry& top = g_entries[best];
+        const bool topOfKind =
+            g_kindSet && top.width == g_kindWidth && top.height == g_kindHeight && top.format == g_kindFormat;
+        constexpr unsigned int kKindFrames = 30;
+
+        if (!g_kindSet || topOfKind)
+        {
+            g_kindChallenge = 0;
+            g_kindMissing = 0;
+        }
+        else if (bestInKind >= 0)
+        {
+            g_kindMissing = 0;
+            if (++g_kindChallenge < kKindFrames)
+                best = bestInKind;
+        }
+        else if (heldInKind >= 0 && ++g_kindMissing < kKindFrames)
+        {
+            best = heldInKind;
+            ++g_kindHolds;
+        }
+
+        const Entry& picked = g_entries[best];
+        if (!g_kindSet || picked.width != g_kindWidth || picked.height != g_kindHeight || picked.format != g_kindFormat)
+        {
+            if (g_kindSet)
+                LOG_INFO("DLSS-NR depth tracker: the pick moves from {}x{} format {} to {}x{} format {} ({})",
+                         g_kindWidth, g_kindHeight, (int) g_kindFormat, picked.width, picked.height,
+                         (int) picked.format,
+                         g_kindChallenge >= kKindFrames ? "it won 30 frames running"
+                                                        : "the old kind went unwritten for 30 frames");
+            g_kindSet = true;
+            g_kindWidth = picked.width;
+            g_kindHeight = picked.height;
+            g_kindFormat = picked.format;
+            g_kindChallenge = 0;
+            g_kindMissing = 0;
         }
     }
 
@@ -933,8 +1028,14 @@ void Invalidate()
             g_entries[i].writesSubmitted = 0;
             g_entries[i].writesLastFrame = 0;
             g_entries[i].submittedStateKnown = false;
+            g_entries[i].writeBindsSubmitted = 0;
+            g_entries[i].writeBindsLastFrame = 0;
         }
     }
+
+    g_kindSet = false;
+    g_kindChallenge = 0;
+    g_kindMissing = 0;
 
     for (size_t i = 0; i < kDsvTableSize; ++i)
         g_dsvTable[i].candidate.store(-1, std::memory_order_relaxed);
