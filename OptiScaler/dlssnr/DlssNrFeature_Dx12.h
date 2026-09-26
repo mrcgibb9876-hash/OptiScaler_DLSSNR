@@ -126,6 +126,9 @@ struct CleanUpReading
     float haloBefore = -1.0f;
     float haloAfter = -1.0f;
     float haloModel = -1.0f; // the model's own change laid on the frame, before the composition
+    float edge = 0.0f;       // the settings the last resolve ran with -- Auto's own in Auto
+    float balance = 0.0f;
+    float motion = 0.0f;
     float bleedInner = 0.0f; // the edge treatment the last resolve ran with (Bleed, Dodge, Burn)
     float bleedOuter = 0.0f;
     float dodge = 0.0f;
