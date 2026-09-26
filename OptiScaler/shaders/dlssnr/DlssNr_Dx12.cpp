@@ -442,7 +442,10 @@ struct NrState
     float haloSmoothed = -1.0f;
     int haloJumpHeld = 0;
     float cleanAutoStrength = 0.0f;
-    float cleanApplied = 0.0f;    // the strength the last resolve ran with, 0 when off
+    float cleanApplied = 0.0f; // the strength the last resolve ran with, 0 when off
+    float cleanEdge = 0.0f;    // and its settings (Auto's own in Auto), for the read-outs
+    float cleanBalance = 0.0f;
+    float cleanMotion = 0.0f;
     float cleanBleedInner = 0.0f; // and its edge treatment (CleanupBleedInner and so on), for the read-outs
     float cleanBleedOuter = 0.0f;
     float cleanDodge = 0.0f;
@@ -4044,6 +4047,9 @@ void DlssNr_Dx12::Dispatch(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* c
             g_nr.cleanBleedOuter = cleanOn ? resolveParams.CleanupBleedOuter : 0.0f;
             g_nr.cleanDodge = resolveParams.CleanupDodge;
             g_nr.cleanBurn = resolveParams.CleanupBurn;
+            g_nr.cleanEdge = resolveParams.CleanupEdge;
+            g_nr.cleanBalance = resolveParams.CleanupBalance;
+            g_nr.cleanMotion = resolveParams.CleanupMotion;
         }
 
         // The mask history: written from the first frame, read from the second, dropped with the clean up.
@@ -6599,6 +6605,9 @@ CleanUpReading CleanUpState()
     r.haloBefore = g_nr.haloBefore;
     r.haloAfter = g_nr.haloAfter;
     r.haloModel = g_nr.haloModel;
+    r.edge = g_nr.cleanEdge;
+    r.balance = g_nr.cleanBalance;
+    r.motion = g_nr.cleanMotion;
     r.bleedInner = g_nr.cleanBleedInner;
     r.bleedOuter = g_nr.cleanBleedOuter;
     r.dodge = g_nr.cleanDodge;

@@ -2932,6 +2932,12 @@ void RenderMenu(Config* config, float menuResScale)
                 ImGui::SetNextItemOpen(true, ImGuiCond_Always);
             if (ImGui::CollapsingHeader((std::string(Tr("Advanced")) + "##cleanup").c_str()))
             {
+                // Every row below is part of Image Clean Up and is driven by its one Auto. They take effect
+                // only in Manual; in Auto (and Off) they show what Auto is running with, read-only.
+                const bool cleanManualNow = cleanMode == 2;
+                const DlssNr::CleanUpReading cleanAutoNow = DlssNr::CleanUpState();
+                const auto shown = [&](float manualValue, float autoValue)
+                { return cleanManualNow ? manualValue : autoValue; };
                 bool cleanManual = cleanMode == 2;
                 if (NrCheckbox(Tr("Manual"), &cleanManual))
                 {
@@ -2953,7 +2959,7 @@ void RenderMenu(Config* config, float menuResScale)
                               "\nkept."));
 
                 ImGui::BeginDisabled(cleanMode != 2);
-                float cleanStrength = config->DlssNrCleanUpStrength.value_or_default();
+                float cleanStrength = shown(config->DlssNrCleanUpStrength.value_or_default(), cleanAutoNow.strength);
                 auto rCleanStrength = NrSlider(Tr("Strength"), &cleanStrength, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rCleanStrength.changed)
                     config->DlssNrCleanUpStrength = std::clamp(cleanStrength, 0.0f, 1.0f);
@@ -2962,7 +2968,7 @@ void RenderMenu(Config* config, float menuResScale)
                 HelpMarker(Tr("How much of the way a glowing pixel is taken back, and how tightly it is held to"
                               "\nwhat the pixels around it look like. 0 does nothing."));
 
-                float cleanEdge = config->DlssNrCleanUpEdge.value_or_default();
+                float cleanEdge = shown(config->DlssNrCleanUpEdge.value_or_default(), cleanAutoNow.edge);
                 auto rCleanEdge = NrSlider(Tr("Edge threshold"), &cleanEdge, 0.25f, 4.0f, "%.2f", rowWidth);
                 if (rCleanEdge.changed)
                     config->DlssNrCleanUpEdge = std::clamp(cleanEdge, 0.25f, 4.0f);
@@ -2971,7 +2977,7 @@ void RenderMenu(Config* config, float menuResScale)
                 HelpMarker(Tr("How hard a brightness edge has to be before it counts, in stops: lower cleans"
                               "\nmore of the picture. Silhouettes found from depth count whatever this is."));
 
-                float cleanBalance = config->DlssNrCleanUpBalance.value_or_default();
+                float cleanBalance = shown(config->DlssNrCleanUpBalance.value_or_default(), cleanAutoNow.balance);
                 auto rCleanBalance = NrSlider(Tr("Fine / wide"), &cleanBalance, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rCleanBalance.changed)
                     config->DlssNrCleanUpBalance = std::clamp(cleanBalance, 0.0f, 1.0f);
@@ -2981,7 +2987,7 @@ void RenderMenu(Config* config, float menuResScale)
                     Tr("How far out it looks: 0 only the pixels right beside each one, for a thin rim; 0.5"
                        "\nout to about 5 pixels; 1 out to about 12, for a glow that spreads well off the edge."));
 
-                float cleanMotion = config->DlssNrCleanUpMotion.value_or_default();
+                float cleanMotion = shown(config->DlssNrCleanUpMotion.value_or_default(), cleanAutoNow.motion);
                 auto rCleanMotion = NrSlider(Tr("Motion protection"), &cleanMotion, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rCleanMotion.changed)
                     config->DlssNrCleanUpMotion = std::clamp(cleanMotion, 0.0f, 1.0f);
@@ -2992,7 +2998,7 @@ void RenderMenu(Config* config, float menuResScale)
                               "\nPresent route without optical flow -- it has nothing to go on and does nothing."));
 
                 // The edge treatment along silhouettes. D3D12: the object's side and Burn need the depth guide.
-                float cleanBleed = config->DlssNrCleanUpBleed.value_or_default();
+                float cleanBleed = shown(config->DlssNrCleanUpBleed.value_or_default(), 1.0f);
                 auto rBleed = NrSlider(Tr("Bleed"), &cleanBleed, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rBleed.changed)
                     config->DlssNrCleanUpBleed = std::clamp(cleanBleed, 0.0f, 1.0f);
@@ -3001,7 +3007,7 @@ void RenderMenu(Config* config, float menuResScale)
                 HelpMarker(Tr("How much of the light the model spills across a character's outline is taken back."
                               "\n0 leaves the model's edges as they are."));
 
-                float cleanInner = config->DlssNrCleanUpBleedInner.value_or_default();
+                float cleanInner = shown(config->DlssNrCleanUpBleedInner.value_or_default(), cleanAutoNow.bleedInner);
                 auto rInner = NrSlider(Tr("Inner bleed"), &cleanInner, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rInner.changed)
                     config->DlssNrCleanUpBleedInner = std::clamp(cleanInner, 0.0f, 1.0f);
@@ -3009,7 +3015,7 @@ void RenderMenu(Config* config, float menuResScale)
                     anyChanged = true;
                 HelpMarker(Tr("The light band just inside a character's outline, on the character."));
 
-                float cleanOuter = config->DlssNrCleanUpBleedOuter.value_or_default();
+                float cleanOuter = shown(config->DlssNrCleanUpBleedOuter.value_or_default(), cleanAutoNow.bleedOuter);
                 auto rOuter = NrSlider(Tr("Outer bleed"), &cleanOuter, 0.0f, 1.0f, "%.2f", rowWidth);
                 if (rOuter.changed)
                     config->DlssNrCleanUpBleedOuter = std::clamp(cleanOuter, 0.0f, 1.0f);
@@ -3017,7 +3023,7 @@ void RenderMenu(Config* config, float menuResScale)
                     anyChanged = true;
                 HelpMarker(Tr("The glow just outside a character's outline, on the background."));
 
-                float cleanDodge = config->DlssNrCleanUpDodge.value_or_default();
+                float cleanDodge = shown(config->DlssNrCleanUpDodge.value_or_default(), cleanAutoNow.dodge);
                 auto rDodge = NrSlider(Tr("Dodge"), &cleanDodge, 0.0f, 0.5f, "%.2f", rowWidth);
                 if (rDodge.changed)
                     config->DlssNrCleanUpDodge = std::clamp(cleanDodge, 0.0f, 0.5f);
@@ -3026,7 +3032,8 @@ void RenderMenu(Config* config, float menuResScale)
                 HelpMarker(Tr("Limits how far the model may lighten an area the game's picture gives it no"
                               "\ndetail to lighten, in stops. 0 allows none."));
 
-                float cleanBurn = std::max(config->DlssNrCleanUpBurn.value_or_default(), 0.0f);
+                float cleanBurn =
+                    std::max(shown(config->DlssNrCleanUpBurn.value_or_default(), cleanAutoNow.burn), 0.0f);
                 auto rBurn = NrSlider(Tr("Burn"), &cleanBurn, 0.0f, 0.5f, "%.2f", rowWidth);
                 if (rBurn.changed)
                     config->DlssNrCleanUpBurn = std::clamp(cleanBurn, 0.0f, 0.5f);
