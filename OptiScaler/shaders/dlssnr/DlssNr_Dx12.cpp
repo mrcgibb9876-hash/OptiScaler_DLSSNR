@@ -542,18 +542,20 @@ unsigned long long g_captureWriteAtFrame = 0;
 cleancapture::CleanCapture g_cleanCapture;
 ID3D12Resource* g_cleanCaptureBefore = nullptr;
 
-// Image Clean Up's one-frame capture, from any of four places: Ctrl+Shift+F12, the panel's button,
+// Image Clean Up's one-frame capture, from any of four places: Ctrl+F1 or Ctrl+Shift+F12, the panel's button,
 // [DlssNr] CleanUpCapture=true (set back to false and saved at once, so a live reload fires it once), or a
 // file named dlssnr-cleanup-capture.trigger beside OptiScaler.
 void CheckCleanCaptureTrigger()
 {
     static bool keyWasDown = false;
-    const bool keyDown = (GetAsyncKeyState(VK_F12) & 0x8000) != 0 && (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0 &&
-                         (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+    // Ctrl+F1 as well: one hand stays on the mouse while the other captures mid-movement.
+    const bool ctrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    const bool keyDown = ctrlDown && (((GetAsyncKeyState(VK_F12) & 0x8000) != 0 && (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0) ||
+                                      (GetAsyncKeyState(VK_F1) & 0x8000) != 0);
     if (keyDown && !keyWasDown)
     {
         g_cleanCapture.request();
-        LOG_INFO("DLSS-NR image clean up capture requested (Ctrl+Shift+F12)");
+        LOG_INFO("DLSS-NR image clean up capture requested (Ctrl+F1 or Ctrl+Shift+F12)");
     }
     keyWasDown = keyDown;
 
