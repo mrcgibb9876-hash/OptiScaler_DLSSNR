@@ -604,7 +604,6 @@ static const float kCleanupToleranceTight = 0.0;  // ... and at strength 1: the 
 groupshared uint gsCleanLD[CLEAN_TILE * CLEAN_TILE];
 groupshared uint gsCleanChroma[CLEAN_TILE * CLEAN_TILE];
 groupshared float gsCleanShift[4];
-groupshared float2 gsCleanShiftChroma[4];
 groupshared float gsCleanShiftDepth[4];
 // The tile's range of log luminance and log depth (order-preserving uints), for skipping a tile with no
 // edge in it at all -- most of any frame.
@@ -826,7 +825,6 @@ bool CleanupFill(uint2 group, uint index)
         const float2 at = middle + kCleanupFar[index] * texel;
         gsCleanShift[index] = CleanupShiftTap(at);
         gsCleanShiftDepth[index] = CleanupDepthLog(at);
-        gsCleanShiftChroma[index] = CleanupShiftChromaTap(at, texel);
     }
 
     GroupMemoryBarrierWithGroupSync();
@@ -1149,22 +1147,65 @@ float CleanupShift(float centreDepth)
     return sum / float(n);
 }
 
-// The model's regional colour change for this pixel: the mean of the group's same-side taps (within a
-// stop of depth), or of all four when none is. Chroma has no one-sided bias the way a glow's brightness
-// has, so no median.
-float2 CleanupShiftChroma(float centreDepth)
+// What the model did to the pixel's own surface a little way off, per pixel: its change in log luminance
+// (x) and in chroma (yz), the model's picture against the proxy, averaged over the taps 16 and 20 px out in
+// the four directions that sit on the pixel's side of the silhouette (within 0.35 stops of depth; all of
+// them without depth). w: how many taps counted.
+//
+// Per pixel, not per group. The regional tone change used to come from four taps 48 px out of each 8x8
+// group's middle, so every group had its own value and the correction changed in 8 px steps -- the blocky,
+// stair-stepped second edge along a pipe or a character that Image Clean Up drew at full strength (Resident
+// Evil 2 captures 212857 against 212904, 2026-09-26: the correction 9-28% larger across group boundaries
+// than inside them; per pixel, 0-4%).
+float4 CleanupSurround(float2 uvq, float2 texel, float centreDepth)
 {
-    float2 sum = float2(0.0, 0.0);
+    float3 sum = float3(0.0, 0.0, 0.0);
     float n = 0.0;
-    [unroll] for (int f = 0; f < 4; ++f)
+    [unroll] for (int t = 0; t < 8; ++t)
     {
-        const bool same = gCleanupHaveDepth == 0 || abs(gsCleanShiftDepth[f] - centreDepth) < 1.0;
-        sum += same ? gsCleanShiftChroma[f] : float2(0.0, 0.0);
-        n += same ? 1.0 : 0.0;
+        const float dist = t < 4 ? 16.0 : 20.0;
+        const int q = t & 3;
+        const float2 dir = q == 0 ? float2(1.0, 0.0) : q == 1 ? float2(-1.0, 0.0) : q == 2 ? float2(0.0, 1.0) : float2(0.0, -1.0);
+        const float2 at = uvq + dir * dist * texel;
+        if (gCleanupHaveDepth == 0 || abs(CleanupDepthLog(at) - centreDepth) < 0.35)
+        {
+            const float3 m = gModel.SampleLevel(gLinear, at, 0).rgb;
+            const float3 p = gSource.SampleLevel(gLinear, at, 0).rgb;
+            sum += SanitizeFinite3(float3(CleanupLog(CleanupDisplayLuma(m)) - CleanupLog(CleanupDisplayLuma(p)),
+                                          CleanupChroma(max(CleanupFrameSpace(m), 0.0)) -
+                                              CleanupChroma(max(CleanupFrameSpace(p), 0.0))),
+                                   float3(0.0, 0.0, 0.0));
+            n += 1.0;
+        }
     }
-    if (n == 0.0)
-        return 0.25 * (gsCleanShiftChroma[0] + gsCleanShiftChroma[1] + gsCleanShiftChroma[2] + gsCleanShiftChroma[3]);
-    return sum / n;
+    return n > 0.0 ? float4(sum / n, n) : float4(0.0, 0.0, 0.0, 0.0);
+}
+
+// How much of the pixel's neighbourhood is the nearer object, from the tile's depth rings (3 to 12 px out):
+// about a half right beside a silhouette, falling to nothing at the reach. The correction is scaled by it so
+// it fades out with distance instead of holding level to the mask's reach and stopping there -- which drew a
+// second line 12-14 px off the silhouette (the same captures). 1 without depth.
+float CleanupFalloff(int2 local, float centreDepth)
+{
+#ifndef VK_MODE
+    if (gCleanupHaveDepth == 0)
+        return 1.0;
+
+    float nearer = 0.0;
+    [unroll] for (int k = 0; k < 8; ++k)
+    {
+        nearer += CleanupD(local, kCleanupDepthNear[k]) - centreDepth > 0.35 ? 1.0 : 0.0;
+        nearer += CleanupD(local, kCleanupDepthFar[k]) - centreDepth > 0.35 ? 1.0 : 0.0;
+    }
+    [unroll] for (int g = 0; g < 4; ++g)
+    {
+        nearer += CleanupD(local, kCleanupDepthDiag[g]) - centreDepth > 0.35 ? 1.0 : 0.0;
+        nearer += CleanupD(local, kCleanupDepthFarDiag[g]) - centreDepth > 0.35 ? 1.0 : 0.0;
+    }
+    return saturate(nearer / 12.0);
+#else
+    return 1.0;
+#endif
 }
 
 // The motion vector under a normalised position, in pixels of this dispatch; zero when there are none.
@@ -1845,6 +1886,22 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
             amount = saturate(1.5 * gCleanupStrength) * saturate(1.5 * edge) * (1.0 - reject);
         }
 
+        // The surround and the fall-off, once, for both steps below.
+        float4 surround = float4(0.0, 0.0, 0.0, 0.0);
+        float falloff = 0.0;
+        if (amount > 1e-4)
+        {
+            // The fall-off first: from the tile, cheap, and nothing is moved where it is zero -- a pixel with no
+            // nearer object within the reach -- so the surround's texture taps are skipped there.
+            falloff = CleanupFalloff(cleanLocal, depthMask.z);
+            if (falloff > 0.0)
+            {
+                uint sw, sh;
+                gSource.GetDimensions(sw, sh);
+                surround = CleanupSurround(uv, 1.0 / float2(sw, sh), depthMask.z);
+            }
+        }
+
         // The colour of a glow, on the far side of a silhouette: its chroma (YCoCg over Y) held to the
         // model's regional colour change, plus a tolerance that narrows with strength. The one place the
         // clean up changes hue on purpose -- a fringe the character's colour bled into the background, or
@@ -1859,9 +1916,9 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
                 const float farAmount = amount * smoothstep(0.25, 0.75, depthMask.y);
                 const float co = (0.5 * result.r - 0.5 * result.b) / yc;
                 const float cg = (-0.25 * result.r + 0.5 * result.g - 0.25 * result.b) / yc;
-                // The model's colour change at this pixel against its colour change across the region (48 px
-                // out, on the frame's own side of the silhouette): what exceeds it by more than the tolerance
-                // is the fringe, and is taken back out of the composed pixel. Both changes are the model's
+                // The model's colour change at this pixel against its colour change on the same surface a
+                // little way off (CleanupSurround): what exceeds it by more than the tolerance is the fringe,
+                // and is taken back out of the composed pixel, fading with distance (CleanupFalloff). Both changes are the model's
                 // picture against the proxy through the same five-tap average, so the proxy's dither (Resident
                 // Evil 2) cancels rather than deciding it. It used to be a clamp to the same-side neighbourhood's
                 // range of the frame's chroma, which dither made so wide it never bound: the light blue-grey
@@ -1871,11 +1928,11 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
                 // and scaling by it overshot into a rim less blue than its surroundings.
                 uint cw, ch;
                 gSource.GetDimensions(cw, ch);
-                const float2 excess =
-                    CleanupShiftChromaTap(uv, 1.0 / float2(cw, ch)) - CleanupShiftChroma(depthMask.z);
+                const float2 excess = CleanupShiftChromaTap(uv, 1.0 / float2(cw, ch)) - surround.yz;
                 const float2 over = sign(excess) * max(abs(excess) - max(tolerance, 0.01), 0.0);
-                const float coT = co - farAmount * over.x;
-                const float cgT = cg - farAmount * over.y;
+                const float held = surround.w > 0.0 ? farAmount * falloff : 0.0;
+                const float coT = co - held * over.x;
+                const float cgT = cg - held * over.y;
                 if (coT != co || cgT != cg)
                 {
                     const float base = yc - cgT * yc;
@@ -1886,9 +1943,22 @@ void CSMain(uint3 id : SV_DispatchThreadID, uint3 gid : SV_GroupID, uint gi : SV
 
         const float resultLuma = dot(max(result, 0.0), kLuma);
         const float resultLog = CleanupLog(resultLuma);
+        // Brightness: only what the model ADDED here beyond what it added to the same surface a little way off
+        // is taken back -- one-sided, against the surround, fading with distance. It used to clamp the
+        // composed pixel into the frame's own neighbourhood range plus a regional shift, both ways: that
+        // also lifted the pixels the model had darkened right beside a silhouette back up to the game's own
+        // (aliased) edge, drawing a light, jagged line hugging it, and held everything within the reach to
+        // one level and then stopped -- a second line further out. Measured on the same captures at full
+        // strength: dark-rim share 2.6-6.8% -> 0.2-2.6%, detail kept beside silhouettes 72-95% -> 91-97%.
         float moved = resultLog;
-        if (amount > 1e-4)
-            moved = lerp(resultLog, clamp(resultLog, band.x, band.y), amount);
+        if (amount > 1e-4 && surround.w > 0.0)
+        {
+            const float modelChange = CleanupLog(CleanupDisplayLuma(modelSample.rgb)) -
+                                      CleanupLog(CleanupDisplayLuma(proxySample.rgb));
+            const float tolerance = lerp(kCleanupTolerance, kCleanupToleranceTight, saturate(gCleanupStrength));
+            const float over = max(SanitizeFinite(modelChange, 0.0) - surround.x - tolerance, 0.0);
+            moved = resultLog - amount * falloff * over;
+        }
 
 #ifndef VK_MODE
         // What the halo meter reads (DlssNrMode_HaloMeter), all against the same loosest band and weighted

@@ -18,6 +18,10 @@
 // numbers that say whether a change to the shader helps before it is built. Keep it in step with the
 // shader: when the shader changes, change this the same way.
 //
+// Since 2026-09-26 the shader's brightness and colour steps work against a per-pixel surround with a
+// distance fall-off (CleanupSurround, CleanupFalloff); this port still has the older band clamp, so for exact
+// results run the real shader with tools/cleanup-lab/bench.cpp. The mask and meter here still match.
+//
 // Single frame, so no mask history; motion is not modelled (the captured vectors are written but not
 // read here). --images writes BMPs of the mask, the glow before and after, and the pictures.
 'use strict';
